@@ -1,0 +1,75 @@
+steps:
+  # Step 1: Linter and Formatting Check
+  - name: 'python:3.11-slim'
+    id: 'lint'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install ruff
+        ruff check backend/
+        ruff format --check backend/
+
+  # Step 2: Unit Tests with Coverage Gate (>=80%)
+  - name: 'python:3.11-slim'
+    id: 'unit-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cd backend
+        pip install -r requirements.txt
+        pytest --cov=src --cov-fail-under=80 tests/
+
+  # Step 3: Build Docker Container
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest'
+      - '-f'
+      - 'deployment/Dockerfile'
+      - '.'
+
+  # Step 4: Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
+
+  # Step 5: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-cloud-run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'catalog-comparison-service'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--project'
+      - '${_PROJECT_ID}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account'
+      - 'catalog-agent-sa@${_PROJECT_ID}.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'GCP_PROJECT_ID=${_PROJECT_ID}'
+
+substitutions:
+  _REGION: 'us-central1'
+  _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
+  - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

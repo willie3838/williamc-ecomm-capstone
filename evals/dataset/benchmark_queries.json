@@ -1,0 +1,75 @@
+[
+  {
+    "id": "laptop-001",
+    "category": "Laptops",
+    "query": "Compare MacBook Air 13-inch M3 with Dell XPS 13 Intel Core Ultra 7",
+    "expected_skus": ["6534606", "6575132"],
+    "key_differential_features": ["processor", "ram_gb", "battery_life_hours", "weight_lbs"],
+    "ground_truth_specs": {
+      "6534606": {
+        "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+        "brand": "Apple",
+        "processor": "Apple M3 8-core",
+        "ram_gb": 16,
+        "storage_gb": 512,
+        "battery_life_hours": 18.0,
+        "weight_lbs": 2.7
+      },
+      "6575132": {
+        "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+        "brand": "Dell",
+        "processor": "Intel Core Ultra 7 155H",
+        "ram_gb": 16,
+        "storage_gb": 512,
+        "battery_life_hours": 14.0,
+        "weight_lbs": 2.6
+      }
+    }
+  },
+  {
+    "id": "tablet-001",
+    "category": "Tablets",
+    "query": "Which has better battery and screen: iPad Pro 11-inch M4 or Samsung Galaxy Tab S9?",
+    "expected_skus": ["6579601", "6546522"],
+    "key_differential_features": ["display_resolution", "battery_life_hours", "processor"],
+    "ground_truth_specs": {
+      "6579601": {
+        "name": "Apple iPad Pro 11\" OLED - M4 chip",
+        "brand": "Apple",
+        "display_resolution": "2420 x 1668 Ultra Retina XDR OLED",
+        "battery_life_hours": 10.0,
+        "processor": "Apple M4 9-core"
+      },
+      "6546522": {
+        "name": "Samsung Galaxy Tab S9 11\" AMOLED",
+        "brand": "Samsung",
+        "display_resolution": "2560 x 1600 Dynamic AMOLED 2X",
+        "battery_life_hours": 12.0,
+        "processor": "Qualcomm Snapdragon 8 Gen 2"
+      }
+    }
+  },
+  {
+    "id": "headphone-001",
+    "category": "Headphones",
+    "query": "Compare Sony WH-1000XM5 vs Bose QuietComfort Ultra for battery life and noise cancellation",
+    "expected_skus": ["6505727", "6553823"],
+    "key_differential_features": ["battery_life_hours", "noise_cancellation", "weight_oz"],
+    "ground_truth_specs": {
+      "6505727": {
+        "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
+        "brand": "Sony",
+        "battery_life_hours": 30.0,
+        "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer",
+        "weight_oz": 8.8
+      },
+      "6553823": {
+        "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
+        "brand": "Bose",
+        "battery_life_hours": 24.0,
+        "noise_cancellation": "CustomTune Active Noise Cancelling",
+        "weight_oz": 8.9
+      }
+    }
+  }
+]
