@@ -109,6 +109,14 @@ class ComparisonResponse(BaseModel):
         ge=0.0,
         description="End-to-end request processing latency in milliseconds",
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Client session identifier correlated with distributed trace",
+    )
+    trace_id: str | None = Field(
+        default=None,
+        description="Distributed OpenTelemetry trace ID (32-character hex)",
+    )
 
 
 # Backward compatibility alias
