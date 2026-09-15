@@ -1,11 +1,14 @@
 """FastAPI Application entrypoint for the Best Buy Catalog Comparison Agent."""
 
-from typing import Any
-
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
-PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
+from app.agent.orchestrator import ComparisonOrchestrator
+from app.config import settings
+from app.models.requests import CompareRequest
+from app.models.responses import CompareResponse
+
+PROJECT_ID = settings.gcp_project
 
 app = FastAPI(
     title="Best Buy Catalog Comparison Agent API",
@@ -15,30 +18,12 @@ app = FastAPI(
 
 
 class HealthResponse(BaseModel):
+    """Health status response schema."""
+
     status: str = Field(..., examples=["ok"])
     service: str = Field(..., examples=["catalog-backend"])
-    project: str = Field(..., examples=[PROJECT_ID])
+    project: str = Field(..., examples=[settings.gcp_project])
     version: str = Field(..., examples=["0.1.0"])
-
-
-class CompareRequest(BaseModel):
-    query: str = Field(..., min_length=3, description="Natural language comparison query")
-    category: str | None = Field(
-        default=None, description="Optional category filter (e.g. Laptops)"
-    )
-
-
-class MatrixRow(BaseModel):
-    feature: str
-    values: dict[str, Any]
-    winner_sku: str | None = None
-
-
-class CompareResponse(BaseModel):
-    summary: str
-    products: list[dict[str, Any]]
-    comparison_matrix: list[MatrixRow]
-    citations: list[dict[str, str]]
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Observability"])
@@ -47,7 +32,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
         service="catalog-backend",
-        project=PROJECT_ID,
+        project=settings.gcp_project,
         version="0.1.0",
     )
 
@@ -61,10 +46,5 @@ async def compare(request: CompareRequest) -> CompareResponse:
             detail="Query string must not be empty.",
         )
 
-    # Initial scaffolding response - fully replaced when ADK agent is executed
-    return CompareResponse(
-        summary=f"Comparison query received: '{request.query}'. Agent retrieval ready.",
-        products=[],
-        comparison_matrix=[],
-        citations=[],
-    )
+    orchestrator = ComparisonOrchestrator()
+    return orchestrator.compare(query=request.query, category=request.category)
