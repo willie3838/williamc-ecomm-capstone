@@ -1,8 +1,9 @@
-"""Unit tests for FastAPI health and API endpoints."""
+"""Unit tests for FastAPI health and observability endpoints."""
 
 from fastapi.testclient import TestClient
 
-from app.main import PROJECT_ID, app
+from app.config import Settings, get_settings
+from app.main import PROJECT_ID, app, create_app
 
 client = TestClient(app)
 
@@ -16,30 +17,41 @@ def test_health_endpoint() -> None:
     assert data["service"] == "catalog-backend"
     assert data["project"] == PROJECT_ID
     assert data["version"] == "0.1.0"
+    assert data["environment"] == "development"
 
 
-def test_compare_endpoint_scaffold() -> None:
-    """Verify compare endpoint accepts valid payload and returns structured response."""
-    response = client.post(
-        "/api/compare",
-        json={"query": "Compare MacBook Air M3 and Dell XPS 13", "category": "Laptops"},
-    )
+def test_readiness_endpoint() -> None:
+    """Verify readiness probe returns 200 and ready status."""
+    response = client.get("/health/ready")
     assert response.status_code == 200
     data = response.json()
-    assert "summary" in data
-    assert "products" in data
-    assert "comparison_matrix" in data
-    assert "citations" in data
+    assert data["status"] == "ready"
+    assert data["service"] == "catalog-backend"
+    assert data["project"] == PROJECT_ID
 
 
-def test_compare_endpoint_invalid_empty() -> None:
-    """Verify validation error on query that is too short."""
-    response = client.post("/api/compare", json={"query": "a"})
-    assert response.status_code == 422  # Pydantic min_length validation error
+def test_health_custom_settings() -> None:
+    """Verify health endpoint reflects custom settings when injected."""
+    custom_settings = Settings(
+        project_id="custom-fde-project",
+        service_name="custom-backend",
+        environment="staging",
+        api_version="2.0.0",
+    )
+    custom_app = create_app(settings=custom_settings)
+    custom_app.dependency_overrides[get_settings] = lambda: custom_settings
+    test_client = TestClient(custom_app)
 
+    response = test_client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project"] == "custom-fde-project"
+    assert data["service"] == "custom-backend"
+    assert data["environment"] == "staging"
+    assert data["version"] == "2.0.0"
 
-def test_compare_endpoint_whitespace_only() -> None:
-    """Verify 400 Bad Request error on query containing only whitespace."""
-    response = client.post("/api/compare", json={"query": "   "})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Query string must not be empty."
+    readiness_resp = test_client.get("/health/ready")
+    assert readiness_resp.status_code == 200
+    rdata = readiness_resp.json()
+    assert rdata["project"] == "custom-fde-project"
+    assert rdata["service"] == "custom-backend"
