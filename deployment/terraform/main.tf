@@ -32,6 +32,8 @@ resource "google_bigquery_table" "products" {
     { name = "brand", type = "STRING", mode = "REQUIRED", description = "Product brand" },
     { name = "category", type = "STRING", mode = "REQUIRED", description = "Product category" },
     { name = "price", type = "FLOAT", mode = "REQUIRED", description = "Current price in USD" },
+    { name = "shortDescription", type = "STRING", mode = "REQUIRED", description = "Brief marketing overview and key features" },
+    { name = "longDescription", type = "STRING", mode = "NULLABLE", description = "Complete detailed product summary" },
     { name = "rating", type = "FLOAT", mode = "NULLABLE", description = "Customer review rating" },
     { name = "review_count", type = "INTEGER", mode = "NULLABLE", description = "Number of customer reviews" },
     { name = "specifications", type = "JSON", mode = "REQUIRED", description = "Key-value technical specs" },
