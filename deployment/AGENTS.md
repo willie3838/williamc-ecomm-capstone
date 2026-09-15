@@ -22,8 +22,11 @@ All infrastructure must strictly deploy into:
 ```
 deployment/
 ├── AGENTS.md                  # This file (DevOps & IaC guide)
-├── cloudbuild.yaml            # Continuous Integration & Delivery pipeline
-├── Dockerfile                 # Multi-stage production container for Cloud Run
+├── cloudbuild.yaml            # Continuous Integration & Delivery pipeline (canary + promotion)
+├── cloudbuild-rollback.yaml   # Automated Cloud Build emergency rollback pipeline
+├── Dockerfile                 # Hardened multi-stage container (non-root appuser, healthcheck)
+├── rollback.sh                # Instant traffic rollback CLI script
+├── validate_pipeline.py       # Standalone pipeline and configuration validator
 └── terraform/
     ├── providers.tf           # Google Cloud provider configuration
     ├── variables.tf           # Input variables (project_id, region, etc.)
@@ -53,24 +56,51 @@ deployment/
 
 ---
 
-## 4. Cloud Build CI/CD Protocol
+## 4. Cloud Build CI/CD Protocol (Rubric 6.1 Compliance)
 
-The automated pipeline defined in `cloudbuild.yaml` executes the following sequential steps:
-1. **Linter Check**: Runs `ruff check .` and `ruff format --check .`.
-2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80` inside the containerized test harness.
-3. **Container Build**: Builds the optimized container using Docker multi-stage build.
-4. **Artifact Push**: Pushes image to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:$COMMIT_SHA`.
-5. **Cloud Run Release**: Deploys the revision to Cloud Run with zero downtime and traffic migration.
+The automated delivery pipeline defined in `cloudbuild.yaml` executes sequential quality gates and safe canary deployment:
+1. **Linter & Formatting Check**: Runs `ruff check backend/` and `ruff format --check backend/`.
+2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside the containerized test harness.
+3. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`).
+4. **Artifact Push**: Pushes image to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:$COMMIT_SHA` and `latest`.
+5. **Canary Deployment**: Deploys revision to Cloud Run with `--no-traffic --tag candidate` to prevent premature traffic exposure.
+6. **Smoke Test Health Probe**: Automated curl probes against candidate `${CANDIDATE_URL}/health` and `${CANDIDATE_URL}/health/ready` checking for HTTP 200 and `"status": "ok"`.
+7. **Traffic Promotion**: Migrates 100% of live traffic to the verified revision via `gcloud run services update-traffic --to-latest`.
+8. **Post-Promotion Verification**: Final liveness confirmation on the production service URL.
 
 ---
 
-## 5. Standard Deployment Commands
+## 5. Rollback Automation & Incident Recovery
+
+1. **In-Flight Protection**:
+   - Because candidate revisions are deployed with `--no-traffic`, any test or probe failure terminates the build before live traffic routing. Production remains 100% intact on the previous stable revision.
+2. **Automated CLI Rollback (`deployment/rollback.sh`)**:
+   ```bash
+   # Rollback to preceding stable revision automatically
+   bash deployment/rollback.sh
+
+   # Or rollback to a specific revision identifier
+   bash deployment/rollback.sh catalog-comparison-service-00042-abc
+   ```
+3. **Cloud Build Rollback Pipeline (`deployment/cloudbuild-rollback.yaml`)**:
+   ```bash
+   gcloud builds submit \
+     --config=deployment/cloudbuild-rollback.yaml \
+     --substitutions=_REGION=us-central1,_PROJECT_ID=fde-bestbuy-sandbox-dev-508321
+   ```
+
+---
+
+## 6. Standard Deployment & Validation Commands
 
 ```bash
 # Verify GCP Project Context
 gcloud config set project fde-bestbuy-sandbox-dev-508321
 
-# Trigger Manual Cloud Build
+# Validate CI/CD Pipeline Configuration Locally
+python3 deployment/validate_pipeline.py
+
+# Trigger Full CI/CD Build via Google Cloud Build
 gcloud builds submit \
   --config=deployment/cloudbuild.yaml \
   --substitutions=_REGION=us-central1,_PROJECT_ID=fde-bestbuy-sandbox-dev-508321

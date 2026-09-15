@@ -6,8 +6,11 @@ steps:
     args:
       - '-c'
       - |
-        pip install ruff
+        set -euo pipefail
+        pip install --no-cache-dir ruff
+        echo "=== Running Ruff Lint Check ==="
         ruff check backend/
+        echo "=== Running Ruff Format Check ==="
         ruff format --check backend/
 
   # Step 2: Unit Tests with Coverage Gate (>=80%)
@@ -17,11 +20,13 @@ steps:
     args:
       - '-c'
       - |
+        set -euo pipefail
         cd backend
-        pip install -r requirements.txt
-        pytest --cov=src --cov-fail-under=80 tests/
+        pip install --no-cache-dir -r requirements.txt
+        echo "=== Running Pytest with Coverage Gate >= 80% ==="
+        pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 
-  # Step 3: Build Docker Container
+  # Step 3: Build Multi-Stage Docker Container
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
     args:
@@ -34,16 +39,22 @@ steps:
       - 'deployment/Dockerfile'
       - '.'
 
-  # Step 4: Push to Artifact Registry
+  # Step 4: Push Container Image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
     args:
       - 'push'
       - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
 
-  # Step 5: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-latest'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest'
+
+  # Step 5: Safe Canary Deployment to Cloud Run (No Initial Traffic)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'deploy-cloud-run'
+    id: 'deploy-candidate'
     entrypoint: 'gcloud'
     args:
       - 'run'
@@ -61,7 +72,74 @@ steps:
       - '--service-account'
       - 'catalog-agent-sa@${_PROJECT_ID}.iam.gserviceaccount.com'
       - '--set-env-vars'
-      - 'GCP_PROJECT_ID=${_PROJECT_ID}'
+      - 'GCP_PROJECT_ID=${_PROJECT_ID},ENVIRONMENT=production'
+      - '--no-traffic'
+      - '--tag'
+      - 'candidate'
+
+  # Step 6: Automated Post-Deploy Smoke Test against Candidate Revision
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'smoke-test'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Resolving Candidate Revision URL ==="
+        CANDIDATE_URL=$(gcloud run services describe catalog-comparison-service \
+          --region=${_REGION} \
+          --project=${_PROJECT_ID} \
+          --format='value(status.traffic[?tag=="candidate"].url)')
+        if [ -z "$${CANDIDATE_URL}" ]; then
+          echo "ERROR: Failed to retrieve candidate revision URL"
+          exit 1
+        fi
+        echo "Candidate URL: $${CANDIDATE_URL}"
+
+        echo "=== Probing Candidate /health Endpoint ==="
+        for i in {1..10}; do
+          if curl -sf "$${CANDIDATE_URL}/health" | grep -q '"status"'; then
+            echo "Candidate /health responded successfully"
+            break
+          fi
+          echo "Waiting for candidate to become ready ($${i}/10)..."
+          sleep 3
+        done
+
+        echo "=== Probing Candidate /health/ready Endpoint ==="
+        curl -sf "$${CANDIDATE_URL}/health/ready" | grep -q '"status"'
+        echo "All candidate health probes passed."
+
+  # Step 7: Safe Zero-Downtime Traffic Promotion to Latest Verified Revision
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'promote-traffic'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'services'
+      - 'update-traffic'
+      - 'catalog-comparison-service'
+      - '--region'
+      - '${_REGION}'
+      - '--project'
+      - '${_PROJECT_ID}'
+      - '--to-latest'
+
+  # Step 8: Post-Promotion Verification on Live Production Service URL
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'post-deploy-verify'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        SERVICE_URL=$(gcloud run services describe catalog-comparison-service \
+          --region=${_REGION} \
+          --project=${_PROJECT_ID} \
+          --format='value(status.url)')
+        echo "Verifying live service: $${SERVICE_URL}/health"
+        curl -sf "$${SERVICE_URL}/health"
+        echo "Production release verified with zero downtime."
 
 substitutions:
   _REGION: 'us-central1'
@@ -73,3 +151,5 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'

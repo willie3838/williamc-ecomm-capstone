@@ -1,0 +1,64 @@
+# ==============================================================================
+# Automated Rollback Pipeline for Best Buy Catalog Comparison Agent
+# Reverts Cloud Run traffic to the previous known stable revision or a specified revision.
+# ==============================================================================
+steps:
+  # Step 1: Shift traffic to targeted or previous stable revision
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'rollback-traffic'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        SERVICE_NAME="catalog-comparison-service"
+        TARGET_REV="${_TARGET_REVISION}"
+
+        if [ -z "$${TARGET_REV}" ]; then
+          echo "No explicit revision given. Querying preceding stable revision..."
+          TARGET_REV=$(gcloud run revisions list \
+            --service="$${SERVICE_NAME}" \
+            --region="${_REGION}" \
+            --project="${_PROJECT_ID}" \
+            --sort-by="~metadata.creationTimestamp" \
+            --format="value(metadata.name)" | sed -n '2p')
+        fi
+
+        if [ -z "$${TARGET_REV}" ]; then
+          echo "ERROR: Unable to identify a prior revision to rollback to."
+          exit 1
+        fi
+
+        echo "Rolling back $${SERVICE_NAME} to revision: $${TARGET_REV}..."
+        gcloud run services update-traffic "$${SERVICE_NAME}" \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --to-revisions="$${TARGET_REV}=100"
+
+  # Step 2: Verify post-rollback service health
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'verify-health'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        SERVICE_NAME="catalog-comparison-service"
+        SERVICE_URL=$(gcloud run services describe "$${SERVICE_NAME}" \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --format="value(status.url)")
+
+        echo "Verifying health on restored service: $${SERVICE_URL}/health"
+        curl -sf --retry 5 --retry-delay 2 "$${SERVICE_URL}/health"
+        echo "Rollback verification confirmed healthy."
+
+substitutions:
+  _REGION: 'us-central1'
+  _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
+  _TARGET_REVISION: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '600s'
