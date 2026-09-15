@@ -10,6 +10,7 @@ from google.cloud import bigquery
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.config import settings
 from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
+from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
@@ -234,50 +235,78 @@ class ComparisonOrchestrator:
 
         return "\n".join(rec_parts) if len(rec_parts) > 1 else None
 
-    def compare(self, query: str, category: str | None = None) -> CompareResponse:
-        """Execute full end-to-end grounded comparison pipeline."""
-        keywords = self.extract_keywords(query)
-        logger.info("Parsed keywords %s from query: %s", keywords, query)
+    def compare(
+        self,
+        query: str,
+        category: str | None = None,
+        session_id: str | None = None,
+    ) -> CompareResponse:
+        """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
+        tracer = get_tracer("app.agent")
 
-        try:
-            catalog_rows = query_catalog(
-                keywords=keywords,
-                category=category,
-                client=self.bq_client,
-            )
-        except Exception as err:
-            logger.warning("BigQuery catalog query encountered an error: %s", err)
-            catalog_rows = []
+        with tracer.start_as_current_span("catalog_comparison.orchestrate") as span:
+            span.set_attribute("query", query)
+            span.set_attribute("category", category or "")
+            if session_id:
+                span.set_attribute("session_id", session_id)
 
-        if not catalog_rows:
+            with tracer.start_as_current_span("extract_keywords"):
+                keywords = self.extract_keywords(query)
+                span.set_attribute("keywords", str(keywords))
+                logger.info("Parsed keywords %s from query: %s", keywords, query)
+
+            try:
+                catalog_rows = query_catalog(
+                    keywords=keywords,
+                    category=category,
+                    client=self.bq_client,
+                )
+            except Exception as err:
+                logger.warning("BigQuery catalog query encountered an error: %s", err)
+                catalog_rows = []
+
+            trace_id = get_current_trace_id()
+
+            if not catalog_rows:
+                span.set_attribute("product_count", 0)
+                span.set_attribute("target_skus", "")
+                return CompareResponse(
+                    summary=f"No matching products found in the catalog for query: '{query}'. Please check your search terms.",
+                    products=[],
+                    comparison_matrix=[],
+                    citations=[],
+                    recommendations="Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category.",
+                    session_id=session_id,
+                    trace_id=trace_id,
+                )
+
+            # Convert to ProductSpec schemas
+            products = [ProductSpec(**row) for row in catalog_rows]
+            target_skus = [p.sku for p in products]
+            span.set_attribute("product_count", len(products))
+            span.set_attribute("target_skus", ",".join(target_skus))
+
+            # Extract strict citations
+            citations = [
+                Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
+                for p in products
+            ]
+
+            # Build comparison matrix
+            with tracer.start_as_current_span("build_comparison_matrix"):
+                matrix = self.build_comparison_matrix(products)
+
+            # Synthesize narrative with SKU citations
+            with tracer.start_as_current_span("synthesize_summary"):
+                summary = self.synthesize_summary(products, matrix)
+                recommendations = self.generate_recommendations(products)
+
             return CompareResponse(
-                summary=f"No matching products found in the catalog for query: '{query}'. Please check your search terms.",
-                products=[],
-                comparison_matrix=[],
-                citations=[],
-                recommendations="Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category.",
+                summary=summary,
+                products=products,
+                comparison_matrix=matrix,
+                citations=citations,
+                recommendations=recommendations,
+                session_id=session_id,
+                trace_id=trace_id,
             )
-
-        # Convert to ProductSpec schemas
-        products = [ProductSpec(**row) for row in catalog_rows]
-
-        # Extract strict citations
-        citations = [
-            Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
-            for p in products
-        ]
-
-        # Build comparison matrix
-        matrix = self.build_comparison_matrix(products)
-
-        # Synthesize narrative with SKU citations
-        summary = self.synthesize_summary(products, matrix)
-        recommendations = self.generate_recommendations(products)
-
-        return CompareResponse(
-            summary=summary,
-            products=products,
-            comparison_matrix=matrix,
-            citations=citations,
-            recommendations=recommendations,
-        )

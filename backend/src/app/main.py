@@ -19,6 +19,7 @@ from app.models import (
     ProductItem,
     ProductSpec,
 )
+from app.observability import ObservabilityMiddleware, setup_observability
 
 PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
 
@@ -26,6 +27,9 @@ PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Application factory for FastAPI service."""
     current_settings = settings or get_settings()
+
+    # Initialize OpenTelemetry distributed tracing and structured Cloud Logging
+    setup_observability(current_settings)
 
     application = FastAPI(
         title="Best Buy Catalog Comparison Agent API",
@@ -36,6 +40,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    application.add_middleware(
+        ObservabilityMiddleware,
+        project_id=current_settings.project_id,
+        service_name=current_settings.service_name,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=current_settings.cors_origins,
@@ -98,7 +107,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
         orchestrator = ComparisonOrchestrator()
-        result = orchestrator.compare(query=request.query, category=request.category)
+        result = orchestrator.compare(
+            query=request.query,
+            category=request.category,
+            session_id=request.session_id,
+        )
         result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return result
 

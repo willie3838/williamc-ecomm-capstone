@@ -67,6 +67,31 @@ class Settings(BaseSettings):
         alias="AGENT_MAX_TOKENS",
         description="Max token limit for comparative synthesis",
     )
+    enable_tracing: bool = Field(
+        default=True,
+        alias="ENABLE_TRACING",
+        description="Enable OpenTelemetry distributed tracing",
+    )
+    export_traces_to_cloud: bool = Field(
+        default=False,
+        alias="EXPORT_TRACES_TO_CLOUD",
+        description="Export distributed traces to Google Cloud Trace",
+    )
+    log_level: str = Field(
+        default="INFO",
+        alias="LOG_LEVEL",
+        description="Application logging level (DEBUG, INFO, WARNING, ERROR)",
+    )
+    bq_timeout_seconds: float = Field(
+        default=2.5,
+        alias="BQ_TIMEOUT_SECONDS",
+        description="Timeout in seconds for BigQuery query operations",
+    )
+    bq_max_retries: int = Field(
+        default=2,
+        alias="BQ_MAX_RETRIES",
+        description="Maximum retry attempts for BigQuery catalog queries",
+    )
 
     @property
     def gcp_project(self) -> str:

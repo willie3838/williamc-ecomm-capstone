@@ -26,6 +26,11 @@ class ComparisonRequest(BaseModel):
         description="Maximum number of candidate products to retrieve from catalog",
         examples=[5],
     )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional client session identifier for distributed tracing and analytics",
+        examples=["session-xyz-1234"],
+    )
 
     @field_validator("category")
     @classmethod
