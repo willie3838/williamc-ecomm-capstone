@@ -1,0 +1,1884 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-15T22:59:42.950500+00:00",
+    "dataset": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/.swarm/worktrees/task-2-evaluation-flywheel-pytes/evals/dataset/benchmark_queries.json",
+    "judge_model": "gemini-1.5-flash",
+    "mode": "hermetic",
+    "total_cases": 80,
+    "passed_cases": 80,
+    "failed_cases": 0
+  },
+  "summary": {
+    "mean_data_accuracy": 1.0,
+    "mean_citation_faithfulness": 1.0,
+    "mean_retrieval_precision": 0.8187,
+    "mean_retrieval_recall": 1.0,
+    "mean_semantic_score": 1.0,
+    "structured_output_validity": 1.0,
+    "latency_p50_seconds": 0.0013,
+    "latency_p90_seconds": 0.0022,
+    "latency_p95_seconds": 0.0025,
+    "target_threshold_met": true,
+    "targets": {
+      "target_accuracy": 0.98,
+      "target_citation": 0.95,
+      "target_latency_p95": 3.0,
+      "target_schema_validity": 1.0
+    }
+  },
+  "category_metrics": {
+    "Laptops": {
+      "total": 16,
+      "passed": 16,
+      "pass_rate": 1.0,
+      "mean_data_accuracy": 1.0,
+      "mean_citation_faithfulness": 1.0,
+      "mean_latency_seconds": 0.0019
+    },
+    "Tablets": {
+      "total": 16,
+      "passed": 16,
+      "pass_rate": 1.0,
+      "mean_data_accuracy": 1.0,
+      "mean_citation_faithfulness": 1.0,
+      "mean_latency_seconds": 0.0018
+    },
+    "Headphones": {
+      "total": 16,
+      "passed": 16,
+      "pass_rate": 1.0,
+      "mean_data_accuracy": 1.0,
+      "mean_citation_faithfulness": 1.0,
+      "mean_latency_seconds": 0.0009
+    },
+    "Smart Home": {
+      "total": 16,
+      "passed": 16,
+      "pass_rate": 1.0,
+      "mean_data_accuracy": 1.0,
+      "mean_citation_faithfulness": 1.0,
+      "mean_latency_seconds": 0.0017
+    },
+    "TVs": {
+      "total": 16,
+      "passed": 16,
+      "pass_rate": 1.0,
+      "mean_data_accuracy": 1.0,
+      "mean_citation_faithfulness": 1.0,
+      "mean_latency_seconds": 0.0084
+    }
+  },
+  "details": [
+    {
+      "id": "laptop-001",
+      "category": "Laptops",
+      "query": "Compare MacBook Air 13-inch M3 with Dell XPS 13 Intel Core Ultra 7",
+      "expected_skus": [
+        "6534606",
+        "6575132"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6575132",
+        "6534640",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0034,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-002",
+      "category": "Laptops",
+      "query": "What are the key differences between MacBook Air 13 M3 and MacBook Pro 14 M3 Pro?",
+      "expected_skus": [
+        "6534606",
+        "6534640"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6534640",
+        "6575132",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.002,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-003",
+      "category": "Laptops",
+      "query": "Compare Dell XPS 13 and Lenovo ThinkPad X1 Carbon Gen 12 for business travel",
+      "expected_skus": [
+        "6575132",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6575132",
+        "6579840",
+        "6534606",
+        "6534640"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0024,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-004",
+      "category": "Laptops",
+      "query": "MacBook Air 13 M3 vs Lenovo ThinkPad X1 Carbon: battery life and weight comparison",
+      "expected_skus": [
+        "6534606",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6579840",
+        "6575132",
+        "6534640"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0019,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-005",
+      "category": "Laptops",
+      "query": "Dell XPS 13 Core Ultra 7 versus Apple MacBook Pro 14 M3 Pro performance and specs",
+      "expected_skus": [
+        "6575132",
+        "6534640"
+      ],
+      "retrieved_skus": [
+        "6575132",
+        "6534640",
+        "6534606",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-006",
+      "category": "Laptops",
+      "query": "Compare Apple MacBook Pro 14 M3 Pro and Lenovo ThinkPad X1 Carbon for software engineering",
+      "expected_skus": [
+        "6534640",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6534640",
+        "6579840",
+        "6534606",
+        "6575132"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-007",
+      "category": "Laptops",
+      "query": "Which is lighter and has longer battery: MacBook Air 13 M3 or Dell XPS 13?",
+      "expected_skus": [
+        "6534606",
+        "6575132"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6575132",
+        "6534640",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-008",
+      "category": "Laptops",
+      "query": "Is the MacBook Pro 14 M3 Pro worth the extra cost over the MacBook Air 13 M3?",
+      "expected_skus": [
+        "6534606",
+        "6534640"
+      ],
+      "retrieved_skus": [
+        "6534640",
+        "6534606",
+        "6575132",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0019,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-009",
+      "category": "Laptops",
+      "query": "Which Windows laptop is better: Dell XPS 13 or Lenovo ThinkPad X1 Carbon Gen 12?",
+      "expected_skus": [
+        "6575132",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6575132",
+        "6579840",
+        "6534606",
+        "6534640"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0017,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-010",
+      "category": "Laptops",
+      "query": "Compare Apple MacBook Air 13 M3 and Lenovo ThinkPad X1 Carbon for college students",
+      "expected_skus": [
+        "6534606",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6579840",
+        "6575132",
+        "6534640"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0019,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-011",
+      "category": "Laptops",
+      "query": "MacBook Pro 14 M3 Pro vs Dell XPS 13: screen resolution, RAM, and price",
+      "expected_skus": [
+        "6575132",
+        "6534640"
+      ],
+      "retrieved_skus": [
+        "6534640",
+        "6575132",
+        "6534606",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-012",
+      "category": "Laptops",
+      "query": "Lenovo ThinkPad X1 Carbon vs Apple MacBook Pro 14 M3 Pro weight and port selection",
+      "expected_skus": [
+        "6534640",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6579840",
+        "6534640",
+        "6534606",
+        "6575132"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0023,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-013",
+      "category": "Laptops",
+      "query": "Price and processor breakdown: MacBook Air 13 M3 vs Dell XPS 13 Core Ultra 7",
+      "expected_skus": [
+        "6534606",
+        "6575132"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6575132",
+        "6534640",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-014",
+      "category": "Laptops",
+      "query": "MacBook Air 13 M3 vs MacBook Pro 14 M3 Pro display size and memory comparison",
+      "expected_skus": [
+        "6534606",
+        "6534640"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6534640",
+        "6575132",
+        "6579840"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-015",
+      "category": "Laptops",
+      "query": "Compare Intel Core Ultra 7 laptops: Dell XPS 13 vs ThinkPad X1 Carbon",
+      "expected_skus": [
+        "6575132",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6575132",
+        "6579840",
+        "6534606"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0017,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-016",
+      "category": "Laptops",
+      "query": "Which laptop has better battery life: MacBook Air 13 M3 or Lenovo ThinkPad X1 Carbon?",
+      "expected_skus": [
+        "6534606",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6534606",
+        "6579840",
+        "6575132",
+        "6534640"
+      ],
+      "retrieval_precision": 0.5,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-001",
+      "category": "Tablets",
+      "query": "Which has better battery and screen: iPad Pro 11-inch M4 or Samsung Galaxy Tab S9?",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0017,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-002",
+      "category": "Tablets",
+      "query": "Compare Apple iPad Pro 11 M4 and Google Pixel Tablet 11 with Speaker Dock",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6542951",
+        "6546522"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0014,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-003",
+      "category": "Tablets",
+      "query": "Samsung Galaxy Tab S9 vs Google Pixel Tablet: specs, battery, and price",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-004",
+      "category": "Tablets",
+      "query": "iPad Pro 11 M4 OLED versus Samsung Galaxy Tab S9 AMOLED screen comparison",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-005",
+      "category": "Tablets",
+      "query": "Is the iPad Pro 11 M4 worth the price difference compared to the Google Pixel Tablet?",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6542951",
+        "6546522"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0014,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-006",
+      "category": "Tablets",
+      "query": "Which Android tablet is better: Samsung Galaxy Tab S9 or Google Pixel Tablet?",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0022,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-007",
+      "category": "Tablets",
+      "query": "Compare Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9 for digital drawing and note taking",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-008",
+      "category": "Tablets",
+      "query": "Apple iPad Pro 11 M4 vs Google Pixel Tablet: battery life and weight comparison",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6542951",
+        "6546522"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0036,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-009",
+      "category": "Tablets",
+      "query": "Compare battery endurance: Galaxy Tab S9 vs Google Pixel Tablet 11",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-010",
+      "category": "Tablets",
+      "query": "Apple M4 chip vs Snapdragon 8 Gen 2: iPad Pro 11 vs Galaxy Tab S9",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0018,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-011",
+      "category": "Tablets",
+      "query": "Compare Google Pixel Tablet and iPad Pro 11 M4 for smart home and multimedia",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6542951",
+        "6579601",
+        "6546522"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0017,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-012",
+      "category": "Tablets",
+      "query": "Galaxy Tab S9 11 AMOLED vs Google Pixel Tablet 11 display resolution and processor",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0016,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-013",
+      "category": "Tablets",
+      "query": "Price and storage comparison between Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0014,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-014",
+      "category": "Tablets",
+      "query": "Which is lighter: Apple iPad Pro 11 M4 or Google Pixel Tablet with Dock?",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6542951",
+        "6546522"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-015",
+      "category": "Tablets",
+      "query": "Best Android tablet value: Samsung Tab S9 versus Google Pixel Tablet 11",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-016",
+      "category": "Tablets",
+      "query": "Summary of differences between iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0024,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-001",
+      "category": "Headphones",
+      "query": "Compare Sony WH-1000XM5 vs Bose QuietComfort Ultra for battery life and noise cancellation",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-002",
+      "category": "Headphones",
+      "query": "Sony WH-1000XM5 versus Apple AirPods Max: battery life, weight, and price comparison",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.001,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-003",
+      "category": "Headphones",
+      "query": "Compare Bose QuietComfort Ultra and Apple AirPods Max for travel comfort and ANC",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-004",
+      "category": "Headphones",
+      "query": "Which has longer battery life: Sony WH-1000XM5 or Bose QC Ultra?",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-005",
+      "category": "Headphones",
+      "query": "Which headphones are lighter: Sony WH-1000XM5 or Apple AirPods Max?",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-006",
+      "category": "Headphones",
+      "query": "Bose QC Ultra vs AirPods Max: price difference and active noise cancellation",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-007",
+      "category": "Headphones",
+      "query": "Best noise canceling headphones: Sony WH-1000XM5 compared to Bose QuietComfort Ultra",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-008",
+      "category": "Headphones",
+      "query": "Is Apple AirPods Max worth the extra money over Sony WH-1000XM5?",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-009",
+      "category": "Headphones",
+      "query": "Compare battery endurance and charging: Bose QuietComfort Ultra vs Apple AirPods Max",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-010",
+      "category": "Headphones",
+      "query": "Bluetooth version and driver size comparison: Sony WH-1000XM5 vs Bose QC Ultra",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-011",
+      "category": "Headphones",
+      "query": "Sony WH-1000XM5 vs Apple AirPods Max driver size and connection types",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6373460",
+        "6553823"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-012",
+      "category": "Headphones",
+      "query": "Bose QC Ultra versus Apple AirPods Max for frequent flyers",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-013",
+      "category": "Headphones",
+      "query": "Price comparison between Sony WH-1000XM5 and Bose QuietComfort Ultra headphones",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.001,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-014",
+      "category": "Headphones",
+      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6373460",
+        "6553823"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-015",
+      "category": "Headphones",
+      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-016",
+      "category": "Headphones",
+      "query": "Detailed breakdown of Sony WH-1000XM5 and Bose QuietComfort Ultra specs",
+      "expected_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-001",
+      "category": "Smart Home",
+      "query": "Compare Google Nest Learning Thermostat 4th Gen and ecobee Smart Thermostat Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.001,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-002",
+      "category": "Smart Home",
+      "query": "Which smart thermostat has air quality monitoring: Google Nest 4th Gen or ecobee Premium?",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-003",
+      "category": "Smart Home",
+      "query": "Google Nest Learning Thermostat 4th Gen vs ecobee Smart Thermostat Premium price and sensors",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.002,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-004",
+      "category": "Smart Home",
+      "query": "Compare voice assistant compatibility for Google Nest Thermostat and ecobee Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-005",
+      "category": "Smart Home",
+      "query": "Which is more affordable: Google Nest Learning Thermostat 4th Gen or ecobee Smart Thermostat?",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-006",
+      "category": "Smart Home",
+      "query": "Compare display technology between Google Nest 4th Gen and ecobee Smart Thermostat Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-007",
+      "category": "Smart Home",
+      "query": "Do Google Nest Learning 4th Gen and ecobee Premium both include temperature sensors?",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-008",
+      "category": "Smart Home",
+      "query": "Compare power source and installation requirements: Google Nest vs ecobee Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-009",
+      "category": "Smart Home",
+      "query": "Connectivity comparison: Google Nest Learning Thermostat 4th Gen vs ecobee Smart Thermostat Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-010",
+      "category": "Smart Home",
+      "query": "Which thermostat is better for smart homes: Nest Learning 4th Gen or ecobee Premium?",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-011",
+      "category": "Smart Home",
+      "query": "Compare sensors included in Google Nest Thermostat 4th Gen and ecobee Premium box",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-012",
+      "category": "Smart Home",
+      "query": "Nest Learning Thermostat 4th Gen versus ecobee Smart Thermostat Premium feature matrix",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-013",
+      "category": "Smart Home",
+      "query": "Is ecobee Smart Thermostat Premium cheaper than Google Nest Learning Thermostat 4th Gen?",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0079,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-014",
+      "category": "Smart Home",
+      "query": "Voice control differences: Nest 4th Gen Google Assistant vs ecobee Premium Alexa Siri",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-015",
+      "category": "Smart Home",
+      "query": "Compare energy savings and sensor technology of Nest 4th Gen and ecobee Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.002,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-016",
+      "category": "Smart Home",
+      "query": "Comprehensive comparison of Google Nest Learning Thermostat 4th Gen vs ecobee Premium",
+      "expected_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-001",
+      "category": "TVs",
+      "query": "Compare LG C3 Series 65-inch OLED evo and Samsung S90C Series 65-inch OLED 4K Smart TV",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-002",
+      "category": "TVs",
+      "query": "Which TV has a higher refresh rate: LG C3 65-inch or Samsung S90C 65-inch?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-003",
+      "category": "TVs",
+      "query": "Compare gaming specs and refresh rate for LG C3 OLED vs Samsung S90C OLED TV",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0025,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-004",
+      "category": "TVs",
+      "query": "HDR format comparison: LG C3 Dolby Vision vs Samsung S90C HDR10+",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-005",
+      "category": "TVs",
+      "query": "Price comparison between LG C3 Series 65-inch and Samsung S90C Series 65-inch OLED",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-006",
+      "category": "TVs",
+      "query": "Smart TV platform comparison: LG webOS vs Samsung Tizen Smart Hub",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.1142,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-007",
+      "category": "TVs",
+      "query": "HDMI 2.1 ports and connectivity: LG C3 65 OLED vs Samsung S90C 65 OLED",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0015,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-008",
+      "category": "TVs",
+      "query": "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0013,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-009",
+      "category": "TVs",
+      "query": "Compare screen size and display technology of LG C3 65-inch and Samsung S90C 65-inch",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-010",
+      "category": "TVs",
+      "query": "Which 65-inch OLED TV is cheaper: LG C3 or Samsung S90C?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-011",
+      "category": "TVs",
+      "query": "Compare 120Hz LG C3 OLED with 144Hz Samsung S90C OLED for PlayStation 5 and Xbox",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-012",
+      "category": "TVs",
+      "query": "LG C3 OLED evo 65-inch vs Samsung S90C QD-OLED 65-inch contrast and colors",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0012,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-013",
+      "category": "TVs",
+      "query": "Audio and smart features comparison: LG C3 65-inch vs Samsung S90C 65-inch",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-014",
+      "category": "TVs",
+      "query": "Is Samsung S90C 65-inch worth $100 more than LG C3 65-inch OLED?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-015",
+      "category": "TVs",
+      "query": "Compare picture quality and refresh rate: LG C3 vs Samsung S90C OLED 4K TVs",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0019,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-016",
+      "category": "TVs",
+      "query": "Complete breakdown of LG C3 65-inch OLED evo vs Samsung S90C 65-inch OLED TV",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "structured_output_valid": true,
+      "latency_seconds": 0.0011,
+      "status": "PASS",
+      "errors": []
+    }
+  ]
+}
