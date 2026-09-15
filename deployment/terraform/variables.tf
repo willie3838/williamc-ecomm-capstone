@@ -6,12 +6,96 @@ variable "project_id" {
 
 variable "region" {
   type        = string
-  description = "The Google Cloud region for services"
+  description = "The Google Cloud region for compute and regional resources"
   default     = "us-central1"
 }
 
 variable "environment" {
   type        = string
-  description = "Deployment environment (dev, staging, prod)"
+  description = "Deployment environment name (dev, staging, prod)"
   default     = "dev"
+}
+
+variable "service_name" {
+  type        = string
+  description = "Name of the Cloud Run comparison service"
+  default     = "catalog-comparison-service"
+}
+
+variable "artifact_repo_name" {
+  type        = string
+  description = "Name of the Artifact Registry repository"
+  default     = "catalog-agent-repo"
+}
+
+variable "container_image" {
+  type        = string
+  description = "Container image URL deployed to Cloud Run"
+  default     = "us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest"
+}
+
+variable "container_concurrency" {
+  type        = number
+  description = "Maximum concurrent requests per Cloud Run container instance"
+  default     = 80
+}
+
+variable "container_cpu" {
+  type        = string
+  description = "CPU allocated per Cloud Run instance"
+  default     = "1000m"
+}
+
+variable "container_memory" {
+  type        = string
+  description = "Memory allocated per Cloud Run instance"
+  default     = "512Mi"
+}
+
+variable "min_instances" {
+  type        = number
+  description = "Minimum number of Cloud Run instances (0 for serverless scale-to-zero)"
+  default     = 0
+}
+
+variable "max_instances" {
+  type        = number
+  description = "Maximum number of Cloud Run instances for autoscaling"
+  default     = 10
+}
+
+variable "catalog_dataset_id" {
+  type        = string
+  description = "BigQuery dataset ID for product catalog"
+  default     = "catalog"
+}
+
+variable "catalog_table_id" {
+  type        = string
+  description = "BigQuery table ID for products"
+  default     = "products"
+}
+
+variable "telemetry_dataset_id" {
+  type        = string
+  description = "BigQuery dataset ID for telemetry and audit logs"
+  default     = "catalog_agent_telemetry"
+}
+
+variable "telemetry_table_id" {
+  type        = string
+  description = "BigQuery table ID for query telemetry logs"
+  default     = "query_telemetry"
+}
+
+variable "gcs_bucket_location" {
+  type        = string
+  description = "Location for Cloud Storage buckets"
+  default     = "US"
+}
+
+variable "allow_unauthenticated" {
+  type        = bool
+  description = "Whether to allow public unauthenticated ingress to Cloud Run service"
+  default     = true
 }
