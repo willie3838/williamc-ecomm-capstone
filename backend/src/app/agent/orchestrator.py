@@ -31,11 +31,40 @@ class ComparisonOrchestrator:
 
     def extract_keywords(self, query: str) -> list[str]:
         """Parse natural language query into target candidate keywords."""
+        brand_or_model = r"\b(?:macbook|dell|xps|lenovo|thinkpad|ipad|samsung|galaxy|pixel|tablet|sony|wh-1000|bose|quietcomfort|airpods|nest|ecobee|lg|s90c|c3|oled|thermostat|headphones|laptop)\b"
+        cleaned = query
+        if ":" in query:
+            prefix, after = query.split(":", 1)
+            p_matches = len(re.findall(brand_or_model, prefix, re.IGNORECASE))
+            a_matches = len(re.findall(brand_or_model, after, re.IGNORECASE))
+            if a_matches > p_matches:
+                cleaned = after
+            elif p_matches > a_matches:
+                cleaned = prefix
+            else:
+                cleaned = (
+                    after if re.search(r"\b(?:vs\.?|versus|or)\b", after, re.IGNORECASE) else prefix
+                )
+
         cleaned = re.sub(
-            r"^(compare|difference between|vs\.?|versus)\s+", "", query, flags=re.IGNORECASE
+            r"^(compare|difference between|what (?:are the )?differences between|which (?:is|has) (?:better|cheaper|lighter|longer)|is the|is|do|does|summary of differences between)\s+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
         )
-        # Split on separators like 'and', 'vs', 'versus', 'or', commas
-        parts = re.split(r"\b(?:and|vs\.?|versus|or)\b|,", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"^(?:(?:screen size|refresh rate|price|battery life|display technology|hdr format|audio and smart features|bluetooth version and driver size|price and processor breakdown|summary of differences) (?:and [a-z ]+ )?(?:of|between|for))\s+",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"[\?:\.!]+", " ", cleaned)
+        # Split on separators like 'and', 'vs', 'versus', 'or', 'with', 'compared to', 'against', 'than', commas
+        parts = re.split(
+            r"\b(?:and|vs\.?|versus|or|with|compared to|against|than|over|more than|worth [^\b]+ over)\b|,",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
         keywords = [p.strip() for p in parts if len(p.strip()) >= 2]
         if not keywords:
             # Fallback to non-stopword tokens
@@ -234,6 +263,56 @@ class ComparisonOrchestrator:
 
         return "\n".join(rec_parts) if len(rec_parts) > 1 else None
 
+    def rank_and_select_products(
+        self, products: list[ProductSpec], keywords: list[str]
+    ) -> list[ProductSpec]:
+        """Rank products to ensure top 2 best match candidate comparison keywords."""
+        if len(products) <= 2 or len(keywords) < 2:
+            return products
+
+        stopwords = {
+            "vs",
+            "and",
+            "or",
+            "compare",
+            "between",
+            "the",
+            "with",
+            "inch",
+            "laptop",
+            "tablet",
+            "headphones",
+            "smart",
+            "home",
+            "tv",
+        }
+        selected: list[ProductSpec] = []
+        used_skus: set[str] = set()
+
+        for kw in keywords[:2]:
+            kw_tokens = set(re.findall(r"[a-z0-9]+", kw.lower())) - stopwords
+            best_p: ProductSpec | None = None
+            best_score = -1
+            for p in products:
+                if p.sku in used_skus:
+                    continue
+                p_tokens = set(re.findall(r"[a-z0-9]+", f"{p.name} {p.brand}".lower()))
+                score = len(kw_tokens & p_tokens)
+                if score > best_score:
+                    best_score = score
+                    best_p = p
+            if best_p and best_score > 0:
+                selected.append(best_p)
+                used_skus.add(best_p.sku)
+
+        # Fill remaining products from original list
+        for p in products:
+            if p.sku not in used_skus:
+                selected.append(p)
+                used_skus.add(p.sku)
+
+        return selected
+
     def compare(self, query: str, category: str | None = None) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline."""
         keywords = self.extract_keywords(query)
@@ -260,6 +339,7 @@ class ComparisonOrchestrator:
 
         # Convert to ProductSpec schemas
         products = [ProductSpec(**row) for row in catalog_rows]
+        products = self.rank_and_select_products(products, keywords)
 
         # Extract strict citations
         citations = [
