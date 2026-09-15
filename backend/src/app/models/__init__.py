@@ -1,5 +1,6 @@
 """Data models and schemas for Best Buy Catalog Comparison Agent."""
 
+from app.models.product import ProductRecord
 from app.models.requests import ComparisonRequest
 from app.models.responses import (
     Citation,
@@ -16,4 +17,5 @@ __all__ = [
     "HealthResponse",
     "MatrixRow",
     "ProductItem",
+    "ProductRecord",
 ]

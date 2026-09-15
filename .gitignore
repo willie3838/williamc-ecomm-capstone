@@ -27,6 +27,8 @@ htmlcov/
 venv/
 .venv
 .venv/
+**/.venv/
+**/.venv
 env/
 ENV/
 
