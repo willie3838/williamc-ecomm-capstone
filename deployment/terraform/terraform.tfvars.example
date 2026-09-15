@@ -1,0 +1,20 @@
+# Example Terraform variable values for Best Buy Catalog Comparison Agent
+# Copy to terraform.tfvars or pass via -var / -var-file
+
+project_id             = "fde-bestbuy-sandbox-dev-508321"
+region                 = "us-central1"
+environment            = "dev"
+service_name           = "catalog-comparison-service"
+artifact_repo_name     = "catalog-agent-repo"
+container_image        = "us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest"
+container_concurrency  = 80
+container_cpu          = "1000m"
+container_memory       = "512Mi"
+min_instances          = 0
+max_instances          = 10
+catalog_dataset_id     = "catalog"
+catalog_table_id       = "products"
+telemetry_dataset_id   = "catalog_agent_telemetry"
+telemetry_table_id     = "query_telemetry"
+gcs_bucket_location    = "US"
+allow_unauthenticated  = true

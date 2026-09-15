@@ -1,0 +1,60 @@
+# Identity and Access Management (IAM) - Principle of Least Privilege
+
+# Runtime Service Account for Catalog Agent
+resource "google_service_account" "catalog_agent_sa" {
+  account_id   = "catalog-agent-sa"
+  display_name = "Best Buy Catalog Comparison Agent Service Account"
+  project      = var.project_id
+  description  = "Dedicated runtime identity for catalog comparison agent Cloud Run service"
+}
+
+# IAM Role: BigQuery Job User (Required to run query jobs in the project)
+resource "google_project_iam_member" "sa_bq_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# IAM Role: Cloud Trace Agent (Required to emit distributed OpenTelemetry traces)
+resource "google_project_iam_member" "sa_trace_agent" {
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# IAM Role: Logging Log Writer (Required to emit structured application logs)
+resource "google_project_iam_member" "sa_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# IAM Role: Vertex AI User (Required to invoke Gemini models)
+resource "google_project_iam_member" "sa_vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# BigQuery Dataset Access: Data Viewer on catalog (Read-only access to products)
+resource "google_bigquery_dataset_iam_member" "sa_catalog_viewer" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.catalog.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# BigQuery Dataset Access: Data Editor on telemetry (Write access for logs/metrics)
+resource "google_bigquery_dataset_iam_member" "sa_telemetry_editor" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.telemetry.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# Storage Bucket Access: Object Viewer on catalog ingestion bucket
+resource "google_storage_bucket_iam_member" "sa_catalog_data_viewer" {
+  bucket = google_storage_bucket.catalog_data.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
