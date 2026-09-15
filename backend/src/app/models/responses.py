@@ -35,112 +35,81 @@ class HealthResponse(BaseModel):
     )
 
 
-class ProductItem(BaseModel):
-    """Product entity extracted and validated from catalog BigQuery table."""
+class ProductSpec(BaseModel):
+    """Grounded product entity retrieved from the BigQuery catalog."""
 
-    sku: str = Field(
-        ...,
-        description="Unique Best Buy SKU identifier",
-        examples=["6534606"],
+    sku: str = Field(..., description="Unique Best Buy product SKU identifier")
+    name: str = Field(..., description="Full commercial product name")
+    brand: str = Field(..., description="Brand or manufacturer")
+    category: str | None = Field(default=None, description="Product taxonomy category")
+    price: float = Field(..., description="Current retail price in USD")
+    rating: float | None = Field(default=None, description="Customer review rating (1.0 - 5.0)")
+    review_count: int | None = Field(default=None, description="Total customer reviews")
+    specifications: dict[str, Any] = Field(
+        default_factory=dict, description="Hardware and technical specifications"
     )
-    name: str = Field(
-        ...,
-        description="Full commercial product name",
-        examples=['MacBook Air 13.6" - M3'],
-    )
-    brand: str = Field(
-        ...,
-        description="Manufacturer or brand name",
-        examples=["Apple"],
-    )
-    price: float = Field(
-        ...,
-        ge=0.0,
-        description="Current retail price in USD",
-        examples=[1099.0],
-    )
-    category: str | None = Field(
-        default=None,
-        description="Product catalog category",
-        examples=["Laptops"],
-    )
-    rating: float | None = Field(
-        default=None,
-        ge=0.0,
-        le=5.0,
-        description="Customer review rating on a 5.0 scale",
-        examples=[4.8],
-    )
-    specs: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Key technical specifications grounded in catalog data",
-        examples=[{"RAM": "16 GB", "Battery Life": "Up to 18 hours"}],
-    )
+    url: str | None = Field(default=None, description="Canonical Best Buy product URL")
+    image_url: str | None = Field(default=None, description="Product image CDN URL")
+    in_stock: bool = Field(default=True, description="Stock availability flag")
+
+    @property
+    def specs(self) -> dict[str, Any]:
+        """Backward compatibility property."""
+        return self.specifications
+
+
+# Backward compatibility alias
+ProductItem = ProductSpec
 
 
 class MatrixRow(BaseModel):
-    """A single specification comparison dimension comparing multiple SKUs."""
+    """Single row in the side-by-side comparison matrix."""
 
-    feature: str = Field(
-        ...,
-        description="Feature or specification dimension being compared",
-        examples=["Battery Life"],
-    )
+    feature: str = Field(..., description="Feature or specification name being compared")
     values: dict[str, Any] = Field(
-        ...,
-        description="Mapping from product SKU to verified feature value",
-        examples=[{"6534606": "Up to 18 hours", "6575132": "Up to 14 hours"}],
+        ..., description="Map of product SKU to this product's feature value"
     )
     winner_sku: str | None = Field(
         default=None,
-        description="SKU determined to lead on this feature, or null for parity/neutral",
-        examples=["6534606"],
+        description="SKU of the winning product for this feature, or None if tied/neutral",
     )
 
 
 class Citation(BaseModel):
-    """Verifiable SKU citation ensuring zero hallucination."""
+    """Verifiable SKU citation pointing to catalog product."""
 
-    sku: str = Field(
-        ...,
-        description="Referenced product SKU",
-        examples=["6534606"],
-    )
-    url: str = Field(
-        ...,
-        description="Canonical URL to catalog product page",
-        examples=["https://www.bestbuy.com/site/sku/6534606.p"],
-    )
+    sku: str = Field(..., description="Referenced product SKU")
+    url: str = Field(..., description="Canonical Best Buy product URL")
     description: str | None = Field(
         default=None,
         description="Contextual note or spec citation rationale",
-        examples=["Battery spec verified from catalog.products"],
     )
 
 
 class ComparisonResponse(BaseModel):
-    """Complete synthesized product comparison response."""
+    """Complete structured comparison response."""
 
     summary: str = Field(
-        ...,
-        description="Executive summary and natural language comparative analysis",
-        examples=["Direct comparison between Apple MacBook Air M3 and Dell XPS 13..."],
+        ..., description="Agent synthesis narrative highlighting key differences and trade-offs"
     )
-    products: list[ProductItem] = Field(
-        default_factory=list,
-        description="List of compared products with grounded catalog details",
+    products: list[ProductSpec] = Field(
+        default_factory=list, description="List of matched products from BigQuery catalog"
     )
     comparison_matrix: list[MatrixRow] = Field(
-        default_factory=list,
-        description="Structured side-by-side feature comparison rows",
+        default_factory=list, description="Side-by-side specification comparison matrix"
     )
     citations: list[Citation] = Field(
-        default_factory=list,
-        description="Verifiable source citations matching BigQuery catalog ground truth",
+        default_factory=list, description="List of verified product citations"
+    )
+    recommendations: str | None = Field(
+        default=None, description="Optional targeted recommendations based on use-cases"
     )
     latency_ms: float | None = Field(
         default=None,
         ge=0.0,
         description="End-to-end request processing latency in milliseconds",
-        examples=[1245.0],
     )
+
+
+# Backward compatibility alias
+CompareResponse = ComparisonResponse

@@ -6,19 +6,20 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agent.orchestrator import ComparisonOrchestrator
 from app.config import Settings, get_settings
 from app.models import (
     Citation,
+    CompareRequest,
+    CompareResponse,
     ComparisonRequest,
     ComparisonResponse,
     HealthResponse,
     MatrixRow,
     ProductItem,
+    ProductSpec,
 )
 
-# Aliases for backward compatibility
-CompareRequest = ComparisonRequest
-CompareResponse = ComparisonResponse
 PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
 
 
@@ -96,16 +97,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="Query string must not be empty.",
             )
 
-        elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
-
-        # Baseline scaffolding response - to be routed to ADK agent in multi-agent pipeline
-        return ComparisonResponse(
-            summary=f"Comparison query received: '{request.query}'. Agent retrieval ready.",
-            products=[],
-            comparison_matrix=[],
-            citations=[],
-            latency_ms=elapsed_ms,
-        )
+        orchestrator = ComparisonOrchestrator()
+        result = orchestrator.compare(query=request.query, category=request.category)
+        result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        return result
 
     return application
 
@@ -122,6 +117,7 @@ __all__ = [
     "HealthResponse",
     "MatrixRow",
     "ProductItem",
+    "ProductSpec",
     "app",
     "create_app",
 ]
