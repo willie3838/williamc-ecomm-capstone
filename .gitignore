@@ -61,3 +61,7 @@ terraform.rc
 .idea/
 .DS_Store
 Thumbs.db
+
+# Swarm & Orchestration Logs
+.swarm/
+logs/
