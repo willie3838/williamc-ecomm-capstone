@@ -26,6 +26,8 @@ htmlcov/
 .mypy_cache/
 venv/
 .venv/
+**/.venv/
+**/.venv
 env/
 ENV/
 
