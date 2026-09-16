@@ -1,0 +1,12 @@
+.git/
+.gitignore
+backend/.venv/
+**/node_modules/
+node_modules/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.terraform/
+*.tfstate*
+!frontend/dist/

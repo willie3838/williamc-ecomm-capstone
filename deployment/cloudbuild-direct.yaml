@@ -1,0 +1,14 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest'
+      - '-f'
+      - 'deployment/Dockerfile'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest'
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: '600s'

@@ -59,6 +59,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tags=["Observability"],
         summary="Service Liveness Probe",
     )
+    @application.get(
+        "/healthz",
+        response_model=HealthResponse,
+        tags=["Observability"],
+        summary="Service Liveness Probe (Kubernetes/Cloud Run Alias)",
+    )
     async def health(
         app_settings: Annotated[Settings, Depends(get_settings)],
     ) -> HealthResponse:
@@ -114,6 +120,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return result
+
+    # Mount static React frontend SPA if bundled
+    import os
+    from pathlib import Path
+
+    from fastapi.staticfiles import StaticFiles
+
+    candidates = [
+        os.environ.get("FRONTEND_DIST_PATH", ""),
+        str(Path(__file__).resolve().parent.parent.parent.parent / "frontend" / "dist"),
+        "/app/frontend_dist",
+    ]
+    for dist_dir in candidates:
+        if dist_dir and os.path.isdir(dist_dir):
+            application.mount("/", StaticFiles(directory=dist_dir, html=True), name="frontend")
+            break
 
     return application
 

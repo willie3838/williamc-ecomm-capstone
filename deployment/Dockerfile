@@ -26,11 +26,13 @@ COPY --from=builder /root/.local /home/appuser/.local
 
 # Set environment variables for runtime
 ENV PATH=/home/appuser/.local/bin:$PATH
+ENV PYTHONPATH=/app/src:$PYTHONPATH
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
 # Copy application source code with correct non-root ownership
 COPY --chown=appuser:appgroup backend/src /app/src
+COPY --chown=appuser:appgroup frontend/dist /app/frontend_dist
 
 # Switch to non-root user
 USER appuser
