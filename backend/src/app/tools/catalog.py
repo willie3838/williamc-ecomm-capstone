@@ -59,7 +59,21 @@ def query_catalog(
 
         patterns = [f"%{k}%" for k in clean_keywords]
         # Also include individual model/brand sub-tokens so non-contiguous catalog names match
-        stopwords = {"and", "or", "the", "with", "vs", "versus", "to", "for", "in", "on", "at", "by", "from"}
+        stopwords = {
+            "and",
+            "or",
+            "the",
+            "with",
+            "vs",
+            "versus",
+            "to",
+            "for",
+            "in",
+            "on",
+            "at",
+            "by",
+            "from",
+        }
         for k in clean_keywords:
             tokens = [
                 t.lower()
