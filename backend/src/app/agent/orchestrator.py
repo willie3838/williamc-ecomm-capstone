@@ -54,6 +54,12 @@ class ComparisonOrchestrator:
             flags=re.IGNORECASE,
         )
         cleaned = re.sub(
+            r"\s+(?:on|for|regarding|in terms of|based on)\s+(?:price|battery|weight|specs|display|screen|performance|ram|storage|features|ratings?).*$",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(
             r"^(?:(?:screen size|refresh rate|price|battery life|display technology|hdr format|audio and smart features|bluetooth version and driver size|price and processor breakdown|summary of differences) (?:and [a-z ]+ )?(?:of|between|for))\s+",
             "",
             cleaned,

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -57,6 +58,19 @@ def query_catalog(
             client = bigquery.Client(project=settings.gcp_project)
 
         patterns = [f"%{k}%" for k in clean_keywords]
+        # Also include individual model/brand sub-tokens so non-contiguous catalog names match
+        stopwords = {"and", "or", "the", "with", "vs", "versus", "to", "for", "in", "on", "at", "by", "from"}
+        for k in clean_keywords:
+            tokens = [
+                t.lower()
+                for t in re.findall(r"[a-zA-Z0-9]+", k)
+                if t.lower() not in stopwords and len(t) >= 2
+            ]
+            for t in tokens:
+                patterns.append(f"%{t}%")
+        # Deduplicate while preserving order
+        patterns = list(dict.fromkeys(patterns))
+
         query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
             bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),
         ]
