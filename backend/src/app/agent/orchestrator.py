@@ -449,10 +449,20 @@ class ComparisonOrchestrator:
 
         def score_product(p: ProductSpec) -> tuple[int, int, float]:
             text = f"{p.name} {p.brand} {p.category}".lower()
-            # Exact phrase match bonus
-            exact = 100 if any(kw.lower() in text for kw in keywords if len(kw) >= 3) else 0
-            # Token overlap count
-            overlap = sum(1 for t in query_tokens if t in text)
+            # Exact phrase match bonus with word boundaries
+            exact = (
+                100
+                if any(
+                    bool(re.search(r"\b" + re.escape(kw.lower()) + r"\b", text))
+                    for kw in keywords
+                    if len(kw) >= 3
+                )
+                else 0
+            )
+            # Token overlap count with word boundaries
+            overlap = sum(
+                1 for t in query_tokens if bool(re.search(r"\b" + re.escape(t) + r"\b", text))
+            )
             return (exact, overlap, -p.price)
 
         sorted_products = sorted(products, key=score_product, reverse=True)
