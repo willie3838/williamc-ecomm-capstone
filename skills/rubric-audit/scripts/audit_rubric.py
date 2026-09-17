@@ -935,6 +935,13 @@ def main() -> int:
         help="Path to historical progression markdown log",
     )
     parser.add_argument(
+        "--run",
+        "--evaluate",
+        dest="run_audit",
+        action="store_true",
+        help="Execute fresh, dynamic repository exploration and competency evaluation",
+    )
+    parser.add_argument(
         "--no-log",
         action="store_true",
         help="Do not update the historical progression log",
@@ -1016,8 +1023,8 @@ def main() -> int:
 
         return 0 if success else 1
 
-    # Mode 4: Dynamic Repository Exploration (when specifically auditing arbitrary repository or fallback)
-    if not LATEST_AUDIT_FILE.exists() and not args.log_file.exists():
+    # Mode 4: Dynamic Repository Exploration (when requested via --run or when no history exists)
+    if args.run_audit or (not LATEST_AUDIT_FILE.exists() and not args.log_file.exists()):
         with open(CHECKLIST_PATH, encoding="utf-8") as f:
             raw_checklist = json.load(f)
         explorer = ProjectExplorer(args.repo_path)
