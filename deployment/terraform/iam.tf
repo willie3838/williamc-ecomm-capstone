@@ -80,4 +80,27 @@ resource "google_project_iam_member" "sa_clouddeploy_releaser" {
   member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
 
+# IAP Service Identity (Required for Cloud Run native IAP request dispatching)
+resource "google_project_service_identity" "iap_sa" {
+  provider = google-beta
+  project  = var.project_id
+  service  = "iap.googleapis.com"
+}
+
+# Grant IAP Service Agent permission to invoke Cloud Run
+resource "google_cloud_run_v2_service_iam_member" "iap_service_agent_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.catalog_comparison_service.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_project_service_identity.iap_sa.email}"
+}
+
+# Grant user browser access to IAP protected web resources
+resource "google_iap_web_iam_member" "user_access" {
+  project = var.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "user:admin@williamwlchan.altostrat.com"
+}
+
 
