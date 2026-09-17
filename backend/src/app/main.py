@@ -77,6 +77,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             service=app_settings.service_name,
             project=app_settings.project_id,
             version=app_settings.api_version,
+            agent_version=app_settings.agent_version,
+            model_version=app_settings.model_version,
+            prompt_version=app_settings.prompt_version,
             environment=app_settings.environment,
         )
 

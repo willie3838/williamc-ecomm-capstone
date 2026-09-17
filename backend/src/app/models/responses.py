@@ -24,9 +24,24 @@ class HealthResponse(BaseModel):
         examples=["fde-bestbuy-sandbox-dev-508321"],
     )
     version: str = Field(
-        default="0.1.0",
+        default="1.0.0",
         description="Current application release version",
-        examples=["0.1.0"],
+        examples=["1.0.0"],
+    )
+    agent_version: str = Field(
+        default="1.0.0",
+        description="Semantic version of comparison agent orchestration logic",
+        examples=["1.0.0"],
+    )
+    model_version: str = Field(
+        default="gemini-2.5-pro@001",
+        description="Pinned Vertex AI foundation model checkpoint",
+        examples=["gemini-2.5-pro@001"],
+    )
+    prompt_version: str = Field(
+        default="2026.03-v1",
+        description="Version identifier of active system prompt templates",
+        examples=["2026.03-v1"],
     )
     environment: str = Field(
         default="development",

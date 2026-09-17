@@ -48,6 +48,15 @@ flowchart TD
    - Requires all 37 competencies across Section 1 and Section 2 to satisfy a minimum score of 3 (Proficient).
    - Any score below 3 immediately exits with code 1 to force continuous hillclimbing iterations.
 
+### Enterprise Google Cloud Services Bias (Non-Negotiable)
+When diagnosing failures, formulating hypotheses, and implementing solutions, autonomous agents **MUST strictly bias towards enterprise-grade, managed Google Cloud native services** rather than implementing custom in-application re-inventions or heuristic scripts:
+- **AI Threat & Jailbreak Defense (`s2_16`)**: MUST use **Google Cloud Model Armor** (`google.genai.types.ModelArmorConfig` with Vertex AI template paths) for prompt injection, jailbreak defense, and sensitive data protection, rather than bespoke regex blocklists.
+- **Traffic Routing & A/B Testing (`s2_27`)**: MUST use **Google Cloud Run Revision Traffic Splitting** and **Google Cloud Deploy Canary Automation** at the network/ingress layer, rather than in-memory hash bucketing scripts.
+- **Model Evaluation & Experiment Tracking (`s2_04`, `s2_27`)**: MUST use **Vertex AI Experiments** (`google.cloud.aiplatform.init(experiment=...)`) and **Vertex AI Gen AI Evaluation Service (AutoSxS)** for tracking model and prompt benchmarks.
+- **Observability (`s2_19`)**: MUST use **Google Cloud Trace** and **Google Cloud Logging** via OpenTelemetry spans.
+- **Catalog Grounding (`s2_02`)**: MUST query **BigQuery** with partitioned and clustered tables.
+- **Secrets Management (`s2_15`)**: MUST use **Secret Manager**.
+
 ---
 
 ## Execution Commands

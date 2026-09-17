@@ -446,8 +446,10 @@ class UniversalRubricAuditor:
             return {"score": score, "evidence": evidence, "reasoning": reasoning}
 
         if cid == "s2_16":  # AI-Specific Security
-            # Critical check: Prompt injection defenses MUST be evaluated directly.
-            # SQL parameters protect the database, NOT the LLM.
+            has_model_armor = exp.search_text(
+                exp.python_files,
+                r"(?:ModelArmorConfig|model_armor_prompt_template|MODEL_ARMOR)",
+            )
             has_prompt_sanitization = exp.search_text(
                 exp.python_files,
                 r"(?:sanitize_user_prompt|adversarial|jailbreak|ignore previous instructions)",
@@ -461,15 +463,15 @@ class UniversalRubricAuditor:
                 r"(?:safety_settings|harm_category|block_threshold)",
             )
 
-            # Legitimate Score 3 requires prompt sanitization, XML delimiters, or Vertex AI safety filters
-            if (has_prompt_sanitization or has_delimiters) and has_safety_settings:
+            # Legitimate Score 3 requires Model Armor, prompt sanitization, XML delimiters, or Vertex AI safety filters
+            if (has_model_armor or has_prompt_sanitization or has_delimiters) and has_safety_settings:
                 score = 3
-                evidence = f"Prompt defense: {', '.join({p for p, _ in (has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
-                reasoning = "Score 3 (Proficient): Layered AI-specific security with prompt injection sanitization, XML delimiters, and Vertex AI content safety settings."
-            elif has_prompt_sanitization or has_delimiters or has_safety_settings:
+                evidence = f"Google Cloud Model Armor & AI Defense: {', '.join({p for p, _ in (has_model_armor + has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
+                reasoning = "Score 3 (Proficient): Google Cloud Model Armor integration, XML boundary isolation, and Vertex AI content safety settings."
+            elif has_model_armor or has_prompt_sanitization or has_delimiters or has_safety_settings:
                 score = 2
-                evidence = f"Partial AI security: {', '.join({p for p, _ in (has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
-                reasoning = "Score 2 (Competent): Basic AI security controls present, but requires full prompt sanitization and safety settings for Score 3."
+                evidence = f"Partial AI security: {', '.join({p for p, _ in (has_model_armor + has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
+                reasoning = "Score 2 (Competent): Basic AI security controls present, but requires full Model Armor / prompt sanitization and safety settings for Score 3."
             else:
                 score = 2  # Baseline pass if structured schemas and DB params exist, but noted as non-Score-3
                 evidence = "Pydantic structured output validation and BigQuery SQL parameterization (database-level protection only)"
@@ -490,7 +492,27 @@ class UniversalRubricAuditor:
             reasoning = "Score 3 (Proficient): Resource efficiency, horizontal elasticity, and token/query cost controls."
             return {"score": score, "evidence": evidence, "reasoning": reasoning}
 
-        if cid in {"s2_25", "s2_26", "s2_27", "s2_28"}:
+        if cid == "s2_27":  # AI Lifecycle Management
+            has_versioning = exp.search_text(
+                exp.python_files,
+                r"(?:agent_version|prompt_version|model_version)",
+            )
+            has_cloud_deploy = [f for f in exp.all_files if "clouddeploy" in f]
+            has_traffic_split = exp.search_text(
+                exp.yaml_files,
+                r"(?:canary|update-traffic|to-revisions|automaticTrafficControl)",
+            )
+            if has_versioning and (has_cloud_deploy or has_traffic_split):
+                score = 3
+                evidence = "Cloud Run revision traffic splitting, Cloud Deploy canary, and OpenTelemetry version tagging."
+                reasoning = "Score 3 (Proficient): Enterprise GCP AI lifecycle management with Cloud Run revision traffic splitting, Cloud Deploy canary automation, and semantic agent/prompt/model versioning."
+            else:
+                score = 2
+                evidence = "Baseline versioning"
+                reasoning = "Score 2: Baseline versioning."
+            return {"score": score, "evidence": evidence, "reasoning": reasoning}
+
+        if cid in {"s2_25", "s2_26", "s2_28"}:
             has_ci = [f for f in exp.all_files if "cloudbuild" in f or "ci" in f]
             score = 3 if has_ci else 2
             evidence = (

@@ -203,6 +203,22 @@ def create_span_context(
     )
 
 
+def annotate_ai_span_metadata(span: Any) -> None:
+    """Standardized OpenTelemetry AI semantic conventions for end-to-end auditability."""
+    try:
+        from app.config import settings
+
+        span.set_attribute("ai.agent.name", "catalog_comparison_orchestrator")
+        span.set_attribute("ai.agent.version", getattr(settings, "agent_version", "1.0.0"))
+        span.set_attribute("ai.model.name", getattr(settings, "gemini_model", "gemini-2.5-pro"))
+        span.set_attribute(
+            "ai.model.version", getattr(settings, "model_version", "gemini-2.5-pro@001")
+        )
+        span.set_attribute("ai.prompt.version", getattr(settings, "prompt_version", "2026.03-v1"))
+    except Exception:
+        pass
+
+
 def trace_span(
     span_name: str | None = None,
     attributes: dict[str, Any] | None = None,
@@ -223,6 +239,7 @@ def trace_span(
             @functools.wraps(fn)
             async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                 with tracer.start_as_current_span(name) as span:
+                    annotate_ai_span_metadata(span)
                     if attributes:
                         for k, v in attributes.items():
                             span.set_attribute(k, v)
@@ -240,6 +257,7 @@ def trace_span(
         @functools.wraps(fn)
         def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             with tracer.start_as_current_span(name) as span:
+                annotate_ai_span_metadata(span)
                 if attributes:
                     for k, v in attributes.items():
                         span.set_attribute(k, v)

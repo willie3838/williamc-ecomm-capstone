@@ -57,30 +57,35 @@ class Settings(BaseSettings):
         alias="GEMINI_MODEL",
         description="Gemini LLM model name for agent synthesis",
     )
-    champion_model: str = Field(
-        default="gemini-2.5-flash",
-        alias="CHAMPION_MODEL",
-        description="Champion production foundation model",
+    agent_version: str = Field(
+        default="1.0.0",
+        alias="AGENT_VERSION",
+        description="Semantic version of the comparison agent orchestration logic",
     )
-    challenger_model: str = Field(
-        default="gemini-2.5-pro",
-        alias="CHALLENGER_MODEL",
-        description="Challenger experimental foundation model",
+    prompt_version: str = Field(
+        default="2026.03-v1",
+        alias="PROMPT_VERSION",
+        description="System prompt template version identifier",
     )
-    enable_model_experiment: bool = Field(
+    model_version: str = Field(
+        default="gemini-2.5-pro@001",
+        alias="MODEL_VERSION",
+        description="Pinned Vertex AI model version snapshot",
+    )
+    model_armor_prompt_template: str = Field(
+        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-prompt-guard",
+        alias="MODEL_ARMOR_PROMPT_TEMPLATE",
+        description="Google Cloud Model Armor prompt guardrail template",
+    )
+    model_armor_response_template: str = Field(
+        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-resp-guard",
+        alias="MODEL_ARMOR_RESPONSE_TEMPLATE",
+        description="Google Cloud Model Armor response guardrail template",
+    )
+    enable_model_armor: bool = Field(
         default=True,
-        alias="ENABLE_MODEL_EXPERIMENT",
-        description="Enable A/B testing and model routing experiments",
-    )
-    challenger_traffic_percentage: int = Field(
-        default=10,
-        alias="CHALLENGER_TRAFFIC_PERCENTAGE",
-        description="Percentage (0-100) of live traffic routed to challenger model",
-    )
-    active_experiment_id: str = Field(
-        default="exp-2026-flash-vs-pro-v1",
-        alias="ACTIVE_EXPERIMENT_ID",
-        description="Active experiment identifier for telemetry tracking",
+        alias="ENABLE_MODEL_ARMOR",
+        description="Enable Google Cloud Model Armor security guardrails",
     )
     temperature: float = Field(
         default=0.1,

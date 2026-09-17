@@ -24,6 +24,21 @@ The LLM agent (you) conducts the review directly using deep engineering comprehe
 3. **Intellectual Honesty**: You award scores based solely on verified evidence. If a requirement is missing or shallow, you score it 0 or 1 and provide actionable remediation.
 4. **Deterministic Recording**: The companion CLI (`scripts/audit_rubric.py`) handles schema validation, mathematical averaging, and chronological tracking in [`logs/rubric_audit_history.md`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/rubric_audit_history.md).
 
+### 1.1 Unbiased Independent Review Pane (Clean-Context Protocol)
+To ensure the audit is completely objective, rigorous, and devoid of prior conversation bias or hallucinated memory from implementation steps:
+- **Mandatory Independent Pane**: Spawn an independent auditor pane in tmux running Jetski with **`gemini-3.8-flash`** configured on **`high`** (reasoning effort: high):
+  ```bash
+  tmux split-window -h "jetski --model gemini-3.8-flash --thinking high 'Review the codebase against RUBRIC.md using the rubric-audit skill with an unbiased perspective'"
+  ```
+- **Why `gemini-3.8-flash` on `high`**:
+  1. **Clean Context**: Starts with empty conversation history and zero confirmation bias.
+  2. **High Reasoning Effort**: Thoroughly traces code dependencies, verifies tests, audits Terraform perimeters, and detects architectural anti-patterns without cutting corners.
+  3. **Adversarial Verification**: Validates that all 37 competencies genuinely earn Score 3 by inspecting repository files rather than trusting implementation claims.
+  4. **Output Contract**: Writes the audit findings JSON to `logs/unbiased_rubric_audit.json` and records it via:
+     ```bash
+     python3 skills/rubric-audit/scripts/audit_rubric.py --record logs/unbiased_rubric_audit.json
+     ```
+
 ---
 
 ## 2. Scoring Scale & Passing Standard

@@ -71,6 +71,20 @@ def get_default_safety_settings() -> list[types.SafetySetting]:
     ]
 
 
+def get_model_armor_config() -> types.ModelArmorConfig | None:
+    """Construct Google Cloud Model Armor configuration for Vertex AI LLM requests.
+
+    Integrates native Security Command Center Model Armor templates to intercept
+    prompt injection, jailbreak attacks, and sensitive data leakage (PII/SDP).
+    """
+    if not getattr(settings, "enable_model_armor", True):
+        return None
+    return types.ModelArmorConfig(
+        prompt_template_name=settings.model_armor_prompt_template,
+        response_template_name=settings.model_armor_response_template,
+    )
+
+
 # Core ADK Root Agent definition
 catalog_agent = Agent(
     name="catalog_comparison_orchestrator",
@@ -434,6 +448,7 @@ class ComparisonOrchestrator:
 
             config = types.GenerateContentConfig(
                 safety_settings=get_default_safety_settings(),
+                model_armor_config=get_model_armor_config(),
                 temperature=0.0,
             )
 
@@ -443,10 +458,22 @@ class ComparisonOrchestrator:
                 config=config,
             )
 
-            # Detect if response was blocked by Vertex AI safety filters
-            if response.candidates and response.candidates[0].finish_reason == "SAFETY":
-                logger.warning("Query blocked by Vertex AI safety filter: %s", sanitized_query)
-                return None
+            # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
+            if response.candidates:
+                finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
+                if finish_reason in {
+                    "SAFETY",
+                    "MODEL_ARMOR",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "SPII",
+                }:
+                    logger.warning(
+                        "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
+                        finish_reason,
+                        sanitized_query,
+                    )
+                    return None
             # Track token consumption metrics
             usage = getattr(response, "usage_metadata", None)
             if usage:
