@@ -308,7 +308,8 @@ def compute_citation_faithfulness(
 
 def evaluate_semantic_coherence(
     response: CompareResponse,
-    judge_model: str = "gemini-1.5-flash",
+    query: str = "",
+    judge_model: str = "gemini-3.5-flash",
     live: bool = False,
 ) -> tuple[float, list[str]]:
     """Evaluate semantic coherence, winner consistency, and absence of contradictions."""
@@ -316,6 +317,26 @@ def evaluate_semantic_coherence(
 
     if not response.products or len(response.products) < 2:
         return 1.0, []
+
+    if live:
+        try:
+            from evals.judge import evaluate_comparison_faithfulness
+
+            verdict = evaluate_comparison_faithfulness(
+                query=query,
+                matrix=response.comparison_matrix,
+                summary=response.summary or "",
+                model=judge_model,
+            )
+            if not verdict.is_faithful or verdict.has_contradiction:
+                errors.append(f"Faithfulness issue: {verdict.reasoning}")
+            norm_score = max(0.0, min(1.0, verdict.score / 5.0))
+            return round(norm_score, 4), errors
+        except Exception as judge_err:  # noqa: BLE001
+            logger.warning(
+                "LLM judge evaluation encountered exception, falling back to heuristic: %s",
+                judge_err,
+            )
 
     p1, p2 = response.products[0], response.products[1]
     summary = (response.summary or "").lower()
@@ -464,7 +485,7 @@ def run_benchmark(
 
             # 4. Semantic coherence
             semantic_score, sem_errs = evaluate_semantic_coherence(
-                response, judge_model=judge_model, live=live
+                response, query=query, judge_model=judge_model, live=live
             )
             case_errors.extend(sem_errs)
 
@@ -659,8 +680,8 @@ def main() -> None:
     parser.add_argument(
         "--judge-model",
         type=str,
-        default="gemini-1.5-flash",
-        help="LLM Judge model identifier.",
+        default="gemini-3.5-flash",
+        help="LLM Judge model identifier (defaults to gemini-3.5-flash with automatic fallback).",
     )
     parser.add_argument(
         "--live",

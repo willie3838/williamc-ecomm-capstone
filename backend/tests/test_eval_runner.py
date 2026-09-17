@@ -163,6 +163,52 @@ def test_create_hermetic_bq_client():
     assert any("macbook" in r["name"].lower() for r in res)
 
 
+def test_evaluate_semantic_coherence_live_with_judge(monkeypatch):
+    """Verify live semantic coherence evaluation routes through evaluate_comparison_faithfulness."""
+    from evals.judge import FaithfulnessResult
+
+    p1 = ProductSpec(sku="1", name="Laptop A", brand="A", price=500.0)
+    p2 = ProductSpec(sku="2", name="Laptop B", brand="B", price=1000.0)
+    resp = CompareResponse(
+        summary="Laptop A [SKU: 1] is cheaper than Laptop B [SKU: 2].",
+        products=[p1, p2],
+        comparison_matrix=[],
+        citations=[],
+    )
+
+    mock_result = FaithfulnessResult(
+        is_faithful=True,
+        score=5,
+        has_contradiction=False,
+        reasoning="Faithful reflection of specs.",
+    )
+
+    import evals.judge
+
+    monkeypatch.setattr(
+        evals.judge, "evaluate_comparison_faithfulness", lambda **kwargs: mock_result
+    )
+
+    score, errs = evaluate_semantic_coherence(resp, query="Laptop A vs Laptop B", live=True)
+    assert score == 1.0
+    assert len(errs) == 0
+
+    # Test failure case
+    mock_bad_result = FaithfulnessResult(
+        is_faithful=False,
+        score=1,
+        has_contradiction=True,
+        reasoning="Inverted price winner.",
+    )
+    monkeypatch.setattr(
+        evals.judge, "evaluate_comparison_faithfulness", lambda **kwargs: mock_bad_result
+    )
+
+    score_bad, errs_bad = evaluate_semantic_coherence(resp, query="Laptop A vs Laptop B", live=True)
+    assert score_bad == 0.2
+    assert any("Faithfulness issue" in e for e in errs_bad)
+
+
 def test_run_benchmark_limit_and_category_filter():
     """Verify benchmark run with category filter and limit."""
     repo_root = Path(__file__).resolve().parent.parent.parent
