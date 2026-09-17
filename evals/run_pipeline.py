@@ -22,7 +22,7 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +37,7 @@ if str(REPO_ROOT) not in sys.path:
 from evals.analyze import compare_reports, generate_markdown_report, load_report
 from evals.runner import export_evaluation_to_bigquery, run_benchmark
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("evals.pipeline")
 
 
@@ -77,12 +75,10 @@ async def execute_adk_evaluation(
             adk_report["raw"] = data
             # Extract summary scores if present
             if isinstance(data, dict):
-                adk_report["hallucination_score"] = data.get(
-                    "hallucinations_v1"
-                ) or data.get("hallucination_score")
-                adk_report["tool_trajectory_score"] = data.get(
-                    "tool_trajectory_avg_score"
+                adk_report["hallucination_score"] = data.get("hallucinations_v1") or data.get(
+                    "hallucination_score"
                 )
+                adk_report["tool_trajectory_score"] = data.get("tool_trajectory_avg_score")
                 adk_report["response_match_score"] = data.get("response_match_score")
         logger.info("ADK AgentEvaluator completed successfully.")
     except Exception as e:  # noqa: BLE001
@@ -120,7 +116,7 @@ def run_pipeline(
 
     print("\n" + "=" * 80)
     print("🚀 UNIFIED NIGHTLY EVALUATION PIPELINE")
-    print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
+    print(f"Timestamp: {datetime.now(UTC).isoformat()}")
     print("=" * 80)
 
     # -------------------------------------------------------------------------
@@ -159,13 +155,9 @@ def run_pipeline(
 
     # Attach ADK scores to runner summary
     if adk_report.get("hallucination_score") is not None:
-        runner_report["summary"]["adk_hallucination_score"] = adk_report[
-            "hallucination_score"
-        ]
+        runner_report["summary"]["adk_hallucination_score"] = adk_report["hallucination_score"]
     if adk_report.get("tool_trajectory_score") is not None:
-        runner_report["summary"]["adk_tool_trajectory_score"] = adk_report[
-            "tool_trajectory_score"
-        ]
+        runner_report["summary"]["adk_tool_trajectory_score"] = adk_report["tool_trajectory_score"]
 
     # -------------------------------------------------------------------------
     # STEP 3: Regression Analysis & Reporting (THIRD)

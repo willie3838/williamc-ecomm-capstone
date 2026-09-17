@@ -18,16 +18,39 @@ verify:
         - |
           set -euo pipefail
           echo "=== Starting Candidate Post-Deploy Verification ==="
-          TARGET_URL="${CLOUD_RUN_SERVICE_URL:-http://localhost:8080}"
+          RAW_URL="${CLOUD_RUN_SERVICE_URLS:-${CLOUD_RUN_SERVICE_URL:-https://catalog-comparison-service-ocj5dik5ra-uc.a.run.app}}"
+          TARGET_URL="$(echo "${RAW_URL}" | awk '{print $1}')"
+          case "${TARGET_URL}" in
+            http://*|https://*) ;;
+            *) TARGET_URL="https://${TARGET_URL}" ;;
+          esac
           echo "Target service endpoint: ${TARGET_URL}"
 
+          AUTH_HEADER=""
+          ID_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${TARGET_URL}" 2>/dev/null || true)
+          if [ -n "${ID_TOKEN}" ]; then
+            AUTH_HEADER="Authorization: Bearer ${ID_TOKEN}"
+          fi
+
           echo "1. Probing /health liveness endpoint..."
-          curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "${TARGET_URL}/health" | grep -q '"status":"ok"'
+          if [ -n "${AUTH_HEADER}" ]; then
+            curl -fsSL -H "${AUTH_HEADER}" --retry 5 --retry-delay 3 --retry-connrefused "${TARGET_URL}/health" | grep -q '"status":"ok"'
+          else
+            curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "${TARGET_URL}/health" | grep -q '"status":"ok"'
+          fi
 
           echo "2. Probing /health/ready readiness endpoint..."
-          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${TARGET_URL}/health/ready" | grep -q '"status":"ready"'
+          if [ -n "${AUTH_HEADER}" ]; then
+            curl -fsSL -H "${AUTH_HEADER}" --retry 5 --retry-delay 2 --retry-connrefused "${TARGET_URL}/health/ready" | grep -q '"status":"ready"'
+          else
+            curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${TARGET_URL}/health/ready" | grep -q '"status":"ready"'
+          fi
 
           echo "3. Probing OpenAPI documentation endpoint..."
-          curl -fsSL --retry 3 "${TARGET_URL}/openapi.json" | grep -q '"title"'
+          if [ -n "${AUTH_HEADER}" ]; then
+            curl -fsSL -H "${AUTH_HEADER}" --retry 3 "${TARGET_URL}/openapi.json" | grep -q '"title"'
+          else
+            curl -fsSL --retry 3 "${TARGET_URL}/openapi.json" | grep -q '"title"'
+          fi
 
           echo "All candidate verification probes passed successfully."

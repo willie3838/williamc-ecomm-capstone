@@ -8,14 +8,11 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "evals/*" = ["E402"]
+"backend/tests/*" = ["E402"]
 "tests/*" = ["E402"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests"]
-pythonpath = ["src", ".."]
-addopts = "-v --cov=src --cov-report=term-missing --cov-fail-under=80"
-
-[tool.coverage.run]
-source = ["src"]
-omit = ["tests/*"]
+testpaths = ["backend/tests"]
+pythonpath = ["backend/src", "backend"]
+addopts = "-v --cov=backend/src --cov-report=term-missing --cov-fail-under=80"

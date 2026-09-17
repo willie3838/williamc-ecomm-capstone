@@ -29,22 +29,16 @@ from evals.judge import FaithfulnessResult, evaluate_comparison_faithfulness
 
 logger = logging.getLogger("evals.test_comparison_faithfulness")
 
-BENCHMARK_DATASET_PATH = (
-    REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json"
-)
-CATALOG_SEED_PATH = (
-    REPO_ROOT / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
-)
+BENCHMARK_DATASET_PATH = REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json"
+CATALOG_SEED_PATH = REPO_ROOT / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
 
 
 def load_80_comparison_pairs() -> list[dict]:
     """Load the 80 benchmark comparison pairs from the canonical evalset."""
     if not BENCHMARK_DATASET_PATH.exists():
-        raise FileNotFoundError(
-            f"Benchmark dataset not found: {BENCHMARK_DATASET_PATH}"
-        )
+        raise FileNotFoundError(f"Benchmark dataset not found: {BENCHMARK_DATASET_PATH}")
 
-    with open(BENCHMARK_DATASET_PATH, "r", encoding="utf-8") as f:
+    with open(BENCHMARK_DATASET_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
     cases = data.get("eval_cases", [])
@@ -163,7 +157,7 @@ def test_comparison_faithfulness():
     eval_subset = pairs if is_nightly else pairs[:5]
     judge_model = os.getenv("JUDGE_MODEL", "gemini-3.5-flash")
 
-    for idx, item in enumerate(eval_subset, start=1):
+    for _idx, item in enumerate(eval_subset, start=1):
         query = item["query"]
         category = item["category"]
 
@@ -206,9 +200,7 @@ def test_comparison_faithfulness():
 
     # 2. Faithfulness Pass Rate >= 95%
     pass_rate = passed_count / len(eval_subset)
-    assert pass_rate >= 0.95, (
-        f"Faithfulness pass rate {pass_rate:.2%} is below 95% target"
-    )
+    assert pass_rate >= 0.95, f"Faithfulness pass rate {pass_rate:.2%} is below 95% target"
 
     # 3. Mean Faithfulness Score >= 4.0 / 5.0
     mean_score = sum(faithfulness_scores) / len(faithfulness_scores)

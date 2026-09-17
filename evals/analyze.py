@@ -7,9 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("evals.analyze")
 
 
@@ -17,13 +15,11 @@ def load_report(path: Path) -> dict[str, Any]:
     """Load JSON evaluation report."""
     if not path.exists():
         raise FileNotFoundError(f"Report file not found: {path}")
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def format_delta(
-    delta: float, is_percentage: bool = False, higher_is_better: bool = True
-) -> str:
+def format_delta(delta: float, is_percentage: bool = False, higher_is_better: bool = True) -> str:
     """Format metric delta with visual indicators."""
     if abs(delta) < 0.0001:
         return "= 0.00%" if is_percentage else "= 0.0000"
@@ -81,9 +77,7 @@ def compare_reports(
                         f"Case {cid} flipped from PASS to FAIL: Errors: {cur_case.get('errors')}"
                     )
                 # Check accuracy drop
-                acc_diff = cur_case.get("data_accuracy", 0.0) - b_case.get(
-                    "data_accuracy", 0.0
-                )
+                acc_diff = cur_case.get("data_accuracy", 0.0) - b_case.get("data_accuracy", 0.0)
                 if acc_diff < -accuracy_tolerance:
                     case_regressions.append(
                         f"Case {cid} data accuracy dropped by {abs(acc_diff):.4f} ({b_case.get('data_accuracy')} -> {cur_case.get('data_accuracy')})"
@@ -156,9 +150,7 @@ def compare_reports(
             ),
             "accuracy_delta": round(
                 c_data.get("mean_data_accuracy", 0.0)
-                - b_data.get(
-                    "mean_data_accuracy", c_data.get("mean_data_accuracy", 0.0)
-                ),
+                - b_data.get("mean_data_accuracy", c_data.get("mean_data_accuracy", 0.0)),
                 4,
             ),
             "current_citation": c_data.get("mean_citation_faithfulness", 0.0),
@@ -210,9 +202,7 @@ def compare_reports(
         "regressions_detected": regressions_found,
         "regression_details": regressions,
         "case_regressions": case_regressions,
-        "verdict": "PASSED"
-        if not regressions_found and target_met
-        else "REGRESSION_DETECTED",
+        "verdict": "PASSED" if not regressions_found and target_met else "REGRESSION_DETECTED",
     }
 
 

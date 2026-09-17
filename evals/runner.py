@@ -8,7 +8,7 @@ import re
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -24,9 +24,7 @@ if str(REPO_ROOT) not in sys.path:
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import CompareResponse
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("evals.runner")
 
 
@@ -35,7 +33,7 @@ def create_hermetic_bq_client(catalog_path: Path) -> MagicMock:
     if not catalog_path.exists():
         raise FileNotFoundError(f"Catalog seed file not found: {catalog_path}")
 
-    with open(catalog_path, "r", encoding="utf-8") as f:
+    with open(catalog_path, encoding="utf-8") as f:
         catalog_items = json.load(f)
 
     client = MagicMock()
@@ -171,9 +169,7 @@ def normalize_value(val: Any) -> Any:
         s,
         flags=re.IGNORECASE,
     )
-    s = re.sub(
-        r"\b(gb|ghz|tb|hrs?|hours?|lbs?|oz|hz|watts?)\b", "", s, flags=re.IGNORECASE
-    )
+    s = re.sub(r"\b(gb|ghz|tb|hrs?|hours?|lbs?|oz|hz|watts?)\b", "", s, flags=re.IGNORECASE)
     s = re.sub(r"[\$,\"']", "", s)
     s = re.sub(r"\s+", " ", s).strip()
     try:
@@ -205,9 +201,7 @@ def compute_spec_accuracy(
             continue
 
         prod = retrieved_by_sku[sku]
-        prod_specs = (
-            prod.specifications if isinstance(prod.specifications, dict) else {}
-        )
+        prod_specs = prod.specifications if isinstance(prod.specifications, dict) else {}
 
         for feature_key, expected_val in gt.items():
             total_checks += 1
@@ -280,9 +274,7 @@ def compute_citation_faithfulness(
         return 0.0, errors
     elif cited_inline_skus:
         # Check coverage of expected SKUs
-        coverage = len(cited_inline_skus & set(expected_skus)) / max(
-            1, len(expected_skus)
-        )
+        coverage = len(cited_inline_skus & set(expected_skus)) / max(1, len(expected_skus))
         score_components.append(coverage)
     else:
         errors.append("No inline [SKU: ...] citations detected in summary narrative.")
@@ -290,21 +282,15 @@ def compute_citation_faithfulness(
 
     # 3. Check inline citations in recommendations if present
     if response.recommendations:
-        rec_citations = re.findall(
-            r"\[SKU:\s*([A-Za-z0-9_-]+)\]", response.recommendations
-        )
+        rec_citations = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", response.recommendations)
         rec_hallucinated = set(rec_citations) - retrieved_skus
         if rec_hallucinated:
-            errors.append(
-                f"Hallucinated citations in recommendations: {rec_hallucinated}"
-            )
+            errors.append(f"Hallucinated citations in recommendations: {rec_hallucinated}")
             score_components.append(0.0)
         else:
             score_components.append(1.0)
 
-    final_score = (
-        sum(score_components) / len(score_components) if score_components else 0.0
-    )
+    final_score = sum(score_components) / len(score_components) if score_components else 0.0
     return round(final_score, 4), errors
 
 
@@ -351,17 +337,13 @@ def evaluate_semantic_coherence(
             f"{p2.name.lower()} is cheaper" in summary
             or f"{p2.name.lower()} is more affordable" in summary
         ):
-            errors.append(
-                f"Contradiction: summary claimed {p2.name} is cheaper than {p1.name}"
-            )
+            errors.append(f"Contradiction: summary claimed {p2.name} is cheaper than {p1.name}")
             score -= 0.5
     elif p2.price < p1.price and (
         f"{p1.name.lower()} is cheaper" in summary
         or f"{p1.name.lower()} is more affordable" in summary
     ):
-        errors.append(
-            f"Contradiction: summary claimed {p1.name} is cheaper than {p2.name}"
-        )
+        errors.append(f"Contradiction: summary claimed {p1.name} is cheaper than {p2.name}")
         score -= 0.5
 
     # Check that summary mentions key entities
@@ -388,7 +370,7 @@ def run_benchmark(
     target_latency: float = 3.0,
     target_schema: float = 1.00,
 ) -> dict[str, Any]:
-    with open(dataset_path, "r", encoding="utf-8") as f:
+    with open(dataset_path, encoding="utf-8") as f:
         raw_data = json.load(f)
 
     if isinstance(raw_data, dict) and "eval_cases" in raw_data:
@@ -421,18 +403,14 @@ def run_benchmark(
         logger.info("Limited benchmark run to %d test cases", len(cases))
 
     if not cases:
-        raise ValueError(
-            f"No benchmark test cases found matching criteria in {dataset_path}"
-        )
+        raise ValueError(f"No benchmark test cases found matching criteria in {dataset_path}")
 
     # Set up orchestrator
     if live:
         logger.info("Running in LIVE mode with Google Cloud BigQuery client")
         orchestrator = ComparisonOrchestrator()
     else:
-        logger.info(
-            "Running in HERMETIC mode with mock BigQuery client from %s", catalog_path
-        )
+        logger.info("Running in HERMETIC mode with mock BigQuery client from %s", catalog_path)
         bq_client = create_hermetic_bq_client(catalog_path)
         orchestrator = ComparisonOrchestrator(bq_client=bq_client)
 
@@ -476,9 +454,7 @@ def run_benchmark(
             latencies.append(latency)
 
             # Check schema validity
-            is_schema_valid = isinstance(response, CompareResponse) and bool(
-                response.summary
-            )
+            is_schema_valid = isinstance(response, CompareResponse) and bool(response.summary)
             if is_schema_valid:
                 valid_schema_count += 1
             else:
@@ -494,15 +470,11 @@ def run_benchmark(
             recall = len(intersection) / max(1, len(expected_set))
 
             # 2. Data accuracy
-            accuracy, acc_errs = compute_spec_accuracy(
-                expected_skus, ground_truth_specs, response
-            )
+            accuracy, acc_errs = compute_spec_accuracy(expected_skus, ground_truth_specs, response)
             case_errors.extend(acc_errs)
 
             # 3. Citation faithfulness
-            citation_score, cit_errs = compute_citation_faithfulness(
-                expected_skus, response
-            )
+            citation_score, cit_errs = compute_citation_faithfulness(expected_skus, response)
             case_errors.extend(cit_errs)
 
             # 4. Semantic coherence
@@ -523,12 +495,7 @@ def run_benchmark(
             case_errors.append(f"Execution error: {exc}")
 
         # Determine pass/fail status
-        passed = (
-            accuracy >= 0.95
-            and citation_score >= 0.90
-            and is_schema_valid
-            and latency <= 5.0
-        )
+        passed = accuracy >= 0.95 and citation_score >= 0.90 and is_schema_valid and latency <= 5.0
         status_str = "PASS" if passed else "FAIL"
 
         total_accuracy += accuracy
@@ -611,7 +578,7 @@ def run_benchmark(
 
     report = {
         "metadata": {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "dataset": str(dataset_path),
             "judge_model": judge_model,
             "mode": "live" if live else "hermetic",
@@ -648,17 +615,11 @@ def run_benchmark(
     print(
         f"Passed Cases                    : {passed_total} / {len(cases)} ({passed_total / n_cases * 100:.1f}%)"
     )
-    print(
-        f"Mean Data Accuracy              : {mean_acc:.4f} (Target: >= {target_accuracy:.2f})"
-    )
-    print(
-        f"Mean Citation Faithfulness      : {mean_cit:.4f} (Target: >= {target_citation:.2f})"
-    )
+    print(f"Mean Data Accuracy              : {mean_acc:.4f} (Target: >= {target_accuracy:.2f})")
+    print(f"Mean Citation Faithfulness      : {mean_cit:.4f} (Target: >= {target_citation:.2f})")
     print(f"Mean Retrieval Precision / Recall: {mean_prec:.4f} / {mean_rec:.4f}")
     print(f"Structured Output Validity      : {schema_validity:.4f} (Target: 1.0000)")
-    print(
-        f"End-to-End P95 Latency          : {lat_p95:.4f}s (Target: <= {target_latency:.2f}s)"
-    )
+    print(f"End-to-End P95 Latency          : {lat_p95:.4f}s (Target: <= {target_latency:.2f}s)")
     print(f"Overall Target Met              : {'✅ PASS' if target_met else '❌ FAIL'}")
     print("=" * 80)
 
@@ -699,14 +660,11 @@ def export_evaluation_to_bigquery(
 
     run_row = {
         "eval_run_id": f"eval-{uuid.uuid4().hex[:12]}",
-        "timestamp": metadata.get("timestamp")
-        or datetime.now(timezone.utc).isoformat(),
+        "timestamp": metadata.get("timestamp") or datetime.now(UTC).isoformat(),
         "total_cases": int(metadata.get("total_cases", len(details))),
         "passed_cases": int(metadata.get("passed_cases", 0)),
         "avg_spec_accuracy": float(summary.get("mean_data_accuracy", 0.0)),
-        "avg_citation_faithfulness": float(
-            summary.get("mean_citation_faithfulness", 0.0)
-        ),
+        "avg_citation_faithfulness": float(summary.get("mean_citation_faithfulness", 0.0)),
         "avg_semantic_coherence": float(summary.get("mean_semantic_score", 0.0)),
         "avg_latency_ms": float(summary.get("latency_p50_seconds", 0.0) * 1000.0),
         "p95_latency_ms": float(summary.get("latency_p95_seconds", 0.0) * 1000.0),
