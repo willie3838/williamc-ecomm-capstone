@@ -9,13 +9,11 @@ Performs live verification on GCP infrastructure using google-cloud Python SDK:
 
 import argparse
 import json
-import os
-from pathlib import Path
 import subprocess
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 
 def run_cmd(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -167,7 +165,7 @@ def verify_cloud_run(project_id: str, service_name: str = "catalog-comparison-se
             if data.get("status") != "ok":
                 print(f"[FAIL] Unexpected /health response: {data}", file=sys.stderr)
                 return {"status": "FAIL", "error": "Invalid health status"}
-        print(f"[PASS] Cloud Run /health probe returned status=ok.")
+        print("[PASS] Cloud Run /health probe returned status=ok.")
     except Exception as e:
         print(f"[FAIL] Cloud Run /health probe failed: {e}", file=sys.stderr)
         return {"status": "FAIL", "error": str(e)}
@@ -178,9 +176,9 @@ def verify_cloud_run(project_id: str, service_name: str = "catalog-comparison-se
         with urllib.request.urlopen(req_root, timeout=10) as resp:
             body = resp.read().decode("utf-8")
             if "<!doctype html>" in body.lower() or "<html" in body.lower() or "best buy" in body.lower():
-                print(f"[PASS] Cloud Run root URL successfully serves React Comparison UI.")
+                print("[PASS] Cloud Run root URL successfully serves React Comparison UI.")
             else:
-                print(f"[INFO] Cloud Run root responded with HTTP 200.")
+                print("[INFO] Cloud Run root responded with HTTP 200.")
     except Exception as e:
         print(f"[WARN] Root URL probe error: {e}")
 
@@ -188,7 +186,7 @@ def verify_cloud_run(project_id: str, service_name: str = "catalog-comparison-se
 
 
 def verify_cloud_trace(project_id: str) -> dict:
-    print(f"\n--- [6/7] Verifying Google Cloud Trace API & Connectivity ---")
+    print("\n--- [6/7] Verifying Google Cloud Trace API & Connectivity ---")
     try:
         from google.cloud import trace_v2
         _client = trace_v2.TraceServiceClient()
@@ -200,7 +198,7 @@ def verify_cloud_trace(project_id: str) -> dict:
 
 
 def verify_cloud_logging(project_id: str) -> dict:
-    print(f"\n--- [7/7] Verifying Google Cloud Logging API & Connectivity ---")
+    print("\n--- [7/7] Verifying Google Cloud Logging API & Connectivity ---")
     try:
         from google.cloud import logging as cloud_logging
         _client = cloud_logging.Client(project=project_id)

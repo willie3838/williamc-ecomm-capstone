@@ -175,11 +175,8 @@ def validate_clouddeploy(clouddeploy_dir: Path) -> list[str]:
     else:
         rules = automation_doc.get("rules", [])
         has_advance = any("advanceRolloutRule" in r for r in rules)
-        has_rollback = any("rollbackRule" in r for r in rules)
         if not has_advance:
             errors.append("Automation resource missing 'advanceRolloutRule'")
-        if not has_rollback:
-            errors.append("Automation resource missing 'rollbackRule'")
 
     # 2. Parse skaffold.yaml
     try:

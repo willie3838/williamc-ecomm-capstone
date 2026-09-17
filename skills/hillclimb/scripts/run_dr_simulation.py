@@ -11,9 +11,9 @@ from unittest.mock import MagicMock
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "backend" / "src"))
 
+from app.agent.orchestrator import ComparisonOrchestrator
 from google.api_core import exceptions as g_exceptions
 from google.cloud import bigquery
-from app.agent.orchestrator import ComparisonOrchestrator
 
 
 def main() -> None:

@@ -26,9 +26,13 @@ The LLM agent (you) conducts the review directly using deep engineering comprehe
 
 ### 1.1 Unbiased Independent Review Pane (Clean-Context Protocol)
 To ensure the audit is completely objective, rigorous, and devoid of prior conversation bias or hallucinated memory from implementation steps:
-- **Mandatory Independent Pane**: Spawn an independent auditor pane in tmux running Jetski with **`gemini-3.8-flash`** configured on **`high`** (reasoning effort: high):
+- **Mandatory Automated Execution (Do Not Just Advise — Execute!)**: Whenever performing or initiating a rubric audit or review, the agent **MUST NOT** merely suggest or document launching the review pane. The agent **MUST explicitly and automatically execute the launch command** via tool call:
   ```bash
-  tmux split-window -h "jetski --model gemini-3.8-flash --thinking high 'Review the codebase against RUBRIC.md using the rubric-audit skill with an unbiased perspective'"
+  bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh
+  ```
+  Or directly via tmux:
+  ```bash
+  tmux split-window -h "/google/bin/releases/jetski-devs/tools/cli --model gemini-3.8-flash --effort high -i 'Review the codebase against RUBRIC.md using the rubric-audit skill with an unbiased perspective'"
   ```
 - **Why `gemini-3.8-flash` on `high`**:
   1. **Clean Context**: Starts with empty conversation history and zero confirmation bias.

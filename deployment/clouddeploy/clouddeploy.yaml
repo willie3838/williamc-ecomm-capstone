@@ -33,8 +33,8 @@ executionConfigs:
 apiVersion: deploy.cloud.google.com/v1
 kind: Automation
 metadata:
-  name: catalog-service-pipeline/auto-advance-and-rollback
-description: Automatically advances from 0% canary to 100% upon verification success, and rolls back on failure
+  name: catalog-service-pipeline/auto-advance
+description: Automatically advances from 0% canary to 100% upon verification success
 suspended: false
 serviceAccount: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
 selector:
@@ -42,8 +42,6 @@ selector:
   - id: cloudrun-prod
 rules:
 - advanceRolloutRule:
-    id: advance-to-stable
+    name: "advance-to-stable"
     sourcePhases: ["canary-0"]
-    wait: 0s
-- rollbackRule:
-    id: rollback-on-failure
+    wait: 0m

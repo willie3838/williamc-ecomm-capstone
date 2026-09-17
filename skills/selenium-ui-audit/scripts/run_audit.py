@@ -8,7 +8,6 @@ import argparse
 import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -273,9 +272,7 @@ class UIAuditRunner:
                 if has_raw_markdown:
                     self.add_finding("warning", "AI Recommendation contains unrendered markdown syntax")
 
-                if len(list_items) >= 2 and not has_raw_markdown:
-                    self.test_results["AI Recommendation Narrative & Formatting"] = "PASS"
-                elif "AI Comparison Summary" in card_text:
+                if len(list_items) >= 2 and not has_raw_markdown or "AI Comparison Summary" in card_text:
                     self.test_results["AI Recommendation Narrative & Formatting"] = "PASS"
                 else:
                     self.add_finding("warning", "AI Recommendation narrative header not found")

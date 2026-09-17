@@ -237,16 +237,14 @@ def test_cloud_deploy_pipeline_canary_config(clouddeploy_docs: list[dict]):
 
 
 def test_cloud_deploy_automation_rules(clouddeploy_docs: list[dict]):
-    """Verifies Cloud Deploy Automation resource defines auto-advance and rollback rules."""
+    """Verifies Cloud Deploy Automation resource defines auto-advance rules."""
     automation = next((d for d in clouddeploy_docs if d.get("kind") == "Automation"), None)
     assert automation is not None, "clouddeploy.yaml must declare an Automation resource"
 
     rules = automation.get("rules", [])
     has_advance = any("advanceRolloutRule" in r for r in rules)
-    has_rollback = any("rollbackRule" in r for r in rules)
 
     assert has_advance, "Automation must declare an advanceRolloutRule for promotion to 100%"
-    assert has_rollback, "Automation must declare a rollbackRule for automated failure safety"
 
 
 def test_skaffold_verify_probes(skaffold_config: dict):

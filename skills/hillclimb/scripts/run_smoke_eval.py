@@ -3,8 +3,8 @@
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def load_dataset(dataset_path: Path) -> list[dict]:

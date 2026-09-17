@@ -7,11 +7,10 @@ and monitors for valid credential resolution.
 """
 
 import argparse
-import json
-from pathlib import Path
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
