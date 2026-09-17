@@ -36,7 +36,7 @@ steps:
         set -euo pipefail
         pip install --no-cache-dir -r backend/requirements.txt google-adk
         echo "=== Running ADK Agent Conformance & Evaluation Gate ==="
-        PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv
+        PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv --no-cov
 
   # Step 3: Build Multi-Stage Docker Container
   - name: 'gcr.io/cloud-builders/docker'

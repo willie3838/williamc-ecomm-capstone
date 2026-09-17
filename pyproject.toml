@@ -15,4 +15,4 @@ ignore = ["E501"]
 minversion = "8.0"
 testpaths = ["backend/tests"]
 pythonpath = ["backend/src", "backend"]
-addopts = "-v --cov=backend/src --cov-report=term-missing --cov-fail-under=80"
+addopts = "-v"

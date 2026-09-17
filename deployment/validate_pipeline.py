@@ -76,9 +76,7 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
         if not match:
             errors.append("Unit tests step missing --cov-fail-under flag")
         elif int(match.group(1)) < 80:
-            errors.append(
-                f"Coverage gate threshold {match.group(1)}% is below mandatory 80%"
-            )
+            errors.append(f"Coverage gate threshold {match.group(1)}% is below mandatory 80%")
 
     # ADK eval step checks
     adk_step = next((s for s in steps if s.get("id") == "adk-eval"), None)
@@ -88,9 +86,7 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
             errors.append("adk-eval step must execute pytest on evals/test_eval_adk.py")
 
     # Cloud Deploy release creation checks
-    cd_step = next(
-        (s for s in steps if s.get("id") == "create-cloud-deploy-release"), None
-    )
+    cd_step = next((s for s in steps if s.get("id") == "create-cloud-deploy-release"), None)
     if cd_step:
         args_str = " ".join(cd_step.get("args", []))
         if "deploy releases create" not in args_str:
@@ -127,20 +123,14 @@ def validate_clouddeploy(clouddeploy_dir: Path) -> list[str]:
         return [f"Failed to parse YAML from {cd_yaml}: {e}"]
 
     pipeline_doc = next(
-        (
-            d
-            for d in docs
-            if isinstance(d, dict) and d.get("kind") == "DeliveryPipeline"
-        ),
+        (d for d in docs if isinstance(d, dict) and d.get("kind") == "DeliveryPipeline"),
         None,
     )
     if not pipeline_doc:
         errors.append("clouddeploy.yaml missing DeliveryPipeline resource")
     else:
         stages = pipeline_doc.get("serialPipeline", {}).get("stages", [])
-        prod_stage = next(
-            (s for s in stages if s.get("targetId") == "cloudrun-prod"), None
-        )
+        prod_stage = next((s for s in stages if s.get("targetId") == "cloudrun-prod"), None)
         if not prod_stage:
             errors.append("DeliveryPipeline missing stage targeting 'cloudrun-prod'")
         else:
@@ -169,9 +159,7 @@ def validate_clouddeploy(clouddeploy_dir: Path) -> list[str]:
         None,
     )
     if not automation_doc:
-        errors.append(
-            "clouddeploy.yaml missing Automation resource for auto-advance/rollback"
-        )
+        errors.append("clouddeploy.yaml missing Automation resource for auto-advance/rollback")
     else:
         rules = automation_doc.get("rules", [])
         has_advance = any("advanceRolloutRule" in r for r in rules)
@@ -245,9 +233,7 @@ def validate_cloudbuild_pr(cb_path: Path) -> list[str]:
     if lint_step:
         args_str = " ".join(lint_step.get("args", []))
         if "ruff check" not in args_str or "ruff format --check" not in args_str:
-            errors.append(
-                "PR lint step must execute ruff check and ruff format --check"
-            )
+            errors.append("PR lint step must execute ruff check and ruff format --check")
 
     # Unit tests coverage gate
     test_step = next((s for s in steps if s.get("id") == "unit-tests"), None)
@@ -269,9 +255,7 @@ def validate_cloudbuild_pr(cb_path: Path) -> list[str]:
     if adk_step:
         args_str = " ".join(adk_step.get("args", []))
         if "test_eval_adk.py" not in args_str:
-            errors.append(
-                "PR adk-eval step must execute pytest on evals/test_eval_adk.py"
-            )
+            errors.append("PR adk-eval step must execute pytest on evals/test_eval_adk.py")
 
     return errors
 
@@ -312,9 +296,7 @@ def validate_rollback_assets(rollback_script: Path, rollback_yaml: Path) -> list
         if "update-traffic" not in content:
             errors.append("rollback.sh missing 'update-traffic' command")
         if "catalog-comparison-service" not in content:
-            errors.append(
-                "rollback.sh missing target service 'catalog-comparison-service'"
-            )
+            errors.append("rollback.sh missing target service 'catalog-comparison-service'")
 
     if not rollback_yaml.exists():
         errors.append(f"Missing rollback pipeline: {rollback_yaml}")
@@ -332,9 +314,7 @@ def validate_rollback_assets(rollback_script: Path, rollback_yaml: Path) -> list
 
 def main() -> int:
     """CLI entrypoint for pipeline validation."""
-    parser = argparse.ArgumentParser(
-        description="Validate CI/CD pipeline and deployment assets"
-    )
+    parser = argparse.ArgumentParser(description="Validate CI/CD pipeline and deployment assets")
     parser.add_argument(
         "--repo-root", type=Path, default=Path.cwd(), help="Path to repository root"
     )
@@ -391,9 +371,7 @@ def main() -> int:
             print(f"  - {err}")
         all_errors.extend(df_errors)
     else:
-        print(
-            "[PASS] deployment/Dockerfile satisfies multi-stage and least-privilege security."
-        )
+        print("[PASS] deployment/Dockerfile satisfies multi-stage and least-privilege security.")
 
     # 4. Rollback Assets
     rb_errors = validate_rollback_assets(
