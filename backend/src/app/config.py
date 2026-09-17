@@ -93,6 +93,17 @@ class Settings(BaseSettings):
         description="Maximum retry attempts for BigQuery catalog queries",
     )
 
+    telemetry_dataset: str = Field(
+        default="catalog_agent_telemetry",
+        alias="BIGQUERY_TELEMETRY_DATASET",
+        description="BigQuery dataset name for telemetry and analytics",
+    )
+    telemetry_table: str = Field(
+        default="query_telemetry",
+        alias="BIGQUERY_TELEMETRY_TABLE",
+        description="BigQuery table name for query operational telemetry",
+    )
+
     @property
     def gcp_project(self) -> str:
         """Alias for project_id."""
@@ -102,6 +113,11 @@ class Settings(BaseSettings):
     def catalog_table_id(self) -> str:
         """Full BigQuery table identifier."""
         return f"{self.project_id}.{self.bq_dataset}.{self.bq_table}"
+
+    @property
+    def telemetry_table_id(self) -> str:
+        """Full BigQuery telemetry table identifier."""
+        return f"{self.project_id}.{self.telemetry_dataset}.{self.telemetry_table}"
 
 
 @lru_cache

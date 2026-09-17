@@ -1,9 +1,10 @@
-"""Google ADK comparison orchestrator agent and synthesis pipeline."""
-
+import json
 import logging
+import os
 import re
 from typing import Any
 
+from google import genai
 from google.adk.agents import Agent
 from google.cloud import bigquery
 
@@ -29,6 +30,8 @@ class ComparisonOrchestrator:
 
     def __init__(self, bq_client: bigquery.Client | None = None) -> None:
         self.bq_client = bq_client
+        self.last_input_tokens: int = 0
+        self.last_output_tokens: int = 0
 
     def extract_keywords(self, query: str) -> list[str]:
         """Parse natural language query into target candidate keywords."""
@@ -48,7 +51,7 @@ class ComparisonOrchestrator:
                 )
 
         cleaned = re.sub(
-            r"^(compare|difference between|what (?:are the )?differences between|which (?:is|has) (?:better|cheaper|lighter|longer)|is the|is|do|does|summary of differences between)\s+",
+            r"^(?:tell me about|tell me more about|what about|show me|can you compare|describe|info on|details for|search for|find me|give me info on|tell me|compare|difference between|what (?:are the )?differences between|which (?:is|has) (?:better|cheaper|lighter|longer)|is the|is|do|does|summary of differences between)\s+",
             "",
             cleaned,
             flags=re.IGNORECASE,
@@ -271,12 +274,109 @@ class ComparisonOrchestrator:
         return "\n".join(rec_parts) if len(rec_parts) > 1 else None
 
     def rank_and_select_products(
-        self, products: list[ProductSpec], keywords: list[str]
+        self,
+        products: list[ProductSpec],
+        keywords: list[str],
+        original_query: str = "",
     ) -> list[ProductSpec]:
-        """Rank products to ensure top 2 best match candidate comparison keywords."""
-        if len(products) <= 2 or len(keywords) < 2:
+        """Rerank candidate products using Gemini LLM against the raw user query with resilient fallback."""
+        if not products:
             return products
 
+        # If only 1 product and it matches query, return immediately
+        if len(products) == 1:
+            return products
+
+        # If products already closely match exact keywords and len <= 2, avoid extraneous LLM roundtrip
+        if len(keywords) >= 2 and len(products) == 2:
+            return self._rerank_with_heuristics(products, keywords, original_query)
+
+        # 1. Attempt LLM-based Reranking using the original user query as the frame of reference
+        llm_ranked = self._rerank_with_llm(products, original_query or " ".join(keywords))
+        if llm_ranked is not None:
+            return llm_ranked
+
+        # 2. Resilient Fallback: Token overlap and exact phrase match heuristic
+        return self._rerank_with_heuristics(products, keywords, original_query)
+
+    def _rerank_with_llm(self, products: list[ProductSpec], query: str) -> list[ProductSpec] | None:
+        """Call Gemini to score and rank candidate products based on query relevance."""
+        if not query.strip() or len(products) <= 1:
+            return None
+
+        try:
+            # Disable client cert lookup on dev environment
+            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+            client = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project,
+                location="us-central1",
+            )
+
+            candidates_desc = "\n".join(
+                f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
+                for p in products[:10]
+            )
+
+            prompt = (
+                f"You are a strict product search relevance judge for an electronics catalog.\n"
+                f'User Query: "{query}"\n\n'
+                f"Evaluate each candidate product below. Decide if it is genuinely relevant to the user query.\n"
+                f"Rate relevance from 0 to 10 (10 = exact model/brand match, 0 = irrelevant cross-category noise).\n"
+                f"Candidates:\n{candidates_desc}\n\n"
+                f"Return valid JSON array of objects sorted by relevance score descending:\n"
+                f'[{{"sku": "...", "score": 10}}]\n'
+                f"Only include products with score >= 4."
+            )
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+            )
+            # Track token consumption metrics
+            usage = getattr(response, "usage_metadata", None)
+            if usage:
+                self.last_input_tokens += int(getattr(usage, "prompt_token_count", 0) or 0)
+                self.last_output_tokens += int(getattr(usage, "candidates_token_count", 0) or 0)
+
+            raw_text = response.text or ""
+            # Extract JSON from code fences if present
+            json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
+            if not json_match:
+                return None
+
+            ranked_data = json.loads(json_match.group(0))
+            if not isinstance(ranked_data, list):
+                return None
+
+            sku_to_product = {p.sku: p for p in products}
+            ordered_products: list[ProductSpec] = []
+
+            for item in ranked_data:
+                sku = str(item.get("sku", ""))
+                score = float(item.get("score", 0))
+                if sku in sku_to_product and score >= 6.0:
+                    ordered_products.append(sku_to_product[sku])
+
+            # If LLM identified relevant items, return them
+            if ordered_products:
+                logger.info(
+                    "LLM Reranker successfully ranked %d/%d products for query: %s",
+                    len(ordered_products),
+                    len(products),
+                    query,
+                )
+                return ordered_products
+
+        except Exception as e:
+            logger.warning("LLM reranking encountered an error; falling back to heuristic: %s", e)
+
+        return None
+
+    def _rerank_with_heuristics(
+        self, products: list[ProductSpec], keywords: list[str], original_query: str
+    ) -> list[ProductSpec]:
+        """Robust token-overlap and phrase matching heuristic fallback."""
         stopwords = {
             "vs",
             "and",
@@ -285,40 +385,40 @@ class ComparisonOrchestrator:
             "between",
             "the",
             "with",
-            "inch",
-            "laptop",
-            "tablet",
-            "headphones",
-            "smart",
-            "home",
-            "tv",
+            "tell",
+            "about",
+            "what",
+            "which",
+            "is",
+            "are",
+            "show",
+            "me",
+            "for",
+            "on",
+            "in",
+            "to",
+            "a",
+            "an",
         }
-        selected: list[ProductSpec] = []
-        used_skus: set[str] = set()
+        all_terms = re.findall(r"[a-z0-9]+", (original_query or " ".join(keywords)).lower())
+        query_tokens = set(t for t in all_terms if t not in stopwords and len(t) >= 2)
 
-        for kw in keywords[:2]:
-            kw_tokens = set(re.findall(r"[a-z0-9]+", kw.lower())) - stopwords
-            best_p: ProductSpec | None = None
-            best_score = -1
-            for p in products:
-                if p.sku in used_skus:
-                    continue
-                p_tokens = set(re.findall(r"[a-z0-9]+", f"{p.name} {p.brand}".lower()))
-                score = len(kw_tokens & p_tokens)
-                if score > best_score:
-                    best_score = score
-                    best_p = p
-            if best_p and best_score > 0:
-                selected.append(best_p)
-                used_skus.add(best_p.sku)
+        def score_product(p: ProductSpec) -> tuple[int, int, float]:
+            text = f"{p.name} {p.brand} {p.category}".lower()
+            # Exact phrase match bonus
+            exact = 100 if any(kw.lower() in text for kw in keywords if len(kw) >= 3) else 0
+            # Token overlap count
+            overlap = sum(1 for t in query_tokens if t in text)
+            return (exact, overlap, -p.price)
 
-        # Fill remaining products from original list
-        for p in products:
-            if p.sku not in used_skus:
-                selected.append(p)
-                used_skus.add(p.sku)
-
-        return selected
+        sorted_products = sorted(products, key=score_product, reverse=True)
+        # Filter out products with 0 token overlap if at least one product has positive overlap
+        best_score = score_product(sorted_products[0])
+        if best_score[0] > 0 or best_score[1] > 0:
+            return [
+                p for p in sorted_products if score_product(p)[0] > 0 or score_product(p)[1] > 0
+            ]
+        return sorted_products
 
     def compare(
         self,
@@ -367,7 +467,7 @@ class ComparisonOrchestrator:
 
             # Convert to ProductSpec schemas and rank products to match query intent
             products = [ProductSpec(**row) for row in catalog_rows]
-            products = self.rank_and_select_products(products, keywords)
+            products = self.rank_and_select_products(products, keywords, original_query=query)
             target_skus = [p.sku for p in products]
             span.set_attribute("product_count", len(products))
             span.set_attribute("target_skus", ",".join(target_skus))
@@ -395,4 +495,6 @@ class ComparisonOrchestrator:
                 recommendations=recommendations,
                 session_id=session_id,
                 trace_id=trace_id,
+                input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
+                output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
             )

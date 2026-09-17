@@ -1,0 +1,116 @@
+{
+  "eval_set_id": "bestbuy_simple_test",
+  "name": "Best Buy Simple Smoke Test",
+  "description": "Lightweight 1-case eval set for rapid test and CI verification.",
+  "eval_cases": [
+    {
+      "eval_id": "laptop-001",
+      "conversation": [
+        {
+          "invocation_id": "inv-laptop-001",
+          "user_content": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Compare MacBook Air 13-inch M3 with Dell XPS 13 Intel Core Ultra 7",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] (, processor: Apple M3 8-core, ram_gb: 16, battery_life_hours: 18.0, weight_lbs: 2.7) and Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] (, processor: Intel Core Ultra 7 155H, ram_gb: 16, battery_life_hours: 14.0, weight_lbs: 2.6).",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Laptops"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {},
+      "category": "Laptops",
+      "expected_skus": [
+        "6534606",
+        "6575132"
+      ],
+      "key_differential_features": [
+        "processor",
+        "ram_gb",
+        "battery_life_hours",
+        "weight_lbs"
+      ],
+      "ground_truth_specs": {
+        "6534606": {
+          "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+          "brand": "Apple",
+          "price": 1099.0,
+          "processor": "Apple M3 8-core",
+          "ram_gb": 16,
+          "battery_life_hours": 18.0,
+          "weight_lbs": 2.7
+        },
+        "6575132": {
+          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Dell",
+          "price": 1199.0,
+          "processor": "Intel Core Ultra 7 155H",
+          "ram_gb": 16,
+          "battery_life_hours": 14.0,
+          "weight_lbs": 2.6
+        }
+      }
+    }
+  ],
+  "creation_timestamp": 0.0
+}

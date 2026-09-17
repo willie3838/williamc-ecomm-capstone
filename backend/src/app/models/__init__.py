@@ -1,5 +1,6 @@
 """Data models and schemas for Best Buy Catalog Comparison Agent."""
 
+from app.models.analytics import FeedbackRequest, SessionMetricsResponse, UserActionRequest
 from app.models.product import ProductRecord
 from app.models.requests import CatalogQueryInput, CompareRequest, ComparisonRequest
 from app.models.responses import (
@@ -19,9 +20,12 @@ __all__ = [
     "CompareResponse",
     "ComparisonRequest",
     "ComparisonResponse",
+    "FeedbackRequest",
     "HealthResponse",
     "MatrixRow",
     "ProductItem",
     "ProductRecord",
     "ProductSpec",
+    "SessionMetricsResponse",
+    "UserActionRequest",
 ]

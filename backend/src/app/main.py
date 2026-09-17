@@ -8,16 +8,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.config import Settings, get_settings
+from app.data.analytics import analytics_service
 from app.models import (
     Citation,
     CompareRequest,
     CompareResponse,
     ComparisonRequest,
     ComparisonResponse,
+    FeedbackRequest,
     HealthResponse,
     MatrixRow,
     ProductItem,
     ProductSpec,
+    UserActionRequest,
 )
 from app.observability import ObservabilityMiddleware, setup_observability
 
@@ -118,8 +121,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             category=request.category,
             session_id=request.session_id,
         )
-        result.latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        result.latency_ms = latency_ms
+
+        # Track session comparison count in Firestore if session_id provided
+        session_count = 1
+        if request.session_id:
+            session_count = analytics_service.increment_session_comparisons(request.session_id)
+            result.session_comparison_count = session_count
+
+            # Log comparison action to Firestore user_actions
+            analytics_service.record_user_action(
+                UserActionRequest(
+                    action_type="compare_request",
+                    session_id=request.session_id,
+                    query=request.query,
+                    category=request.category,
+                    target_skus=[p.sku for p in result.products],
+                )
+            )
+
+        # Stream operational telemetry and cost analytics to BigQuery
+        analytics_service.record_query_telemetry(
+            query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
+            session_id=request.session_id,
+            query_text=request.query,
+            category=request.category,
+            latency_ms=latency_ms,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            bq_bytes_billed=result.bq_bytes_billed,
+            retrieved_skus=[p.sku for p in result.products],
+            status="SUCCESS" if result.products else "DEGRADED",
+        )
+
         return result
+
+    @application.post(
+        "/api/actions",
+        response_model=dict[str, Any],
+        tags=["Analytics"],
+        summary="Log User Behavior and Engagement Action",
+    )
+    async def log_action(
+        action: UserActionRequest,
+        _app_settings: Annotated[Settings, Depends(get_settings)],
+    ) -> dict[str, Any]:
+        """Log user behavior events such as copy markdown or sku click to Firestore."""
+        doc_id = analytics_service.record_user_action(action)
+        return {"status": "recorded", "action_id": doc_id}
+
+    @application.post(
+        "/api/feedback",
+        response_model=dict[str, Any],
+        tags=["Analytics"],
+        summary="Submit Thumbs-Up / Thumbs-Down Quality Feedback",
+    )
+    async def submit_feedback(
+        feedback: FeedbackRequest,
+        _app_settings: Annotated[Settings, Depends(get_settings)],
+    ) -> dict[str, Any]:
+        """Record thumbs-up / thumbs-down user evaluation feedback to Firestore."""
+        doc_id = analytics_service.record_feedback(feedback)
+        return {"status": "recorded", "feedback_id": doc_id}
 
     # Mount static React frontend SPA if bundled
     import os

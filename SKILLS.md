@@ -103,30 +103,41 @@ def test_query_catalog_mocked(mock_client_cls):
 
 ## Workflow 3: Evaluation Flywheel & Benchmark Scoring
 
-Measures agent comparison accuracy, factual groundedness, and citation fidelity against the 80 benchmark product pairs.
+Measures agent comparison accuracy, factual groundedness, and citation fidelity against the 80 benchmark product pairs using Google ADK's native evaluation engine and hermetic test runners.
 
 ### Commands & Recipes
 ```bash
-# 1. Execute the full evaluation suite
-cd /usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone
+# 1. Run programmatic ADK evaluation via Pytest (adk.dev/evaluate pattern)
+pytest backend/tests/integration/test_agent_evaluation.py -v
+
+# 2. Run complete 80-pair benchmark via ADK CLI
+adk eval backend/src/app/agent \
+  evals/dataset/benchmark_catalog.evalset.json \
+  --config_file_path=evals/adk_eval_config.json \
+  --print_detailed_results
+
+# 3. Conformance testing against baseline files (CI/CD gate)
+adk conformance test evals/ --generate_report --report_dir=reports/conformance
+
+# 4. Interactive visual trace debugging in web UI
+adk web backend/src/app/agent
+
+# 5. Hermetic in-memory fast-path evaluation (zero-cloud cost)
 python3 -m evals.runner \
   --dataset evals/dataset/benchmark_queries.json \
-  --output evals/reports/latest_eval_report.json \
-  --judge-model gemini-1.5-flash
+  --output evals/reports/latest_eval_report.json
 
-# 2. Evaluate specific product category only (e.g. Laptops)
-python3 -m evals.runner \
-  --dataset evals/dataset/benchmark_queries.json \
-  --category Laptops
-
-# 3. View summary metrics
+# 6. Analyze score progression vs previous baseline
 python3 -m evals.analyze evals/reports/latest_eval_report.json
 ```
 
 ### Success Thresholds
+- **Grounding / Hallucination (`hallucinations_v1`)**: $\ge 0.95$ (Sentence-level closed-domain validation).
+- **Tool Trajectory (`tool_trajectory_avg_score`)**: $1.00$ (Exact tool parameter match).
 - **Data Accuracy Score**: $\ge 0.98$ (Zero tolerance for fabricated specs).
 - **Citation Faithfulness**: $\ge 0.95$ (All asserted specs must reference `[SKU: ...]`).
 - **End-to-End P95 Latency**: $\le 3.0$ seconds.
+
 
 ---
 

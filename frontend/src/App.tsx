@@ -7,6 +7,7 @@ import {
   Layers,
   ArrowRight,
   Database,
+  Activity,
 } from 'lucide-react';
 import { compareProducts } from './api/client';
 import { SearchBar } from './components/SearchBar';
@@ -41,6 +42,14 @@ const SAMPLE_COMPARISONS = [
 ];
 
 export const App: React.FC = () => {
+  const [sessionId] = useState<string>(() => {
+    const existing = sessionStorage.getItem('bb_session_id');
+    if (existing) return existing;
+    const fresh = 'sess-' + Math.random().toString(36).substring(2, 10);
+    sessionStorage.setItem('bb_session_id', fresh);
+    return fresh;
+  });
+
   const [searchParams, setSearchParams] = useState<{
     query: string;
     category: string | null;
@@ -55,7 +64,13 @@ export const App: React.FC = () => {
   } = useQuery({
     queryKey: ['compare', searchParams?.query, searchParams?.category],
     queryFn: () =>
-      searchParams ? compareProducts({ query: searchParams.query, category: searchParams.category }) : null,
+      searchParams
+        ? compareProducts({
+            query: searchParams.query,
+            category: searchParams.category,
+            session_id: sessionId,
+          })
+        : null,
     enabled: !!searchParams?.query,
     staleTime: 1000 * 60 * 5, // 5 minutes cache
     retry: false,
@@ -92,6 +107,15 @@ export const App: React.FC = () => {
 
             {/* Header Telemetry Badge */}
             <div className="flex items-center gap-3">
+              {comparison?.session_comparison_count && (
+                <div
+                  className="hidden sm:flex items-center gap-1.5 text-xs text-blue-100 bg-blue-900/60 px-2.5 py-1 rounded-full border border-blue-400/30"
+                  title="Number of comparisons run in this session"
+                >
+                  <Activity className="w-3.5 h-3.5 text-yellow-300" aria-hidden="true" />
+                  <span>Session: #{comparison.session_comparison_count}</span>
+                </div>
+              )}
               {comparison?.latency_ms && (
                 <LatencyBadge latencyMs={comparison.latency_ms} />
               )}
@@ -180,29 +204,61 @@ export const App: React.FC = () => {
             <RecommendationCard
               summary={comparison.summary}
               recommendations={comparison.recommendations}
+              query={searchParams?.query || ''}
+              targetSkus={comparison.products.map((p) => p.sku)}
+              sessionId={sessionId}
+              traceId={comparison.trace_id || ''}
             />
 
-            {/* Product Summary Cards */}
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Compared Products</h2>
-              <div
-                className={`grid gap-6 ${
-                  comparison.products.length === 2
-                    ? 'grid-cols-1 md:grid-cols-2'
-                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                }`}
-              >
-                {comparison.products.map((product) => (
-                  <ProductCard key={product.sku} product={product} />
-                ))}
+            {/* Product Summary Cards & Matrix Table (Only if products found) */}
+            {comparison.products.length > 0 ? (
+              <>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-4">Compared Products</h2>
+                  <div
+                    className={`grid gap-6 ${
+                      comparison.products.length === 2
+                        ? 'grid-cols-1 md:grid-cols-2'
+                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                    }`}
+                  >
+                    {comparison.products.map((product) => (
+                      <ProductCard key={product.sku} product={product} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Side-by-side Feature Matrix Table */}
+                <ComparisonTable
+                  products={comparison.products}
+                  matrix={comparison.comparison_matrix}
+                />
+              </>
+            ) : (
+              /* Helpful zero-results guidance card */
+              <div className="bg-white rounded-2xl border border-blue-100 p-8 text-center space-y-4 shadow-xs">
+                <div className="w-12 h-12 rounded-full bg-blue-50 text-bb-blue flex items-center justify-center mx-auto text-xl font-bold">
+                  🔍
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h3 className="text-lg font-bold text-gray-900">No Matching Electronics Found</h3>
+                  <p className="text-sm text-gray-500">
+                    We couldn't find items matching this query in the catalog. Try searching for consumer tech models like laptops, headphones, tablets, or TVs.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-wrap justify-center gap-2">
+                  {SAMPLE_COMPARISONS.map((sample) => (
+                    <button
+                      key={sample.title}
+                      onClick={() => handleSampleClick(sample)}
+                      className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-gray-700 hover:bg-bb-yellow hover:text-bb-slate transition-all border border-gray-200"
+                    >
+                      {sample.title}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {/* Side-by-side Feature Matrix Table */}
-            <ComparisonTable
-              products={comparison.products}
-              matrix={comparison.comparison_matrix}
-            />
+            )}
 
             {/* Verified SKU Citations Section */}
             {comparison.citations && comparison.citations.length > 0 && (

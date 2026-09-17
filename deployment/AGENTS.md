@@ -34,6 +34,7 @@ deployment/
     ├── bigquery.tf            # BigQuery catalog and telemetry tables
     ├── cloudrun.tf            # Cloud Run service definition
     ├── iam.tf                 # Least-privilege IAM bindings
+    ├── vpc_sc.tf              # VPC Service Controls perimeter (anti-exfiltration)
     └── outputs.tf             # Service URL and resource identifiers
 ```
 
@@ -51,7 +52,12 @@ deployment/
      - `roles/bigquery.dataEditor` on dataset `catalog_agent_telemetry`
      - `roles/cloudtrace.agent`
      - `roles/logging.logWriter`
-3. **State Management**:
+3. **VPC Service Controls (VPC-SC Anti-Exfiltration)**:
+   - Defined in `vpc_sc.tf`. Locks `bigquery.googleapis.com` and `storage.googleapis.com` inside a security perimeter to prevent unauthorized data exfiltration.
+   - Public-facing Cloud Run (`run.googleapis.com`) and Vertex AI Gemini inference (`aiplatform.googleapis.com`) are intentionally excluded to ensure zero friction on user queries.
+   - Configured with `spec` dry-run auditing (`vpc_sc_dry_run = true`) and hard enforcement status blocks.
+   - Guarded by `enable_vpc_sc` toggle to permit clean local and sandbox testing.
+4. **State Management**:
    - In production, Terraform state is stored in a GCS bucket (`gs://fde-bestbuy-sandbox-dev-508321-tfstate/`).
 
 ---

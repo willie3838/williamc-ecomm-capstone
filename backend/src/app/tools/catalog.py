@@ -21,7 +21,7 @@ def query_catalog(
     min_price: float | None = None,
     max_price: float | None = None,
     limit: int = 10,
-    client: bigquery.Client | None = None,
+    client: Any = None,
 ) -> list[dict[str, Any]]:
     """Query the Best Buy BigQuery product catalog using parameterized SQL.
 
@@ -55,7 +55,33 @@ def query_catalog(
             return []
 
         if client is None:
-            client = bigquery.Client(project=settings.gcp_project)
+            import os
+            import shutil
+
+            import google.auth
+            from google.auth.transport.requests import Request
+            from google.oauth2 import credentials as oauth2_credentials
+
+            try:
+                creds, _ = google.auth.default()
+                creds.refresh(Request())
+                client = bigquery.Client(project=settings.gcp_project, credentials=creds)
+            except Exception:
+                client = None
+
+            if client is None and shutil.which("gcloud"):
+                try:
+                    token = os.popen("gcloud auth print-access-token 2>/dev/null").read().strip()
+                    if token and token.startswith("ya29."):
+                        gcloud_creds = oauth2_credentials.Credentials(token)
+                        client = bigquery.Client(
+                            project=settings.gcp_project, credentials=gcloud_creds
+                        )
+                except Exception:
+                    pass
+
+            if client is None:
+                client = bigquery.Client(project=settings.gcp_project)
 
         patterns = [f"%{k}%" for k in clean_keywords]
         # Also include individual model/brand sub-tokens so non-contiguous catalog names match
@@ -73,12 +99,48 @@ def query_catalog(
             "at",
             "by",
             "from",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "what",
+            "which",
+            "who",
+            "where",
+            "when",
+            "why",
+            "how",
+            "top",
+            "best",
+            "better",
+            "good",
+            "speed",
+            "specs",
+            "spec",
+            "features",
+            "feature",
+            "tell",
+            "about",
+            "show",
+            "give",
+            "info",
+            "information",
+            "details",
+            "describe",
+            "search",
+            "find",
+            "look",
+            "looking",
+            "need",
+            "want",
         }
         for k in clean_keywords:
             tokens = [
                 t.lower()
                 for t in re.findall(r"[a-zA-Z0-9]+", k)
-                if t.lower() not in stopwords and len(t) >= 2
+                if t.lower() not in stopwords and len(t) >= 3
             ]
             for t in tokens:
                 patterns.append(f"%{t}%")
@@ -143,6 +205,17 @@ def query_catalog(
                     attempt,
                     total_attempts,
                     clean_keywords,
+                    extra={
+                        "sql_query": query_sql,
+                        "sql_query_parameters": {
+                            "product_patterns": patterns,
+                            "category": category,
+                            "min_price": min_price,
+                            "max_price": max_price,
+                            "limit": limit,
+                        },
+                        "attempt": attempt,
+                    },
                 )
                 query_job = client.query(query_sql, job_config=job_config)
                 # Enforce query result timeout

@@ -88,6 +88,12 @@ variable "telemetry_table_id" {
   default     = "query_telemetry"
 }
 
+variable "evaluation_table_id" {
+  type        = string
+  description = "BigQuery table ID for nightly semantic evaluation run results"
+  default     = "evaluation_runs"
+}
+
 variable "gcs_bucket_location" {
   type        = string
   description = "Location for Cloud Storage buckets"
@@ -98,4 +104,34 @@ variable "allow_unauthenticated" {
   type        = bool
   description = "Whether to allow public unauthenticated ingress to Cloud Run service"
   default     = true
+}
+
+variable "project_number" {
+  type        = string
+  description = "The Google Cloud numeric Project Number"
+  default     = "499572810092"
+}
+
+variable "enable_vpc_sc" {
+  type        = bool
+  description = "Whether to provision VPC Service Controls perimeter"
+  default     = false
+}
+
+variable "access_policy_id" {
+  type        = string
+  description = "The Access Context Manager policy ID"
+  default     = ""
+}
+
+variable "vpc_sc_dry_run" {
+  type        = bool
+  description = "Whether the VPC-SC perimeter is in dry-run mode"
+  default     = true
+}
+
+variable "authorized_ip_subnetworks" {
+  type        = list(string)
+  description = "List of CIDRs allowed into the perimeter"
+  default     = []
 }

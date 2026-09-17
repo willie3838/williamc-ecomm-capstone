@@ -9,10 +9,14 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 ```
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
-├── runner.py                  # CLI evaluation test runner
+├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, trajectory)
+├── runner.py                  # Hermetic in-memory SQL evaluation runner
 ├── analyze.py                 # Report analysis and metric visualization
 ├── dataset/
-│   └── benchmark_queries.json # 80 gold-standard comparison test cases
+│   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet
+│   ├── benchmark_queries.json # Legacy 80-pair comparison test cases
+│   └── fixtures/
+│       └── simple_test.evalset.json   # 1-case integration fixture for Pytest
 ├── rubrics/
 │   ├── data_accuracy.md       # Ground truth accuracy criteria
 │   └── citation_faithfulness.md # Citation validity criteria
@@ -24,55 +28,54 @@ evals/
 
 ## 2. Core Evaluation Metrics
 
-| Metric | Target | Formula / Assessment | Critical Threshold |
+| Metric | Target | Assessment Engine | Description |
 | :--- | :--- | :--- | :--- |
-| **Data Accuracy** | $\ge 0.98$ | Percentage of technical specs matching BigQuery catalog exactly | $< 0.95$ triggers immediate rollback |
-| **Citation Faithfulness** | $\ge 0.95$ | Ratio of technical claims with valid `[SKU: ...]` citation | $< 0.90$ fails CI pipeline |
-| **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration in seconds | $> 3.0$s requires optimization |
-| **Structured Output Validity**| $1.00$ | Valid JSON parsing against Pydantic `CompareResponse` schema | Any validation error is fatal |
+| **Grounding / Hallucination** | $\ge 0.95$ | ADK `hallucinations_v1` (Segmenter + Sentence Validator) | Closed-domain sentence entailment against BigQuery tool outputs |
+| **Tool Trajectory Quality** | $1.00$ | ADK `tool_trajectory_avg_score` | Validates that `query_catalog` was invoked with correct arguments |
+| **Data Accuracy** | $\ge 0.98$ | Spec matcher against catalog ground truth | $< 0.95$ triggers immediate rollback |
+| **Citation Faithfulness** | $\ge 0.95$ | Inline `[SKU: ...]` citation validator | Hallucinated SKUs score 0.0 |
+| **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | $> 3.0$s requires optimization |
+| **Structured Output Validity**| $1.00$ | Pydantic `CompareResponse` schema validation | Any validation error is fatal |
 
 ---
 
-## 3. Benchmark Dataset Schema
+## 3. ADK Evaluation Workflows
 
-`evals/dataset/benchmark_queries.json` contains curated test cases across primary product categories:
-```json
-[
-  {
-    "id": "laptop-001",
-    "category": "Laptops",
-    "query": "Compare Apple MacBook Air M3 13-inch and Dell XPS 13 Intel Core Ultra 7",
-    "expected_skus": ["6534606", "6575132"],
-    "key_differential_features": ["processor", "ram_gb", "battery_life_hours", "weight_lbs"],
-    "ground_truth_specs": {
-      "6534606": {"processor": "Apple M3 8-core", "ram_gb": 16, "battery_life_hours": 18.0},
-      "6575132": {"processor": "Intel Core Ultra 7", "ram_gb": 16, "battery_life_hours": 14.0}
-    }
-  }
-]
-```
-
----
-
-## 4. Running Evaluations
-
+### A. Programmatic Pytest Integration (adk.dev/evaluate pattern)
+Runs a fast integration test using ADK's `AgentEvaluator.evaluate()`:
 ```bash
-# Run the complete 80-pair benchmark suite
-python3 -m evals.runner \
-  --dataset evals/dataset/benchmark_queries.json \
-  --output evals/reports/eval_results.json \
-  --judge-model gemini-1.5-flash
-
-# Run targeted eval on a single category
-python3 -m evals.runner \
-  --dataset evals/dataset/benchmark_queries.json \
-  --category Laptops
-
-# Analyze score progression vs previous run
-python3 -m evals.analyze \
-  --current evals/reports/eval_results.json \
-  --baseline evals/reports/baseline_results.json
+pytest backend/tests/integration/test_agent_evaluation.py -v
 ```
+
+### B. Command-Line Evaluation (`adk eval`)
+Run the complete 80-pair benchmark via ADK CLI:
+```bash
+adk eval backend/src/app/agent \
+  evals/dataset/benchmark_catalog.evalset.json \
+  --config_file_path=evals/adk_eval_config.json \
+  --print_detailed_results
+```
+
+### C. Conformance Testing (`adk conformance test`)
+Run conformance tests against baseline files to gate PRs and generate markdown reports:
+```bash
+adk conformance test evals/ --generate_report --report_dir=reports/conformance
+```
+
+### D. Interactive Trace Debugger (`adk web`)
+Launch the visual web debugger to inspect Event, Request, Response, and Graph tabs:
+```bash
+adk web backend/src/app/agent
+```
+
+### E. Hermetic Fast-Path Runner (Zero-Cloud Cost)
+For instant local iteration without GCP API quota:
+```bash
+python3 -m evals.runner \
+  --dataset evals/dataset/benchmark_queries.json \
+  --output evals/reports/eval_results.json
+```
+
 
 ---
 

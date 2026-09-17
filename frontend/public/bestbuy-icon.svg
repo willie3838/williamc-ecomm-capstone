@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <rect width="48" height="48" rx="8" fill="#0046be"/>
+  <rect x="6" y="10" width="36" height="28" rx="4" fill="#fff200"/>
+  <text x="24" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="9" fill="#1d252c" text-anchor="middle" letter-spacing="-0.5">BEST</text>
+  <text x="24" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="9" fill="#1d252c" text-anchor="middle" letter-spacing="-0.5">BUY</text>
+</svg>

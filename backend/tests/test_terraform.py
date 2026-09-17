@@ -20,7 +20,9 @@ EXPECTED_HCL_FILES = [
     "bigquery.tf",
     "cloudrun.tf",
     "iam.tf",
+    "vpc_sc.tf",
     "outputs.tf",
+    "eval_job.tf",
 ]
 
 
@@ -118,7 +120,16 @@ def test_variables_definitions():
 
 def test_no_hardcoded_project_ids_in_resources():
     """Assert resource HCL files reference var.project_id rather than hardcoded project IDs."""
-    resource_files = ["main.tf", "bigquery.tf", "cloudrun.tf", "iam.tf", "outputs.tf"]
+    resource_files = [
+        "main.tf",
+        "bigquery.tf",
+        "cloudrun.tf",
+        "iam.tf",
+        "outputs.tf",
+        "eval_job.tf",
+        "firestore.tf",
+        "audit_logs.tf",
+    ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 
     for fname in resource_files:
@@ -225,6 +236,25 @@ def test_bigquery_schema_and_partitioning():
             f"Field '{field}' missing from telemetry table schema"
         )
 
+    # Evaluation runs table
+    assert 'resource "google_bigquery_table" "evaluation_runs"' in content
+    eval_fields = [
+        "eval_run_id",
+        "timestamp",
+        "total_cases",
+        "passed_cases",
+        "avg_spec_accuracy",
+        "avg_citation_faithfulness",
+        "status",
+        "trigger_source",
+        "adk_hallucination_score",
+        "adk_tool_trajectory_score",
+    ]
+    for field in eval_fields:
+        assert f'name = "{field}"' in content or f'"{field}"' in content, (
+            f"Field '{field}' missing from evaluation_runs table schema"
+        )
+
 
 def test_cloud_run_and_artifact_registry():
     """Verify Cloud Run v2 service and Artifact Registry repository definitions."""
@@ -290,7 +320,100 @@ def test_outputs_coverage():
         "bigquery_telemetry_dataset_id",
         "catalog_bucket_name",
         "terraform_state_bucket",
+        "vpc_sc_perimeter_name",
+        "vpc_sc_restricted_services",
+        "cloud_run_eval_job_name",
+        "cloud_scheduler_eval_job_id",
+        "bigquery_evaluation_table_id",
     ]
     for output_name in expected_outputs:
         pattern = rf'output\s+"{output_name}"\s+{{'
         assert re.search(pattern, content), f"Output '{output_name}' not defined in outputs.tf"
+
+
+def test_cloud_run_eval_job_and_scheduler():
+    """Verify Cloud Run v2 Job and Cloud Scheduler for nightly semantic evaluation."""
+    eval_file = TERRAFORM_DIR / "eval_job.tf"
+    assert eval_file.exists(), "eval_job.tf does not exist"
+    content = eval_file.read_text()
+
+    # Cloud Run Job
+    assert 'resource "google_cloud_run_v2_job" "catalog_eval_job"' in content
+    assert '"evals.run_pipeline"' in content
+    assert '"evals/dataset/benchmark_catalog.evalset.json"' in content
+    assert '"--export-bq"' in content
+    assert '"--fail-on-threshold"' in content
+
+    # Cloud Scheduler
+    assert 'resource "google_cloud_scheduler_job" "nightly_eval"' in content
+    assert 'schedule         = "0 2 * * *"' in content
+    assert 'time_zone        = "Etc/UTC"' in content
+
+    # IAM invoker
+    assert 'resource "google_cloud_run_v2_job_iam_member" "scheduler_job_invoker"' in content
+    assert 'role     = "roles/run.invoker"' in content
+
+    # API enablement in main.tf
+    main_file = TERRAFORM_DIR / "main.tf"
+    assert "cloudscheduler.googleapis.com" in main_file.read_text()
+
+
+def test_vpc_service_controls_configuration():
+    """Verify VPC Service Controls perimeter and anti-exfiltration rules are defined."""
+    vpc_sc_file = TERRAFORM_DIR / "vpc_sc.tf"
+    assert vpc_sc_file.exists(), "vpc_sc.tf does not exist"
+    content = vpc_sc_file.read_text()
+
+    # Resources
+    assert (
+        'resource "google_access_context_manager_service_perimeter" "catalog_perimeter"' in content
+    )
+    assert (
+        'resource "google_access_context_manager_access_level" "catalog_agent_access_level"'
+        in content
+    )
+
+    # Protected services strictly targeting data exfiltration
+    assert '"bigquery.googleapis.com"' in content
+    assert '"storage.googleapis.com"' in content
+
+    # Verify public front door and foundation models are kept clean of perimeter friction
+    assert '"run.googleapis.com"' not in content
+    assert '"aiplatform.googleapis.com"' not in content
+
+    # Dry-run and enforcement blocks
+    assert "spec {" in content
+    assert 'dynamic "status"' in content
+    assert "use_explicit_dry_run_spec = true" in content
+
+    # Verify variables.tf has corresponding controls
+    var_file = TERRAFORM_DIR / "variables.tf"
+    var_content = var_file.read_text()
+    assert 'variable "enable_vpc_sc"' in var_content
+    assert 'variable "vpc_sc_dry_run"' in var_content
+    assert 'variable "access_policy_id"' in var_content
+    assert 'variable "project_number"' in var_content
+
+
+def test_analytics_and_audit_terraform():
+    """Verify Firestore database, IAM roles, Audit logs, and BI views exist in Terraform."""
+    firestore_file = TERRAFORM_DIR / "firestore.tf"
+    assert firestore_file.exists(), "firestore.tf missing"
+    assert 'resource "google_firestore_database" "analytics_db"' in firestore_file.read_text()
+    assert 'type        = "FIRESTORE_NATIVE"' in firestore_file.read_text()
+
+    iam_file = TERRAFORM_DIR / "iam.tf"
+    iam_content = iam_file.read_text()
+    assert "roles/datastore.user" in iam_content
+
+    audit_file = TERRAFORM_DIR / "audit_logs.tf"
+    assert audit_file.exists(), "audit_logs.tf missing"
+    audit_content = audit_file.read_text()
+    assert 'resource "google_project_iam_audit_config" "bigquery_audit"' in audit_content
+    assert 'log_type = "DATA_READ"' in audit_content
+
+    bq_file = TERRAFORM_DIR / "bigquery.tf"
+    bq_content = bq_file.read_text()
+    assert 'resource "google_bigquery_table" "vw_most_compared_categories"' in bq_content
+    assert 'resource "google_bigquery_table" "vw_latency_performance_trends"' in bq_content
+    assert 'resource "google_bigquery_table" "vw_token_and_cost_analytics"' in bq_content

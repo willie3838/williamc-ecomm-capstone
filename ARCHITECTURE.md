@@ -285,9 +285,11 @@ Granted strictly least-privilege permissions:
 - `roles/aiplatform.user`: Scoped to call Gemini models via Vertex AI APIs.
 
 ### 5.2 VPC Service Controls (VPC-SC)
-The sandbox environment is wrapped within an Argolis VPC Service Controls perimeter:
-- **Enclosed Services**: BigQuery (`bigquery.googleapis.com`), Cloud Storage (`storage.googleapis.com`), Cloud Run (`run.googleapis.com`), and Vertex AI (`aiplatform.googleapis.com`).
-- **Data Exfiltration Prevention**: Blocks attempts to transfer catalog data or intermediate prompt traces to unauthorized external GCP projects or public internet endpoints.
+The sandbox environment is wrapped within an Argolis VPC Service Controls data anti-exfiltration perimeter:
+- **Enclosed Services**: BigQuery (`bigquery.googleapis.com`) and Cloud Storage (`storage.googleapis.com`).
+- **Data Exfiltration Prevention**: Blocks attempts to transfer or copy catalog data (`catalog.products`) or telemetry logs to unauthorized external GCP projects or public internet endpoints.
+- **Architectural Boundary**: Public Cloud Run (`run.googleapis.com`) and Vertex AI (`aiplatform.googleapis.com`) are intentionally excluded from the perimeter boundary. Cloud Run serves public unauthenticated shoppers directly without private gateway overhead, while Vertex AI inference communicates directly without complex egress tunnels.
+- **Dry-Run & Enforced Modes**: Configured with dual `spec` (dry-run violation logging) and dynamic `status` (active enforcement) blocks, governed via `vpc_sc_dry_run` and `enable_vpc_sc` Terraform variables.
 
 ### 5.3 SQL Injection & Input Sanitization
 The system employs zero raw string interpolation:

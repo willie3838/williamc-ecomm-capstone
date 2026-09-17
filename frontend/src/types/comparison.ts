@@ -38,12 +38,37 @@ export interface ComparisonResponse {
   citations: Citation[];
   recommendations?: string | null;
   latency_ms?: number | null;
+  session_id?: string | null;
+  session_comparison_count?: number | null;
+  trace_id?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  bq_bytes_billed?: number | null;
 }
 
 export interface ComparisonRequest {
   query: string;
   category?: string | null;
   top_k?: number;
+  session_id?: string | null;
+}
+
+export interface UserActionPayload {
+  action_type: 'compare_request' | 'copy_markdown' | 'category_filter' | 'sample_click' | 'sku_click';
+  session_id: string;
+  query?: string | null;
+  category?: string | null;
+  target_skus?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface FeedbackPayload {
+  rating: 'thumbs_up' | 'thumbs_down';
+  session_id: string;
+  query: string;
+  target_skus?: string[];
+  trace_id?: string | null;
+  comment?: string | null;
 }
 
 export interface HealthResponse {

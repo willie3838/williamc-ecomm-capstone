@@ -113,9 +113,25 @@ class ComparisonResponse(BaseModel):
         default=None,
         description="Client session identifier correlated with distributed trace",
     )
+    session_comparison_count: int | None = Field(
+        default=None,
+        description="Total number of comparisons executed in this session",
+    )
     trace_id: str | None = Field(
         default=None,
         description="Distributed OpenTelemetry trace ID (32-character hex)",
+    )
+    input_tokens: int | None = Field(
+        default=None,
+        description="Number of prompt/input tokens consumed by model reasoning",
+    )
+    output_tokens: int | None = Field(
+        default=None,
+        description="Number of candidate/output tokens produced by model reasoning",
+    )
+    bq_bytes_billed: int | None = Field(
+        default=None,
+        description="Total BigQuery catalog query bytes billed",
     )
 
 

@@ -58,3 +58,11 @@ resource "google_storage_bucket_iam_member" "sa_catalog_data_viewer" {
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
+
+# Cloud Firestore Access: Datastore User for User Actions, Sessions, and Feedback
+resource "google_project_iam_member" "sa_datastore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+

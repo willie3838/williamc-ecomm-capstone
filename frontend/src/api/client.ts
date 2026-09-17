@@ -23,17 +23,27 @@ export async function compareProducts(
 
   const endpoint = `${API_BASE_URL}/api/compare`;
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (request.session_id) {
+    headers['x-session-id'] = request.session_id;
+  }
+
+  const payload: Record<string, unknown> = {
+    query,
+    category: request.category || null,
+    top_k: request.top_k || 5,
+  };
+  if (request.session_id) {
+    payload.session_id = request.session_id;
+  }
+
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      query,
-      category: request.category || null,
-      top_k: request.top_k || 5,
-    }),
+    headers,
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -53,6 +63,40 @@ export async function compareProducts(
   }
 
   return response.json();
+}
+
+/**
+ * Log user action (e.g. copy markdown, filter selection) to Firestore.
+ */
+export async function sendUserAction(payload: import('../types/comparison').UserActionPayload): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/actions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('Failed to dispatch user action:', err);
+  }
+}
+
+/**
+ * Submit thumbs-up / thumbs-down evaluation feedback to Firestore.
+ */
+export async function sendFeedback(payload: import('../types/comparison').FeedbackPayload): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('Failed to dispatch user feedback:', err);
+  }
 }
 
 /**

@@ -3,9 +3,11 @@
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -365,9 +367,29 @@ def run_benchmark(
     target_latency: float = 3.0,
     target_schema: float = 1.00,
 ) -> dict[str, Any]:
-    """Execute complete benchmark suite and compute all evaluation metrics."""
     with open(dataset_path, "r", encoding="utf-8") as f:
-        cases: list[dict[str, Any]] = json.load(f)
+        raw_data = json.load(f)
+
+    if isinstance(raw_data, dict) and "eval_cases" in raw_data:
+        cases = []
+        for c in raw_data["eval_cases"]:
+            query = c.get("query")
+            if not query and c.get("conversation"):
+                query = c["conversation"][0]["user_content"]["parts"][0]["text"]
+            cases.append(
+                {
+                    "id": c.get("id") or c.get("eval_id"),
+                    "category": c.get("category"),
+                    "query": query,
+                    "expected_skus": c.get("expected_skus", []),
+                    "key_differential_features": c.get("key_differential_features", []),
+                    "ground_truth_specs": c.get("ground_truth_specs", {}),
+                }
+            )
+    elif isinstance(raw_data, list):
+        cases = raw_data
+    else:
+        raise ValueError(f"Unrecognized dataset schema in {dataset_path}")
 
     if category:
         cases = [c for c in cases if c.get("category", "").lower() == category.lower()]
@@ -622,6 +644,84 @@ def run_benchmark(
     return report
 
 
+def export_evaluation_to_bigquery(
+    report: dict[str, Any],
+    project_id: str | None = None,
+    dataset_id: str | None = None,
+    table_id: str = "evaluation_runs",
+    trigger_source: str = "manual",
+    bq_client: Any = None,
+) -> bool:
+    """Export benchmark summary and quality metrics to BigQuery telemetry table."""
+    from google.cloud import bigquery
+
+    resolved_project = project_id or os.environ.get(
+        "GCP_PROJECT_ID", "fde-bestbuy-sandbox-dev-508321"
+    )
+    resolved_dataset = dataset_id or os.environ.get(
+        "BIGQUERY_TELEMETRY_DATASET", "catalog_agent_telemetry"
+    )
+    table_ref = f"{resolved_project}.{resolved_dataset}.{table_id}"
+
+    summary = report.get("summary", {})
+    metadata = report.get("metadata", {})
+    details = report.get("details", [])
+
+    failures = [
+        {"id": d.get("id"), "query": d.get("query"), "errors": d.get("errors", [])}
+        for d in details
+        if d.get("status") != "PASS"
+    ]
+
+    target_met = summary.get("target_threshold_met", False)
+    status_str = "PASS" if target_met else "FAIL"
+
+    run_row = {
+        "eval_run_id": f"eval-{uuid.uuid4().hex[:12]}",
+        "timestamp": metadata.get("timestamp")
+        or datetime.now(timezone.utc).isoformat(),
+        "total_cases": int(metadata.get("total_cases", len(details))),
+        "passed_cases": int(metadata.get("passed_cases", 0)),
+        "avg_spec_accuracy": float(summary.get("mean_data_accuracy", 0.0)),
+        "avg_citation_faithfulness": float(
+            summary.get("mean_citation_faithfulness", 0.0)
+        ),
+        "avg_semantic_coherence": float(summary.get("mean_semantic_score", 0.0)),
+        "avg_latency_ms": float(summary.get("latency_p50_seconds", 0.0) * 1000.0),
+        "p95_latency_ms": float(summary.get("latency_p95_seconds", 0.0) * 1000.0),
+        "target_threshold_met": bool(target_met),
+        "status": status_str,
+        "failure_count": len(failures),
+        "failure_summary": json.dumps(failures[:20]),
+        "trigger_source": trigger_source,
+        "adk_hallucination_score": summary.get("adk_hallucination_score"),
+        "adk_tool_trajectory_score": summary.get("adk_tool_trajectory_score"),
+    }
+
+    try:
+        client = bq_client or bigquery.Client(project=resolved_project)
+        errors = client.insert_rows_json(table_ref, [run_row])
+        if errors:
+            logger.error(
+                "Failed to insert evaluation row into BigQuery %s: %s",
+                table_ref,
+                errors,
+            )
+            return False
+        logger.info(
+            "Successfully exported evaluation run %s to %s (Status: %s)",
+            run_row["eval_run_id"],
+            table_ref,
+            status_str,
+        )
+        return True
+    except Exception as e:
+        logger.error(
+            "Exception exporting evaluation to BigQuery %s: %s", table_ref, e
+        )
+        return False
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run evaluation benchmark flywheel for Best Buy Catalog Comparison Agent."
@@ -629,8 +729,8 @@ def main() -> None:
     parser.add_argument(
         "--dataset",
         type=Path,
-        default=REPO_ROOT / "evals" / "dataset" / "benchmark_queries.json",
-        help="Path to benchmark queries JSON file.",
+        default=REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json",
+        help="Path to benchmark evaluation dataset (.evalset.json).",
     )
     parser.add_argument(
         "--output",
@@ -698,6 +798,18 @@ def main() -> None:
         default=False,
         help="Exit with non-zero code if critical evaluation thresholds are not met.",
     )
+    parser.add_argument(
+        "--export-bq",
+        action="store_true",
+        default=False,
+        help="Export evaluation summary and quality metrics to BigQuery telemetry table.",
+    )
+    parser.add_argument(
+        "--trigger-source",
+        type=str,
+        default="manual",
+        help="Trigger source identifier (e.g. cloud_scheduler, manual, ci).",
+    )
 
     args = parser.parse_args()
 
@@ -718,6 +830,9 @@ def main() -> None:
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     print(f"\n📁 Evaluation report saved to {args.output}")
+
+    if args.export_bq:
+        export_evaluation_to_bigquery(report, trigger_source=args.trigger_source)
 
     if args.fail_on_threshold and not report["summary"]["target_threshold_met"]:
         print(

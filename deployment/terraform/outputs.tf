@@ -39,3 +39,28 @@ output "terraform_state_bucket" {
   description = "The Cloud Storage bucket name for Terraform remote state"
   value       = google_storage_bucket.terraform_state.name
 }
+
+output "vpc_sc_perimeter_name" {
+  description = "The resource name of the VPC Service Controls perimeter if enabled"
+  value       = length(google_access_context_manager_service_perimeter.catalog_perimeter) > 0 ? google_access_context_manager_service_perimeter.catalog_perimeter[0].name : null
+}
+
+output "vpc_sc_restricted_services" {
+  description = "The services restricted within the VPC Service Controls perimeter"
+  value       = local.vpc_sc_restricted_services
+}
+
+output "cloud_run_eval_job_name" {
+  description = "The resource name of the nightly semantic evaluation Cloud Run Job"
+  value       = google_cloud_run_v2_job.catalog_eval_job.name
+}
+
+output "cloud_scheduler_eval_job_id" {
+  description = "The resource ID of the Cloud Scheduler job triggering nightly evaluation"
+  value       = google_cloud_scheduler_job.nightly_eval.id
+}
+
+output "bigquery_evaluation_table_id" {
+  description = "The BigQuery table ID for nightly evaluation runs"
+  value       = google_bigquery_table.evaluation_runs.table_id
+}

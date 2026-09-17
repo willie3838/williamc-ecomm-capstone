@@ -8,6 +8,7 @@ from evals.runner import (
     compute_spec_accuracy,
     create_hermetic_bq_client,
     evaluate_semantic_coherence,
+    export_evaluation_to_bigquery,
     normalize_value,
     run_benchmark,
 )
@@ -166,7 +167,7 @@ def test_create_hermetic_bq_client():
 def test_run_benchmark_limit_and_category_filter():
     """Verify benchmark run with category filter and limit."""
     repo_root = Path(__file__).resolve().parent.parent.parent
-    dataset_path = repo_root / "evals" / "dataset" / "benchmark_queries.json"
+    dataset_path = repo_root / "evals" / "dataset" / "benchmark_catalog.evalset.json"
     catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
 
     report = run_benchmark(
@@ -188,3 +189,89 @@ def test_run_benchmark_missing_dataset_raises():
     fake_path = Path("/nonexistent/benchmark.json")
     with pytest.raises(FileNotFoundError):
         run_benchmark(dataset_path=fake_path, catalog_path=Path("nonexistent.json"))
+
+
+def test_export_evaluation_to_bigquery_success():
+    """Verify export_evaluation_to_bigquery formats row and calls BigQuery insert_rows_json."""
+    from unittest.mock import MagicMock
+
+    mock_client = MagicMock()
+    mock_client.insert_rows_json.return_value = []  # Empty list indicates no errors
+
+    sample_report = {
+        "metadata": {
+            "timestamp": "2026-09-17T02:00:00Z",
+            "total_cases": 80,
+            "passed_cases": 78,
+            "failed_cases": 2,
+        },
+        "summary": {
+            "mean_data_accuracy": 0.99,
+            "mean_citation_faithfulness": 0.97,
+            "mean_semantic_score": 0.98,
+            "latency_p50_seconds": 1.5,
+            "latency_p95_seconds": 2.8,
+            "target_threshold_met": True,
+        },
+        "details": [
+            {"id": "c1", "query": "q1", "status": "PASS"},
+            {"id": "c2", "query": "q2", "status": "FAIL", "errors": ["Spec mismatch"]},
+        ],
+    }
+
+    success = export_evaluation_to_bigquery(
+        sample_report,
+        project_id="test-project",
+        dataset_id="test-telemetry",
+        table_id="evaluation_runs",
+        trigger_source="cloud_scheduler",
+        bq_client=mock_client,
+    )
+
+    assert success is True
+    mock_client.insert_rows_json.assert_called_once()
+    call_args = mock_client.insert_rows_json.call_args
+    table_ref, rows = call_args[0]
+    assert table_ref == "test-project.test-telemetry.evaluation_runs"
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["total_cases"] == 80
+    assert row["passed_cases"] == 78
+    assert row["avg_spec_accuracy"] == 0.99
+    assert row["avg_citation_faithfulness"] == 0.97
+    assert row["target_threshold_met"] is True
+    assert row["status"] == "PASS"
+    assert row["trigger_source"] == "cloud_scheduler"
+    assert row["failure_count"] == 1
+
+
+def test_export_evaluation_to_bigquery_handles_errors():
+    """Verify export_evaluation_to_bigquery handles BigQuery insertion errors gracefully."""
+    from unittest.mock import MagicMock
+
+    mock_client = MagicMock()
+    mock_client.insert_rows_json.return_value = [{"index": 0, "errors": ["Access denied"]}]
+
+    sample_report = {
+        "metadata": {"timestamp": "2026-09-17T02:00:00Z"},
+        "summary": {"target_threshold_met": False},
+        "details": [],
+    }
+
+    success = export_evaluation_to_bigquery(
+        sample_report,
+        project_id="test-project",
+        dataset_id="test-telemetry",
+        bq_client=mock_client,
+    )
+    assert success is False
+
+    # Also test exception handling
+    mock_client.insert_rows_json.side_effect = RuntimeError("Connection timeout")
+    success_exc = export_evaluation_to_bigquery(
+        sample_report,
+        project_id="test-project",
+        dataset_id="test-telemetry",
+        bq_client=mock_client,
+    )
+    assert success_exc is False

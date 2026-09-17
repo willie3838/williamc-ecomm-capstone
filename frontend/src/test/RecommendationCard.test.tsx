@@ -21,4 +21,54 @@ describe('RecommendationCard', () => {
     expect(screen.getByText('Only summary provided.')).toBeInTheDocument();
     expect(screen.queryByText(/Recommendation/i)).not.toBeInTheDocument();
   });
+
+  it('renders structured bullet points with category tags and bold formatting', () => {
+    const markdownSummary = `Direct comparison between two laptops:
+- Price: Apple MacBook Air is **$100 more affordable** at $1,099.
+- Battery Life: Apple leads with up to **18 hours**.`;
+
+    render(<RecommendationCard summary={markdownSummary} />);
+
+    expect(screen.getByText('Price')).toBeInTheDocument();
+    expect(screen.getByText('Battery Life')).toBeInTheDocument();
+    expect(screen.getByText('$100 more affordable')).toHaveClass('font-semibold');
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('renders Copy Markdown button and Thumbs Up/Down feedback controls', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    const { vi } = await import('vitest');
+
+    // Mock clipboard API
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    render(
+      <RecommendationCard
+        summary="Test comparison summary."
+        recommendations="Test recommendation."
+        sessionId="sess-test-123"
+        query="Compare laptops"
+        targetSkus={['11111', '22222']}
+      />
+    );
+
+    const copyBtn = screen.getByRole('button', { name: /copy comparison as markdown/i });
+    expect(copyBtn).toBeInTheDocument();
+    fireEvent.click(copyBtn);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining('## Product Comparison Summary')
+    );
+
+    const thumbsUpBtn = screen.getByRole('button', { name: /thumbs up/i });
+    const thumbsDownBtn = screen.getByRole('button', { name: /thumbs down/i });
+    expect(thumbsUpBtn).toBeInTheDocument();
+    expect(thumbsDownBtn).toBeInTheDocument();
+
+    fireEvent.click(thumbsUpBtn);
+    expect(thumbsUpBtn).toHaveClass('bg-blue-100');
+  });
 });
