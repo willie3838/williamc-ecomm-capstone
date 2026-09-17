@@ -812,6 +812,28 @@ class ComparisonOrchestrator:
             if session_id:
                 span.set_attribute("session_id", session_id)
 
+            trace_id = get_current_trace_id()
+
+            # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
+            intent = self.classify_intent(query)
+            if intent.intent_type == "OPINION_OR_CHATTER":
+                span.set_attribute("comparison_matrix_suppressed", True)
+                summary = (
+                    f"No product comparison matrix was generated for '{query}'. "
+                    "The query appears to be an opinion or general comment rather than a product comparison request. "
+                    "To compare products side-by-side, please specify two or more models or brands "
+                    "(e.g., 'Compare Apple MacBook Air M3 and Dell XPS 13')."
+                )
+                return CompareResponse(
+                    summary=summary,
+                    products=[],
+                    comparison_matrix=[],
+                    citations=[],
+                    recommendations="Specify two or more devices or models to view a detailed comparison matrix.",
+                    session_id=session_id,
+                    trace_id=trace_id,
+                )
+
             with tracer.start_as_current_span("extract_keywords"):
                 keywords = self.extract_keywords(query)
                 span.set_attribute("keywords", str(keywords))
@@ -826,8 +848,6 @@ class ComparisonOrchestrator:
             except Exception as err:
                 logger.warning("BigQuery catalog query encountered an error: %s", err)
                 catalog_rows = []
-
-            trace_id = get_current_trace_id()
 
             if not catalog_rows:
                 span.set_attribute("product_count", 0)
