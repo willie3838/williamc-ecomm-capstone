@@ -128,11 +128,8 @@ def test_no_hardcoded_project_ids_in_resources():
         "iam.tf",
         "outputs.tf",
         "eval_job.tf",
-<<<<<<< HEAD
         "firestore.tf",
         "audit_logs.tf",
-=======
->>>>>>> main
     ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 

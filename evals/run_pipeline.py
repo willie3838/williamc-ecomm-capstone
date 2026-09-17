@@ -21,10 +21,7 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import sys
-import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -75,25 +72,21 @@ async def execute_adk_evaluation(
         )
 
         if output_path.exists():
-            with open(output_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                adk_report["raw"] = data
-                # Extract summary scores if present
-                if isinstance(data, dict):
-                    adk_report["hallucination_score"] = data.get(
-                        "hallucinations_v1"
-                    ) or data.get("hallucination_score")
-                    adk_report["tool_trajectory_score"] = data.get(
-                        "tool_trajectory_avg_score"
-                    )
-                    adk_report["response_match_score"] = data.get(
-                        "response_match_score"
-                    )
+            content = output_path.read_text(encoding="utf-8")
+            data = json.loads(content)
+            adk_report["raw"] = data
+            # Extract summary scores if present
+            if isinstance(data, dict):
+                adk_report["hallucination_score"] = data.get(
+                    "hallucinations_v1"
+                ) or data.get("hallucination_score")
+                adk_report["tool_trajectory_score"] = data.get(
+                    "tool_trajectory_avg_score"
+                )
+                adk_report["response_match_score"] = data.get("response_match_score")
         logger.info("ADK AgentEvaluator completed successfully.")
-    except Exception as e:
-        logger.warning(
-            "ADK AgentEvaluator completed with non-fatal notice: %s", e
-        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("ADK AgentEvaluator completed with non-fatal notice: %s", e)
         adk_report["status"] = "WARNING"
         adk_report["error"] = str(e)
 

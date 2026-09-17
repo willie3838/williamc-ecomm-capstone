@@ -736,10 +736,8 @@ def export_evaluation_to_bigquery(
             status_str,
         )
         return True
-    except Exception as e:
-        logger.error(
-            "Exception exporting evaluation to BigQuery %s: %s", table_ref, e
-        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("Exception exporting evaluation to BigQuery %s: %s", table_ref, e)
         return False
 
 
