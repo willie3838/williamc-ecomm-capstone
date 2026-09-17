@@ -114,6 +114,15 @@ Whenever working in an isolated worktree or feature branch (`feat/*`):
 4. **Post-Merge Verification on Main**: Run verification suite on `main` to verify zero regressions.
 5. **Worktree Cleanup**: Remove feature worktree once merged (`git worktree remove .swarm/worktrees/<task>`).
 
+### 5.2 Architectural Synchronization & Score 3 Rubric Gate
+Any architectural or system design change (adding or modifying services, database schemas, IAM roles, CI/CD pipelines, security controls, or agent workflows) MUST:
+1. **Immediately Update `ARCHITECTURE.md`**: Synchronize all architecture diagrams (Mermaid), sequence diagrams, data flows, ADRs, security perimeters (VPC-SC), and Total Cost of Ownership (TCO) justifications.
+2. **Execute Rubric Audit**: Rerun the comprehensive, dynamic rubric audit engine to verify that the implementation satisfies the standard for a **Score of 3 (Proficient)**:
+   ```bash
+   python3 skills/rubric-audit/scripts/audit_rubric.py --detailed --target-score 3
+   ```
+3. **Zero Regressions Standard**: Merging to `main` is prohibited if any single competency scores `< 2` (disqualifying failure) or if any competency falls below the target score of 3.
+
 ---
 
 ## 6. Key Documentation Reference

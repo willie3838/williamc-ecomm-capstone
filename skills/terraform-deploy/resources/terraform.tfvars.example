@@ -1,0 +1,4 @@
+# Example Terraform Variable Configuration
+project_id  = "fde-bestbuy-sandbox-dev-508321"
+region      = "us-central1"
+environment = "dev"

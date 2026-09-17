@@ -1,0 +1,28 @@
+{
+  "dimensions": {
+    "data_accuracy": {
+      "weight": 0.40,
+      "target_threshold": 0.98,
+      "minimum_floor": 0.95,
+      "description": "Factual concordance between generated specifications and BigQuery catalog ground truth."
+    },
+    "citation_faithfulness": {
+      "weight": 0.30,
+      "target_threshold": 0.95,
+      "minimum_floor": 0.90,
+      "description": "Ratio of asserted product claims linked with explicit [SKU: ...] tags."
+    },
+    "latency_p95": {
+      "weight": 0.20,
+      "target_threshold_seconds": 3.0,
+      "maximum_ceiling_seconds": 4.0,
+      "description": "End-to-end request duration from query submission to structured matrix response."
+    },
+    "schema_conformance": {
+      "weight": 0.10,
+      "target_threshold": 1.00,
+      "minimum_floor": 1.00,
+      "description": "Strict validation against Pydantic CompareResponse output schema."
+    }
+  }
+}

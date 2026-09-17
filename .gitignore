@@ -59,6 +59,10 @@ terraform.rc
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*service_account*.json
+*credentials*.json
 
 # IDE & OS
 .vscode/
@@ -69,4 +73,5 @@ Thumbs.db
 # Swarm & Orchestration Logs
 .swarm/
 logs/
-skills/
+skills/project-creation
+skills/swarm-development

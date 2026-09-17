@@ -1,0 +1,9 @@
+{
+  "component": "2257265",
+  "iteration": "6062377",
+  "type": "FEATURE",
+  "priority": "P2",
+  "severity": "S2",
+  "title_prefix": "[Ecomm Feature]: ",
+  "description_template": "Objective:\n\nUser Story:\nAs a Best Buy shopper, I want to...\n\nAcceptance Criteria:\n- [ ] Unit tests written and passing (>=80% coverage)\n- [ ] BigQuery catalog data properly referenced\n- [ ] P95 latency verified <= 3.0s\n- [ ] Citations verified with valid SKU links\n"
+}

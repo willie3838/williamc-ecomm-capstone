@@ -1,0 +1,8 @@
+{
+  "component": "2257265",
+  "type": "BUG",
+  "priority": "P2",
+  "severity": "S2",
+  "title_prefix": "[Ecomm Bug]: ",
+  "description_template": "Summary:\n\nSteps to Reproduce:\n1. \n2. \n\nExpected Result:\n\nActual Result:\n\nLogs / Traces:\n"
+}
