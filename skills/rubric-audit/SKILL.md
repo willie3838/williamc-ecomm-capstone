@@ -28,12 +28,19 @@ The LLM agent (you) conducts the review directly using deep engineering comprehe
 To ensure the audit is completely objective, rigorous, and devoid of prior conversation bias or hallucinated memory from implementation steps:
 - **Mandatory Automated Execution (Do Not Just Advise — Execute!)**: Whenever performing or initiating a rubric audit or review, the agent **MUST NOT** merely suggest or document launching the review pane. The agent **MUST explicitly and automatically execute the launch command** via tool call:
   ```bash
+  # Asynchronously launch the review pane:
   bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh
+
+  # Or synchronously monitor, auto-close the pane upon completion, and return summary:
+  bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh --wait-and-close
   ```
   Or directly via tmux:
   ```bash
   tmux split-window -h "/google/bin/releases/jetski-devs/tools/cli --model gemini-3.8-flash --effort high -i 'Review the codebase against RUBRIC.md using the rubric-audit skill with an unbiased perspective'"
   ```
+- **Lifecycle Management: Auto-Close Pane & Return Summary**:
+  - The review pane is **ephemeral**: once the independent review is completed and findings are recorded to `logs/unbiased_rubric_audit.json`, the reviewer pane **MUST be terminated** (`tmux kill-pane -t "$PANE_ID"`).
+  - The summary scorecard **MUST be brought back and presented in the main pane conversation** via `python3 skills/rubric-audit/scripts/audit_rubric.py --summary`.
 - **Why `gemini-3.8-flash` on `high`**:
   1. **Clean Context**: Starts with empty conversation history and zero confirmation bias.
   2. **High Reasoning Effort**: Thoroughly traces code dependencies, verifies tests, audits Terraform perimeters, and detects architectural anti-patterns without cutting corners.

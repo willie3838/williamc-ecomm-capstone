@@ -47,7 +47,7 @@ flowchart TD
    - Executes `skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 3`.
    - Requires all 37 competencies across Section 1 and Section 2 to satisfy a minimum score of 3 (Proficient).
    - Any score below 3 immediately exits with code 1 to force continuous hillclimbing iterations.
-   - **Automated Independent Reviewer Launch**: Whenever performing a full rubric audit or verification, the agent **MUST automatically launch** an independent review pane in tmux with `gemini-3.8-flash` on `high` via `skills/rubric-audit/scripts/launch_unbiased_reviewer.sh` to ensure clean-context, zero-bias validation.
+   - **Automated Independent Reviewer Lifecycle**: Whenever performing a full rubric audit or verification, the agent **MUST execute** `bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh --wait-and-close` to spawn `gemini-3.8-flash` on `high` in tmux, wait for audit completion, automatically terminate the review pane, and print the resulting scorecard directly back into the main workflow.
 
 ### Enterprise Google Cloud Services Bias (Non-Negotiable)
 When diagnosing failures, formulating hypotheses, and implementing solutions, autonomous agents **MUST strictly bias towards enterprise-grade, managed Google Cloud native services** rather than implementing custom in-application re-inventions or heuristic scripts:
