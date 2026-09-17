@@ -81,6 +81,15 @@ The automated delivery pipeline cleanly decouples Continuous Integration (Cloud 
 3. **Automated Promotion (`stable-100`)**: Cloud Deploy Automation (`advanceRolloutRule`) shifts 100% of live traffic to the verified revision upon test success.
 4. **Automated Rollback (`rollbackRule`)**: If verification fails, Cloud Deploy halts promotion and rolls back traffic immediately.
 
+### 4.3 Ingress & IAM Authentication Protocol
+- Under enterprise Domain-Restricted Sharing (DRS) Org Policies (`iam.allowedPolicyMemberDomains`), `allUsers` public access is restricted.
+- Cloud Run service `catalog-comparison-service` requires `roles/run.invoker` for caller identities:
+  - Runtime identity: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`
+  - Compute runner: `499572810092-compute@developer.gserviceaccount.com`
+  - Cloud Build pipeline: `499572810092@cloudbuild.gserviceaccount.com`
+  - Administrator / UI tester: `admin@williamwlchan.altostrat.com`
+- Verification probes (`deployment/clouddeploy/skaffold.yaml`) automatically acquire Google Compute Metadata OIDC Identity Tokens (`Metadata-Flavor: Google` with `audience=${TARGET_URL}`) to execute hermetic `/health` and `/health/ready` assertions.
+
 ---
 
 ## 5. Rollback Automation & Incident Recovery
