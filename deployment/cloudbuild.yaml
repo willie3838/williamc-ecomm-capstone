@@ -128,6 +128,14 @@ steps:
           sleep 3
         done
 
+        echo "=== Probing Candidate /health/ready Endpoint ==="
+        READY_CODE=$(curl -s -o /tmp/ready_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${CANDIDATE_URL}/health/ready" || echo "000")
+        if [ "$${READY_CODE}" = "200" ] || [ "$${READY_CODE}" = "302" ]; then
+          echo "Candidate /health/ready responded successfully with HTTP $${READY_CODE}"
+        else
+          echo "WARNING: Candidate /health/ready returned HTTP $${READY_CODE}"
+        fi
+
         echo "Candidate health probes passed."
 
   # Step 7: Safe Zero-Downtime Traffic Promotion to Latest Verified Revision
