@@ -59,3 +59,28 @@ class CatalogQueryInput(BaseModel):
     min_price: float | None = Field(default=None, ge=0.0, description="Minimum price filter")
     max_price: float | None = Field(default=None, ge=0.0, description="Maximum price filter")
     limit: int = Field(default=10, ge=1, le=50, description="Maximum number of products to return")
+
+
+class QueryIntentAnalysis(BaseModel):
+    """Structured LLM intent classification result."""
+
+    intent_type: str = Field(
+        default="COMPARISON",
+        description="Detected intent: COMPARISON, PRODUCT_SEARCH, or OPINION_OR_CHATTER",
+    )
+    is_comparison_eligible: bool = Field(
+        default=True,
+        description="Whether the query is eligible for generating a side-by-side product comparison matrix",
+    )
+    detected_category: str | None = Field(
+        default=None,
+        description="Detected product category if discernible from query (Laptops, Tablets, Headphones, Smart Home, TVs)",
+    )
+    target_keywords: list[str] = Field(
+        default_factory=list,
+        description="Product model, brand, or attribute keywords extracted from query",
+    )
+    reasoning: str = Field(
+        default="",
+        description="Reasoning explaining intent classification and eligibility verdict",
+    )

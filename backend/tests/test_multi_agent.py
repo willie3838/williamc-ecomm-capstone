@@ -156,3 +156,90 @@ def test_multi_agent_coordinator_empty_results(mock_query_catalog):
 
     assert response.products == []
     assert response.comparison_matrix == []
+
+
+def test_multi_agent_coordinator_opinion_query_suppresses_matrix():
+    """Verify MultiAgentCoordinator detects opinion/rant queries and suppresses comparison matrix."""
+    coordinator = MultiAgentCoordinator()
+    response = coordinator.execute("this is a stupid laptop")
+
+    assert response.comparison_matrix == []
+    assert response.products == []
+    assert "opinion or general comment" in response.summary.lower()
+    assert "compare" in response.summary.lower()
+
+
+def test_query_intent_agent_llm_intent_classification(monkeypatch):
+    """Verify QueryIntentAgent updates state using LLM semantic intent classification."""
+    from unittest.mock import MagicMock
+
+    from app.agent.orchestrator import ComparisonOrchestrator
+    from app.models.requests import QueryIntentAnalysis
+
+    mock_analysis = QueryIntentAnalysis(
+        intent_type="OPINION_OR_CHATTER",
+        is_comparison_eligible=False,
+        detected_category="Laptops",
+        target_keywords=["laptop"],
+        reasoning="User is expressing negative frustration.",
+    )
+
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "classify_intent",
+        MagicMock(return_value=mock_analysis),
+    )
+
+    agent = QueryIntentAgent()
+    state = ComparisonAgentState(raw_query="Windows laptops are terrible and annoying")
+    updated = agent.process(state)
+
+    assert updated.intent_type == "OPINION_OR_CHATTER"
+    assert updated.is_comparison_eligible is False
+    assert updated.detected_category == "Laptops"
+    assert updated.step_history[0]["reasoning"] == "User is expressing negative frustration."
+
+
+def test_orchestrator_classify_intent_edge_cases():
+    """Verify classify_intent handles empty query and comparative query routing."""
+    from app.agent.orchestrator import ComparisonOrchestrator
+
+    orchestrator = ComparisonOrchestrator()
+
+    # Empty query
+    empty_result = orchestrator.classify_intent("")
+    assert empty_result.intent_type == "OPINION_OR_CHATTER"
+    assert empty_result.is_comparison_eligible is False
+
+    # Comparative fast-path
+    comp_result = orchestrator.classify_intent("Compare Dell XPS 13 vs Apple MacBook Air M3")
+    assert comp_result.intent_type == "COMPARISON"
+    assert comp_result.is_comparison_eligible is True
+    assert comp_result.detected_category == "Laptops"
+
+
+def test_orchestrator_classify_intent_with_mocked_llm(monkeypatch):
+    """Verify classify_intent_with_llm parses Gemini structured JSON generation."""
+    from unittest.mock import MagicMock
+
+    import google.genai as genai
+
+    from app.agent.orchestrator import ComparisonOrchestrator
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = (
+        '{"intent_type": "OPINION_OR_CHATTER", "is_comparison_eligible": false, '
+        '"detected_category": "Laptops", "target_keywords": ["laptop"], "reasoning": "Rant detected"}'
+    )
+    mock_client.models.generate_content.return_value = mock_response
+
+    monkeypatch.setattr(genai, "Client", MagicMock(return_value=mock_client))
+
+    orchestrator = ComparisonOrchestrator()
+    result = orchestrator.classify_intent_with_llm("These laptops are totally useless and trash")
+
+    assert result is not None
+    assert result.intent_type == "OPINION_OR_CHATTER"
+    assert result.is_comparison_eligible is False
+    assert result.reasoning == "Rant detected"

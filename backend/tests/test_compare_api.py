@@ -212,3 +212,16 @@ def test_interactive_docs_endpoints() -> None:
 
     redoc_resp = client.get("/redoc")
     assert redoc_resp.status_code == 200
+
+
+def test_compare_endpoint_opinion_query_suppresses_matrix() -> None:
+    """Verify POST /api/compare with subjective opinion query suppresses comparison matrix."""
+    response = client.post(
+        "/api/compare",
+        json={"query": "this is a stupid laptop"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["comparison_matrix"] == []
+    assert data["products"] == []
+    assert "opinion or general comment" in data["summary"].lower()

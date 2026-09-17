@@ -6,7 +6,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.agent.orchestrator import ComparisonOrchestrator
+from app.agent.multi_agent import MultiAgentCoordinator
 from app.config import Settings, get_settings
 from app.data.analytics import analytics_service
 from app.models import (
@@ -118,9 +118,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="Query string must not be empty.",
             )
 
-        orchestrator = ComparisonOrchestrator()
-        result = orchestrator.compare(
-            query=request.query,
+        coordinator = MultiAgentCoordinator()
+        result = coordinator.execute(
+            raw_query=request.query,
             category=request.category,
             session_id=request.session_id,
         )

@@ -123,6 +123,27 @@ Any architectural or system design change (adding or modifying services, databas
    ```
 3. **Zero Regressions Standard**: Merging to `main` is prohibited if any single competency scores `< 2` (disqualifying failure) or if any competency falls below the target score of 3.
 
+### 5.3 Documentation Synchronization Enforcement Policy (Zero Un-documented Changes)
+**Strict Enforcement Rule**:
+> **Any code change without a corresponding documentation change fails.**
+> If code files in `backend/`, `frontend/`, `deployment/`, or `evals/` are modified, documentation (`ARCHITECTURE.md`, `SPEC.md`, `RUBRIC.md`, `AGENTS.md`, or directory `AGENTS.md`) MUST be updated in the same change.
+
+**Bypass Mechanism**:
+If a code change intentionally does not require documentation updates (e.g. pure refactor or internal tweak), the author or agent **must explicitly pass the `--no-doc` flag**:
+- **Pytest**:
+  ```bash
+  pytest --no-doc
+  ```
+- **Environment Variable**:
+  ```bash
+  NO_DOC=1 pytest
+  ```
+- **Git Commit Tag / Pre-commit**:
+  ```bash
+  NO_DOC=1 git commit -m "refactor: internal cleanups [no-doc]"
+  ```
+This is verified both statically in unit tests (`backend/tests/test_docs_sync.py`) and by the pre-commit / CI gate.
+
 ---
 
 ## 6. Key Documentation Reference

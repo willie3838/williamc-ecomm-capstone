@@ -2,7 +2,12 @@
 
 from app.models.analytics import FeedbackRequest, SessionMetricsResponse, UserActionRequest
 from app.models.product import ProductRecord
-from app.models.requests import CatalogQueryInput, CompareRequest, ComparisonRequest
+from app.models.requests import (
+    CatalogQueryInput,
+    CompareRequest,
+    ComparisonRequest,
+    QueryIntentAnalysis,
+)
 from app.models.responses import (
     Citation,
     CompareResponse,
@@ -26,6 +31,7 @@ __all__ = [
     "ProductItem",
     "ProductRecord",
     "ProductSpec",
+    "QueryIntentAnalysis",
     "SessionMetricsResponse",
     "UserActionRequest",
 ]

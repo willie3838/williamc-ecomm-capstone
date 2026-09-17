@@ -12,3 +12,13 @@ def mock_bq_client():
         mock_instance = MagicMock()
         mock_cls.return_value = mock_instance
         yield mock_instance
+
+
+def pytest_addoption(parser):
+    """Add custom CLI options to pytest."""
+    parser.addoption(
+        "--no-doc",
+        action="store_true",
+        default=False,
+        help="Explicitly bypass documentation synchronization requirement.",
+    )

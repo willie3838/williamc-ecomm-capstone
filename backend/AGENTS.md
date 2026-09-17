@@ -22,7 +22,8 @@ backend/
 │       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation schemas
 │       ├── agent/             # Google ADK agent definitions
 │       │   ├── __init__.py
-│       │   ├── orchestrator.py# Comparison orchestrator agent
+│       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
+│       │   ├── orchestrator.py# Comparison orchestrator agent & LLM reranker
 │       │   └── prompts.py     # Anti-hallucination system instructions
 │       └── tools/             # Agent tools
 │           ├── __init__.py
@@ -32,6 +33,7 @@ backend/
     ├── conftest.py            # Pytest fixtures and mocks
     ├── test_health.py         # Health probe tests
     ├── test_catalog_tool.py   # query_catalog tool unit tests (mocked BQ)
+    ├── test_multi_agent.py    # Multi-node agent unit tests
     └── test_compare_api.py    # End-to-end API route tests
 ```
 
@@ -84,6 +86,11 @@ backend/
    - Use `bigquery.ScalarQueryParameter` and `bigquery.ArrayQueryParameter`.
 3. **Structured JSON Output**:
    - The model must output responses validated against Pydantic schemas.
+4. **Multi-Node Architecture & Relevance Gating**:
+   - The `/api/compare` endpoint executes through `MultiAgentCoordinator` across 4 specialist nodes: `QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
+   - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are detected and rejected.
+   - Products are reranked via pure LLM scoring (relevance threshold >= 6.0).
+   - If fewer than 2 relevant products match, `comparison_matrix` MUST be empty (`[]`). No artificial comparison matrices are generated.
 
 ---
 
