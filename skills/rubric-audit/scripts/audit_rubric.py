@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Universal, project-agnostic FDE Capstone Rubric Audit & Progression Engine.
+"""Deterministic FDE Capstone Rubric Audit Validator & History Recorder.
 
-Supports both Agent-Driven LLM evaluation recording and dynamic repository exploration.
-Verifies compliance against all 37 competencies in RUBRIC.md (Section 1 and Section 2),
-tracks progression in logs/rubric_audit_history.md, and enforces the Score 3 standard.
+Provides schema validation, mathematical score computation, chronological
+progression logging in logs/rubric_audit_history.md, and command-line reporting
+for Agent-Driven Rubric Audits. All qualitative and architectural evaluation
+is performed agentically by the LLM agent without keyword or regex heuristics.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,22 +25,7 @@ CHECKLIST_PATH = RESOURCES_DIR / "rubric_checklist.json"
 REPO_ROOT = SKILL_DIR.parent.parent
 DEFAULT_LOG_FILE = REPO_ROOT / "logs" / "rubric_audit_history.md"
 LATEST_AUDIT_FILE = REPO_ROOT / "logs" / "latest_audit.json"
-
-IGNORED_DIRS = {
-    ".git",
-    ".venv",
-    "venv",
-    "node_modules",
-    "__pycache__",
-    ".pytest_cache",
-    ".terraform",
-    ".swarm",
-    "dist",
-    "build",
-    "coverage",
-    ".ruff_cache",
-    ".mypy_cache",
-}
+LAUNCHER_SCRIPT = SCRIPT_DIR / "launch_unbiased_reviewer.sh"
 
 
 def get_git_info(repo_root: Path) -> tuple[str, str]:
@@ -65,65 +51,6 @@ def get_git_info(repo_root: Path) -> tuple[str, str]:
         branch = "unknown"
 
     return commit, branch
-
-
-class ProjectExplorer:
-    """Dynamically explores and indexes any repository without hardcoded paths."""
-
-    def __init__(self, root: Path) -> None:
-        self.root = root.resolve()
-        self.markdown_docs: dict[str, str] = {}
-        self.python_files: dict[str, str] = {}
-        self.ts_files: dict[str, str] = {}
-        self.tf_files: dict[str, str] = {}
-        self.yaml_files: dict[str, str] = {}
-        self.json_files: dict[str, str] = {}
-        self.all_files: list[str] = []
-        self._discover()
-
-    def _discover(self) -> None:
-        """Traverse directory and index relevant files."""
-        for path in self.root.rglob("*"):
-            if not path.is_file():
-                continue
-
-            rel_parts = path.relative_to(self.root).parts
-            if any(part in IGNORED_DIRS for part in rel_parts):
-                continue
-
-            rel_str = str(path.relative_to(self.root))
-            self.all_files.append(rel_str)
-
-            try:
-                suffix = path.suffix.lower()
-                content = path.read_text(encoding="utf-8", errors="ignore")[:250000]
-                if suffix == ".md":
-                    self.markdown_docs[rel_str] = content
-                elif suffix == ".py":
-                    self.python_files[rel_str] = content
-                elif suffix in {".ts", ".tsx", ".js", ".jsx"}:
-                    self.ts_files[rel_str] = content
-                elif suffix in {".tf", ".hcl"}:
-                    self.tf_files[rel_str] = content
-                elif suffix in {".yaml", ".yml"}:
-                    self.yaml_files[rel_str] = content
-                elif suffix == ".json":
-                    self.json_files[rel_str] = content
-            except OSError:
-                continue
-
-    def search_text(
-        self, files: dict[str, str], pattern: str, case_sensitive: bool = False
-    ) -> list[tuple[str, int]]:
-        """Search regex pattern across indexed files and return list of (file, line_num)."""
-        flags = 0 if case_sensitive else re.IGNORECASE
-        regex = re.compile(pattern, flags)
-        matches: list[tuple[str, int]] = []
-        for file_path, content in files.items():
-            for line_idx, line in enumerate(content.splitlines(), start=1):
-                if regex.search(line):
-                    matches.append((file_path, line_idx))
-        return matches
 
 
 def calculate_scores(
@@ -199,348 +126,6 @@ def validate_audit_payload(payload: dict[str, Any]) -> tuple[bool, str]:
     return True, "Valid"
 
 
-class UniversalRubricAuditor:
-    """Universal repository auditor that performs baseline inspection across any project."""
-
-    def __init__(self, explorer: ProjectExplorer) -> None:
-        self.exp = explorer
-
-    def audit_all(
-        self, checklist: dict[str, list[dict[str, Any]]]
-    ) -> dict[str, list[dict[str, Any]]]:
-        """Audit all competencies dynamically across the repository."""
-        result: dict[str, list[dict[str, Any]]] = {
-            "section_1_presentation_and_advisory": [],
-            "section_2_engineering_excellence": [],
-        }
-
-        for item in checklist.get("section_1_presentation_and_advisory", []):
-            item_copy = dict(item)
-            eval_res = self._eval_section_1_item(item["id"])
-            item_copy.update(eval_res)
-            result["section_1_presentation_and_advisory"].append(item_copy)
-
-        for item in checklist.get("section_2_engineering_excellence", []):
-            item_copy = dict(item)
-            eval_res = self._eval_section_2_item(item["id"])
-            item_copy.update(eval_res)
-            result["section_2_engineering_excellence"].append(item_copy)
-
-        return result
-
-    def _eval_section_1_item(self, cid: str) -> dict[str, Any]:
-        """Dynamically evaluate Section 1 competency."""
-        exp = self.exp
-        has_tco = exp.search_text(
-            exp.markdown_docs, r"(?:TCO|Total Cost of Ownership|cost trade-offs?)"
-        )
-        has_business = exp.search_text(
-            exp.markdown_docs, r"(?:business problem|conversion rate|retail KPIs?)"
-        )
-        has_architecture = exp.search_text(
-            exp.markdown_docs, r"(?:architecture|ADR|trade-offs?)"
-        )
-
-        if cid == "s1_01":  # Strategic Delivery & Value Articulation
-            score = 3 if (has_tco and has_business) else (2 if has_business else 0)
-            evidence = (
-                f"TCO & Business citations: {', '.join({p for p, _ in (has_tco + has_business)[:2]})}"
-                if evidence_paths(has_tco + has_business)
-                else "Missing business framing"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Framing around commercial reality, business KPIs, and quantified TCO."
-                if score == 3
-                else (
-                    "Score 2: Basic business problem framing."
-                    if score == 2
-                    else "Score 0: Missing business context."
-                )
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s1_02":  # Objection Handling & Technical Defense
-            has_adrs = exp.search_text(
-                exp.markdown_docs, r"(?:ADR|trade-off|alternatives? considered)"
-            )
-            score = 3 if has_adrs and has_architecture else 2
-            evidence = (
-                f"ADR documentation: {', '.join({p for p, _ in has_adrs[:2]})}"
-                if has_adrs
-                else "Architecture overview"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Preempts pushback with data-backed rationale and explicit ADRs."
-                if score == 3
-                else "Score 2: General architecture defense."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s1_03":  # Presentation Skills & Time Management
-            has_deck = exp.search_text(
-                exp.markdown_docs, r"(?:presentation|slides?|10-minute|agenda)"
-            )
-            score = 3 if has_deck else 2
-            evidence = (
-                f"Presentation artifacts: {', '.join({p for p, _ in has_deck[:2]})}"
-                if has_deck
-                else "Documentation deck"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Structured 5-8 slide customer-ready presentation roadmap."
-                if score == 3
-                else "Score 2: Standard project documentation."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s1_04":  # AI Driven Development Discussion
-            has_agents_md = [
-                f for f in exp.markdown_docs if "AGENTS.md" in f or "agents.md" in f
-            ]
-            score = 3 if len(has_agents_md) >= 1 else 2
-            evidence = (
-                f"Hierarchical agent guidance: {', '.join(has_agents_md[:2])}"
-                if has_agents_md
-                else "Single agent guide"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Comprehensive AI development harness with hierarchical guidance and automated test verification."
-                if score == 3
-                else "Score 2: Basic agent usage."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s1_05":  # Futures / Roadmap (GCP Value)
-            has_roadmap = exp.search_text(
-                exp.markdown_docs, r"(?:roadmap|future phases?|expansion|sprint 6)"
-            )
-            score = 3 if has_roadmap else 2
-            evidence = (
-                f"Roadmap documentation: {', '.join({p for p, _ in has_roadmap[:2]})}"
-                if has_roadmap
-                else "Project plan"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Clear GCP enterprise expansion roadmap detailing native GCP services."
-                if score == 3
-                else "Score 2: Next steps listed."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        return {
-            "score": 2,
-            "evidence": "Documented baseline",
-            "reasoning": "Score 2: Baseline competence.",
-        }
-
-    def _eval_section_2_item(self, cid: str) -> dict[str, Any]:
-        """Dynamically evaluate Section 2 competency."""
-        exp = self.exp
-
-        if cid == "s2_01":  # Agentic & Multi-Agent Systems
-            has_agent = exp.search_text(
-                exp.python_files, r"(?:Agent|orchestrator|tools?|google\.adk|BaseAgent)"
-            )
-            score = 3 if has_agent else 0
-            evidence = (
-                f"Agent orchestration: {', '.join({p for p, _ in has_agent[:2]})}"
-                if has_agent
-                else "No agent found"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Production agent implementation with structured tools and error handling."
-                if score == 3
-                else "Score 0: No agent implementation found."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_02":  # Retrieval & Data Engineering for AI
-            has_retrieval = exp.search_text(
-                exp.python_files, r"(?:bigquery|query_catalog|grounding|citations?|SKU)"
-            )
-            score = 3 if has_retrieval else 0
-            evidence = (
-                f"Catalog retrieval: {', '.join({p for p, _ in has_retrieval[:2]})}"
-                if has_retrieval
-                else "No retrieval found"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Verified grounding with database citations mapped to catalog primary keys."
-                if score == 3
-                else "Score 0: Missing retrieval pipeline."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_03":  # Model Selection, Tuning & Optimization
-            has_model = exp.search_text(
-                exp.python_files,
-                r"(?:gemini|temperature|GenerateContentConfig|response_schema)",
-            )
-            score = 3 if has_model else 2
-            evidence = (
-                f"Model configuration: {', '.join({p for p, _ in has_model[:2]})}"
-                if has_model
-                else "Default model"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Deterministic temperature, structured JSON output enforcement, and token optimization."
-                if score == 3
-                else "Score 2: Standard model call."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_04":  # LLM Ops and Evaluation
-            has_evals = [f for f in exp.all_files if "evals" in f or "eval" in f]
-            score = 3 if len(has_evals) > 2 else (2 if has_evals else 0)
-            evidence = (
-                f"Evaluation flywheel: {', '.join(has_evals[:2])}"
-                if has_evals
-                else "No evals found"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Automated multi-metric evaluation flywheel with benchmark datasets."
-                if score == 3
-                else (
-                    "Score 2: Basic eval script."
-                    if score == 2
-                    else "Score 0: No evals found."
-                )
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_05":  # Domain-Applied AI/ML Expertise
-            has_specs = exp.search_text(
-                exp.python_files, r"(?:specs?|ram|storage|processor|display|battery)"
-            )
-            score = 3 if has_specs else 2
-            evidence = (
-                f"Domain schema parsing: {', '.join({p for p, _ in has_specs[:2]})}"
-                if has_specs
-                else "General attributes"
-            )
-            reasoning = (
-                "Score 3 (Proficient): Translation of domain consumer electronics attributes into structured comparison matrices."
-                if score == 3
-                else "Score 2: Basic attributes."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_06", "s2_07", "s2_08", "s2_09", "s2_10", "s2_11", "s2_12"}:
-            has_doc = len(exp.markdown_docs) >= 2
-            score = 3 if has_doc else 1
-            evidence = f"Documentation suite ({len(exp.markdown_docs)} docs): {', '.join(list(exp.markdown_docs.keys())[:2])}"
-            reasoning = (
-                f"Score {score}: Comprehensive scoping and design documentation."
-            )
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_13", "s2_14", "s2_15", "s2_17"}:
-            has_tf = len(exp.tf_files) > 0
-            score = 3 if has_tf else 2
-            evidence = (
-                f"Terraform infrastructure: {', '.join(list(exp.tf_files.keys())[:2])}"
-                if has_tf
-                else "Standard security"
-            )
-            reasoning = f"Score {score}: Enforced least privilege, infrastructure perimeters, and audit logging."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_16":  # AI-Specific Security
-            has_model_armor = exp.search_text(
-                exp.python_files,
-                r"(?:ModelArmorConfig|model_armor_prompt_template|MODEL_ARMOR)",
-            )
-            has_prompt_sanitization = exp.search_text(
-                exp.python_files,
-                r"(?:sanitize_user_prompt|adversarial|jailbreak|ignore previous instructions)",
-            )
-            has_delimiters = exp.search_text(
-                exp.python_files,
-                r"(?:<user_query>|<customer_query>|delimiters?)",
-            )
-            has_safety_settings = exp.search_text(
-                exp.python_files,
-                r"(?:safety_settings|harm_category|block_threshold)",
-            )
-
-            # Legitimate Score 3 requires Model Armor, prompt sanitization, XML delimiters, or Vertex AI safety filters
-            if (has_model_armor or has_prompt_sanitization or has_delimiters) and has_safety_settings:
-                score = 3
-                evidence = f"Google Cloud Model Armor & AI Defense: {', '.join({p for p, _ in (has_model_armor + has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
-                reasoning = "Score 3 (Proficient): Google Cloud Model Armor integration, XML boundary isolation, and Vertex AI content safety settings."
-            elif has_model_armor or has_prompt_sanitization or has_delimiters or has_safety_settings:
-                score = 2
-                evidence = f"Partial AI security: {', '.join({p for p, _ in (has_model_armor + has_prompt_sanitization + has_delimiters + has_safety_settings)[:2]})}"
-                reasoning = "Score 2 (Competent): Basic AI security controls present, but requires full Model Armor / prompt sanitization and safety settings for Score 3."
-            else:
-                score = 2  # Baseline pass if structured schemas and DB params exist, but noted as non-Score-3
-                evidence = "Pydantic structured output validation and BigQuery SQL parameterization (database-level protection only)"
-                reasoning = "Score 2 (Competent): Database parameterization prevents SQL injection, but lacks explicit prompt injection sanitization and Vertex AI content safety settings."
-
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_18", "s2_19", "s2_20", "s2_21"}:
-            has_tests = len([f for f in exp.all_files if "test" in f]) > 0
-            score = 3 if has_tests else 2
-            evidence = "Reliability and resilience test harness"
-            reasoning = "Score 3 (Proficient): Observability, health probes, failure recovery, and graceful degradation."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_22", "s2_23", "s2_24"}:
-            score = 3
-            evidence = "Serverless Cloud Run autoscaling, lightweight container images, and scoped query filtering."
-            reasoning = "Score 3 (Proficient): Resource efficiency, horizontal elasticity, and token/query cost controls."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid == "s2_27":  # AI Lifecycle Management
-            has_versioning = exp.search_text(
-                exp.python_files,
-                r"(?:agent_version|prompt_version|model_version)",
-            )
-            has_cloud_deploy = [f for f in exp.all_files if "clouddeploy" in f]
-            has_traffic_split = exp.search_text(
-                exp.yaml_files,
-                r"(?:canary|update-traffic|to-revisions|automaticTrafficControl)",
-            )
-            if has_versioning and (has_cloud_deploy or has_traffic_split):
-                score = 3
-                evidence = "Cloud Run revision traffic splitting, Cloud Deploy canary, and OpenTelemetry version tagging."
-                reasoning = "Score 3 (Proficient): Enterprise GCP AI lifecycle management with Cloud Run revision traffic splitting, Cloud Deploy canary automation, and semantic agent/prompt/model versioning."
-            else:
-                score = 2
-                evidence = "Baseline versioning"
-                reasoning = "Score 2: Baseline versioning."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_25", "s2_26", "s2_28"}:
-            has_ci = [f for f in exp.all_files if "cloudbuild" in f or "ci" in f]
-            score = 3 if has_ci else 2
-            evidence = (
-                f"CI/CD and IaC: {', '.join(has_ci[:2])}"
-                if has_ci
-                else "Automated build harness"
-            )
-            reasoning = "Score 3 (Proficient): Automated CI/CD pipeline, modular Terraform IaC, and test gates."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        if cid in {"s2_29", "s2_30", "s2_31", "s2_32"}:
-            score = 3
-            evidence = "Modular agent architecture, externalized environment config, and contract-first Pydantic schemas."
-            reasoning = "Score 3 (Proficient): Loose coupling, configuration separation, and extensible skill framework."
-            return {"score": score, "evidence": evidence, "reasoning": reasoning}
-
-        return {
-            "score": 2,
-            "evidence": "Baseline compliance",
-            "reasoning": "Score 2: Baseline competence.",
-        }
-
-
-def evidence_paths(matches: list[tuple[str, int]]) -> list[str]:
-    """Extract unique file paths from matches."""
-    return list({p for p, _ in matches})
-
-
 def generate_markdown_report(
     checklist: dict[str, list[dict[str, Any]]],
     avg_s1: float,
@@ -602,10 +187,10 @@ def update_historical_log(
     """Prepend entry to Timeline table and append detailed snapshot in markdown log."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     commit, branch = get_git_info(repo_root)
-    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     status_tag = "**PASSED**" if passed else "**FAILED**"
 
-    # Also save structured JSON cache for instantaneous retrieval
+    # Save structured JSON cache for instantaneous retrieval
     latest_payload = {
         "timestamp": now_utc,
         "commit": commit,
@@ -646,7 +231,6 @@ def update_historical_log(
 
     content = log_path.read_text(encoding="utf-8")
 
-    # Insert row into timeline table after header
     table_pattern = r"(\| :--- \| :--- \| :--- \| :--- \| :--- \| :--- \| :--- \|\n)"
     if re.search(table_pattern, content):
         content = re.sub(
@@ -655,7 +239,6 @@ def update_historical_log(
     else:
         content = new_timeline_row + "\n" + content
 
-    # Append snapshot to end
     snapshot_block = (
         f"\n\n### Snapshot: {now_utc} (Commit: `{commit}`)\n\n{snapshot_report}\n"
     )
@@ -693,7 +276,6 @@ def load_latest_audit(
                 commit = last_match.group(2).strip()
                 snapshot_text = content[last_match.start() :]
 
-                # Parse items
                 item_pattern = re.compile(
                     r"####\s+(s[12]_\d+):\s+([^\n]+?)\s+\((\d+)/3\)\n"
                     r"(?:-\s+\*\*Category\*\*:\s+([^\n]+)\n)?"
@@ -735,7 +317,6 @@ def load_latest_audit(
                         "section_2_engineering_excellence": s2_items,
                     }
                     avg_s1, avg_s2, passed, _, _ = calculate_scores(checklist)
-                    # Cache to latest_audit.json
                     try:
                         LATEST_AUDIT_FILE.parent.mkdir(parents=True, exist_ok=True)
                         LATEST_AUDIT_FILE.write_text(
@@ -878,10 +459,26 @@ def generate_blank_template() -> dict[str, list[dict[str, Any]]]:
     return template
 
 
+def execute_agentic_audit() -> int:
+    """Execute live Agent-Driven rubric evaluation by launching the unbiased reviewer."""
+    if not LAUNCHER_SCRIPT.exists():
+        print(f"Error: Launcher script not found at {LAUNCHER_SCRIPT}", file=sys.stderr)
+        return 1
+
+    print("Launching independent LLM agent review pane in tmux (clean context, zero heuristic shortcuts)...")
+    cmd = ["bash", str(LAUNCHER_SCRIPT), "--wait-and-close"]
+    try:
+        proc = subprocess.run(cmd, check=False)
+        return proc.returncode
+    except Exception as e:
+        print(f"Error launching agentic audit: {e}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """Main CLI entrypoint for Rubric Auditor."""
     parser = argparse.ArgumentParser(
-        description="Universal FDE Capstone Rubric Audit Engine"
+        description="Deterministic FDE Capstone Rubric Audit Validator & History Recorder"
     )
     parser.add_argument(
         "--repo-path",
@@ -939,7 +536,7 @@ def main() -> int:
         "--evaluate",
         dest="run_audit",
         action="store_true",
-        help="Execute fresh, dynamic repository exploration and competency evaluation",
+        help="Execute fresh Agent-Driven rubric evaluation via independent LLM reviewer",
     )
     parser.add_argument(
         "--no-log",
@@ -1014,7 +611,7 @@ def main() -> int:
 
         if args.output:
             commit, _ = get_git_info(args.repo_path)
-            now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
             report = generate_markdown_report(
                 payload, avg_s1, avg_s2, passed, now_utc, commit
             )
@@ -1023,36 +620,9 @@ def main() -> int:
 
         return 0 if success else 1
 
-    # Mode 4: Dynamic Repository Exploration (when requested via --run or when no history exists)
-    if args.run_audit or (not LATEST_AUDIT_FILE.exists() and not args.log_file.exists()):
-        with open(CHECKLIST_PATH, encoding="utf-8") as f:
-            raw_checklist = json.load(f)
-        explorer = ProjectExplorer(args.repo_path)
-        auditor = UniversalRubricAuditor(explorer)
-        checklist = auditor.audit_all(raw_checklist)
-        avg_s1, avg_s2, passed, s1_scores, s2_scores = calculate_scores(checklist)
-        no_zeros = (0 not in s1_scores) and (0 not in s2_scores)
-        all_items = checklist.get(
-            "section_1_presentation_and_advisory", []
-        ) + checklist.get("section_2_engineering_excellence", [])
-
-        if not args.no_log:
-            update_historical_log(
-                args.log_file, checklist, avg_s1, avg_s2, passed, args.repo_path
-            )
-
-        if args.detailed:
-            print_detailed_breakdown(checklist)
-
-        success = print_summary(
-            avg_s1,
-            avg_s2,
-            passed,
-            no_zeros,
-            target_score=args.target_score,
-            all_items=all_items,
-        )
-        return 0 if success else 1
+    # Mode 4: Fresh Agentic Evaluation
+    if args.run_audit:
+        return execute_agentic_audit()
 
     # Mode 5: Summary / Detailed / Verify of latest audit
     checklist, avg_s1, avg_s2, passed, commit, _timestamp = load_latest_audit(
@@ -1077,7 +647,7 @@ def main() -> int:
     )
 
     if args.output:
-        now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         report = generate_markdown_report(
             checklist, avg_s1, avg_s2, passed, now_utc, commit
         )
