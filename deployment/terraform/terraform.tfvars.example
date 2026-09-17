@@ -18,3 +18,10 @@ telemetry_dataset_id   = "catalog_agent_telemetry"
 telemetry_table_id     = "query_telemetry"
 gcs_bucket_location    = "US"
 allow_unauthenticated  = true
+
+# VPC Service Controls (VPC-SC) Configuration
+enable_vpc_sc             = false
+project_number            = "499572810092"
+access_policy_id          = ""
+vpc_sc_dry_run            = true
+authorized_ip_subnetworks = []

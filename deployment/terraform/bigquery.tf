@@ -102,3 +102,41 @@ resource "google_bigquery_table" "telemetry_logs" {
     managed_by  = "terraform"
   }
 }
+
+# BigQuery Table: Nightly Semantic Evaluation Runs
+resource "google_bigquery_table" "evaluation_runs" {
+  dataset_id = google_bigquery_dataset.telemetry.dataset_id
+  table_id   = var.evaluation_table_id
+  project    = var.project_id
+
+  time_partitioning {
+    type  = "DAY"
+    field = "timestamp"
+  }
+
+  clustering = ["status", "trigger_source"]
+
+  schema = jsonencode([
+    { name = "eval_run_id", type = "STRING", mode = "REQUIRED", description = "Unique evaluation run identifier" },
+    { name = "timestamp", type = "TIMESTAMP", mode = "REQUIRED", description = "Timestamp when evaluation run completed" },
+    { name = "total_cases", type = "INTEGER", mode = "REQUIRED", description = "Total benchmark cases evaluated" },
+    { name = "passed_cases", type = "INTEGER", mode = "REQUIRED", description = "Total benchmark cases passed" },
+    { name = "avg_spec_accuracy", type = "FLOAT", mode = "REQUIRED", description = "Mean spec data accuracy across all cases" },
+    { name = "avg_citation_faithfulness", type = "FLOAT", mode = "REQUIRED", description = "Mean citation faithfulness score" },
+    { name = "avg_semantic_coherence", type = "FLOAT", mode = "REQUIRED", description = "Mean semantic coherence and lack of contradictions" },
+    { name = "avg_latency_ms", type = "FLOAT", mode = "REQUIRED", description = "Average response latency in milliseconds" },
+    { name = "p95_latency_ms", type = "FLOAT", mode = "REQUIRED", description = "95th percentile response latency in milliseconds" },
+    { name = "target_threshold_met", type = "BOOLEAN", mode = "REQUIRED", description = "Whether overall quality gates passed" },
+    { name = "status", type = "STRING", mode = "REQUIRED", description = "Overall run status (PASS or FAIL)" },
+    { name = "failure_count", type = "INTEGER", mode = "REQUIRED", description = "Number of failed evaluation test cases" },
+    { name = "failure_summary", type = "STRING", mode = "NULLABLE", description = "JSON summary of failed queries and errors" },
+    { name = "trigger_source", type = "STRING", mode = "REQUIRED", description = "Invocation trigger source (cloud_scheduler, manual, ci)" },
+    { name = "adk_hallucination_score", type = "FLOAT", mode = "NULLABLE", description = "ADK model-graded hallucinations_v1 score" },
+    { name = "adk_tool_trajectory_score", type = "FLOAT", mode = "NULLABLE", description = "ADK tool_trajectory_avg_score" }
+  ])
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+  }
+}
