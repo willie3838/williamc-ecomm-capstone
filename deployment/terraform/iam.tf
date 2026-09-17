@@ -66,3 +66,18 @@ resource "google_project_iam_member" "sa_datastore_user" {
   member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
 
+# Cloud Deploy Access: Job Runner for executing progressive delivery rollouts
+resource "google_project_iam_member" "sa_clouddeploy_runner" {
+  project = var.project_id
+  role    = "roles/clouddeploy.jobRunner"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# Cloud Deploy Access: Releaser for creating releases from Cloud Build / pipeline
+resource "google_project_iam_member" "sa_clouddeploy_releaser" {
+  project = var.project_id
+  role    = "roles/clouddeploy.releaser"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+

@@ -13,6 +13,7 @@ resource "google_project_service" "required_apis" {
     "storage.googleapis.com",
     "cloudscheduler.googleapis.com",
     "firestore.googleapis.com",
+    "clouddeploy.googleapis.com",
   ])
 
   project            = var.project_id

@@ -206,6 +206,19 @@ def test_promote_traffic_step(cloudbuild_config: dict):
     )
 
 
+def test_cloud_deploy_integration(cloudbuild_config: dict):
+    """Verifies Cloud Build integrates with Google Cloud Deploy for automated progressive delivery."""
+    deploy_step = next(
+        (s for s in cloudbuild_config["steps"] if s.get("id") == "cloud-deploy-release"),
+        None,
+    )
+    assert deploy_step is not None, "Pipeline must declare 'cloud-deploy-release' step"
+    args_str = " ".join(deploy_step.get("args", []))
+    assert "gcloud deploy releases create" in args_str
+    assert "catalog-service-pipeline" in args_str
+    assert "deployment/clouddeploy" in args_str
+
+
 # ==============================================================================
 # 5. Multi-Stage Hardened Dockerfile Tests
 # ==============================================================================

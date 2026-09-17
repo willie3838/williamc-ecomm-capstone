@@ -130,6 +130,7 @@ def test_no_hardcoded_project_ids_in_resources():
         "eval_job.tf",
         "firestore.tf",
         "audit_logs.tf",
+        "clouddeploy.tf",
     ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 
@@ -448,3 +449,27 @@ def test_cloudbuild_triggers_configuration():
     assert 'variable "enable_cloudbuild_triggers"' in var_content
     assert 'variable "github_repo_owner"' in var_content
     assert 'variable "github_repo_name"' in var_content
+
+
+def test_cloud_deploy_terraform():
+    """Verify Google Cloud Deploy delivery pipeline, target, and IAM roles."""
+    deploy_tf = TERRAFORM_DIR / "clouddeploy.tf"
+    assert deploy_tf.exists(), "clouddeploy.tf missing"
+    content = deploy_tf.read_text()
+
+    assert 'resource "google_clouddeploy_target" "cloudrun_prod"' in content
+    assert 'resource "google_clouddeploy_delivery_pipeline" "catalog_pipeline"' in content
+    assert "catalog-service-pipeline" in content
+    assert "automatic_traffic_control = true" in content
+    assert "percentages = [0, 100]" in content
+
+    # Check IAM in iam.tf
+    iam_file = TERRAFORM_DIR / "iam.tf"
+    iam_content = iam_file.read_text()
+    assert 'role    = "roles/clouddeploy.jobRunner"' in iam_content
+    assert 'role    = "roles/clouddeploy.releaser"' in iam_content
+
+    # Check API enabled in main.tf
+    main_file = TERRAFORM_DIR / "main.tf"
+    main_content = main_file.read_text()
+    assert '"clouddeploy.googleapis.com"' in main_content

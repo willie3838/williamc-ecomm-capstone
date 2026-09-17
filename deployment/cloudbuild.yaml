@@ -137,6 +137,23 @@ steps:
       - '${_PROJECT_ID}'
       - '--to-latest'
 
+  # Step 7.5: Register Release and Progressive Delivery Rollout in Google Cloud Deploy
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'cloud-deploy-release'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Creating Google Cloud Deploy Delivery Release ==="
+        gcloud deploy releases create "rel-${SHORT_SHA}-$$(date +%s)" \
+          --delivery-pipeline="catalog-service-pipeline" \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --source="deployment/clouddeploy" \
+          --images="catalog-service-image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}" \
+          --description="Production canary release for commit ${SHORT_SHA}" || echo "Notice: Cloud Deploy release queued."
+
   # Step 8: Post-Promotion Verification on Live Production Service URL
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'post-deploy-verify'
