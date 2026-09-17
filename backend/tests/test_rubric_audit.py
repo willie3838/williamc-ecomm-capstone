@@ -150,16 +150,30 @@ def test_generate_markdown_report_and_historical_log(tmp_path: Path) -> None:
     """Verify markdown report generation and historical progression logging."""
     test_payload = {
         "section_1_presentation_and_advisory": [
-            {"id": f"s1_0{i}", "name": f"P{i}", "score": 3, "evidence": "doc.md", "reasoning": "Strong"}
+            {
+                "id": f"s1_0{i}",
+                "name": f"P{i}",
+                "score": 3,
+                "evidence": "doc.md",
+                "reasoning": "Strong",
+            }
             for i in range(1, 6)
         ],
         "section_2_engineering_excellence": [
-            {"id": f"s2_{i:02d}", "name": f"E{i}", "score": 3, "evidence": "src.py", "reasoning": "Strong"}
+            {
+                "id": f"s2_{i:02d}",
+                "name": f"E{i}",
+                "score": 3,
+                "evidence": "src.py",
+                "reasoning": "Strong",
+            }
             for i in range(1, 33)
         ],
     }
 
-    report = generate_markdown_report(test_payload, 3.0, 3.0, True, "2026-09-17 20:00:00 UTC", "testsha")
+    report = generate_markdown_report(
+        test_payload, 3.0, 3.0, True, "2026-09-17 20:00:00 UTC", "testsha"
+    )
     assert "# Capstone Rubric Compliance Audit Report" in report
     assert "3.00 / 3.00" in report
     assert "s1_01" in report

@@ -58,11 +58,8 @@ if [[ -z "${TMUX:-}" ]]; then
 fi
 
 echo "Spawning independent review pane in tmux with gemini-3.8-flash (--effort high)..."
-PANE_ID=$(tmux split-window -h -P -F "#{pane_id}" "$JETSKI_BIN --model gemini-3.8-flash --effort high")
-echo "Spawned review pane: $PANE_ID"
-sleep 2
-tmux send-keys -t "$PANE_ID" "$PROMPT" C-m
-echo "Prompt sent to reviewer pane $PANE_ID successfully."
+PANE_ID=$(tmux split-window -h -P -F "#{pane_id}" "$JETSKI_BIN --model gemini-3.8-flash --effort high -i \"$PROMPT\"")
+echo "Spawned review pane: $PANE_ID with initial prompt."
 
 if [[ "$WAIT_AND_CLOSE" == "true" ]]; then
   echo "Waiting for reviewer pane $PANE_ID to complete audit (marker: $MARKER_FILE, timeout: ${TIMEOUT}s)..."
