@@ -21,6 +21,7 @@ EXPECTED_HCL_FILES = [
     "cloudrun.tf",
     "iam.tf",
     "vpc_sc.tf",
+    "cloudbuild.tf",
     "outputs.tf",
     "eval_job.tf",
 ]
@@ -127,8 +128,11 @@ def test_no_hardcoded_project_ids_in_resources():
         "iam.tf",
         "outputs.tf",
         "eval_job.tf",
+<<<<<<< HEAD
         "firestore.tf",
         "audit_logs.tf",
+=======
+>>>>>>> main
     ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 
@@ -417,3 +421,33 @@ def test_analytics_and_audit_terraform():
     assert 'resource "google_bigquery_table" "vw_most_compared_categories"' in bq_content
     assert 'resource "google_bigquery_table" "vw_latency_performance_trends"' in bq_content
     assert 'resource "google_bigquery_table" "vw_token_and_cost_analytics"' in bq_content
+
+
+def test_cloudbuild_triggers_configuration():
+    """Verify Cloud Build triggers for GitHub PR and push events are declared in cloudbuild.tf."""
+    cb_tf_file = TERRAFORM_DIR / "cloudbuild.tf"
+    assert cb_tf_file.exists(), "cloudbuild.tf does not exist"
+    content = cb_tf_file.read_text()
+
+    # Resources
+    assert 'resource "google_cloudbuild_trigger" "pr_trigger"' in content
+    assert 'resource "google_cloudbuild_trigger" "main_deploy_trigger"' in content
+
+    # PR trigger checks
+    assert 'filename = "deployment/cloudbuild-pr.yaml"' in content
+    assert "pull_request {" in content
+    assert 'branch = "^main$"' in content
+
+    # Main deploy trigger checks
+    assert 'filename = "deployment/cloudbuild.yaml"' in content
+    assert "push {" in content
+
+    # Feature toggle check
+    assert "var.enable_cloudbuild_triggers ? 1 : 0" in content
+
+    # Variables check
+    var_file = TERRAFORM_DIR / "variables.tf"
+    var_content = var_file.read_text()
+    assert 'variable "enable_cloudbuild_triggers"' in var_content
+    assert 'variable "github_repo_owner"' in var_content
+    assert 'variable "github_repo_name"' in var_content

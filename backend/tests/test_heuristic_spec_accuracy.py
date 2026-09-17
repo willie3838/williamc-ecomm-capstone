@@ -165,6 +165,18 @@ def test_comparison_faithfulness(mock_two_laptops_bq_client):
     assert rec is not None
     assert "6534606" in rec  # Battery and value winner
 
+    # 5. Semantic Comparison Quality Evaluation (SPEC.md Section 3)
+    from evals.judge import evaluate_comparison_faithfulness
+
+    verdict = evaluate_comparison_faithfulness(
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+        matrix=response.comparison_matrix,
+        summary=response.summary,
+    )
+    assert verdict.is_faithful is True
+    assert verdict.has_contradiction is False
+    assert verdict.score >= 4
+
 
 def test_heuristic_spec_accuracy_equal_prices(mock_bq_client):
     """Verify matrix and summary when products are identical in price."""

@@ -241,6 +241,50 @@ class ComparisonOrchestrator:
             )
             summary_lines.append(spec_desc)
 
+        # Weight narrative
+        w1 = p1.specifications.get("weight_lbs")
+        w2 = p2.specifications.get("weight_lbs")
+        if w1 is not None and w2 is not None:
+            if w1 < w2:
+                summary_lines.append(
+                    f"- Weight: {p1.name} [SKU: {p1.sku}] is lighter and more portable at {w1} lbs versus {w2} lbs for {p2.name} [SKU: {p2.sku}]."
+                )
+            elif w2 < w1:
+                summary_lines.append(
+                    f"- Weight: {p2.name} [SKU: {p2.sku}] is lighter and more portable at {w2} lbs versus {w1} lbs for {p1.name} [SKU: {p1.sku}]."
+                )
+            else:
+                summary_lines.append(f"- Weight: Both products weigh identically at {w1} lbs.")
+
+        # Display narrative
+        d1 = p1.specifications.get("display_size_in") or p1.specifications.get("screen_size_in")
+        d2 = p2.specifications.get("display_size_in") or p2.specifications.get("screen_size_in")
+        if d1 is not None and d2 is not None and d1 != d2:
+            summary_lines.append(
+                f'- Display Size: {p1.name} [SKU: {p1.sku}] has a {d1}" display versus {d2}" on {p2.name} [SKU: {p2.sku}].'
+            )
+
+        # Display resolution narrative
+        res1 = p1.specifications.get("display_resolution") or p1.specifications.get("resolution")
+        res2 = p2.specifications.get("display_resolution") or p2.specifications.get("resolution")
+        if res1 and res2 and res1 != res2:
+            summary_lines.append(
+                f"- Display Resolution: {p1.name} [SKU: {p1.sku}] features {res1} versus {res2} on {p2.name} [SKU: {p2.sku}]."
+            )
+
+        # Storage narrative
+        s1 = p1.specifications.get("storage_gb")
+        s2 = p2.specifications.get("storage_gb")
+        if s1 is not None and s2 is not None and s1 != s2:
+            if s1 > s2:
+                summary_lines.append(
+                    f"- Storage: {p1.name} [SKU: {p1.sku}] offers more storage at {s1}GB versus {s2}GB for {p2.name} [SKU: {p2.sku}]."
+                )
+            else:
+                summary_lines.append(
+                    f"- Storage: {p2.name} [SKU: {p2.sku}] offers more storage at {s2}GB versus {s1}GB for {p1.name} [SKU: {p1.sku}]."
+                )
+
         return "\n".join(summary_lines)
 
     def generate_recommendations(self, products: list[ProductSpec]) -> str | None:

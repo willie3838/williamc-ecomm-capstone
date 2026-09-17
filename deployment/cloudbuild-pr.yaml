@@ -1,0 +1,67 @@
+steps:
+  # Step 1: Linter and Formatting Check
+  - name: 'python:3.11-slim'
+    id: 'lint'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        pip install --no-cache-dir ruff
+        echo "=== Running Ruff Lint Check ==="
+        ruff check backend/ evals/
+        echo "=== Running Ruff Format Check ==="
+        ruff format --check backend/ evals/
+
+  # Step 2: Unit Tests with Coverage Gate (>=80%)
+  - name: 'python:3.11-slim'
+    id: 'unit-tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        cd backend
+        pip install --no-cache-dir -r requirements.txt
+        echo "=== Running Pytest with Coverage Gate >= 80% ==="
+        pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
+
+  # Step 3: Evaluation Flywheel Benchmark & Regression Gate
+  - name: 'python:3.11-slim'
+    id: 'eval-benchmark'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        pip install --no-cache-dir -r backend/requirements.txt
+        mkdir -p reports
+        echo "=== Running Evaluation Flywheel Benchmark Suite ==="
+        PYTHONPATH=backend/src python evals/runner.py --output reports/pr_eval.json
+        if [ -f "reports/baseline.json" ]; then
+          echo "=== Running Regression Analysis against Baseline ==="
+          python evals/analyze.py --current reports/pr_eval.json --baseline reports/baseline.json --fail-on-regression
+        else
+          echo "No baseline.json found, skipping regression check."
+        fi
+
+  # Step 4: ADK Agent Evaluator & Conformance Gate
+  - name: 'python:3.11-slim'
+    id: 'adk-eval'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        pip install --no-cache-dir -r backend/requirements.txt google-adk
+        echo "=== Running ADK Agent Conformance & Evaluation Gate ==="
+        PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv
+
+substitutions:
+  _REGION: 'us-central1'
+  _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '600s'

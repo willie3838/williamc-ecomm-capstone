@@ -49,6 +49,7 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
     expected_steps = [
         "lint",
         "unit-tests",
+        "adk-eval",
         "build-image",
         "push-image",
         "deploy-candidate",
@@ -58,6 +59,13 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
     for exp in expected_steps:
         if exp not in step_ids:
             errors.append(f"Missing required build step: '{exp}'")
+
+    # ADK eval step checks
+    adk_step = next((s for s in steps if s.get("id") == "adk-eval"), None)
+    if adk_step:
+        args_str = " ".join(adk_step.get("args", []))
+        if "test_eval_adk.py" not in args_str:
+            errors.append("adk-eval step must execute pytest on evals/test_eval_adk.py")
 
     # Lint step checks
     lint_step = next((s for s in steps if s.get("id") == "lint"), None)
@@ -111,6 +119,65 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
         if "--to-latest" not in args and not any("--to-revisions" in a for a in args):
             errors.append(
                 "promote-traffic step must update traffic to latest verified revision"
+            )
+
+    return errors
+
+
+def validate_cloudbuild_pr(cb_path: Path) -> list[str]:
+    """Validates deployment/cloudbuild-pr.yaml quality gates."""
+    errors = []
+    if not cb_path.exists():
+        return [f"File not found: {cb_path}"]
+
+    try:
+        with open(cb_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        return [f"Failed to parse YAML from {cb_path}: {e}"]
+
+    if not isinstance(config, dict):
+        return ["cloudbuild-pr.yaml must be a YAML dictionary"]
+
+    steps = config.get("steps", [])
+    step_ids = [s.get("id") for s in steps if isinstance(s, dict)]
+
+    expected_steps = ["lint", "unit-tests", "eval-benchmark", "adk-eval"]
+    for exp in expected_steps:
+        if exp not in step_ids:
+            errors.append(f"Missing required PR build step: '{exp}'")
+
+    # Lint checks
+    lint_step = next((s for s in steps if s.get("id") == "lint"), None)
+    if lint_step:
+        args_str = " ".join(lint_step.get("args", []))
+        if "ruff check" not in args_str or "ruff format --check" not in args_str:
+            errors.append(
+                "PR lint step must execute ruff check and ruff format --check"
+            )
+
+    # Unit tests coverage gate
+    test_step = next((s for s in steps if s.get("id") == "unit-tests"), None)
+    if test_step:
+        args_str = " ".join(test_step.get("args", []))
+        match = re.search(r"--cov-fail-under=(\d+)", args_str)
+        if not match or int(match.group(1)) < 80:
+            errors.append("PR unit tests step must enforce --cov-fail-under >= 80")
+
+    # Benchmark step
+    eval_step = next((s for s in steps if s.get("id") == "eval-benchmark"), None)
+    if eval_step:
+        args_str = " ".join(eval_step.get("args", []))
+        if "runner.py" not in args_str:
+            errors.append("PR eval-benchmark step must execute runner.py")
+
+    # ADK eval step
+    adk_step = next((s for s in steps if s.get("id") == "adk-eval"), None)
+    if adk_step:
+        args_str = " ".join(adk_step.get("args", []))
+        if "test_eval_adk.py" not in args_str:
+            errors.append(
+                "PR adk-eval step must execute pytest on evals/test_eval_adk.py"
             )
 
     return errors
@@ -197,6 +264,18 @@ def main() -> int:
     else:
         print(
             "[PASS] deployment/cloudbuild.yaml satisfies all quality gates and deployment rules."
+        )
+
+    # 1b. Cloud Build PR Pipeline
+    cb_pr_errors = validate_cloudbuild_pr(deployment_dir / "cloudbuild-pr.yaml")
+    if cb_pr_errors:
+        print("[FAIL] deployment/cloudbuild-pr.yaml errors:")
+        for err in cb_pr_errors:
+            print(f"  - {err}")
+        all_errors.extend(cb_pr_errors)
+    else:
+        print(
+            "[PASS] deployment/cloudbuild-pr.yaml satisfies all quality gates and evaluation checks."
         )
 
     # 2. Dockerfile Hardening

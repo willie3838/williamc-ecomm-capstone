@@ -57,8 +57,12 @@
           "intermediate_data": {
             "tool_uses": [
               {
-                "id": null,
+                "id": "call_query_catalog_001",
                 "args": {
+                  "keywords": [
+                    "MacBook Air",
+                    "Dell XPS 13"
+                  ],
                   "category": "Laptops"
                 },
                 "name": "query_catalog",
@@ -66,7 +70,49 @@
                 "will_continue": null
               }
             ],
-            "tool_responses": [],
+            "tool_responses": [
+              {
+                "id": "call_query_catalog_001",
+                "name": "query_catalog",
+                "parts": null,
+                "response": {
+                  "result": [
+                    {
+                      "sku": "6534606",
+                      "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+                      "brand": "Apple",
+                      "category": "Laptops",
+                      "price": 1099.0,
+                      "specifications": {
+                        "processor": "Apple M3 8-core",
+                        "ram_gb": 16,
+                        "battery_life_hours": 18.0,
+                        "weight_lbs": 2.7,
+                        "screen_size_in": 13.6,
+                        "storage_gb": 512
+                      }
+                    },
+                    {
+                      "sku": "6575132",
+                      "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+                      "brand": "Dell",
+                      "category": "Laptops",
+                      "price": 1199.0,
+                      "specifications": {
+                        "processor": "Intel Core Ultra 7 155H",
+                        "ram_gb": 16,
+                        "battery_life_hours": 14.0,
+                        "weight_lbs": 2.6,
+                        "screen_size_in": 13.4,
+                        "storage_gb": 512
+                      }
+                    }
+                  ]
+                },
+                "scheduling": null,
+                "will_continue": null
+              }
+            ],
             "intermediate_responses": []
           },
           "creation_timestamp": 0.0,

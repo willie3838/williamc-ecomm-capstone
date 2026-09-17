@@ -135,3 +135,21 @@ variable "authorized_ip_subnetworks" {
   description = "List of CIDRs allowed into the perimeter"
   default     = []
 }
+
+variable "enable_cloudbuild_triggers" {
+  type        = bool
+  description = "Whether to create Cloud Build triggers for GitHub PR and push events"
+  default     = false
+}
+
+variable "github_repo_owner" {
+  type        = string
+  description = "Owner/organization of the GitHub repository"
+  default     = "williamwlchan"
+}
+
+variable "github_repo_name" {
+  type        = string
+  description = "Name of the GitHub repository"
+  default     = "williamc-ecomm-capstone"
+}

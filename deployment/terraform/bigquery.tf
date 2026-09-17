@@ -237,4 +237,3 @@ resource "google_bigquery_table" "vw_token_and_cost_analytics" {
     purpose     = "bi_reporting"
   }
 }
-
