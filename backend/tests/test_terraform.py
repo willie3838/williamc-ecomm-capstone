@@ -461,7 +461,7 @@ def test_cloud_deploy_terraform():
     assert 'resource "google_clouddeploy_delivery_pipeline" "catalog_pipeline"' in content
     assert "catalog-service-pipeline" in content
     assert "automatic_traffic_control = true" in content
-    assert "percentages = [0, 100]" in content
+    assert "percentages = [0]" in content
 
     # Check IAM in iam.tf
     iam_file = TERRAFORM_DIR / "iam.tf"
