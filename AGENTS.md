@@ -103,6 +103,17 @@ flowchart TD
 3. **No Muted Errors**: All exceptions must be explicitly typed, handled, and logged with OpenTelemetry spans.
 4. **Documentation Sync**: When updating any API, data model, or workflow, immediately update the corresponding `AGENTS.md`, `ARCHITECTURE.md`, or `SKILLS.md`.
 
+### 5.1 Post-Task Worktree & Main Merge Protocol (Always Merge to Main)
+Whenever working in an isolated worktree or feature branch (`feat/*`):
+1. **Pre-Merge Verification**: Run all unit tests, linters, and eval suites (`pytest --cov=src --cov-fail-under=80`, `ruff check`, `ruff format --check`).
+2. **Sync Base Branch**: Fetch latest `main` and rebase or fast-forward (`git fetch origin main && git rebase main`).
+3. **Mandatory Atomic Merge to Main**:
+   - All completed features MUST be merged back into `main` before concluding the task.
+   - Switch to `main`: `git checkout main`.
+   - Merge feature branch: `git merge --ff-only <feat-branch>` (or `--no-ff`).
+4. **Post-Merge Verification on Main**: Run verification suite on `main` to verify zero regressions.
+5. **Worktree Cleanup**: Remove feature worktree once merged (`git worktree remove .swarm/worktrees/<task>`).
+
 ---
 
 ## 6. Key Documentation Reference
