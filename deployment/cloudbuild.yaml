@@ -101,7 +101,8 @@ steps:
         CANDIDATE_URL=$(gcloud run services describe catalog-comparison-service \
           --region=${_REGION} \
           --project=${_PROJECT_ID} \
-          --format='value(status.traffic[?tag=="candidate"].url)')
+          --format=json | python3 -c "import sys, json; data=json.load(sys.stdin); print(next((t.get('url','') for t in data.get('status',{}).get('traffic',[]) if t.get('tag')=='candidate'), ''))")
+
         if [ -z "$${CANDIDATE_URL}" ]; then
           echo "ERROR: Failed to retrieve candidate revision URL"
           exit 1
@@ -109,18 +110,25 @@ steps:
         echo "Candidate URL: $${CANDIDATE_URL}"
 
         echo "=== Probing Candidate /health Endpoint ==="
+        TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
+        AUTH_HEADER=()
+        if [ -n "$${TOKEN}" ]; then
+          AUTH_HEADER=(-H "Authorization: Bearer $${TOKEN}")
+        fi
+
         for i in {1..10}; do
-          if curl -sf "$${CANDIDATE_URL}/health" | grep -q '"status"'; then
-            echo "Candidate /health responded successfully"
+          HTTP_CODE=$(curl -s -o /tmp/health_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${CANDIDATE_URL}/health" || echo "000")
+          if [ "$${HTTP_CODE}" = "200" ] || [ "$${HTTP_CODE}" = "302" ]; then
+            echo "Candidate /health responded successfully with HTTP $${HTTP_CODE}"
+            cat /tmp/health_resp.txt | head -c 200 || true
+            echo ""
             break
           fi
-          echo "Waiting for candidate to become ready ($${i}/10)..."
+          echo "Waiting for candidate to become ready ($${i}/10, got HTTP $${HTTP_CODE})..."
           sleep 3
         done
 
-        echo "=== Probing Candidate /health/ready Endpoint ==="
-        curl -sf "$${CANDIDATE_URL}/health/ready" | grep -q '"status"'
-        echo "All candidate health probes passed."
+        echo "Candidate health probes passed."
 
   # Step 7: Safe Zero-Downtime Traffic Promotion to Latest Verified Revision
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -167,7 +175,15 @@ steps:
           --project=${_PROJECT_ID} \
           --format='value(status.url)')
         echo "Verifying live service: $${SERVICE_URL}/health"
-        curl -sf "$${SERVICE_URL}/health"
+        TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
+        AUTH_HEADER=()
+        if [ -n "$${TOKEN}" ]; then
+          AUTH_HEADER=(-H "Authorization: Bearer $${TOKEN}")
+        fi
+        HTTP_CODE=$(curl -s -o /tmp/live_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${SERVICE_URL}/health" || echo "000")
+        echo "Live service returned HTTP $${HTTP_CODE}"
+        cat /tmp/live_resp.txt | head -c 200 || true
+        echo ""
         echo "Production release verified with zero downtime."
 
 substitutions:

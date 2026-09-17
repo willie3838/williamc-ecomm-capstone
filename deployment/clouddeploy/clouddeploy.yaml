@@ -1,0 +1,31 @@
+apiVersion: deploy.cloud.google.com/v1
+kind: DeliveryPipeline
+metadata:
+  name: catalog-service-pipeline
+description: Continuous Delivery pipeline managing canary 0% verification to 100% traffic cutover
+serialPipeline:
+  stages:
+  - targetId: cloudrun-prod
+    strategy:
+      canary:
+        runtimeConfig:
+          cloudRun:
+            automaticTrafficControl: true
+        canaryDeployment:
+          percentages: [0]
+          verify: false
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Target
+metadata:
+  name: cloudrun-prod
+description: Production Cloud Run deployment target for catalog-comparison-service
+run:
+  location: projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1
+executionConfigs:
+- usages:
+  - RENDER
+  - DEPLOY
+  - VERIFY
+  serviceAccount: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
+  executionTimeout: 600s
