@@ -42,7 +42,7 @@ resource "google_clouddeploy_delivery_pipeline" "catalog_pipeline" {
           }
           canary_deployment {
             percentages = [0]
-            verify      = false
+            verify      = true
           }
         }
       }

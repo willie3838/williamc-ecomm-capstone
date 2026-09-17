@@ -106,6 +106,15 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
     managed_by  = "terraform"
   }
 
+  lifecycle {
+    ignore_changes = [
+      client,
+      client_version,
+      template[0].containers[0].image,
+      traffic,
+    ]
+  }
+
   depends_on = [
     google_project_service.required_apis,
     google_service_account.catalog_agent_sa,

@@ -7,3 +7,27 @@ manifests:
     - service.yaml
 deploy:
   cloudrun: {}
+verify:
+  - name: candidate-health-check
+    container:
+      name: health-probe
+      image: curlimages/curl:8.10.1
+      command: ["/bin/sh"]
+      args:
+        - "-c"
+        - |
+          set -euo pipefail
+          echo "=== Starting Candidate Post-Deploy Verification ==="
+          TARGET_URL="${CLOUD_RUN_SERVICE_URL:-http://localhost:8080}"
+          echo "Target service endpoint: ${TARGET_URL}"
+
+          echo "1. Probing /health liveness endpoint..."
+          curl -fsSL --retry 5 --retry-delay 3 --retry-connrefused "${TARGET_URL}/health" | grep -q '"status":"ok"'
+
+          echo "2. Probing /health/ready readiness endpoint..."
+          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused "${TARGET_URL}/health/ready" | grep -q '"status":"ready"'
+
+          echo "3. Probing OpenAPI documentation endpoint..."
+          curl -fsSL --retry 3 "${TARGET_URL}/openapi.json" | grep -q '"title"'
+
+          echo "All candidate verification probes passed successfully."

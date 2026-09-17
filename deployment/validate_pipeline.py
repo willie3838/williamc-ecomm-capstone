@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Standalone CI/CD Pipeline & Deployment Validator.
 
-Validates the Cloud Build pipeline configuration, Dockerfile container hardening,
-and rollback mechanisms against Capstone Rubric 6.1, 6.2 and SPEC.md requirements.
+Validates the Cloud Build pipeline configuration, Cloud Deploy delivery manifests,
+Dockerfile container hardening, and rollback mechanisms against Capstone Rubric 6.1, 6.2
+and SPEC.md requirements.
 """
 
 import argparse
@@ -52,20 +53,11 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
         "adk-eval",
         "build-image",
         "push-image",
-        "deploy-candidate",
-        "smoke-test",
-        "promote-traffic",
+        "create-cloud-deploy-release",
     ]
     for exp in expected_steps:
         if exp not in step_ids:
             errors.append(f"Missing required build step: '{exp}'")
-
-    # ADK eval step checks
-    adk_step = next((s for s in steps if s.get("id") == "adk-eval"), None)
-    if adk_step:
-        args_str = " ".join(adk_step.get("args", []))
-        if "test_eval_adk.py" not in args_str:
-            errors.append("adk-eval step must execute pytest on evals/test_eval_adk.py")
 
     # Lint step checks
     lint_step = next((s for s in steps if s.get("id") == "lint"), None)
@@ -88,38 +80,142 @@ def validate_cloudbuild(cb_path: Path) -> list[str]:
                 f"Coverage gate threshold {match.group(1)}% is below mandatory 80%"
             )
 
-    # Deploy candidate flags
-    deploy_step = next((s for s in steps if s.get("id") == "deploy-candidate"), None)
-    if deploy_step:
-        args = deploy_step.get("args", [])
-        if "--no-traffic" not in args:
+    # ADK eval step checks
+    adk_step = next((s for s in steps if s.get("id") == "adk-eval"), None)
+    if adk_step:
+        args_str = " ".join(adk_step.get("args", []))
+        if "test_eval_adk.py" not in args_str:
+            errors.append("adk-eval step must execute pytest on evals/test_eval_adk.py")
+
+    # Cloud Deploy release creation checks
+    cd_step = next(
+        (s for s in steps if s.get("id") == "create-cloud-deploy-release"), None
+    )
+    if cd_step:
+        args_str = " ".join(cd_step.get("args", []))
+        if "deploy releases create" not in args_str:
             errors.append(
-                "deploy-candidate step must specify --no-traffic for canary safety"
+                "create-cloud-deploy-release step must execute 'gcloud deploy releases create'"
             )
-        if "--tag" not in args:
-            errors.append("deploy-candidate step must assign a revision tag")
-        if "catalog-comparison-service" not in args:
+        if "catalog-service-pipeline" not in args_str:
             errors.append(
-                "deploy-candidate step must target 'catalog-comparison-service'"
+                "create-cloud-deploy-release step must target delivery pipeline 'catalog-service-pipeline'"
             )
 
-    # Smoke test checks
-    smoke_step = next((s for s in steps if s.get("id") == "smoke-test"), None)
-    if smoke_step:
-        args_str = " ".join(smoke_step.get("args", []))
-        if "/health" not in args_str or "/health/ready" not in args_str:
-            errors.append(
-                "smoke-test step must probe both /health and /health/ready endpoints"
-            )
+    return errors
 
-    # Promote traffic
-    promote_step = next((s for s in steps if s.get("id") == "promote-traffic"), None)
-    if promote_step:
-        args = promote_step.get("args", [])
-        if "--to-latest" not in args and not any("--to-revisions" in a for a in args):
+
+def validate_clouddeploy(clouddeploy_dir: Path) -> list[str]:
+    """Validates Cloud Deploy delivery pipeline, targets, automation, and skaffold manifests."""
+    errors = []
+    cd_yaml = clouddeploy_dir / "clouddeploy.yaml"
+    skaffold_yaml = clouddeploy_dir / "skaffold.yaml"
+    service_yaml = clouddeploy_dir / "service.yaml"
+
+    if not cd_yaml.exists():
+        return [f"Missing {cd_yaml}"]
+    if not skaffold_yaml.exists():
+        return [f"Missing {skaffold_yaml}"]
+    if not service_yaml.exists():
+        return [f"Missing {service_yaml}"]
+
+    # 1. Parse clouddeploy.yaml documents
+    try:
+        with open(cd_yaml, encoding="utf-8") as f:
+            docs = list(yaml.safe_load_all(f))
+    except yaml.YAMLError as e:
+        return [f"Failed to parse YAML from {cd_yaml}: {e}"]
+
+    pipeline_doc = next(
+        (
+            d
+            for d in docs
+            if isinstance(d, dict) and d.get("kind") == "DeliveryPipeline"
+        ),
+        None,
+    )
+    if not pipeline_doc:
+        errors.append("clouddeploy.yaml missing DeliveryPipeline resource")
+    else:
+        stages = pipeline_doc.get("serialPipeline", {}).get("stages", [])
+        prod_stage = next(
+            (s for s in stages if s.get("targetId") == "cloudrun-prod"), None
+        )
+        if not prod_stage:
+            errors.append("DeliveryPipeline missing stage targeting 'cloudrun-prod'")
+        else:
+            strategy = prod_stage.get("strategy", {}).get("canary", {})
+            canary_cfg = strategy.get("canaryDeployment", {})
+            percentages = canary_cfg.get("percentages", [])
+            if percentages != [0]:
+                errors.append(f"Expected canary percentages [0], got {percentages}")
+            if not canary_cfg.get("verify", False):
+                errors.append("Cloud Deploy canaryDeployment must have 'verify: true'")
+            run_cfg = strategy.get("runtimeConfig", {}).get("cloudRun", {})
+            if not run_cfg.get("automaticTrafficControl", False):
+                errors.append(
+                    "Cloud Deploy runtimeConfig must enable 'automaticTrafficControl: true'"
+                )
+
+    target_doc = next(
+        (d for d in docs if isinstance(d, dict) and d.get("kind") == "Target"),
+        None,
+    )
+    if not target_doc:
+        errors.append("clouddeploy.yaml missing Target resource")
+
+    automation_doc = next(
+        (d for d in docs if isinstance(d, dict) and d.get("kind") == "Automation"),
+        None,
+    )
+    if not automation_doc:
+        errors.append(
+            "clouddeploy.yaml missing Automation resource for auto-advance/rollback"
+        )
+    else:
+        rules = automation_doc.get("rules", [])
+        has_advance = any("advanceRolloutRule" in r for r in rules)
+        has_rollback = any("rollbackRule" in r for r in rules)
+        if not has_advance:
+            errors.append("Automation resource missing 'advanceRolloutRule'")
+        if not has_rollback:
+            errors.append("Automation resource missing 'rollbackRule'")
+
+    # 2. Parse skaffold.yaml
+    try:
+        with open(skaffold_yaml, encoding="utf-8") as f:
+            sk_config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        return [f"Failed to parse YAML from {skaffold_yaml}: {e}"]
+
+    if not isinstance(sk_config, dict):
+        errors.append("skaffold.yaml must be a YAML dictionary")
+    else:
+        if "deploy" not in sk_config or "cloudrun" not in sk_config.get("deploy", {}):
+            errors.append("skaffold.yaml missing 'deploy.cloudrun' configuration")
+        verify_entries = sk_config.get("verify", [])
+        if not verify_entries:
             errors.append(
-                "promote-traffic step must update traffic to latest verified revision"
+                "skaffold.yaml missing 'verify' configuration for candidate health checks"
             )
+        else:
+            probe = verify_entries[0]
+            args_str = " ".join(probe.get("container", {}).get("args", []))
+            if "/health" not in args_str:
+                errors.append("Skaffold verify must probe /health endpoint")
+
+    # 3. Parse service.yaml
+    try:
+        with open(service_yaml, encoding="utf-8") as f:
+            srv_config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        return [f"Failed to parse YAML from {service_yaml}: {e}"]
+
+    if (
+        not isinstance(srv_config, dict)
+        or srv_config.get("metadata", {}).get("name") != "catalog-comparison-service"
+    ):
+        errors.append("service.yaml must define service 'catalog-comparison-service'")
 
     return errors
 
@@ -254,7 +350,7 @@ def main() -> int:
 
     all_errors = []
 
-    # 1. Cloud Build Pipeline
+    # 1. Cloud Build CI Pipeline
     cb_errors = validate_cloudbuild(deployment_dir / "cloudbuild.yaml")
     if cb_errors:
         print("[FAIL] deployment/cloudbuild.yaml errors:")
@@ -263,7 +359,7 @@ def main() -> int:
         all_errors.extend(cb_errors)
     else:
         print(
-            "[PASS] deployment/cloudbuild.yaml satisfies all quality gates and deployment rules."
+            "[PASS] deployment/cloudbuild.yaml satisfies all quality gates and Cloud Deploy release trigger."
         )
 
     # 1b. Cloud Build PR Pipeline
@@ -278,7 +374,19 @@ def main() -> int:
             "[PASS] deployment/cloudbuild-pr.yaml satisfies all quality gates and evaluation checks."
         )
 
-    # 2. Dockerfile Hardening
+    # 2. Cloud Deploy Delivery Manifests
+    cd_errors = validate_clouddeploy(deployment_dir / "clouddeploy")
+    if cd_errors:
+        print("[FAIL] deployment/clouddeploy errors:")
+        for err in cd_errors:
+            print(f"  - {err}")
+        all_errors.extend(cd_errors)
+    else:
+        print(
+            "[PASS] deployment/clouddeploy manifests satisfy 0% -> 100% canary and verification rules."
+        )
+
+    # 3. Dockerfile Hardening
     df_errors = validate_dockerfile(deployment_dir / "Dockerfile")
     if df_errors:
         print("[FAIL] deployment/Dockerfile errors:")
@@ -290,7 +398,7 @@ def main() -> int:
             "[PASS] deployment/Dockerfile satisfies multi-stage and least-privilege security."
         )
 
-    # 3. Rollback Assets
+    # 4. Rollback Assets
     rb_errors = validate_rollback_assets(
         deployment_dir / "rollback.sh",
         deployment_dir / "cloudbuild-rollback.yaml",

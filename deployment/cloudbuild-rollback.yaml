@@ -1,9 +1,10 @@
 # ==============================================================================
 # Automated Rollback Pipeline for Best Buy Catalog Comparison Agent
-# Reverts Cloud Run traffic to the previous known stable revision or a specified revision.
+# Reverts Cloud Run traffic to the previous known stable revision or rollback release.
+# Integrates with Google Cloud Deploy and Cloud Run traffic controls.
 # ==============================================================================
 steps:
-  # Step 1: Shift traffic to targeted or previous stable revision
+  # Step 1: Shift traffic via Cloud Deploy rollback or direct Cloud Run reversion
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'rollback-traffic'
     entrypoint: 'bash'
@@ -12,10 +13,29 @@ steps:
       - |
         set -euo pipefail
         SERVICE_NAME="catalog-comparison-service"
+        PIPELINE_NAME="catalog-service-pipeline"
         TARGET_REV="${_TARGET_REVISION}"
 
         if [ -z "$${TARGET_REV}" ]; then
-          echo "No explicit revision given. Querying preceding stable revision..."
+          echo "Attempting Google Cloud Deploy rollback first..."
+          LATEST_ROLLOUT=$(gcloud deploy rollouts list \
+            --delivery-pipeline="$${PIPELINE_NAME}" \
+            --region="${_REGION}" \
+            --project="${_PROJECT_ID}" \
+            --format="value(name)" 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$${LATEST_ROLLOUT}" ]; then
+            echo "Executing rollback for rollout: $${LATEST_ROLLOUT}..."
+            if gcloud deploy rollouts rollback "$${LATEST_ROLLOUT}" \
+              --delivery-pipeline="$${PIPELINE_NAME}" \
+              --region="${_REGION}" \
+              --project="${_PROJECT_ID}" \
+              --quiet 2>/dev/null; then
+              echo "Cloud Deploy rollback initiated."
+            fi
+          fi
+
+          echo "Resolving preceding stable Cloud Run revision..."
           TARGET_REV=$(gcloud run revisions list \
             --service="$${SERVICE_NAME}" \
             --region="${_REGION}" \
@@ -29,7 +49,7 @@ steps:
           exit 1
         fi
 
-        echo "Rolling back $${SERVICE_NAME} to revision: $${TARGET_REV}..."
+        echo "Enforcing 100% traffic to stable revision: $${TARGET_REV}..."
         gcloud run services update-traffic "$${SERVICE_NAME}" \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \

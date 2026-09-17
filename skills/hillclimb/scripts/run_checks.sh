@@ -64,4 +64,16 @@ if [ -f "${UI_AUDIT_SCRIPT}" ]; then
   fi
 fi
 
+echo "=== [7/7] Running Capstone Rubric Score 3 Verification Gate ==="
+AUDIT_SCRIPT="${REPO_ROOT}/skills/rubric-audit/scripts/audit_rubric.py"
+TARGET_FLAG="--target-score 3"
+for arg in "$@"; do
+  if [ "$arg" == "--baseline" ]; then
+    TARGET_FLAG="--target-score 2"
+  fi
+done
+
+"${PYTHON_BIN}" "${AUDIT_SCRIPT}" --verify ${TARGET_FLAG}
+echo "[PASS] Capstone Rubric Verification Passed!"
+
 echo "=== ALL HILLCLIMB CHECKS COMPLETED ==="

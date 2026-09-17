@@ -62,27 +62,34 @@ deployment/
 
 ---
 
-## 4. Cloud Build CI/CD Protocol (Rubric 6.1 Compliance)
+## 4. Cloud Build CI & Cloud Deploy CD Protocol (Rubric 6.1 Compliance)
 
-The automated delivery pipeline defined in `cloudbuild.yaml` executes sequential quality gates and safe canary deployment:
-1. **Linter & Formatting Check**: Runs `ruff check backend/` and `ruff format --check backend/`.
-2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside the containerized test harness.
-3. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`).
-4. **Artifact Push**: Pushes image to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:$COMMIT_SHA` and `latest`.
-5. **Canary Deployment**: Deploys revision to Cloud Run with `--no-traffic --tag candidate` to prevent premature traffic exposure.
-6. **Smoke Test Health Probe**: Automated curl probes against candidate `${CANDIDATE_URL}/health` and `${CANDIDATE_URL}/health/ready` checking for HTTP 200 and `"status": "ok"`.
-7. **Traffic Promotion**: Migrates 100% of live traffic to the verified revision via `gcloud run services update-traffic --to-latest`.
-8. **Post-Promotion Verification**: Final liveness confirmation on the production service URL.
+The automated delivery pipeline cleanly decouples Continuous Integration (Cloud Build) from Continuous Delivery and Traffic Management (Cloud Deploy):
+
+### 4.1 Cloud Build CI Pipeline (`cloudbuild.yaml`)
+1. **Linter & Formatting Check**: Runs `ruff check backend/ evals/` and `ruff format --check backend/ evals/`.
+2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside containerized test harness.
+3. **ADK Agent Conformance Gate**: Runs `evals/test_eval_adk.py` to assert ADK agent specs.
+4. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`).
+5. **Artifact Push**: Pushes image tags `:${SHORT_SHA}` and `:latest` to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend`.
+6. **Release Registration**: Creates Google Cloud Deploy release targeting `catalog-service-pipeline`:
+   `gcloud deploy releases create "rel-${SHORT_SHA}-..." --delivery-pipeline=catalog-service-pipeline ...`
+
+### 4.2 Google Cloud Deploy CD Pipeline (`clouddeploy/`)
+1. **Canary 0% Phase (`canary-0`)**: Cloud Deploy deploys the revision to Cloud Run with `automaticTrafficControl: true` and 0% public traffic under revision tag `candidate`.
+2. **Automated Verification Probes**: Skaffold runs verify container (`curlimages/curl`) asserting `/health` (liveness HTTP 200), `/health/ready` (readiness HTTP 200), and `/openapi.json` (OpenAPI schema integrity).
+3. **Automated Promotion (`stable-100`)**: Cloud Deploy Automation (`advanceRolloutRule`) shifts 100% of live traffic to the verified revision upon test success.
+4. **Automated Rollback (`rollbackRule`)**: If verification fails, Cloud Deploy halts promotion and rolls back traffic immediately.
 
 ---
 
 ## 5. Rollback Automation & Incident Recovery
 
 1. **In-Flight Protection**:
-   - Because candidate revisions are deployed with `--no-traffic`, any test or probe failure terminates the build before live traffic routing. Production remains 100% intact on the previous stable revision.
+   - Because candidate revisions are deployed with 0% public traffic, any test or probe failure terminates the rollout before user exposure. Production remains 100% intact on the previous stable revision.
 2. **Automated CLI Rollback (`deployment/rollback.sh`)**:
    ```bash
-   # Rollback to preceding stable revision automatically
+   # Rollback via Cloud Deploy rollout rollback or direct Cloud Run traffic recovery
    bash deployment/rollback.sh
 
    # Or rollback to a specific revision identifier
@@ -103,15 +110,20 @@ The automated delivery pipeline defined in `cloudbuild.yaml` executes sequential
 # Verify GCP Project Context
 gcloud config set project fde-bestbuy-sandbox-dev-508321
 
-# Validate CI/CD Pipeline Configuration Locally
+# Validate CI/CD Pipeline & Delivery Manifests Locally
 python3 deployment/validate_pipeline.py
 
-# Trigger Full CI/CD Build via Google Cloud Build
+# Trigger CI/CD Pipeline via Google Cloud Build
 gcloud builds submit \
   --config=deployment/cloudbuild.yaml \
   --substitutions=_REGION=us-central1,_PROJECT_ID=fde-bestbuy-sandbox-dev-508321
 
-# Terraform Plan & Apply
+# Manual Cloud Deploy Rollout Advance (if manual gate configured)
+gcloud deploy rollouts advance <rollout-name> \
+  --delivery-pipeline=catalog-service-pipeline \
+  --region=us-central1
+
+# Terraform Plan & Apply (Cloud Run lifecycle ignores dynamic traffic/image)
 cd deployment/terraform
 terraform init
 terraform plan -var="project_id=fde-bestbuy-sandbox-dev-508321" -out=tfplan

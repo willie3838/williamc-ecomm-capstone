@@ -284,20 +284,43 @@ def query_catalog(
             if not url and sku:
                 url = f"https://www.bestbuy.com/site/sku/{sku}.p"
 
+            if not sku:
+                logger.warning("Quarantining row with missing primary key SKU: %s", row_dict)
+                continue
+
+            try:
+                raw_price = row_dict.get("price")
+                price = float(raw_price) if raw_price is not None else 0.0
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Quarantining row with corrupted price '%s' for sku '%s'",
+                    row_dict.get("price"),
+                    sku,
+                )
+                continue
+
+            try:
+                rating = float(row_dict["rating"]) if row_dict.get("rating") is not None else None
+            except (ValueError, TypeError):
+                rating = None
+
+            try:
+                review_count = (
+                    int(row_dict["review_count"])
+                    if row_dict.get("review_count") is not None
+                    else None
+                )
+            except (ValueError, TypeError):
+                review_count = None
+
             product = {
                 "sku": sku,
                 "name": str(row_dict.get("name") or ""),
                 "brand": str(row_dict.get("brand") or ""),
                 "category": row_dict.get("category"),
-                "price": float(row_dict.get("price") or 0.0),
-                "rating": (
-                    float(row_dict["rating"]) if row_dict.get("rating") is not None else None
-                ),
-                "review_count": (
-                    int(row_dict["review_count"])
-                    if row_dict.get("review_count") is not None
-                    else None
-                ),
+                "price": price,
+                "rating": rating,
+                "review_count": review_count,
                 "specifications": specifications,
                 "url": url,
                 "image_url": row_dict.get("image_url"),

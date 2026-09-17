@@ -64,135 +64,28 @@ steps:
       - 'push'
       - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest'
 
-  # Step 5: Safe Canary Deployment to Cloud Run (No Initial Traffic)
+  # Step 5: Register Release and Progressive Delivery Rollout in Google Cloud Deploy
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'deploy-candidate'
-    entrypoint: 'gcloud'
-    args:
-      - 'run'
-      - 'deploy'
-      - 'catalog-comparison-service'
-      - '--image'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
-      - '--region'
-      - '${_REGION}'
-      - '--project'
-      - '${_PROJECT_ID}'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--service-account'
-      - 'catalog-agent-sa@${_PROJECT_ID}.iam.gserviceaccount.com'
-      - '--set-env-vars'
-      - 'GCP_PROJECT_ID=${_PROJECT_ID},ENVIRONMENT=production'
-      - '--no-traffic'
-      - '--tag'
-      - 'candidate'
-
-  # Step 6: Automated Post-Deploy Smoke Test against Candidate Revision
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'smoke-test'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        set -euo pipefail
-        echo "=== Resolving Candidate Revision URL ==="
-        CANDIDATE_URL=$(gcloud run services describe catalog-comparison-service \
-          --region=${_REGION} \
-          --project=${_PROJECT_ID} \
-          --format=json | python3 -c "import sys, json; data=json.load(sys.stdin); print(next((t.get('url','') for t in data.get('status',{}).get('traffic',[]) if t.get('tag')=='candidate'), ''))")
-
-        if [ -z "$${CANDIDATE_URL}" ]; then
-          echo "ERROR: Failed to retrieve candidate revision URL"
-          exit 1
-        fi
-        echo "Candidate URL: $${CANDIDATE_URL}"
-
-        echo "=== Probing Candidate /health Endpoint ==="
-        TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
-        AUTH_HEADER=()
-        if [ -n "$${TOKEN}" ]; then
-          AUTH_HEADER=(-H "Authorization: Bearer $${TOKEN}")
-        fi
-
-        for i in {1..10}; do
-          HTTP_CODE=$(curl -s -o /tmp/health_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${CANDIDATE_URL}/health" || echo "000")
-          if [ "$${HTTP_CODE}" = "200" ] || [ "$${HTTP_CODE}" = "302" ]; then
-            echo "Candidate /health responded successfully with HTTP $${HTTP_CODE}"
-            cat /tmp/health_resp.txt | head -c 200 || true
-            echo ""
-            break
-          fi
-          echo "Waiting for candidate to become ready ($${i}/10, got HTTP $${HTTP_CODE})..."
-          sleep 3
-        done
-
-        echo "=== Probing Candidate /health/ready Endpoint ==="
-        READY_CODE=$(curl -s -o /tmp/ready_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${CANDIDATE_URL}/health/ready" || echo "000")
-        if [ "$${READY_CODE}" = "200" ] || [ "$${READY_CODE}" = "302" ]; then
-          echo "Candidate /health/ready responded successfully with HTTP $${READY_CODE}"
-        else
-          echo "WARNING: Candidate /health/ready returned HTTP $${READY_CODE}"
-        fi
-
-        echo "Candidate health probes passed."
-
-  # Step 7: Safe Zero-Downtime Traffic Promotion to Latest Verified Revision
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'promote-traffic'
-    entrypoint: 'gcloud'
-    args:
-      - 'run'
-      - 'services'
-      - 'update-traffic'
-      - 'catalog-comparison-service'
-      - '--region'
-      - '${_REGION}'
-      - '--project'
-      - '${_PROJECT_ID}'
-      - '--to-latest'
-
-  # Step 7.5: Register Release and Progressive Delivery Rollout in Google Cloud Deploy
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'cloud-deploy-release'
+    id: 'create-cloud-deploy-release'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         set -euo pipefail
         echo "=== Creating Google Cloud Deploy Delivery Release ==="
-        gcloud deploy releases create "rel-${SHORT_SHA}-$$(date +%s)" \
+        RELEASE_ID="rel-${SHORT_SHA}-$$(date +%s)"
+        IMAGE_URI="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
+
+        gcloud deploy releases create "$${RELEASE_ID}" \
           --delivery-pipeline="catalog-service-pipeline" \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --source="deployment/clouddeploy" \
-          --images="catalog-service-image=${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}" \
-          --description="Production canary release for commit ${SHORT_SHA}" || echo "Notice: Cloud Deploy release queued."
+          --images="catalog-service-image=$${IMAGE_URI},${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend=$${IMAGE_URI}" \
+          --description="Production canary release for commit ${SHORT_SHA}"
 
-  # Step 8: Post-Promotion Verification on Live Production Service URL
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    id: 'post-deploy-verify'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        set -euo pipefail
-        SERVICE_URL=$(gcloud run services describe catalog-comparison-service \
-          --region=${_REGION} \
-          --project=${_PROJECT_ID} \
-          --format='value(status.url)')
-        echo "Verifying live service: $${SERVICE_URL}/health"
-        TOKEN=$(gcloud auth print-identity-token 2>/dev/null || true)
-        AUTH_HEADER=()
-        if [ -n "$${TOKEN}" ]; then
-          AUTH_HEADER=(-H "Authorization: Bearer $${TOKEN}")
-        fi
-        HTTP_CODE=$(curl -s -o /tmp/live_resp.txt -w "%{http_code}" "$${AUTH_HEADER[@]}" "$${SERVICE_URL}/health" || echo "000")
-        echo "Live service returned HTTP $${HTTP_CODE}"
-        cat /tmp/live_resp.txt | head -c 200 || true
-        echo ""
-        echo "Production release verified with zero downtime."
+        echo "Cloud Deploy release $${RELEASE_ID} registered."
+        echo "Cloud Deploy is now orchestrating the progressive 0% -> 100% rollout."
 
 substitutions:
   _REGION: 'us-central1'

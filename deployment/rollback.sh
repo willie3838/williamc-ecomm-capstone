@@ -1,24 +1,52 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Automated Rollback Script for Best Buy Catalog Comparison Agent
-# Reverts Cloud Run traffic to the previous known stable revision or a specified revision.
+# Reverts Cloud Run traffic to the previous known stable revision or rollback release.
+# Supports both Google Cloud Deploy rollback and direct Cloud Run traffic recovery.
 # ==============================================================================
 set -euo pipefail
 
 SERVICE_NAME="${SERVICE_NAME:-catalog-comparison-service}"
+PIPELINE_NAME="${PIPELINE_NAME:-catalog-service-pipeline}"
 REGION="${REGION:-us-central1}"
 PROJECT_ID="${PROJECT_ID:-fde-bestbuy-sandbox-dev-508321}"
 TARGET_REVISION="${1:-}"
 
 echo "================================================================="
-echo " Initiating Automated Rollback for Cloud Run Service"
-echo " Service:  ${SERVICE_NAME}"
-echo " Region:   ${REGION}"
-echo " Project:  ${PROJECT_ID}"
+echo " Initiating Automated Rollback for Catalog Comparison Service"
+echo " Service:   ${SERVICE_NAME}"
+echo " Pipeline:  ${PIPELINE_NAME}"
+echo " Region:    ${REGION}"
+echo " Project:   ${PROJECT_ID}"
 echo "================================================================="
 
+# Attempt Cloud Deploy rollback first if no specific revision is requested
 if [ -z "${TARGET_REVISION}" ]; then
-  echo "No target revision explicitly provided. Querying previous stable revision..."
+  echo "Checking for active Cloud Deploy rollouts on ${PIPELINE_NAME}..."
+  LATEST_ROLLOUT=$(gcloud deploy rollouts list \
+    --delivery-pipeline="${PIPELINE_NAME}" \
+    --region="${REGION}" \
+    --project="${PROJECT_ID}" \
+    --format="value(name)" 2>/dev/null | head -n 1 || true)
+
+  if [ -n "${LATEST_ROLLOUT}" ]; then
+    echo "Found active/recent Cloud Deploy rollout: ${LATEST_ROLLOUT}"
+    echo "Executing Cloud Deploy automated rollback..."
+    if gcloud deploy rollouts rollback "${LATEST_ROLLOUT}" \
+      --delivery-pipeline="${PIPELINE_NAME}" \
+      --region="${REGION}" \
+      --project="${PROJECT_ID}" \
+      --quiet 2>/dev/null; then
+      echo "Cloud Deploy rollback initiated successfully."
+    else
+      echo "Notice: Falling back to direct Cloud Run traffic reversion."
+    fi
+  fi
+fi
+
+# Direct Cloud Run traffic update (ensures 100% stable traffic recovery)
+if [ -z "${TARGET_REVISION}" ]; then
+  echo "Querying previous stable revision from Cloud Run..."
   REVISIONS=$(gcloud run revisions list \
     --service="${SERVICE_NAME}" \
     --region="${REGION}" \
@@ -36,7 +64,6 @@ if [ -z "${TARGET_REVISION}" ]; then
 fi
 
 echo "Selected target revision for rollback: ${TARGET_REVISION}"
-
 echo "Routing 100% traffic to target revision: ${TARGET_REVISION}..."
 gcloud run services update-traffic "${SERVICE_NAME}" \
   --region="${REGION}" \

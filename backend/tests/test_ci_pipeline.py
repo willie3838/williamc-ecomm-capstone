@@ -5,9 +5,9 @@ and SPEC.md requirements:
 - Ruff linting and formatting gates.
 - Pytest coverage gate (>=80%).
 - Multi-stage container build with Artifact Registry tagging.
-- Safe canary / blue-green deployment strategy (--no-traffic, --tag candidate).
-- Post-deployment smoke probes on /health and /health/ready.
-- Automated traffic promotion and rollback protection.
+- Decoupled Cloud Build CI and Google Cloud Deploy CD.
+- Safe canary 0% deployment with candidate verification probes (/health, /health/ready, /openapi.json).
+- Automated 100% traffic promotion and rollback protection.
 - Container security hardening (non-root execution, healthchecks).
 """
 
@@ -26,6 +26,10 @@ ROLLBACK_BUILD_FILE = DEPLOYMENT_DIR / "cloudbuild-rollback.yaml"
 DOCKERFILE = DEPLOYMENT_DIR / "Dockerfile"
 ROLLBACK_SCRIPT = DEPLOYMENT_DIR / "rollback.sh"
 VALIDATOR_SCRIPT = DEPLOYMENT_DIR / "validate_pipeline.py"
+CLOUDDEPLOY_DIR = DEPLOYMENT_DIR / "clouddeploy"
+CLOUDDEPLOY_FILE = CLOUDDEPLOY_DIR / "clouddeploy.yaml"
+SKAFFOLD_FILE = CLOUDDEPLOY_DIR / "skaffold.yaml"
+SERVICE_FILE = CLOUDDEPLOY_DIR / "service.yaml"
 
 
 @pytest.fixture(scope="module")
@@ -53,6 +57,35 @@ def dockerfile_content() -> str:
     """Reads deployment/Dockerfile content."""
     assert DOCKERFILE.exists(), f"Missing {DOCKERFILE}"
     return DOCKERFILE.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def clouddeploy_docs() -> list[dict]:
+    """Loads and parses multi-document deployment/clouddeploy/clouddeploy.yaml."""
+    assert CLOUDDEPLOY_FILE.exists(), f"Missing {CLOUDDEPLOY_FILE}"
+    with open(CLOUDDEPLOY_FILE, encoding="utf-8") as f:
+        data = list(yaml.safe_load_all(f))
+    return [d for d in data if isinstance(d, dict)]
+
+
+@pytest.fixture(scope="module")
+def skaffold_config() -> dict:
+    """Loads and parses deployment/clouddeploy/skaffold.yaml."""
+    assert SKAFFOLD_FILE.exists(), f"Missing {SKAFFOLD_FILE}"
+    with open(SKAFFOLD_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    assert isinstance(data, dict), "skaffold.yaml must be a valid YAML mapping"
+    return data
+
+
+@pytest.fixture(scope="module")
+def service_config() -> dict:
+    """Loads and parses deployment/clouddeploy/service.yaml."""
+    assert SERVICE_FILE.exists(), f"Missing {SERVICE_FILE}"
+    with open(SERVICE_FILE, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    assert isinstance(data, dict), "service.yaml must be a valid YAML mapping"
+    return data
 
 
 # ==============================================================================
@@ -86,11 +119,10 @@ def test_cloudbuild_step_sequence_and_ids(cloudbuild_config: dict):
     expected_order = [
         "lint",
         "unit-tests",
+        "adk-eval",
         "build-image",
         "push-image",
-        "deploy-candidate",
-        "smoke-test",
-        "promote-traffic",
+        "create-cloud-deploy-release",
     ]
 
     for expected_id in expected_order:
@@ -133,6 +165,14 @@ def test_unit_test_step_coverage_gate(cloudbuild_config: dict):
     assert threshold >= 80, f"Coverage threshold must be >= 80%, found {threshold}%"
 
 
+def test_adk_eval_step(cloudbuild_config: dict):
+    """Verifies adk-eval step executes pytest on test_eval_adk.py."""
+    adk_step = next((s for s in cloudbuild_config["steps"] if s.get("id") == "adk-eval"), None)
+    assert adk_step is not None, "Pipeline must include 'adk-eval' step"
+    args_str = " ".join(adk_step.get("args", []))
+    assert "test_eval_adk.py" in args_str, "adk-eval step must run test_eval_adk.py"
+
+
 # ==============================================================================
 # 3. Artifact Registry & Container Packaging Tests
 # ==============================================================================
@@ -158,65 +198,81 @@ def test_container_build_and_push_tags(cloudbuild_config: dict):
 
 
 # ==============================================================================
-# 4. Safe Deployment: Canary Strategy & Zero-Downtime Rollout
+# 4. Continuous Delivery: Cloud Deploy Delivery, Canary & Verification Tests
 # ==============================================================================
 
 
-def test_deploy_candidate_flags(cloudbuild_config: dict):
-    """Verifies revision is deployed with canary tags and no initial traffic."""
-    deploy_step = next(s for s in cloudbuild_config["steps"] if s.get("id") == "deploy-candidate")
-    args = deploy_step.get("args", [])
-
-    assert "run" in args and "deploy" in args, "Step must execute 'gcloud run deploy'"
-    assert "catalog-comparison-service" in args, "Service name must be catalog-comparison-service"
-    assert "--no-traffic" in args, (
-        "Deployment must use --no-traffic for safe canary verification before promotion"
-    )
-    assert "--tag" in args, "Deployment must assign a revision tag"
-    tag_idx = args.index("--tag")
-    assert args[tag_idx + 1] == "candidate", "Revision tag must be 'candidate'"
-
-    # Verify service account binding
-    assert "--service-account" in args, "Deployment must specify a dedicated service account"
-    sa_idx = args.index("--service-account")
-    assert args[sa_idx + 1] == "catalog-agent-sa@${_PROJECT_ID}.iam.gserviceaccount.com"
-
-
-def test_smoke_test_health_probe(cloudbuild_config: dict):
-    """Verifies smoke test probes candidate revision /health and /health/ready."""
-    smoke_step = next(s for s in cloudbuild_config["steps"] if s.get("id") == "smoke-test")
-    args_str = " ".join(smoke_step.get("args", []))
-
-    assert "/health" in args_str, "Smoke test step must probe /health endpoint"
-    assert "/health/ready" in args_str, "Smoke test step must probe /health/ready endpoint"
-    assert "candidate" in args_str, "Smoke test step must query candidate revision tag URL"
-
-
-def test_promote_traffic_step(cloudbuild_config: dict):
-    """Verifies promotion step cuts over traffic to the verified latest revision."""
-    promote_step = next(s for s in cloudbuild_config["steps"] if s.get("id") == "promote-traffic")
-    args = promote_step.get("args", [])
-
-    assert "services" in args and "update-traffic" in args, (
-        "Promote step must execute 'gcloud run services update-traffic'"
-    )
-    assert "catalog-comparison-service" in args, "Target must be catalog-comparison-service"
-    assert "--to-latest" in args or any("--to-revisions" in arg for arg in args), (
-        "Promote step must route traffic to verified latest revision"
-    )
-
-
-def test_cloud_deploy_integration(cloudbuild_config: dict):
-    """Verifies Cloud Build integrates with Google Cloud Deploy for automated progressive delivery."""
-    deploy_step = next(
-        (s for s in cloudbuild_config["steps"] if s.get("id") == "cloud-deploy-release"),
+def test_create_cloud_deploy_release_step(cloudbuild_config: dict):
+    """Verifies Cloud Build invokes Google Cloud Deploy to trigger CD."""
+    cd_step = next(
+        (s for s in cloudbuild_config["steps"] if s.get("id") == "create-cloud-deploy-release"),
         None,
     )
-    assert deploy_step is not None, "Pipeline must declare 'cloud-deploy-release' step"
-    args_str = " ".join(deploy_step.get("args", []))
+    assert cd_step is not None, "Pipeline must declare 'create-cloud-deploy-release' step"
+    args_str = " ".join(cd_step.get("args", []))
     assert "gcloud deploy releases create" in args_str
     assert "catalog-service-pipeline" in args_str
     assert "deployment/clouddeploy" in args_str
+
+
+def test_cloud_deploy_pipeline_canary_config(clouddeploy_docs: list[dict]):
+    """Verifies Cloud Deploy delivery pipeline defines 0% canary with automatic traffic control and verify."""
+    pipeline = next((d for d in clouddeploy_docs if d.get("kind") == "DeliveryPipeline"), None)
+    assert pipeline is not None, "clouddeploy.yaml must define a DeliveryPipeline"
+    assert pipeline.get("metadata", {}).get("name") == "catalog-service-pipeline"
+
+    stages = pipeline.get("serialPipeline", {}).get("stages", [])
+    prod_stage = next((s for s in stages if s.get("targetId") == "cloudrun-prod"), None)
+    assert prod_stage is not None, "DeliveryPipeline must include 'cloudrun-prod' stage"
+
+    canary = prod_stage.get("strategy", {}).get("canary", {})
+    percentages = canary.get("canaryDeployment", {}).get("percentages", [])
+    assert percentages == [0], f"Canary strategy must be 0% initial cutover, found {percentages}"
+    assert canary.get("canaryDeployment", {}).get("verify") is True, (
+        "Canary stage must enable verification ('verify: true')"
+    )
+    assert (
+        canary.get("runtimeConfig", {}).get("cloudRun", {}).get("automaticTrafficControl") is True
+    ), "Cloud Run runtimeConfig must enable automaticTrafficControl"
+
+
+def test_cloud_deploy_automation_rules(clouddeploy_docs: list[dict]):
+    """Verifies Cloud Deploy Automation resource defines auto-advance and rollback rules."""
+    automation = next((d for d in clouddeploy_docs if d.get("kind") == "Automation"), None)
+    assert automation is not None, "clouddeploy.yaml must declare an Automation resource"
+
+    rules = automation.get("rules", [])
+    has_advance = any("advanceRolloutRule" in r for r in rules)
+    has_rollback = any("rollbackRule" in r for r in rules)
+
+    assert has_advance, "Automation must declare an advanceRolloutRule for promotion to 100%"
+    assert has_rollback, "Automation must declare a rollbackRule for automated failure safety"
+
+
+def test_skaffold_verify_probes(skaffold_config: dict):
+    """Verifies skaffold.yaml defines candidate verification probes for health and readiness."""
+    assert "deploy" in skaffold_config and "cloudrun" in skaffold_config.get("deploy", {}), (
+        "skaffold.yaml must configure deploy.cloudrun"
+    )
+
+    verify_entries = skaffold_config.get("verify", [])
+    assert len(verify_entries) >= 1, "skaffold.yaml must declare verify probes"
+    probe_args = " ".join(verify_entries[0].get("container", {}).get("args", []))
+
+    assert "/health" in probe_args, "Verify probe must test /health endpoint"
+    assert "/health/ready" in probe_args, "Verify probe must test /health/ready endpoint"
+    assert "/openapi.json" in probe_args, "Verify probe must test /openapi.json endpoint"
+
+
+def test_cloud_deploy_service_manifest(service_config: dict):
+    """Verifies service.yaml targets catalog-comparison-service with health probes."""
+    assert service_config.get("metadata", {}).get("name") == "catalog-comparison-service"
+    template = service_config.get("spec", {}).get("template", {})
+    containers = template.get("spec", {}).get("containers", [])
+    assert len(containers) >= 1, "service.yaml must configure container"
+    container = containers[0]
+    assert "startupProbe" in container, "service.yaml container must declare startupProbe"
+    assert "livenessProbe" in container, "service.yaml container must declare livenessProbe"
 
 
 # ==============================================================================

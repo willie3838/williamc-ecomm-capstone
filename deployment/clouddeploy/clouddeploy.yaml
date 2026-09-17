@@ -13,7 +13,7 @@ serialPipeline:
             automaticTrafficControl: true
         canaryDeployment:
           percentages: [0]
-          verify: false
+          verify: true
 ---
 apiVersion: deploy.cloud.google.com/v1
 kind: Target
@@ -29,3 +29,21 @@ executionConfigs:
   - VERIFY
   serviceAccount: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
   executionTimeout: 600s
+---
+apiVersion: deploy.cloud.google.com/v1
+kind: Automation
+metadata:
+  name: catalog-service-pipeline/auto-advance-and-rollback
+description: Automatically advances from 0% canary to 100% upon verification success, and rolls back on failure
+suspended: false
+serviceAccount: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
+selector:
+  targets:
+  - id: cloudrun-prod
+rules:
+- advanceRolloutRule:
+    id: advance-to-stable
+    sourcePhases: ["canary-0"]
+    wait: 0s
+- rollbackRule:
+    id: rollback-on-failure

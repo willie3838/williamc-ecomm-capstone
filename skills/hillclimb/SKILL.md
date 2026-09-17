@@ -13,24 +13,28 @@ Hillclimbing is the autonomous outer-loop iteration methodology that drives soft
 
 ```mermaid
 flowchart TD
-    A["1. Run Local Hermetic Evals & Tests"] --> B{"Local Tests Pass?"}
+    A["1. Run Ruff & Pytest Tests"] --> B{"Unit Tests Pass?"}
     B -- No --> D["2. Identify What Failed"]
     D --> E["3. Create Hypothesis on Root Cause"]
     E --> F["4. Implement Solution"]
-    F --> G["5. Re-run Local Tests"]
+    F --> G["5. Re-run Tests"]
     G --> B
-    B -- Yes --> H["6. Run Live Google Cloud Verification"]
-    H --> I{"Cloud Tests Pass?"}
+    B -- Yes --> H["6. Run Smoke Evals & Selenium UI"]
+    H --> I{"Evals & UI Pass?"}
     I -- No --> D
-    I -- Yes --> C["Done: All Local & Cloud Checks Pass"]
+    I -- Yes --> J["7. Run Rubric Score 3 Verification Gate"]
+    J --> K{"All 37 Score == 3?"}
+    K -- No --> D
+    K -- Yes --> C["Done: Complete Score 3 Mastery"]
 ```
 
-### The Dual-Tier Hillclimbing Protocol
+### The Multi-Tier Hillclimbing Protocol
 
-1. **Tier 1: Local Hermetic Testing (Fast Feedback)**:
+1. **Tier 1: Local Hermetic Code Quality & Testing (Fast Feedback)**:
    - **Ruff**: Enforces clean Python linting and formatting.
    - **Pytest Coverage Floor ($\ge 80\%$)**: Executes unit and in-memory contract tests with mocked clients.
    - **Hermetic Smoke Evals**: Evaluates catalog accuracy and citation faithfulness against offline benchmark fixtures.
+   - **Selenium UI/UX Regression Audit**: Headless Chrome simulation verifying landing page, chip filters, comparison cards, badges, and citations.
 
 2. **Tier 2: Live Google Cloud Verification (Production Grounding)**:
    - **Authentication Gate**: Pre-flight verification of active Google Cloud credentials (`gcloud auth print-access-token`) and Application Default Credentials (ADC).
@@ -38,6 +42,11 @@ flowchart TD
    - **Live BigQuery Grounding**: Executes live queries against `fde-bestbuy-sandbox-dev-508321.catalog.products` to verify row count and data availability.
    - **Live Cloud Run Health Probing**: Pings `/health` and `/ready` on the deployed Cloud Run service URL, validating response codes and latency.
    - **End-to-End Latency & Faithfulness**: Fires real comparison queries against Cloud Run, enforcing P95 latency $\le 3.0$s and real citation grounding.
+
+3. **Tier 3: Capstone Rubric Score 3 Verification Gate**:
+   - Executes `skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 3`.
+   - Requires all 37 competencies across Section 1 and Section 2 to satisfy a minimum score of 3 (Proficient).
+   - Any score below 3 immediately exits with code 1 to force continuous hillclimbing iterations.
 
 ---
 

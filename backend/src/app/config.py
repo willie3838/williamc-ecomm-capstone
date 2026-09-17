@@ -57,6 +57,31 @@ class Settings(BaseSettings):
         alias="GEMINI_MODEL",
         description="Gemini LLM model name for agent synthesis",
     )
+    champion_model: str = Field(
+        default="gemini-2.5-flash",
+        alias="CHAMPION_MODEL",
+        description="Champion production foundation model",
+    )
+    challenger_model: str = Field(
+        default="gemini-2.5-pro",
+        alias="CHALLENGER_MODEL",
+        description="Challenger experimental foundation model",
+    )
+    enable_model_experiment: bool = Field(
+        default=True,
+        alias="ENABLE_MODEL_EXPERIMENT",
+        description="Enable A/B testing and model routing experiments",
+    )
+    challenger_traffic_percentage: int = Field(
+        default=10,
+        alias="CHALLENGER_TRAFFIC_PERCENTAGE",
+        description="Percentage (0-100) of live traffic routed to challenger model",
+    )
+    active_experiment_id: str = Field(
+        default="exp-2026-flash-vs-pro-v1",
+        alias="ACTIVE_EXPERIMENT_ID",
+        description="Active experiment identifier for telemetry tracking",
+    )
     temperature: float = Field(
         default=0.1,
         alias="AGENT_TEMPERATURE",
