@@ -88,7 +88,8 @@ backend/
    - The model must output responses validated against Pydantic schemas.
 4. **Multi-Node Architecture & Relevance Gating**:
    - The `/api/compare` endpoint executes through `MultiAgentCoordinator` across 4 specialist nodes: `QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
-   - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are detected and rejected.
+   - `QueryIntentAgent` and `ComparisonOrchestrator` semantically classify query intent using Gemini structured JSON generation (`QueryIntentAnalysis`), eliminating brittle hardcoded regex word lists.
+   - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are classified as `OPINION_OR_CHATTER` with `is_comparison_eligible=False` and suppressed.
    - Products are reranked via pure LLM scoring (relevance threshold >= 6.0).
    - If fewer than 2 relevant products match, `comparison_matrix` MUST be empty (`[]`). No artificial comparison matrices are generated.
 

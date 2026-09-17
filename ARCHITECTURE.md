@@ -185,6 +185,24 @@ flowchart TD
 
 **Synthesis Decision**: The production API endpoint (`POST /api/compare`) executes via **`MultiAgentCoordinator`** across the 4 specialized agent nodes, providing pure LLM candidate reranking, strict relevance gating, and conversational guidance whenever non-comparative queries are submitted.
 
+#### 3.2.1 Semantic Query Intent Classification & `QueryIntentAnalysis` Schema
+
+To replace brittle regex word lists and hardcoded keyword matching, query intent classification is handled semantically via Gemini structured JSON generation (`QueryIntentAnalysis` schema):
+
+```python
+class QueryIntentAnalysis(BaseModel):
+    intent_type: str  # COMPARISON, PRODUCT_SEARCH, or OPINION_OR_CHATTER
+    is_comparison_eligible: bool  # Suppresses matrix when false
+    detected_category: str | None  # Laptops, Tablets, Headphones, Smart Home, TVs
+    target_keywords: list[str]  # Extracted product models, brands, specs
+    reasoning: str  # Explanatory rationale for intent classification
+```
+
+1. **Explicit Comparative Fast-Path**: Obvious multi-entity comparisons (e.g., `Compare Apple MacBook Air M3 and Dell XPS 13`) are immediately identified to preserve the strict **P95 $\le 3.0$s latency SLA**.
+2. **Native LLM Intent Classification**: Ambiguous queries, subjective statements, complaints, insults, and conversational chatter (e.g. `this is a stupid laptop`, `Apple is overpriced trash`) are routed to Gemini with `response_schema=QueryIntentAnalysis`.
+3. **Graceful Offline Heuristic Fallback**: In offline test environments or network degradation, the classifier falls back to heuristic token analysis, ensuring 100% hermetic CI reliability.
+4. **Relevance Gating**: Non-comparative rants (`OPINION_OR_CHATTER`) reject catalog candidates and suppress comparison matrices, returning conversational guidance instead.
+
 ---
 
 ## 4. Data Engineering & Schemas
