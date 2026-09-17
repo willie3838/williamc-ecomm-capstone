@@ -4,46 +4,36 @@
       "id": "s1_01",
       "category": "Presentation & Advisory Rigor",
       "name": "Strategic Delivery & Value Articulation",
-      "criteria": "Frame project as a business solution, address build-vs-buy, total cost of ownership, and measurable customer ROI.",
-      "score": 3,
-      "evidence": "SPEC.md (lines 76-89); ARCHITECTURE.md Section 1.",
-      "reasoning": "Score 3 (Proficient) is awarded because the project is explicitly framed around real-world retail business KPIs: increasing customer conversion rates, deflecting manual sales research inquiries, and achieving <3.0s comparison report latency. SPEC.md articulates clear commercial value rather than treating the agent as a standalone science project. ARCHITECTURE.md details the Total Cost of Ownership (TCO) justification of serverless on-demand BigQuery queries versus high-idle-cost dedicated vector index clusters."
+      "focus": "Can they connect technical architecture to business value? Can they clearly articulate why they built this solution and how it handles commercial reality?",
+      "criteria": "Delivers a compelling, narrative-driven walkthrough of the user experience framed around customer personas and operational impact. Explicitly justifies why the architecture directly solves the root business problem (avoiding a 'science project') and presents a viable Total Cost of Ownership (TCO) model that demonstrates fiscal responsibility."
     },
     {
       "id": "s1_02",
       "category": "Presentation & Advisory Rigor",
       "name": "Objection Handling & Technical Defense",
-      "criteria": "Articulate clear technical rationale for architecture, trade-offs, and GCP choices without becoming defensive.",
-      "score": 3,
-      "evidence": "ARCHITECTURE.md Section 3 & Section 8; SPEC.md Part 2 (System Architecture).",
-      "reasoning": "Score 3 (Proficient) is awarded because the design preempts executive pushback regarding AI hallucinations and database exfiltration risks. The architecture defensively enforces structured entity extraction and parameterized BigQuery SQL over unconstrained text-to-SQL. Latency budgets, security perimeters (VPC-SC), and cost trade-offs are supported by clear engineering rationale."
+      "focus": "How do they react to executive pushback, and can they programmatically defend their implementation choices?",
+      "criteria": "Remains entirely calm, collected, and collaborative under pressure when facing stakeholder resistance. Confidently defends engineering decisions and structural design choices during the Q&A matrix using data-backed logic, while cleanly evaluating and addressing technical trade-offs (e.g., cost vs. latency, model tiering)."
     },
     {
       "id": "s1_03",
       "category": "Presentation & Advisory Rigor",
       "name": "Presentation Skills & Time Management",
-      "criteria": "Paces presentation to finish on time, steers panel away from rabbit holes, admits uncertainty honestly.",
-      "score": 3,
-      "evidence": "RUBRIC.md Section 2 (Build Phase presentation criteria); SPEC.md User Journey.",
-      "reasoning": "Score 3 (Proficient) is achieved through a disciplined 5-8 slide customer-aligned presentation outline structured for a 10-minute delivery. The flow focuses on customer persona journeys, architectural non-functionals, live prototype demo, and GCP cloud value, while cleanly defining out-of-scope boundaries to steer clear of tangential rabbit holes."
+      "focus": "How effectively do they manage time, pacing, and the overall flow of the meeting?",
+      "criteria": "Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers."
     },
     {
       "id": "s1_04",
       "category": "Presentation & Advisory Rigor",
       "name": "AI Driven Development Discussion",
-      "criteria": "Explains how AI was used to accelerate development, with honest assessment of limitations and validation rigor.",
-      "score": 3,
-      "evidence": "AGENTS.md; backend/AGENTS.md; skills/hillclimb/SKILL.md.",
-      "reasoning": "Score 3 (Proficient) is awarded because the repository demonstrates an advanced AI-driven development harness. Hierarchical AGENTS.md files scope agent behaviors across modules, while the hillclimb skill provides automated outer-loop verification (Ruff linting, Pytest coverage, and benchmark eval scoring) before code changes are accepted."
+      "focus": "How effectively do they demonstrate the use of GenAI tools and harness concepts to accelerate their own development lifecycle and code quality?",
+      "criteria": "Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions."
     },
     {
       "id": "s1_05",
       "category": "Presentation & Advisory Rigor",
       "name": "Futures / Roadmap (GCP Value)",
-      "criteria": "Presents credible next steps, expansion opportunities, and GCP services to unlock long-term customer value.",
-      "score": 3,
-      "evidence": "ARCHITECTURE.md Section 9; SPEC.md Sprint 6 Transition Plan.",
-      "reasoning": "Score 3 (Proficient) is earned by laying out an enterprise GCP expansion roadmap beyond the initial sandbox prototype. Planned phases include Vertex AI Vector Search hybrid retrieval for fuzzy product discovery, Gemini 2.5 Flash multimodal image comparisons for port/chassis inspection, and BigQuery ML customer conversion propensity modeling."
+      "focus": "Can they communicate what the next phase of development would look like while driving home the value of Google Cloud?",
+      "criteria": "Articulates a clear, progressive roadmap for future development phases, addressing key elements like production-grade scalability, performance optimization, and features of the solution that the customer would want in production. Effectively demonstrates the strategic value of Google Cloud integration, explaining how native GCP services enhance stability, security, and long-term business value."
     }
   ],
   "section_2_engineering_excellence": [
@@ -51,289 +41,225 @@
       "id": "s2_01",
       "category": "AI/ML Engineering",
       "name": "Agentic & Multi-Agent Systems",
-      "criteria": "Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, and error handling.",
-      "score": 3,
-      "evidence": "backend/src/app/main.py; SPEC.md Part 2 (Catalog Agent ADK); ARCHITECTURE.md Section 1.",
-      "reasoning": "Score 3 (Proficient) is awarded because the backend implements a Google ADK agent with Pydantic parameter schemas (`CatalogQueryInput`) and strict tool execution. The agent enforces structured parameter parsing, preventing free-form hallucinated outputs, and includes graceful fallback handling for unmatched catalog SKUs."
+      "focus": "Agent orchestration patterns, tool/function calling, planning and reasoning loops, memory and state management, multi-agent coordination, cognitive architectures, and integrating agents with legacy/external APIs.",
+      "criteria": "Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, state management, and error handling within enterprise latency thresholds."
     },
     {
       "id": "s2_02",
       "category": "AI/ML Engineering",
       "name": "Retrieval & Data Engineering for AI",
-      "criteria": "Reliable grounding and citation mechanisms, BigQuery catalog integration, zero hallucination guarantee with explicit SKU citations.",
-      "score": 3,
-      "evidence": "SPEC.md query_catalog tool definition; ARCHITECTURE.md Section 2 sequence diagram.",
-      "reasoning": "Score 3 (Proficient) is awarded because 100% of product specifications in the comparison matrix are grounded directly from BigQuery table records. Every synthesized comparison includes mandatory clickable SKU citations mapped to database primary keys, completely eliminating product spec hallucinations."
+      "focus": "RAG architecture patterns, embedding models and vector databases, chunking and indexing strategies, hybrid search, grounding and citation, data pipelines for AI, parsing complex document formats (PDF/HTML tables), and citation/grounding.",
+      "criteria": "Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys."
     },
     {
       "id": "s2_03",
       "category": "AI/ML Engineering",
       "name": "Model Selection, Tuning & Optimization",
-      "criteria": "Low-temperature determinism, token budgeting, structured JSON outputs, and cost-effective model routing (Gemini 2.5 Pro / 3.5 Flash).",
-      "score": 3,
-      "evidence": "SPEC.md Tech Requirements; ARCHITECTURE.md Section 3.",
-      "reasoning": "Score 3 (Proficient) is earned by enforcing a deterministic temperature of 0.1 for comparison synthesis, structured Pydantic response models, and tiered model selection: Gemini 2.5 Pro for deep entity comparison synthesis and Gemini 3.5 Flash for rapid evaluation scoring and code generation."
+      "focus": "Model assessment and selection (quality, latency, cost, context), tuning, quantization, distillation, prompt engineering, structured output enforcement (JSON mode), and inference optimization.",
+      "criteria": "Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality."
     },
     {
       "id": "s2_04",
       "category": "AI/ML Engineering",
       "name": "LLM Ops and Evaluation",
-      "criteria": "Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge.",
-      "score": 3,
-      "evidence": "evals/dataset/benchmark_queries.json; skills/hillclimb/SKILL.md; skills/hillclimb/scripts/run_smoke_eval.py.",
-      "reasoning": "Score 3 (Proficient) is awarded for the automated evaluation flywheel. The harness measures quantitative Data Accuracy (>= 0.98) and Citation Faithfulness (>= 0.95) against an 80-pair benchmark dataset, executing deterministic heuristic verification alongside semantic LLM judges."
+      "focus": "Evaluation methodology for generative AI, quality metrics (faithfulness, relevance, coherence), eval dataset design, human vs. automated evaluation, regression detection, Observability (tracing/logging).",
+      "criteria": "Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge, regression detection, and automated gates."
     },
     {
       "id": "s2_05",
       "category": "AI/ML Engineering",
       "name": "Domain-Applied AI/ML Expertise",
-      "criteria": "Translation of vertical-specific business KPIs into AI objectives, domain feature engineering, and privacy compliance.",
-      "score": 3,
-      "evidence": "SPEC.md BigQuery JSON specifications schema; ARCHITECTURE.md Section 3.",
-      "reasoning": "Score 3 (Proficient) is awarded because the agent handles domain-specific electronics attributes (CPUs, screen refresh rates, battery capacities, RAM, GPU clock speeds) through dynamic BigQuery JSON schemas and formats them into standardized side-by-side retail comparison tables."
+      "focus": "Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain-specific feature engineering, data handling, and regulatory compliance.",
+      "criteria": "Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain feature engineering, data handling, and enterprise compliance."
     },
     {
       "id": "s2_06",
       "category": "Scoping and Documentation",
       "name": "Problem Definition",
-      "criteria": "Identifying and articulating the business problem, translating ambiguity into technical opportunities, and documenting customer success unlocks.",
-      "score": 3,
-      "evidence": "SPEC.md Part 1 (Company Overview & Project Overview); SPEC.md Objectives.",
-      "reasoning": "Score 3 (Proficient) is achieved by translating TechBuy Retailers' online customer bounce rates and complex spec research friction into a codified, serverless comparison agent with clear North Star metrics."
+      "focus": "Identifying and articulating the business problem, translating ambiguity into a technical opportunity, documenting what success unlocks for the customer.",
+      "criteria": "Identifies, articulates business problems clearly; translates ambiguity into actionable technical opportunity. Documents customer success unlocks, justifying architecture as direct solution to root business problem."
     },
     {
       "id": "s2_07",
       "category": "Scoping and Documentation",
       "name": "Technical Scope & Constraints",
-      "criteria": "Defining technical scope, constraints, assumptions, and system boundaries prior to build.",
-      "score": 3,
-      "evidence": "SPEC.md Scope & Out of Scope sections; Model A Sandbox constraints.",
-      "reasoning": "Score 3 (Proficient) is achieved through explicit delimitation of in-scope capabilities (BigQuery querying, IaC provisioning, Cloud Run deployment) and out-of-scope boundaries (live transaction checkout, real-time warehouse sync, multi-cloud hosting)."
+      "focus": "Defining technical scope, identifying constraints and assumptions, documenting system boundaries and the architectural approach prior to build.",
+      "criteria": "Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase."
     },
     {
       "id": "s2_08",
       "category": "Scoping and Documentation",
       "name": "Stakeholder Alignment & Success Criteria",
-      "criteria": "Clear definition of done, acceptance criteria, phased delivery timeline synchronized with business expectations.",
-      "score": 3,
-      "evidence": "SPEC.md 6-sprint timeline table; Success Criteria (The 'Definition of Done').",
-      "reasoning": "Score 3 (Proficient) is earned through a structured 6-sprint delivery roadmap with clear sprint user stories and a quantified Definition of Done requiring >= 80% backend code coverage, 100% spec accuracy, and clean automated Terraform provisioning."
+      "focus": "Evidence of stakeholder alignment, defined success criteria and acceptance criteria, phased delivery plan or architectural roadmap.",
+      "criteria": "Demonstrates robust stakeholder alignment; defines clear success and acceptance criteria. Comprehensive phased delivery plan synchronized with business expectations."
     },
     {
       "id": "s2_09",
       "category": "Scoping and Documentation",
       "name": "System Design Artifacts",
-      "criteria": "Architecture diagrams, data flow diagrams, sequence diagrams mapping end-to-end components.",
-      "score": 3,
-      "evidence": "ARCHITECTURE.md Mermaid diagrams (System Architecture, End-to-End Sequence Diagram); SPEC.md Mermaid flow.",
-      "reasoning": "Score 3 (Proficient) is demonstrated by multi-layer Mermaid diagrams detailing Client Layer, Ingress & Identity, Cloud Run Service Layer, BigQuery Data Layer, and Cloud Operations CI/CD pipelines with message numbering and step-by-step lifecycles."
+      "focus": "Architecture diagrams, data flow diagrams, sequence diagrams.",
+      "criteria": "Produces comprehensive architecture, data flow, and sequence diagrams clearly mapping system components, interaction patterns, and data lifecycles."
     },
     {
       "id": "s2_10",
       "category": "Scoping and Documentation",
       "name": "Decision Records",
-      "criteria": "Architecture Decision Records (ADRs) documenting trade-offs, alternatives considered, and technical rationale.",
-      "score": 3,
-      "evidence": "ARCHITECTURE.md Section 8 (Architectural Decisions & Trade-offs).",
-      "reasoning": "Score 3 (Proficient) is awarded because ARCHITECTURE.md details ADRs for BigQuery SQL extraction over vector search, Cloud Run serverless hosting over GKE, and client-side Vite bundling over SSR, explaining performance, operational complexity, and cost trade-offs."
+      "focus": "ADRs, documenting trade-offs, alternatives considered, rationale.",
+      "criteria": "Maintains comprehensive Architecture Decision Records (ADRs) documenting critical trade-offs, alternatives considered, and logical rationale."
     },
     {
       "id": "s2_11",
       "category": "Scoping and Documentation",
       "name": "API Documentation",
-      "criteria": "Precise OpenAPI specifications, RESTful endpoints, and schema contracts.",
-      "evidence": "backend/src/app/main.py; Swagger UI /docs and OpenAPI /openapi.json.",
-      "score": 3,
-      "reasoning": "Score 3 (Proficient) is achieved through FastAPI autogenerated OpenAPI specs with Pydantic v2 schemas for all requests, responses, health checks, and error envelopes."
+      "focus": "OpenAPI specs, integration guides, SDK documentation.",
+      "criteria": "Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions."
     },
     {
       "id": "s2_12",
       "category": "Scoping and Documentation",
       "name": "Operational Documentation",
-      "criteria": "Actionable runbooks, deployment guides, troubleshooting docs, and operational agent skills.",
-      "score": 3,
-      "evidence": "skills/ directory with 6 skill packages (SKILL.md, scripts, and resources).",
-      "reasoning": "Score 3 (Proficient) is awarded because operational workflows (CI/CD deployment, Terraform provisioning, Taskflow bug tracking, eval flywheel, and rubric audit) are packaged into fully documented, executable Agent Skills."
+      "focus": "Deployment guides, runbooks, onboarding docs, troubleshooting guides.",
+      "criteria": "Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills."
     },
     {
       "id": "s2_13",
       "category": "Security, Privacy & Compliance",
       "name": "Authentication & Authorization",
-      "criteria": "Service accounts, IAM least privilege, scoped credentials.",
-      "score": 3,
-      "evidence": "deployment/terraform/main.tf; SPEC.md User Authentication & Authorization (IAM).",
-      "reasoning": "Score 3 (Proficient) is awarded because runtime access is locked to a dedicated service account (`catalog-agent-sa`) granted strictly least-privilege roles (`roles/bigquery.dataViewer` and `roles/bigquery.jobUser`), while deployment execution is isolated to Cloud Build."
+      "focus": "Service accounts, IAM, API key scoping, OAuth/OIDC, Least Privilege.",
+      "criteria": "Implements robust authentication/authorization via dedicated service accounts, scoped credentials, and strict Principle of Least Privilege across all IAM configurations."
     },
     {
       "id": "s2_14",
       "category": "Security, Privacy & Compliance",
       "name": "Infrastructure & Network Security",
-      "criteria": "VPC service perimeters, private networking, data exfiltration prevention.",
-      "score": 3,
-      "evidence": "SPEC.md VPC Service Controls (VPC-SC); ARCHITECTURE.md Section 5.",
-      "reasoning": "Score 3 (Proficient) is achieved through documented VPC Service Controls (VPC-SC) perimeters safeguarding the BigQuery catalog against unauthorized egress, combined with Cloud Run ingress restrictions."
+      "focus": "VPC design, network segmentation, private endpoints, zero-trust architecture, service perimeters, firewall policies.",
+      "criteria": "Designs secure VPCs with network segmentation, private endpoints, and zero-trust principles. Configures service perimeters (VPC-SC) and firewall policies protecting enterprise assets."
     },
     {
       "id": "s2_15",
       "category": "Security, Privacy & Compliance",
       "name": "Data Protection & Privacy",
-      "criteria": "Encryption at rest/transit, PII exclusion, secret management.",
-      "score": 3,
-      "evidence": "SPEC.md Data Policy; Google Cloud Default Encryption (CMEK-ready).",
-      "reasoning": "Score 3 (Proficient) is awarded because the product catalog strictly contains public consumer electronics data with zero PII or customer financial data, secured via TLS 1.3 in transit and Google-managed encryption at rest."
+      "focus": "Encryption at rest/transit, PII handling, data classification, DLP, Secrets management.",
+      "criteria": "Ensures encryption at rest and transit, manages PII handling and data classification, and utilizes secure secrets management preventing credential exposure."
     },
     {
       "id": "s2_16",
       "category": "Security, Privacy & Compliance",
       "name": "AI-Specific Security",
-      "criteria": "Prompt injection mitigation, SQL parameterization guardrails, structured output enforcement.",
-      "score": 3,
-      "evidence": "SPEC.md query_catalog Tool; backend/src/app/main.py.",
-      "reasoning": "Score 3 (Proficient) is earned through parameterized BigQuery queries using `bigquery.ArrayQueryParameter`, preventing SQL injection and adversarial prompt breakout, coupled with strict Pydantic output parsing."
+      "focus": "Prompt injection mitigation, output filtering, guardrails, model access controls, content safety.",
+      "criteria": "Implements dedicated prompt injection mitigation (adversarial sanitization, tag delimiter encapsulation, system prompt immutability), output filtering/guardrails, model access controls, and content safety layers protecting against adversarial use."
     },
     {
       "id": "s2_17",
       "category": "Security, Privacy & Compliance",
       "name": "Compliance & Governance",
-      "criteria": "Audit logging, Cloud Audit Logs, policy enforcement.",
-      "score": 3,
-      "evidence": "SPEC.md Observability & Audit; ARCHITECTURE.md Section 6.",
-      "reasoning": "Score 3 (Proficient) is demonstrated by comprehensive Cloud Audit Logs tracking all Terraform resource modifications, service account operations, and database query executions."
+      "focus": "Audit logging, data residency, regulatory requirements, policy enforcement.",
+      "criteria": "Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments."
     },
     {
       "id": "s2_18",
       "category": "Reliability & Resilience",
       "name": "Availability Design",
-      "criteria": "Redundancy, health probes, SLO/SLA definitions.",
-      "score": 3,
-      "evidence": "backend/src/app/main.py (/health endpoint); skills/cloudrun-deploy/resources/health_probe.sh.",
-      "reasoning": "Score 3 (Proficient) is awarded for multi-zone Cloud Run autoscaling with automated liveness and readiness health checks, backed by explicit SLO targets (p95 latency <= 3.0s, 99.9% uptime)."
+      "focus": "Redundancy, failover, health checks, SLO/SLA definition, distributed systems patterns.",
+      "criteria": "Implements redundancy, failover, and automated health checks aligning with explicit SLO/SLA definitions. Utilizes distributed patterns ensuring high availability."
     },
     {
       "id": "s2_19",
       "category": "Reliability & Resilience",
       "name": "Observability",
-      "criteria": "Structured logging, OpenTelemetry tracing, distributed latency metrics.",
-      "score": 3,
-      "evidence": "ARCHITECTURE.md Section 6; SPEC.md Observability Setup.",
-      "reasoning": "Score 3 (Proficient) is achieved via OpenTelemetry SDK integration exporting trace spans to Cloud Trace, structured JSON logging to Cloud Logging, and BigQuery query latency telemetry."
+      "focus": "Structured logging, metrics, distributed tracing, AI-specific monitoring.",
+      "criteria": "Configures structured logging, metrics, and distributed tracing (OpenTelemetry / Cloud Trace). Monitors AI-specific KPIs (latency, token usage, quality) ensuring runtime visibility."
     },
     {
       "id": "s2_20",
       "category": "Reliability & Resilience",
       "name": "Failure & Recovery Testing",
-      "criteria": "Failure injection, graceful error recovery, mock testing.",
-      "score": 3,
-      "evidence": "backend/tests/; skills/hillclimb/resources/mock_catalog_fixture.py.",
-      "reasoning": "Score 3 (Proficient) is earned by testing edge cases including database connection timeouts, empty catalog matches, and malformed product names with automated mock fixtures."
+      "focus": "Failure injection, red teaming, disaster recovery validation, backup/restore testing.",
+      "criteria": "Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols."
     },
     {
       "id": "s2_21",
       "category": "Reliability & Resilience",
       "name": "Graceful Degradation",
-      "criteria": "Fallback strategies, circuit breakers, timeout handling.",
-      "score": 3,
-      "evidence": "backend/src/app/main.py; ARCHITECTURE.md Section 3.",
-      "reasoning": "Score 3 (Proficient) is awarded because query timeouts and missing attributes degrade gracefully to partial match notifications and alternative recommendations rather than unhandled 500 error crashes."
+      "focus": "Fallback strategies, circuit breakers, retry policies, timeout handling.",
+      "criteria": "Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing."
     },
     {
       "id": "s2_22",
       "category": "Performance & Cost Optimization",
       "name": "Scalability & Elasticity",
-      "criteria": "Horizontal autoscaling, serverless Cloud Run scaling, on-demand compute.",
-      "score": 3,
-      "evidence": "deployment/terraform/main.tf Cloud Run resource blocks.",
-      "reasoning": "Score 3 (Proficient) is earned by configuring Cloud Run serverless autoscaling from 0 to 10 instances, eliminating idle compute expenses while scaling seamlessly for peak retail traffic."
+      "focus": "Horizontal and vertical scaling strategies, autoscaling policies, load balancing.",
+      "criteria": "Designs horizontal/vertical scaling strategies with autoscaling policies and load balancing, optimizing API throughput and scaling dynamically for load."
     },
     {
       "id": "s2_23",
       "category": "Performance & Cost Optimization",
       "name": "Resource Efficiency",
-      "criteria": "Right-sizing compute, low-latency container startup, minimal base image.",
-      "score": 3,
-      "evidence": "deployment/Dockerfile (Python 3.11 slim multi-stage); backend/pyproject.toml.",
-      "reasoning": "Score 3 (Proficient) is demonstrated by lightweight container images (<200MB) utilizing `python:3.11-slim`, achieving sub-second cold starts on Cloud Run."
+      "focus": "Compute/GPU right-sizing, autoscaling strategies, spot/preemptible usage.",
+      "criteria": "Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste."
     },
     {
       "id": "s2_24",
       "category": "Performance & Cost Optimization",
       "name": "AI Cost Management",
-      "criteria": "Token optimization, query filtering, bytes scanned minimization.",
-      "score": 3,
-      "evidence": "SPEC.md Analytics, Insights & Feedback; ARCHITECTURE.md Section 8.",
-      "reasoning": "Score 3 (Proficient) is awarded for parameter-scoped SQL queries that filter by product name, minimizing BigQuery bytes scanned and limiting LLM prompt context to exact candidate rows."
+      "focus": "Model selection trade-offs, response caching, batching, memory and embeddings, token optimization.",
+      "criteria": "Evaluates model selection trade-offs, manages token budgeting and query filtering to minimize database bytes scanned, and models infrastructure/inference costs."
     },
     {
       "id": "s2_25",
       "category": "Operational Excellence",
       "name": "CI/CD & Deployment",
-      "criteria": "Automated Cloud Build pipeline, linting, test gates, container deployment.",
-      "score": 3,
-      "evidence": "deployment/cloudbuild.yaml; skills/cloudrun-deploy/.",
-      "reasoning": "Score 3 (Proficient) is achieved by a 5-step Cloud Build pipeline that automatically runs Ruff linting, Pytest with coverage gate (>= 80%), container build, Artifact Registry push, and Terraform deployment."
+      "focus": "Pipeline design, deployment strategies, rollback automation.",
+      "criteria": "Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation."
     },
     {
       "id": "s2_26",
       "category": "Operational Excellence",
       "name": "Infrastructure as Code",
-      "criteria": "Declarative Terraform HCL for datasets, tables, IAM, Cloud Run, parameterization.",
-      "score": 3,
-      "evidence": "deployment/terraform/ (main.tf, variables.tf, providers.tf).",
-      "reasoning": "Score 3 (Proficient) is awarded for 100% codified GCP infrastructure in modular Terraform HCL files, parameterized by GCP project ID and region without hardcoded manual overrides."
+      "focus": "Terraform/Pulumi, Cloud Build, reproducible environments, environment parity.",
+      "criteria": "Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration."
     },
     {
       "id": "s2_27",
       "category": "Operational Excellence",
       "name": "AI Lifecycle Management",
-      "criteria": "Model versioning, evaluation dataset versioning, experiment tracking.",
-      "score": 3,
-      "evidence": "evals/dataset/benchmark_queries.json; skills/hillclimb/.",
-      "reasoning": "Score 3 (Proficient) is demonstrated by version-controlled benchmark query datasets and evaluation logs, enabling regression detection across prompt iterations."
+      "focus": "Model and agent versioning, A/B testing, configurations, experiment tracking.",
+      "criteria": "Manages model/agent versioning, evaluation dataset versioning, experiment tracking, and operational tooling for regression detection across iterations."
     },
     {
       "id": "s2_28",
       "category": "Operational Excellence",
       "name": "Testing & Quality Engineering",
-      "criteria": "Comprehensive unit testing, automated coverage enforcement (>= 80%), mock clients.",
-      "score": 3,
-      "evidence": "backend/pyproject.toml; backend/tests/ (100% verified test pass rate).",
-      "reasoning": "Score 3 (Proficient) is earned by a Pytest test suite with BigQuery mock clients, achieving 100% branch/statement coverage on core application modules."
+      "focus": "Unit, integration, e2e testing, load and performance testing.",
+      "criteria": "Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates."
     },
     {
       "id": "s2_29",
       "category": "Designing for Change",
       "name": "Modularity & Abstraction",
-      "criteria": "Loose coupling, interface contracts, model swappability, dependency injection.",
-      "score": 3,
-      "evidence": "backend/src/app/; skills/ modular skill boundaries.",
-      "reasoning": "Score 3 (Proficient) is awarded because catalog querying is abstracted behind tool interfaces, allowing model swappability (e.g. Gemini 2.5 Pro -> Ultra) without modifying backend routing or BigQuery schemas."
+      "focus": "Loose coupling, interface contracts, model swappability, dependency injection.",
+      "criteria": "Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries."
     },
     {
       "id": "s2_30",
       "category": "Designing for Change",
       "name": "Configuration Management",
-      "criteria": "Environment variable separation, externalized settings, secrets management.",
-      "score": 3,
-      "evidence": "deployment/terraform/variables.tf; backend/src/app/main.py.",
-      "reasoning": "Score 3 (Proficient) is achieved through strict separation of environment settings (project IDs, regions, dataset names) via Terraform variables and container environment variables."
+      "focus": "Environment separation, feature flags, externalized config.",
+      "criteria": "Separates environment configurations using externalized settings (env files, secrets, parameters) enabling dynamic system adjustments without code changes."
     },
     {
       "id": "s2_31",
       "category": "Designing for Change",
       "name": "API Design & Versioning",
-      "criteria": "Contract-first design, backward compatibility, schema evolution.",
-      "score": 3,
-      "evidence": "backend/src/app/main.py (/api/compare and Pydantic schemas).",
-      "reasoning": "Score 3 (Proficient) is earned by contract-first Pydantic request/response models supporting field addition and backward compatibility across client releases."
+      "focus": "Backward compatibility, contract-first design, schema evolution.",
+      "criteria": "Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases."
     },
     {
       "id": "s2_32",
       "category": "Designing for Change",
       "name": "Extensibility",
-      "criteria": "Plugin patterns, skill extensibility, modular integration.",
-      "score": 3,
-      "evidence": "skills/ modular agent skills architecture; ARCHITECTURE.md Section 9.",
-      "reasoning": "Score 3 (Proficient) is demonstrated by the Agent Skills framework allowing rapid addition of new capabilities (e.g., hybrid vector search, multimodal image comparisons) without disrupting existing operational runbooks."
+      "focus": "Plugin patterns, event-driven architecture, webhook/callback support.",
+      "criteria": "Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption."
     }
   ]
 }
