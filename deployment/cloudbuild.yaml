@@ -115,6 +115,19 @@ steps:
         echo "Cloud Deploy release $${RELEASE_ID} registered."
         echo "Cloud Deploy is now orchestrating the progressive 0% -> 100% rollout."
 
+  # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'sync-agent-registry'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Synchronizing Google Cloud Agent Registry & Prompt Management ==="
+        pip install --no-cache-dir -r backend/requirements.txt
+        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py
+        echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronized."
+
 substitutions:
   _REGION: 'us-central1'
   _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'

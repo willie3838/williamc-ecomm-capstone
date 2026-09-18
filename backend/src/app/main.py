@@ -122,12 +122,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="Query string must not be empty.",
             )
 
-        orchestrator = ComparisonOrchestrator()
+        orchestrator = ComparisonOrchestrator(
+            model=request.model,
+            synthesis_model=request.synthesis_model,
+        )
         result = orchestrator.compare(
             query=request.query,
             category=request.category,
             session_id=request.session_id,
             agent_version=request.agent_version,
+            model=request.model,
+            synthesis_model=request.synthesis_model,
         )
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         result.latency_ms = latency_ms

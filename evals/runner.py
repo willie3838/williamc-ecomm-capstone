@@ -444,11 +444,24 @@ def run_benchmark(
         case_errors: list[str] = []
         is_schema_valid = False
 
-        try:
-            if use_adk_runner:
-                response = orchestrator.execute_with_adk_runner(query=query, category=case_cat)
+            if live:
+                if use_adk_runner:
+                    response = orchestrator.execute_with_adk_runner(query=query, category=case_cat)
+                else:
+                    response = orchestrator.compare(query=query, category=case_cat)
             else:
-                response = orchestrator.compare(query=query, category=case_cat)
+                from unittest.mock import patch
+
+                with patch(
+                    "google.genai.Client",
+                    side_effect=RuntimeError("Hermetic offline mode"),
+                ):
+                    if use_adk_runner:
+                        response = orchestrator.execute_with_adk_runner(
+                            query=query, category=case_cat
+                        )
+                    else:
+                        response = orchestrator.compare(query=query, category=case_cat)
             latency = time.perf_counter() - start_time
             latencies.append(latency)
 
