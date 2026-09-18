@@ -76,6 +76,17 @@ python3 -m evals.runner \
   --output evals/reports/eval_results.json
 ```
 
+To execute evaluations through the Google ADK Runner lifecycle:
+```bash
+python3 -m evals.runner \
+  --dataset evals/dataset/fixtures/simple_test.evalset.json \
+  --output evals/reports/eval_results.json \
+  --use-adk-runner
+```
+
+### F. Brand-Agnostic Hermetic Mocking (Anti-Overfitting)
+`create_hermetic_bq_client` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
+
 
 ---
 

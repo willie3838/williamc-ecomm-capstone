@@ -105,30 +105,16 @@ def create_hermetic_bq_client(catalog_path: Path) -> MagicMock:
                     if not pat_tokens:
                         continue
                     m_count = sum(1 for t in pat_tokens if t in item_text)
+                    brand = item.get("brand", "").lower()
+                    name = item.get("name", "").lower()
                     if (
                         (len(pat_tokens) == 1 and m_count == 1)
                         or (m_count >= 2 and (m_count / len(pat_tokens)) >= 0.3)
                         or (
                             m_count >= 1
-                            and any(
-                                b in pat_tokens
-                                for b in [
-                                    "apple",
-                                    "dell",
-                                    "lenovo",
-                                    "samsung",
-                                    "google",
-                                    "sony",
-                                    "bose",
-                                    "lg",
-                                    "ecobee",
-                                    "c3",
-                                    "s90c",
-                                    "x1",
-                                    "m3",
-                                    "m4",
-                                    "macbook",
-                                ]
+                            and (
+                                (brand and any(b in pat_tokens for b in brand.split()))
+                                or any(t in name for t in pat_tokens if len(t) >= 3)
                             )
                         )
                     ):
@@ -369,6 +355,7 @@ def run_benchmark(
     target_citation: float = 0.95,
     target_latency: float = 3.0,
     target_schema: float = 1.00,
+    use_adk_runner: bool = False,
 ) -> dict[str, Any]:
     with open(dataset_path, encoding="utf-8") as f:
         raw_data = json.load(f)
@@ -458,7 +445,10 @@ def run_benchmark(
         is_schema_valid = False
 
         try:
-            response = orchestrator.compare(query=query, category=case_cat)
+            if use_adk_runner:
+                response = orchestrator.execute_with_adk_runner(query=query, category=case_cat)
+            else:
+                response = orchestrator.compare(query=query, category=case_cat)
             latency = time.perf_counter() - start_time
             latencies.append(latency)
 
@@ -799,6 +789,12 @@ def main() -> None:
         default="manual",
         help="Trigger source identifier (e.g. cloud_scheduler, manual, ci).",
     )
+    parser.add_argument(
+        "--use-adk-runner",
+        action="store_true",
+        default=False,
+        help="Execute comparison evaluations using Google ADK Runner integration.",
+    )
 
     args = parser.parse_args()
 
@@ -813,6 +809,7 @@ def main() -> None:
         target_citation=args.target_citation,
         target_latency=args.target_latency,
         target_schema=args.target_schema,
+        use_adk_runner=args.use_adk_runner,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

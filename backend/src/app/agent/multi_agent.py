@@ -50,10 +50,11 @@ class ComparisonAgentState:
 class QueryIntentAgent:
     """Specialist agent responsible for query parsing, intent extraction, and security sanitization."""
 
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model or settings.gemini_model
         self.adk_agent = Agent(
             name="query_intent_specialist",
-            model=settings.gemini_model,
+            model=self.model,
             instruction=(
                 "You are an Intent Extraction Specialist for consumer electronics comparisons.\n"
                 "Semantically analyze the customer query to identify intent (COMPARISON, PRODUCT_SEARCH, or OPINION_OR_CHATTER), "
@@ -69,7 +70,7 @@ class QueryIntentAgent:
             span.set_attribute("agent.input_length", len(state.raw_query))
 
             # Semantically classify intent, eligibility, category, and keywords via LLM
-            orchestrator = ComparisonOrchestrator()
+            orchestrator = ComparisonOrchestrator(model=self.model)
             intent_analysis = orchestrator.classify_intent(state.sanitized_query)
             state.intent_type = intent_analysis.intent_type
             state.is_comparison_eligible = intent_analysis.is_comparison_eligible
@@ -81,15 +82,19 @@ class QueryIntentAgent:
                 state.detected_category = intent_analysis.detected_category
             else:
                 lower_q = state.sanitized_query.lower()
-                if "laptop" in lower_q or "macbook" in lower_q or "xps" in lower_q:
+                import re
+
+                if re.search(r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?)\b", lower_q):
                     state.detected_category = "Laptops"
-                elif "tablet" in lower_q or "ipad" in lower_q or "galaxy tab" in lower_q:
+                elif re.search(r"\b(?:tablets?|e-?readers?|ipads?)\b", lower_q):
                     state.detected_category = "Tablets"
-                elif "headphone" in lower_q or "wh-1000" in lower_q or "quietcomfort" in lower_q:
+                elif re.search(r"\b(?:headphones?|earbuds?|earphones?|headsets?)\b", lower_q):
                     state.detected_category = "Headphones"
-                elif "smart home" in lower_q or "thermostat" in lower_q or "nest" in lower_q:
+                elif re.search(
+                    r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?)\b", lower_q
+                ):
                     state.detected_category = "Smart Home"
-                elif "tv" in lower_q or "oled" in lower_q or "c3" in lower_q or "s90c" in lower_q:
+                elif re.search(r"\b(?:tvs?|televisions?|oled|qled)\b", lower_q):
                     state.detected_category = "TVs"
 
             # Assign keywords: prioritize LLM target keywords, fall back to token extraction
@@ -264,7 +269,7 @@ class SpecComparisonAgent:
                         f"No product comparison matrix was generated for '{state.raw_query}'. "
                         "The query appears to be an opinion or general comment rather than a product comparison request. "
                         "To compare products side-by-side, please specify two or more models or brands "
-                        "(e.g., 'Compare Apple MacBook Air M3 and Dell XPS 13')."
+                        "(e.g., 'Compare Model A and Model B')."
                     )
                     recommendations = "Specify two or more devices or models to view a detailed comparison matrix."
                     state.ranked_products = []
@@ -283,7 +288,7 @@ class SpecComparisonAgent:
                         f"No matching products found in the catalog for query: '{state.raw_query}'. "
                         "Please check your search terms."
                     )
-                    recommendations = "Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category."
+                    recommendations = "Try searching for broader model names, brands, or specify a valid product category."
                     citations = []
 
                 state.comparison_response = CompareResponse(

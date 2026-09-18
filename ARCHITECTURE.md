@@ -66,6 +66,7 @@ graph TB
         
         subgraph ADKAgent ["4. Agentic Reasoning Core (Google ADK)"]
             ROUTER["Comparison Orchestrator Agent (ADK Engine)"]
+            RUNNER["ADK Runner (InMemoryRunner & InMemorySessionService)"]
             PROMPT["System Grounding Prompt (Pinned by AgentVersionSpec)"]
             TOOL["query_catalog BigQuery Tool (Parameterized SQL)"]
             PARSER["Pydantic Response Envelope & Matrix Formatter"]
@@ -453,6 +454,17 @@ The end-to-end request budget guarantees sub-3.0 second performance:
   - *Positive*: Zero custom registry maintenance; sub-second prompt rollback via Vertex AI Prompt Management; native fleet governance in Google Cloud Console (`gcloud agent-registry`); 100% OpenTelemetry span traceability (`ai.agent.version`, `ai.model.version`, `ai.prompt.version`).
   - *Trade-off*: Requires graceful fallback when running offline in local unit tests; handled by `prompts_service.py` defaulting to `SYSTEM_INSTRUCTION` when `ENABLE_VERTEX_PROMPT_REGISTRY=false` or in `pytest`.
 
+### ADR-006: Native Google ADK Runner Engine & Out-of-Distribution Generalization
+- **Status**: ACCEPTED
+- **Context**: Relying solely on direct synchronous agent method invocation risks decoupling the agent runtime from the canonical Google Agent Development Kit (ADK) event-streaming architecture (`Runner`, `SessionService`). Furthermore, hardcoding benchmark-specific product names, SKUs, or brand whitelists across prompts, extraction regexes, and evaluation mocks causes severe overfitting and brittle failures on out-of-distribution consumer electronics queries.
+- **Decision**:
+  1. **Standardize on Google ADK Runner (`app.agent.runner`)**: Implement first-class native ADK `Runner` integration using `google.adk.runners.InMemoryRunner` and `google.adk.sessions.InMemorySessionService`, enabling asynchronous event streaming and multi-turn session persistence.
+  2. **Eliminate Benchmark Overfitting**: Replace all hardcoded brand/model lists and real SKUs with generic, abstract placeholders ("Model Alpha", "Model Beta", SKU `9000001`) in system instructions; implement syntactic, grammar-based keyword extraction and semantic Gemini intent classification; and modernize the hermetic catalog mock to support arbitrary brands and models via universal token matching.
+  3. **Dual Execution Mode**: Support both direct orchestrator invocation and native ADK Runner streaming via `ComparisonOrchestrator.execute_with_adk_runner` and the evaluation CLI (`evals/runner.py --use-adk-runner`).
+- **Consequences**:
+  - *Positive*: Full alignment with canonical Google ADK production conventions; robust generalizability across any consumer electronics category or novel brand; zero hallucination on catalog specs; seamless event-driven evaluation.
+  - *Trade-off*: Requires managing ADK session lifecycle state and streaming event iteration, encapsulated cleanly within `run_adk_agent`.
+
 ---
 
 ## 8. CI/CD Pipeline & Quality Engineering
@@ -509,5 +521,84 @@ graph TD
 - **`deployment/terraform/agent_registry.tf`**: Enables `agentregistry.googleapis.com` (`google_project_service.agentregistry_api`) and tracks the Cloud Run service registration (`bestbuy-catalog-comparison-agent`) with its `/.well-known/agent-card.json` endpoint.
 - **`backend/src/app/agent/prompts_service.py`**: Resolves immutable prompt versions from Vertex AI Prompt Management (`vertexai.preview.prompts.get`) with fallback to `SYSTEM_INSTRUCTION`.
 - **`backend/src/app/agent/agent_card.py`**: Stateless generator serving `GET /.well-known/agent-card.json` and `GET /api/agent/card` for Google Cloud Agent Registry discovery.
+
+---
+
+## 10. Native Google ADK Runner Architecture & Out-of-Distribution Generalization
+
+### 10.1 Native Google ADK Runner Lifecycle & Event Streaming (`app.agent.runner`)
+
+To align with the production architecture of the Google Agent Development Kit (ADK), the comparison agent exposes a native `Runner` interface implemented in `backend/src/app/agent/runner.py`:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Caller as Caller (API / Eval Harness)
+    participant RunnerMod as app.agent.runner
+    participant Runner as google.adk.runners.InMemoryRunner
+    participant Session as google.adk.sessions.InMemorySessionService
+    participant Agent as catalog_agent (ADK Agent)
+
+    Caller->>RunnerMod: run_adk_agent(query, session_id="sess_123", user_id="shopper_1")
+    RunnerMod->>RunnerMod: get_adk_runner(agent=catalog_agent, session_service=session_service)
+    RunnerMod->>Session: get_session(session_id="sess_123") / create_session(...)
+    RunnerMod->>Runner: runner.run_async(user_id, session_id, message)
+    loop Event Streaming
+        Runner->>Agent: Process message & execute tools (query_catalog)
+        Agent-->>Runner: Stream ADK Events (Turn, ToolCall, ModelResponse)
+        Runner-->>Caller: Yield Event
+    end
+    Runner-->>Caller: Final Response Event (grounded comparison matrix)
+```
+
+#### Core Components & Contracts
+1. **`get_adk_runner(agent=None, session_service=None) -> InMemoryRunner`**:
+   - Lazily instantiates and configures a `google.adk.runners.InMemoryRunner`.
+   - Defaults to `root_agent=catalog_agent`, `session_service=InMemorySessionService()`, and `app_name="app"`.
+2. **`catalog_runner` Singleton & `create_catalog_runner(agent=None)` Factory**:
+   - Provides ready-to-use ADK runner instances for both dependency-injected execution and singleton module exports.
+3. **`run_adk_agent(query, session_id, user_id, runner) -> AsyncGenerator`**:
+   - Asynchronous generator wrapping `runner.run_async`.
+   - Automatically provisions sessions via `session_service.create_session(...)` if not already present, ensuring seamless multi-turn conversation support.
+4. **`ComparisonOrchestrator.execute_with_adk_runner(...)`**:
+   - Bridges the structured Pydantic `CompareResponse` envelope with the canonical ADK `InMemoryRunner`.
+   - Invokes the ADK Runner event pipeline, extracts generated content, and runs Pydantic response normalization and matrix feature formatting.
+5. **Evaluation Harness Flag (`evals/runner.py --use-adk-runner`)**:
+   - Allows the 80-pair benchmark suite and CI/CD quality gates to execute evaluations directly through the native ADK runner pipeline.
+
+### 10.2 Out-of-Distribution Generalization & Anti-Overfitting Protocol
+
+The agent is engineered to eliminate benchmark-specific overfitting, ensuring robust generalization across unseen consumer electronics brands, product models, and query formulations:
+
+```mermaid
+flowchart TD
+    subgraph DeOverfitting ["Anti-Overfitting & Generalization Architecture"]
+        P["1. Brand-Agnostic System Prompt\n(Model Alpha / Beta placeholders, SKU 9000001)"]
+        K["2. Syntactic Keyword Extraction\n(Grammar conjunction splitting, colon marker analysis)"]
+        I["3. Semantic Intent Classification\n(Gemini QueryIntentAnalysis schema)"]
+        M["4. Universal Hermetic Catalog Matching\n(Dynamic brand/title token overlap)"]
+    end
+
+    Q["User Query: 'Nothing Phone 2 vs Asus ROG Phone 8'"] --> K
+    K --> I
+    I --> P
+    P --> M
+    M --> RES["Grounded Specs & Accurate Comparison"]
+```
+
+1. **Brand-Agnostic System Instructions (`app.agent.prompts`)**:
+   - Completely purged of benchmark-specific product names ("MacBook Air M3", "Dell XPS 13", "Sony WH-1000XM5") and real production SKUs.
+   - Grounding rules are specified using abstract archetypes ("Model Alpha", "Model Beta", synthetic SKU `9000001`), forcing the model to learn structural grounding rather than brand memorization.
+2. **Syntactic, Grammar-Based Keyword Extraction (`app.agent.orchestrator`)**:
+   - Replaced fragile brand/model regex whitelists with structural parsing:
+     * Splits clauses on comparative conjunctions (`vs`, `versus`, `compared to`, `against`, `and`, `or`).
+     * Dynamically assigns colon prefix/suffix roles based on comparative marker presence.
+     * Cleans generic conversational lead-ins ("can you compare", "show me") and trailing attribute qualifiers ("on price and battery life").
+3. **Semantic LLM Intent Classification (`app.agent.multi_agent`)**:
+   - `QueryIntentAgent` and `ComparisonOrchestrator.classify_intent` utilize Gemini structured generation (`QueryIntentAnalysis`) to determine categories and target entities dynamically, eliminating hardcoded model-to-category lookup dictionaries.
+4. **Universal Hermetic Catalog Query Mock (`evals/runner.py`)**:
+   - Replaced fixed brand whitelist filters with dynamic token-overlap matching against candidate catalog titles and brand metadata.
+   - Evaluates unseen products and holdout test sets hermetically in CI without missing mock matches.
+
 
 

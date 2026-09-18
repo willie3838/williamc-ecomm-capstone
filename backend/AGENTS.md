@@ -26,7 +26,8 @@ backend/
 │       │   ├── orchestrator.py# Comparison orchestrator agent & LLM reranker
 │       │   ├── prompts.py     # Anti-hallucination default system instructions
 │       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
-│       │   └── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
+│       │   ├── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
+│       │   └── runner.py      # Google ADK InMemoryRunner execution engine & session management
 │       └── tools/             # Agent tools
 │           ├── __init__.py
 │           └── catalog.py     # query_catalog BigQuery parameterized tool
@@ -105,8 +106,16 @@ backend/
 5. **Entity Balancing, SKU Deduplication & Analytics Resilience**:
     - `query_catalog` and `CatalogRetrievalAgent` strictly deduplicate catalog results by SKU, preventing duplicate products from appearing in candidate lists.
     - `rank_and_select_products` enforces comparative entity balancing: when a query compares multiple brands (e.g. 'mac vs dell'), candidate selection balances across target brands rather than returning multiple products from the same brand.
-    - `AnalyticsService` maintains an in-memory session counter fallback per `session_id`, ensuring session comparison counts reliably increment across queries even if Firestore is offline.
     - All Firestore network calls in `AnalyticsService` are wrapped in 2.0-second worker thread timeouts to protect API availability, and live cloud calls are bypassed in automated test environments (`PYTEST_CURRENT_TEST`).
+6. **Anti-Overfitting & Brand-Agnostic Keyword Extraction**:
+    - `ComparisonOrchestrator.extract_keywords` uses syntactic token splitting and structural attribute lead-in stripping rather than hardcoded brand dictionaries or benchmark question prefix regexes.
+    - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) to prevent data leakage and benchmark memorization.
+    - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
+7. **Google ADK Runner Integration (`app.agent.runner`)**:
+    - Operates through `google.adk.runners.InMemoryRunner` and `google.adk.sessions.InMemorySessionService`.
+    - Exposes `get_adk_runner()`, `create_catalog_runner()`, and `catalog_runner` bound to `root_agent` (`catalog_comparison_orchestrator`).
+    - Exposes `run_adk_agent(query, session_id=...)` for asynchronous event streaming and multi-turn state tracking.
+    - `ComparisonOrchestrator.execute_with_adk_runner` bridges orchestrator pipelines directly through the ADK Runner execution lifecycle.
 
 ---
 
