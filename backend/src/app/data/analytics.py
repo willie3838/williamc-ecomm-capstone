@@ -18,12 +18,17 @@ class AnalyticsService:
         self,
         firestore_client: firestore.Client | None = None,
         bq_client: bigquery.Client | None = None,
+        disable_cloud_clients: bool = False,
     ) -> None:
         self._firestore_client = firestore_client
         self._bq_client = bq_client
+        self._disable_cloud_clients = disable_cloud_clients
+        self._local_session_counts: dict[str, int] = {}
 
     def get_firestore_client(self) -> firestore.Client | None:
         """Lazily initialize Firestore client with graceful fallback if unavailable."""
+        if self._disable_cloud_clients:
+            return None
         if self._firestore_client is not None:
             return self._firestore_client
 
@@ -38,6 +43,8 @@ class AnalyticsService:
 
     def get_bq_client(self) -> bigquery.Client | None:
         """Lazily initialize BigQuery client."""
+        if self._disable_cloud_clients:
+            return None
         if self._bq_client is not None:
             return self._bq_client
 
@@ -112,16 +119,19 @@ class AnalyticsService:
         if client is not None:
             try:
                 doc_ref = client.collection("sessions").document(session_id)
-                doc = doc_ref.get()
+                doc = doc_ref.get(timeout=2.0)
                 if doc.exists:
                     doc_ref.update(
                         {
                             "comparison_count": firestore.Increment(1),
                             "last_seen": now_iso,
-                        }
+                        },
+                        timeout=2.0,
                     )
-                    updated = doc_ref.get()
-                    return int(updated.get("comparison_count") or 1)
+                    updated = doc_ref.get(timeout=2.0)
+                    count = int(updated.get("comparison_count") or 1)
+                    self._local_session_counts[session_id] = count
+                    return count
                 else:
                     doc_ref.set(
                         {
@@ -129,13 +139,18 @@ class AnalyticsService:
                             "comparison_count": 1,
                             "first_seen": now_iso,
                             "last_seen": now_iso,
-                        }
+                        },
+                        timeout=2.0,
                     )
+                    self._local_session_counts[session_id] = 1
                     return 1
             except Exception as e:
                 logger.warning("Failed to update session counter in Firestore: %s", e)
 
-        return 1
+        # In-memory fallback when Firestore is offline, mocked, or credentials expired
+        current = self._local_session_counts.get(session_id, 0) + 1
+        self._local_session_counts[session_id] = current
+        return current
 
     def record_query_telemetry(
         self,

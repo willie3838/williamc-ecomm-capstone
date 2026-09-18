@@ -72,7 +72,7 @@ export const App: React.FC = () => {
           })
         : null,
     enabled: !!searchParams?.query,
-    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    staleTime: 0,
     retry: false,
   });
 
@@ -110,10 +110,10 @@ export const App: React.FC = () => {
               {comparison?.session_comparison_count && (
                 <div
                   className="hidden sm:flex items-center gap-1.5 text-xs text-blue-100 bg-blue-900/60 px-2.5 py-1 rounded-full border border-blue-400/30"
-                  title="Number of comparisons run in this session"
+                  title={`Comparison #${comparison.session_comparison_count} run in this session`}
                 >
                   <Activity className="w-3.5 h-3.5 text-yellow-300" aria-hidden="true" />
-                  <span>Session: #{comparison.session_comparison_count}</span>
+                  <span>Comparison #{comparison.session_comparison_count}</span>
                 </div>
               )}
               {comparison?.latency_ms && (

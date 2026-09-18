@@ -149,11 +149,15 @@ class CatalogRetrievalAgent:
                 client=self.bq_client,
             )
 
-            # Convert to ProductSpec schemas
+            # Convert to ProductSpec schemas with SKU deduplication
             products: list[ProductSpec] = []
+            seen_skus: set[str] = set()
             for item in raw_results:
                 try:
-                    products.append(ProductSpec(**item))
+                    spec = ProductSpec(**item)
+                    if spec.sku not in seen_skus:
+                        products.append(spec)
+                        seen_skus.add(spec.sku)
                 except Exception as e:
                     logger.warning("Failed to validate product spec schema: %s", e)
 

@@ -264,9 +264,18 @@ def query_catalog(
         span.set_attribute("bq_bytes_billed", bytes_billed)
 
         products: list[dict[str, Any]] = []
+        seen_skus: set[str] = set()
         for row in results:
             row_dict = dict(row) if hasattr(row, "keys") else row
             sku = str(row_dict.get("sku") or "").strip()
+
+            if not sku:
+                logger.warning("Quarantining row with missing primary key SKU: %s", row_dict)
+                continue
+
+            if sku in seen_skus:
+                logger.debug("Deduplicating already retrieved product with SKU: %s", sku)
+                continue
 
             specs_raw = row_dict.get("specifications")
             if isinstance(specs_raw, str):
@@ -283,10 +292,6 @@ def query_catalog(
             url = row_dict.get("url")
             if not url and sku:
                 url = f"https://www.bestbuy.com/site/sku/{sku}.p"
-
-            if not sku:
-                logger.warning("Quarantining row with missing primary key SKU: %s", row_dict)
-                continue
 
             try:
                 raw_price = row_dict.get("price")
@@ -326,6 +331,7 @@ def query_catalog(
                 "image_url": row_dict.get("image_url"),
                 "in_stock": bool(row_dict.get("in_stock", True)),
             }
+            seen_skus.add(sku)
             products.append(product)
 
         span.set_attribute("bq.result_count", len(products))

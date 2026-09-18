@@ -600,6 +600,24 @@ class ComparisonOrchestrator:
         """Backward-compatible helper to detect subjective opinions, complaints, or rants."""
         return ComparisonOrchestrator._is_opinion_query_heuristic(query)
 
+    def _balance_entities(
+        self, candidates: list[ProductSpec], keywords: list[str]
+    ) -> list[ProductSpec]:
+        """Balance candidates across distinct brands when comparative query targets multiple entities."""
+        if len(candidates) <= 1:
+            return candidates
+
+        first_brand = candidates[0].brand.strip().lower()
+        alt_candidate = next(
+            (p for p in candidates[1:] if p.brand.strip().lower() != first_brand),
+            None,
+        )
+        if alt_candidate is not None:
+            remaining = [p for p in candidates[1:] if p.sku != alt_candidate.sku]
+            return [candidates[0], alt_candidate] + remaining
+
+        return candidates
+
     def rank_and_select_products(
         self,
         products: list[ProductSpec],
@@ -609,6 +627,14 @@ class ComparisonOrchestrator:
         """Rerank candidate products using Gemini LLM against the raw user query with strict relevance gating."""
         if not products:
             return []
+
+        # Deduplicate incoming products by SKU
+        seen_skus: set[str] = set()
+        unique_products: list[ProductSpec] = []
+        for p in products:
+            if p.sku and p.sku not in seen_skus:
+                seen_skus.add(p.sku)
+                unique_products.append(p)
 
         # If query is an opinion or rant, reject candidates immediately
         intent = self.classify_intent(original_query)
@@ -621,13 +647,14 @@ class ComparisonOrchestrator:
             return []
 
         # Attempt LLM-based Reranking using the original user query as the frame of reference
-        llm_ranked = self._rerank_with_llm(products, original_query or " ".join(keywords))
+        llm_ranked = self._rerank_with_llm(unique_products, original_query or " ".join(keywords))
         if llm_ranked is not None:
             # LLM ran successfully. If it found 0 relevant items, llm_ranked is [], which is honored!
-            return llm_ranked
+            return self._balance_entities(llm_ranked, keywords)
 
         # Fallback only if LLM call itself threw a network/API exception and query has comparison keywords
-        return self._rerank_with_heuristics(products, keywords, original_query)
+        heur_ranked = self._rerank_with_heuristics(unique_products, keywords, original_query)
+        return self._balance_entities(heur_ranked, keywords)
 
     def _rerank_with_llm(self, products: list[ProductSpec], query: str) -> list[ProductSpec] | None:
         """Call Gemini to score and rank candidate products based on query relevance."""
@@ -664,17 +691,36 @@ class ComparisonOrchestrator:
                 "Only include products with score >= 6."
             )
 
+            armor_cfg = get_model_armor_config()
             config = types.GenerateContentConfig(
-                safety_settings=get_default_safety_settings(),
-                model_armor_config=get_model_armor_config(),
+                model_armor_config=armor_cfg if armor_cfg is not None else None,
+                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
                 temperature=0.0,
             )
 
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=prompt,
-                config=config,
-            )
+            try:
+                response = client.models.generate_content(
+                    model=settings.gemini_model,
+                    contents=prompt,
+                    config=config,
+                )
+            except Exception as call_err:
+                if armor_cfg is not None:
+                    logger.warning(
+                        "LLM reranking with Model Armor failed (%s); retrying with standard safety settings.",
+                        call_err,
+                    )
+                    fallback_config = types.GenerateContentConfig(
+                        safety_settings=get_default_safety_settings(),
+                        temperature=0.0,
+                    )
+                    response = client.models.generate_content(
+                        model=settings.gemini_model,
+                        contents=prompt,
+                        config=fallback_config,
+                    )
+                else:
+                    raise call_err
 
             # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
             if response.candidates:
@@ -710,12 +756,14 @@ class ComparisonOrchestrator:
 
             sku_to_product = {p.sku: p for p in products}
             ordered_products: list[ProductSpec] = []
+            seen_ordered_skus: set[str] = set()
 
             for item in ranked_data:
                 sku = str(item.get("sku", ""))
                 score = float(item.get("score", 0))
-                if sku in sku_to_product and score >= 6.0:
+                if sku in sku_to_product and score >= 6.0 and sku not in seen_ordered_skus:
                     ordered_products.append(sku_to_product[sku])
+                    seen_ordered_skus.add(sku)
 
             # If LLM identified relevant items, return them
             if ordered_products:
@@ -734,13 +782,12 @@ class ComparisonOrchestrator:
 
         except Exception as e:
             logger.warning("LLM reranking encountered an error; falling back to heuristic: %s", e)
-
-        return None
+            return None
 
     def _rerank_with_heuristics(
         self, products: list[ProductSpec], keywords: list[str], original_query: str
     ) -> list[ProductSpec]:
-        """Robust token-overlap and phrase matching heuristic fallback."""
+        """Robust token-overlap and phrase matching heuristic fallback with stem matching."""
         if self._is_opinion_query(original_query):
             return []
 
@@ -770,22 +817,18 @@ class ComparisonOrchestrator:
         all_terms = re.findall(r"[a-z0-9]+", (original_query or " ".join(keywords)).lower())
         query_tokens = set(t for t in all_terms if t not in stopwords and len(t) >= 2)
 
+        def matches_token(tok: str, text: str) -> bool:
+            tok_low = tok.lower()
+            if tok_low == "mac":
+                return bool(re.search(r"\bmac(?:book)?\b", text))
+            return bool(re.search(r"\b" + re.escape(tok_low), text))
+
         def score_product(p: ProductSpec) -> tuple[int, int, float]:
             text = f"{p.name} {p.brand} {p.category}".lower()
-            # Exact phrase match bonus with word boundaries
-            exact = (
-                100
-                if any(
-                    bool(re.search(r"\b" + re.escape(kw.lower()) + r"\b", text))
-                    for kw in keywords
-                    if len(kw) >= 3
-                )
-                else 0
-            )
-            # Token overlap count with word boundaries
-            overlap = sum(
-                1 for t in query_tokens if bool(re.search(r"\b" + re.escape(t) + r"\b", text))
-            )
+            # Exact phrase match bonus with word boundaries / stem matching
+            exact = 100 if any(matches_token(kw, text) for kw in keywords if len(kw) >= 3) else 0
+            # Token overlap count with stem matching
+            overlap = sum(1 for t in query_tokens if matches_token(t, text))
             return (exact, overlap, -p.price)
 
         sorted_products = sorted(products, key=score_product, reverse=True)

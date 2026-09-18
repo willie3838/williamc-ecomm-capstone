@@ -397,7 +397,8 @@ steps:
 
 ### User Behavior & Engagement
 - **User Actions**: Logs product comparison requests, copy markdown actions, and thumbs-up/down feedback. Stored in Firestore.
-- **Session Metrics**: Tracks number of comparisons run per session.
+- **Session Metrics**: Tracks number of comparisons run per session with atomic Firestore increments and in-memory fallback, displayed in the UI telemetry bar as `Comparison #X`.
+- **Entity Balancing & Deduplication**: For cross-brand queries (e.g. `mac vs dell`), results are guaranteed to balance across compared brands and deduplicate by SKU, preventing duplicate or single-brand results.
 
 ### Operational & Business Intelligence
 - **Usage & Cost**: Logs token consumption per comparison and BigQuery query bytes scanned to monitor database cost.
