@@ -12,6 +12,7 @@ def test_eval_rubrics_exist_and_populated():
         "data_accuracy.md",
         "citation_faithfulness.md",
         "semantic_coherence.md",
+        "counterfactual_anti_overfitting.md",
     ]
 
     for fname in expected_files:
@@ -32,3 +33,8 @@ def test_eval_rubrics_exist_and_populated():
         elif fname == "semantic_coherence.md":
             assert "LLM" in content
             assert "scale" in content.lower() or "score" in content.lower()
+
+        elif fname == "counterfactual_anti_overfitting.md":
+            assert "Generalization Gap" in content
+            assert "0.05" in content
+            assert "Counterfactual" in content

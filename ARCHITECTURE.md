@@ -495,13 +495,19 @@ flowchart LR
     VERIFY --> PROMOTE[Automated 100% Traffic Promotion]
 ```
 
-### 8.2 Quality Evaluation Flywheel & 80-Pair Benchmark
-The system integrates an automated quality flywheel (`evals/`):
-- **Benchmark Dataset**: 80 curated comparison pairs across Laptops, Tablets, Headphones, and TVs.
-- **Evaluation Criteria**:
-  1. **Catalog Faithfulness**: 100% agreement between matrix specs and BigQuery truth.
-  2. **Citation Precision**: Every asserted spec links to a valid `[SKU: ...]`.
-  3. **Refusal Robustness**: Graceful handling of out-of-stock, unknown, or adversarial queries.
+### 8.2 Quality Evaluation Flywheel, Holdout Benchmark & Counterfactual Anti-Overfitting Gate
+The system integrates an automated quality flywheel and anti-overfitting gating harness (`evals/`):
+- **Benchmark Dataset**: Canonical 80-pair ADK `EvalSet` (`evals/dataset/benchmark_catalog.evalset.json`) across Laptops, Tablets, Headphones, Smart Home, and TVs.
+- **Holdout & Counterfactual Dataset**: Curated independent evaluation dataset (`evals/dataset/holdout_catalog.evalset.json`) containing:
+  1. *Holdout Comparison Splits*: Unseen product comparison pairs across all 5 consumer electronics categories.
+  2. *Counterfactual Spec Mutations*: Perturbed catalog specifications (e.g. promotional discounts, upgraded RAM, altered battery endurance) asserting the agent adheres strictly to retrieved BigQuery tool facts over parametric memory.
+  3. *Negative Chatter & Out-of-Scope Queries*: 0-SKU test cases (customer rants, store hours, culinary questions) verifying zero hallucinated products and zero phantom comparison tables.
+  4. *Cross-Category & Single-Product Inquiries*: Mismatch detection across divergent categories.
+- **Anti-Overfitting Gate (`evals/anti_overfitting_gate.py`)**:
+  1. **Generalization Gap ($\Delta$)**: $\Delta_{\text{accuracy}} = \max(0.0, \text{Accuracy}_{\text{benchmark}} - \text{Accuracy}_{\text{holdout}}) \le 0.05$ (5% max gap).
+  2. **Holdout Floors**: $\ge 0.95$ Data Accuracy, $\ge 0.90$ Citation Faithfulness, P95 Latency $\le 3.0$s.
+  3. **Counterfactual Spec Fidelity**: $\ge 0.95$ adherence to perturbed catalog specs.
+  4. **Negative Chatter Suppression**: $100.0\%$ suppression of false SKUs on out-of-scope requests.
 - **LLM-as-a-Judge**: Evaluated via Gemini 3.5 Flash scoring script with threshold enforcement before production promotion.
 
 ---
