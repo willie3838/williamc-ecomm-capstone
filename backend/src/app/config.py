@@ -73,7 +73,7 @@ class Settings(BaseSettings):
         description="System prompt template version identifier in Vertex AI Prompt Management",
     )
     vertex_prompt_id: str = Field(
-        default="catalog-comparison-system-prompt",
+        default="6884046974429954048",
         alias="VERTEX_PROMPT_ID",
         description="Google Cloud Vertex AI Prompt Management resource ID",
     )

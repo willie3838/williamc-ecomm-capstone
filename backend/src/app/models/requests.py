@@ -33,8 +33,18 @@ class ComparisonRequest(BaseModel):
     )
     agent_version: str | None = Field(
         default=None,
-        description="Optional registered agent version to execute (e.g., '1.0.0', '1.1.0-flash'). Defaults to active production release.",
+        description="Optional registered agent version to execute (e.g., '1.0.0', '1.1.0-flash', '1.2.0-tiered'). Defaults to active production release.",
         examples=["1.0.0"],
+    )
+    model: str | None = Field(
+        default=None,
+        description="Optional foundation model override for routing, intent, and reranking (e.g., 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-flash', 'tiered-hybrid').",
+        examples=["gemini-2.5-flash"],
+    )
+    synthesis_model: str | None = Field(
+        default=None,
+        description="Optional foundation model override for comparison narrative and trade-off synthesis (e.g., 'gemini-2.5-pro').",
+        examples=["gemini-2.5-pro"],
     )
 
     @field_validator("category")

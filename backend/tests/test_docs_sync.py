@@ -71,6 +71,8 @@ def check_docs_sync(modified_files: list[str], bypass: bool = False) -> tuple[bo
         "evals/runner.py",
         "evals/analyze.py",
         "evals/run_pipeline.py",
+        "evals/generate_model_matrix.py",
+        "evals/pairwise_judge.py",
     )
 
     doc_file_patterns = (
