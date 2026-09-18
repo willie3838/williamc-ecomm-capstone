@@ -361,11 +361,8 @@ def run_benchmark(
     target_citation: float = 0.95,
     target_latency: float = 3.0,
     target_schema: float = 1.00,
-<<<<<<< HEAD
-    use_adk_runner: bool = False,
-=======
     target_trajectory: float = 1.00,
->>>>>>> main
+    use_adk_runner: bool = False,
 ) -> dict[str, Any]:
     with open(dataset_path, encoding="utf-8") as f:
         raw_data = json.load(f)
@@ -466,7 +463,9 @@ def run_benchmark(
             with TrajectoryRecorder() as recorder:
                 if live:
                     if use_adk_runner:
-                        response = orchestrator.execute_with_adk_runner(query=query, category=case_cat)
+                        response = orchestrator.execute_with_adk_runner(
+                            query=query, category=case_cat
+                        )
                     else:
                         response = orchestrator.compare(query=query, category=case_cat)
                 else:
@@ -884,11 +883,8 @@ def main() -> None:
         target_citation=args.target_citation,
         target_latency=args.target_latency,
         target_schema=args.target_schema,
-<<<<<<< HEAD
-        use_adk_runner=args.use_adk_runner,
-=======
         target_trajectory=args.target_trajectory,
->>>>>>> main
+        use_adk_runner=args.use_adk_runner,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

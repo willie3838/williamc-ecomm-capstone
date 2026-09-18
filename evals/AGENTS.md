@@ -136,7 +136,6 @@ python3 -m evals.anti_overfitting_gate \
 
 ---
 
-<<<<<<< HEAD
 ## 4. Tool Trajectory Grader & Sequence Validation
 
 The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool executions:
@@ -151,9 +150,6 @@ The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool execut
 ---
 
 ## 5. Continuous Hillclimbing Rule
-=======
-## 4. Continuous Hillclimbing Rule
->>>>>>> main
 
 Whenever improving prompts, tool definitions, or response formatting:
 1. First run the baseline eval runner and record metrics.
