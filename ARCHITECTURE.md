@@ -449,7 +449,9 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 ## 8. CI/CD Pipeline & Quality Engineering
 
 ### 8.1 Cloud Build CI & Cloud Deploy CD Architecture
-Automated on every Git push to the `main` branch of [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
+Automated via two Google Cloud Build GitHub App triggers (`enable_cloudbuild_triggers = true`) using Bring-Your-Own-Service-Account (`BYOSA`: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`) on [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
+- **`pr-quality-gate`** (`deployment/cloudbuild-pr.yaml`): Triggered automatically on every Pull Request targeting `main`.
+- **`main-deploy-pipeline`** (`deployment/cloudbuild.yaml`): Triggered automatically on every Git push/merge to the `main` branch:
 
 ```mermaid
 flowchart LR

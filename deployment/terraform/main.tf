@@ -14,6 +14,7 @@ resource "google_project_service" "required_apis" {
     "cloudscheduler.googleapis.com",
     "firestore.googleapis.com",
     "clouddeploy.googleapis.com",
+    "secretmanager.googleapis.com",
   ])
 
   project            = var.project_id
