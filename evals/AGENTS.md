@@ -10,7 +10,7 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
 ├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, trajectory)
-├── runner.py                  # Hermetic in-memory SQL evaluation runner
+├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
 ├── analyze.py                 # Report analysis and metric visualization
 ├── dataset/
 │   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet

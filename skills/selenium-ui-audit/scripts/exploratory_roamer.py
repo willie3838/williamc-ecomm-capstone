@@ -74,18 +74,31 @@ HUMAN_SCENARIOS = [
 ]
 
 
+import json
+
+
 class ExploratoryRoamer:
-    def __init__(self, port: int, repo_dir: Path, output_dir: Path, visible: bool = False, skip_server: bool = False):
+    def __init__(
+        self,
+        port: int,
+        repo_dir: Path,
+        output_dir: Path,
+        visible: bool = False,
+        skip_server: bool = False,
+        scenarios: list[dict] | None = None,
+    ):
         self.port = port
         self.repo_dir = repo_dir
         self.output_dir = output_dir
         self.screenshots_dir = output_dir / "screenshots" / "exploratory"
         self.visible = visible
         self.skip_server = skip_server
+        self.scenarios = scenarios or HUMAN_SCENARIOS
         self.server_proc = None
         self.driver = None
         self.observations = []
 
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
 
     def log(self, msg: str):
@@ -104,8 +117,10 @@ class ExploratoryRoamer:
             "run",
             "uvicorn",
             "app.main:app",
-            "--host", "127.0.0.1",
-            "--port", str(self.port)
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.port),
         ]
         self.server_proc = subprocess.Popen(
             cmd,
@@ -113,7 +128,7 @@ class ExploratoryRoamer:
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
         )
 
         for _ in range(30):
@@ -132,6 +147,7 @@ class ExploratoryRoamer:
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1440,1100")
+        options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
         self.driver = webdriver.Chrome(options=options)
         self.driver.set_page_load_timeout(25)
 
@@ -139,10 +155,10 @@ class ExploratoryRoamer:
         base_url = f"http://127.0.0.1:{self.port}/"
         wait = WebDriverWait(self.driver, 20)
 
-        for scenario in HUMAN_SCENARIOS:
-            sc_id = scenario["id"]
+        for scenario in self.scenarios:
+            sc_id = scenario.get("id", "custom_probe")
             query = scenario["query"]
-            category = scenario["category"]
+            category = scenario.get("category", "Agent Custom Probe")
             self.log(f"\n--- Running Scenario [{category}]: '{query}' ---")
 
             self.driver.get(base_url)
@@ -150,176 +166,134 @@ class ExploratoryRoamer:
 
             try:
                 search_input = wait.until(
-                    EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Natural language product comparison query']"))
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//input[@aria-label='Natural language product comparison query']")
+                    )
                 )
                 search_input.click()
                 search_input.send_keys(Keys.CONTROL + "a")
                 search_input.send_keys(Keys.BACKSPACE)
                 search_input.send_keys(query)
-                time.sleep(0.3)
+                time.sleep(0.2)
 
+                t0 = time.perf_counter()
                 submit_button = self.driver.find_element(By.XPATH, "//button[@type='submit']")
                 submit_button.click()
 
-                # Wait for loading state to engage, then wait for results to arrive
-                time.sleep(0.5)
+                # Wait for loading state to engage and complete
+                time.sleep(0.4)
                 wait.until(
-                    EC.presence_of_element_located((By.XPATH, "//button[@type='submit' and not(contains(., 'Comparing...'))]"))
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//button[@type='submit' and not(contains(., 'Comparing...'))]")
+                    )
                 )
-                time.sleep(1.0)
+                latency_ms = round((time.perf_counter() - t0) * 1000.0, 1)
+                time.sleep(0.6)
 
                 screenshot_file = self.screenshots_dir / f"exploratory_{sc_id}.png"
                 self.driver.save_screenshot(str(screenshot_file))
-                self.log(f"Saved snapshot: {screenshot_file.name}")
 
-                # Analyze UI elements present
+                # 1. Deterministic DOM & Layout Geometry Telemetry
+                layout_metrics = self.driver.execute_script(
+                    """
+                    const doc = document.documentElement;
+                    return {
+                        viewport_width: doc.clientWidth,
+                        scroll_width: doc.scrollWidth,
+                        has_horizontal_overflow: doc.scrollWidth > doc.clientWidth + 4
+                    };
+                    """
+                )
+                browser_logs = self.driver.get_log("browser") if self.driver else []
+                severe_console_errors = [
+                    entry.get("message", "")
+                    for entry in browser_logs
+                    if entry.get("level") == "SEVERE"
+                ]
+
+                # 2. Extract Live Rendered DOM Interface State for Agent Evaluation
                 body_text = self.driver.find_element(By.TAG_NAME, "body").text
-                has_zero_results = "Comparing 0 products" in body_text or "No Matching Electronics" in body_text
-                has_products = "Compared Products" in body_text
+                has_products_section = "Compared Products" in body_text
                 has_matrix = "Side-by-Side Specification Matrix" in body_text
-                has_guidance = "No Matching Electronics Found" in body_text or "Try searching for" in body_text
+                has_empty_state_guidance = (
+                    "No Matching Electronics" in body_text
+                    or "No matching products found" in body_text
+                    or "Try searching for" in body_text
+                )
 
-                # Extract rendered product titles from Compared Products cards
                 rendered_card_elements = self.driver.find_elements(
                     By.XPATH, "//div[contains(text(), 'Compared Products')]/following-sibling::div//h3"
                 )
                 if not rendered_card_elements:
                     rendered_card_elements = [
-                        el for el in self.driver.find_elements(By.XPATH, "//h3[contains(@class, 'font-semibold')]")
+                        el
+                        for el in self.driver.find_elements(By.XPATH, "//h3[contains(@class, 'font-semibold')]")
                         if not any(header in el.text for header in ["Matrix", "Matching", "Recommendation", "Summary"])
                     ]
-                rendered_titles = [el.text.lower() for el in rendered_card_elements if el.text.strip()]
+                rendered_titles = [el.text.strip() for el in rendered_card_elements if el.text.strip()]
 
-                # General Quality Heuristic 1: Formatting check on narrative cards
+                sku_elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'SKU:')]")
+                rendered_skus = list({el.text.strip() for el in sku_elements if el.text.strip()})[:15]
+
                 rec_elements = self.driver.find_elements(By.XPATH, "//div[contains(text(), 'AI Comparison Summary')]/..")
-                has_structured_formatting = False
-                has_raw_markdown = False
-                if rec_elements:
-                    rec_text = rec_elements[0].text
-                    has_raw_markdown = "\n- " in rec_text or "**" in rec_text
-                    list_items = rec_elements[0].find_elements(By.TAG_NAME, "li")
-                    has_structured_formatting = len(list_items) >= 1 or "SKU:" in rec_text
+                ai_summary_text = rec_elements[0].text.strip() if rec_elements else ""
+                has_unrendered_markdown = ("\n- " in ai_summary_text) or ("**" in ai_summary_text)
 
-                # General Quality Heuristic 2: Contextual Semantic Relevance against User Query
-                query_tokens = set(re.findall(r"[a-z0-9]+", query.lower())) - {
-                    "compare", "and", "vs", "versus", "tell", "about", "what", "is", "the", "on", "for", "me", "in"
-                }
-                relevant_products_count = 0
-                for title in rendered_titles:
-                    title_tokens = set(re.findall(r"[a-z0-9]+", title))
-                    if len(query_tokens & title_tokens) > 0:
-                        relevant_products_count += 1
-
-                evaluation = ""
-                suggestion = ""
-                status = "PENDING REVIEW"
-
-                # Universal Heuristic Evaluation per Scenario
-                if sc_id in ["absurd_supercars", "non_electronics_food"]:
-                    if has_guidance and not has_products:
-                        evaluation = "Clean, pleasant empty state! Properly avoided rendering blank table headers."
-                        suggestion = "Current UX handles out-of-catalog queries gracefully with 1-click sample comparison pills."
-                    else:
-                        evaluation = "Friction detected: Rendered empty 'Compared Products' headers without products."
-                        suggestion = "Hide compared products headers when 0 products match."
-
-                elif sc_id == "single_product_inquiry":
-                    if has_raw_markdown:
-                        evaluation = "Unformatted text: AI summary contained unrendered markdown tokens."
-                        suggestion = "Render structured bullet lists with styled category pill badges."
-                        status = "NEEDS POLISH"
-                    elif len(rendered_titles) > 0 and relevant_products_count == len(rendered_titles):
-                        evaluation = "High relevance: All returned products strictly match user inquiry without cross-category noise."
-                        suggestion = "Consider adding an interactive 'Add Product' search pill to compare against."
-                    elif len(rendered_titles) > 0 and relevant_products_count < len(rendered_titles):
-                        evaluation = f"Intent bleed detected: {len(rendered_titles) - relevant_products_count} unrelated items returned."
-                        suggestion = "Enforce query-anchored LLM reranking to discard non-matching categories."
-                        status = "BUG DETECTED"
-                    else:
-                        evaluation = "Single product guidance displayed cleanly."
-                        suggestion = "Provide a 1-click prompt: 'Add 1 more item to compare side-by-side'."
-
-                elif sc_id == "casual_typos":
-                    if has_matrix and relevant_products_count >= 1:
-                        evaluation = "Excellent resilience! Successfully matched catalog models despite colloquial typos."
-                        suggestion = "Consider displaying 'Showing results for: MacBook Air M3 vs Dell XPS 13' chip."
-                    else:
-                        evaluation = "Typo was not recognized."
-                        suggestion = "Add Levenshtein/fuzzy expansion to token extraction."
-
-                elif sc_id == "prompt_injection_chitchat":
-                    if "No matching products found" in body_text or "No Matching Electronics" in body_text:
-                        evaluation = "Completely secure: Did not obey jailbreak instructions; treated as catalog lookup."
-                        suggestion = "Maintain strict SQL parameterization and system instructions."
-
-                elif sc_id == "budget_query":
-                    if has_matrix or has_products:
-                        evaluation = "Found catalog items within budget range."
-                        suggestion = "Add price slider filter UI for explicit budget constraints."
-                    else:
-                        evaluation = "Budget-only query returned no exact model matches."
-                        suggestion = "Support natural language price filter extraction (e.g. max_price=1200)."
-
-                self.observations.append({
+                obs_entry = {
                     "scenario": scenario,
-                    "screenshot": screenshot_file.name,
-                    "evaluation": evaluation,
-                    "suggestion": suggestion,
-                    "status": status
-                })
+                    "latency_ms": latency_ms,
+                    "dom_mechanics": {
+                        "has_horizontal_overflow": bool(layout_metrics.get("has_horizontal_overflow")),
+                        "severe_console_errors": severe_console_errors,
+                        "has_unrendered_markdown_tokens": has_unrendered_markdown,
+                        "has_products_section": has_products_section,
+                        "has_spec_matrix": has_matrix,
+                        "has_empty_state_guidance": has_empty_state_guidance,
+                    },
+                    "rendered_dom_content": {
+                        "product_card_titles": rendered_titles,
+                        "sku_citations": rendered_skus,
+                        "ai_comparison_summary": ai_summary_text,
+                        "body_excerpt": body_text[:800],
+                    },
+                    "screenshot_artifact": str(screenshot_file.relative_to(self.repo_dir)),
+                }
+                self.observations.append(obs_entry)
+
+                # Print structured DOM state directly to stdout so the LLM agent on the harness has immediate access
+                self.log(
+                    f"DOM State [{sc_id}] ({latency_ms}ms) | Cards={rendered_titles} | "
+                    f"Matrix={has_matrix} | EmptyGuidance={has_empty_state_guidance} | "
+                    f"Overflow={layout_metrics.get('has_horizontal_overflow')} | "
+                    f"ConsoleErrors={len(severe_console_errors)}"
+                )
+                if ai_summary_text:
+                    self.log(f"Rendered AI Summary [{sc_id}]: {ai_summary_text[:300]}...")
 
             except Exception as e:
                 self.log(f"Scenario failed with exception: {e}")
                 self.observations.append({
                     "scenario": scenario,
-                    "screenshot": "error",
-                    "evaluation": f"Test run error: {e}",
-                    "suggestion": "Investigate frontend timeout or uncaught error.",
-                    "status": "ERROR"
+                    "error": str(e),
+                    "dom_mechanics": {"exception": True},
+                    "rendered_dom_content": {},
                 })
 
-    def generate_suggestions_report(self) -> Path:
-        report_file = self.output_dir / "exploratory_suggestions.md"
-        self.log(f"Writing exploratory suggestions report to {report_file}...")
-
-        lines = [
-            "# Autonomous Exploratory UX & Human Behavior Audit",
-            "",
-            f"**Audit Date**: `{time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}`  ",
-            "**Purpose**: Stress-test realistic human behaviors (absurd queries, typos, non-electronics, single items, conversational inputs) and catalog usability frictions for human review.",
-            "",
-            "## Executive Summary",
-            f"Evaluated `{len(self.observations)}` distinct human interaction scenarios. The report catalogs user friction points and feature enhancement ideas for manual engineering review.",
-            "",
-            "---",
-            "",
-            "## Scenario Observations & Actionable Recommendations",
-            ""
-        ]
-
-        for idx, obs in enumerate(self.observations, 1):
-            sc = obs["scenario"]
-            lines.extend([
-                f"### {idx}. [{obs['status']}] {sc['category']}",
-                f"- **User Query Tested**: `\"{sc['query']}\"`",
-                f"- **Behavior Context**: {sc['description']}",
-                f"- **UX Evaluation**: {obs['evaluation']}",
-                f"- **Actionable Recommendation**: {obs['suggestion']}",
-                f"- **Visual Snapshot**: `screenshots/exploratory/{obs['screenshot']}`",
-                "",
-                "```yaml",
-                f"status: {obs['status']}",
-                "priority: Medium",
-                "reviewed_by: human_pending",
-                "action: [ACCEPT / REJECT / DEFER]",
-                "```",
-                "",
-                "---",
-                ""
-            ])
-
-        report_file.write_text("\n".join(lines))
-        return report_file
+    def export_dom_evidence(self) -> Path:
+        evidence_file = self.output_dir / "exploratory_dom_evidence.json"
+        payload = {
+            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "evaluator_note": (
+                "Deterministic DOM mechanics and live rendered interface text extracted by Selenium. "
+                "Semantic relevance and qualitative UX critique MUST be evaluated by the Argon LLM agent "
+                "reading this rendered DOM state rather than Python string heuristics."
+            ),
+            "scenarios_tested": len(self.observations),
+            "observations": self.observations,
+        }
+        evidence_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        self.log(f"Exported live DOM evidence for LLM agent evaluation to: {evidence_file}")
+        return evidence_file
 
     def cleanup(self):
         if self.driver:
@@ -329,33 +303,62 @@ class ExploratoryRoamer:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Exploratory UX Roamer for Best Buy App")
+    parser = argparse.ArgumentParser(
+        description="Selenium DOM Roamer & Evidence Collector (delegates qualitative UX/semantic evaluation to Argon)"
+    )
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--skip-server", action="store_true")
     parser.add_argument("--visible", action="store_true")
     parser.add_argument("--output-dir", type=str, default=None)
+    parser.add_argument(
+        "--query",
+        type=str,
+        default=None,
+        help="Optional single custom query from the LLM agent to test interactively against the live DOM",
+    )
+    parser.add_argument(
+        "--scenarios-json",
+        type=str,
+        default=None,
+        help="Optional path to a JSON file of custom scenarios authored by the LLM agent",
+    )
 
     args = parser.parse_args()
     repo_dir = Path("/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone")
     output_dir = Path(args.output_dir) if args.output_dir else repo_dir / "reports" / "ui-audit"
+
+    scenarios = HUMAN_SCENARIOS
+    if args.query:
+        scenarios = [
+            {
+                "id": "agent_custom_query",
+                "category": "Agent Interactive Probe",
+                "query": args.query,
+                "description": "Custom interactive query submitted by Argon agent.",
+            }
+        ]
+    elif args.scenarios_json:
+        scenarios = json.loads(Path(args.scenarios_json).read_text(encoding="utf-8"))
 
     roamer = ExploratoryRoamer(
         port=args.port,
         repo_dir=repo_dir,
         output_dir=output_dir,
         visible=args.visible,
-        skip_server=args.skip_server
+        skip_server=args.skip_server,
+        scenarios=scenarios,
     )
 
     try:
         roamer.start_local_server()
         roamer.setup_driver()
         roamer.run_scenarios()
-        report_path = roamer.generate_suggestions_report()
-        roamer.log(f"Exploratory audit complete! Report generated at: {report_path}")
+        evidence_path = roamer.export_dom_evidence()
+        roamer.log(f"DOM extraction complete! Argon agent can inspect rendered DOM state in: {evidence_path}")
     finally:
         roamer.cleanup()
 
 
 if __name__ == "__main__":
     main()
+

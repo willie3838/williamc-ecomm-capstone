@@ -823,6 +823,11 @@ def main() -> int:
         action="store_true",
         help="Do not update the historical progression log",
     )
+    parser.add_argument(
+        "--check-fresh-commit",
+        action="store_true",
+        help="Require that the audited git_commit matches current HEAD (prevents passing stale cached audits)",
+    )
 
     args = parser.parse_args()
 
@@ -930,6 +935,18 @@ def main() -> int:
 
     # Mode 5: Summary / Detailed / Verify of latest audit
     checklist, avg_s1, avg_s2, passed, commit, _timestamp = load_latest_audit(args.log_file)
+    current_commit, _ = get_git_info(args.repo_path)
+    if commit and current_commit != "unknown" and commit != current_commit:
+        msg = (
+            f"[FRESHNESS NOTICE] Latest recorded audit was evaluated on commit `{commit}`, "
+            f"whereas current HEAD is `{current_commit}`. Run `bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh` "
+            f"to trigger a fresh Argon LLM audit on HEAD."
+        )
+        print(msg)
+        if args.check_fresh_commit:
+            print("[ERROR] --check-fresh-commit failed: cached audit does not match HEAD.", file=sys.stderr)
+            return 1
+
     avg_s1, avg_s2, passed, s1_scores, s2_scores = calculate_scores(checklist)
     no_zeros = (0 not in s1_scores) and (0 not in s2_scores)
     all_items = checklist.get("section_1_presentation_and_advisory", []) + checklist.get(
@@ -955,6 +972,7 @@ def main() -> int:
         print(f"Report saved to {args.output}")
 
     return 0 if success else 1
+
 
 
 if __name__ == "__main__":

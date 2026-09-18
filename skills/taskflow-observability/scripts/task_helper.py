@@ -39,9 +39,10 @@ def assign_ticket(issue_id: str, assignee: str = "williamwlchan") -> None:
     print(f"Issue {issue_id} assigned to {assignee}.")
 
 
-def close_ticket(issue_id: str, commit_sha: str) -> None:
-    """Mark issue FIXED with commit comment."""
-    comment = f"Resolved in commit {commit_sha}. Verification suite passing."
+def close_ticket(issue_id: str, commit_sha: str, summary: str | None = None) -> None:
+    """Mark issue FIXED with commit and Argon agent resolution summary."""
+    detail = summary.strip() if summary else "Verification suite passing."
+    comment = f"Resolved in commit {commit_sha}. {detail}"
     print(f"Closing issue {issue_id} with comment: {comment}")
     run_command(["issues", "update", "comments", issue_id, comment])
     run_command(["issues", "update", "status", issue_id, "FIXED"])
@@ -64,6 +65,11 @@ def main() -> None:
     close_parser = subparsers.add_parser("close", help="Close a ticket as FIXED")
     close_parser.add_argument("issue_id", help="Buganizer Issue ID")
     close_parser.add_argument("--commit", required=True, help="Git commit SHA")
+    close_parser.add_argument(
+        "--summary",
+        default=None,
+        help="LLM-authored summary of what was implemented/fixed and verified",
+    )
 
     args = parser.parse_args()
 
@@ -72,8 +78,9 @@ def main() -> None:
     elif args.action == "assign":
         assign_ticket(args.issue_id, args.assignee)
     elif args.action == "close":
-        close_ticket(args.issue_id, args.commit)
+        close_ticket(args.issue_id, args.commit, args.summary)
 
 
 if __name__ == "__main__":
     main()
+

@@ -257,27 +257,31 @@ class UIAuditRunner:
             except Exception as e:
                 self.add_finding("error", "Failed inspecting citation section", str(e))
 
-            # Check AI Recommendation Narrative & Formatting Heuristic
+            # Extract AI Recommendation DOM Text & Check Unrendered Markdown Syntax
             try:
                 rec_card = self.driver.find_element(
                     By.XPATH,
                     "//div[contains(@class, 'RecommendationCard') or .//div[contains(text(), 'AI Comparison Summary')]]",
                 )
-                # General Rule of Thumb 1: Verify output has structured formatting (list items or badges)
                 list_items = rec_card.find_elements(By.TAG_NAME, "li")
                 card_text = rec_card.text
-                
-                # Verify no raw unrendered markdown escape sequences are exposed
+
+                # Deterministic DOM check: ensure no raw unrendered markdown syntax is exposed
                 has_raw_markdown = "\n- " in card_text or "**" in card_text
                 if has_raw_markdown:
                     self.add_finding("warning", "AI Recommendation contains unrendered markdown syntax")
 
                 if len(list_items) >= 2 and not has_raw_markdown or "AI Comparison Summary" in card_text:
-                    self.test_results["AI Recommendation Narrative & Formatting"] = "PASS"
+                    self.test_results["AI Recommendation DOM Structure"] = "PASS"
                 else:
-                    self.add_finding("warning", "AI Recommendation narrative header not found")
+                    self.add_finding("warning", "AI Recommendation DOM container missing expected list items")
+
+                # Store live rendered DOM content for direct semantic evaluation by the Argon LLM agent
+                self.extracted_ai_summary = card_text
+                self.log(f"Extracted Rendered AI Summary DOM Text ({len(card_text)} chars) for Argon evaluation.")
             except Exception as e:
-                self.add_finding("error", "Failed inspecting AI Recommendation narrative formatting", str(e))
+                self.extracted_ai_summary = ""
+                self.add_finding("error", "Failed inspecting AI Recommendation DOM container", str(e))
 
         # 7. Custom Natural Language Search Submission (Headphones)
         self.log("7. Testing custom natural language query submission...")
@@ -377,6 +381,18 @@ class UIAuditRunner:
         ])
 
         report_path.write_text("\n".join(lines))
+
+        json_report_path = self.output_dir / "audit_report.json"
+        json_payload = {
+            "timestamp": timestamp,
+            "status": status_str,
+            "test_results": self.test_results,
+            "findings": self.findings,
+            "rendered_dom_content": {
+                "ai_comparison_summary": getattr(self, "extracted_ai_summary", ""),
+            },
+        }
+        json_report_path.write_text(json.dumps(json_payload, indent=2), encoding="utf-8")
 
         # Append to historical log
         history_entry = f"| `{timestamp}` | **{status_str}** | {len(self.test_results)} | {len(errors)} | {len(warnings)} |\n"
