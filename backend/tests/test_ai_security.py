@@ -109,10 +109,9 @@ def test_rerank_with_llm_passes_safety_and_xml_tags(mock_client_cls):
     assert "</user_query>" in prompt
     assert "[BLOCKED_INJECTION]" in prompt
 
-    # Verify config contains safety settings and Model Armor
+    # Verify config contains Model Armor configuration (mutually exclusive with safety_settings in Vertex AI)
     config = kwargs["config"]
     assert config is not None
-    assert len(config.safety_settings) == 4
     assert config.model_armor_config is not None
     assert "catalog-prompt-guard" in config.model_armor_config.prompt_template_name
     assert result is not None

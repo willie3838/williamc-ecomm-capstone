@@ -93,10 +93,11 @@ backend/
    - Early opinion query gating: Non-comparative rants and opinions are rejected immediately before BigQuery catalog querying to eliminate unnecessary database load and guarantee fast matrix suppression.
    - Products are reranked via pure LLM scoring (relevance threshold >= 6.0).
    - If fewer than 2 relevant products match, `comparison_matrix` MUST be empty (`[]`). No artificial comparison matrices are generated.
-5. **Entity Balancing & SKU Deduplication**:
+5. **Entity Balancing, SKU Deduplication & Analytics Resilience**:
     - `query_catalog` and `CatalogRetrievalAgent` strictly deduplicate catalog results by SKU, preventing duplicate products from appearing in candidate lists.
     - `rank_and_select_products` enforces comparative entity balancing: when a query compares multiple brands (e.g. 'mac vs dell'), candidate selection balances across target brands rather than returning multiple products from the same brand.
     - `AnalyticsService` maintains an in-memory session counter fallback per `session_id`, ensuring session comparison counts reliably increment across queries even if Firestore is offline.
+    - All Firestore network calls in `AnalyticsService` are wrapped in 2.0-second worker thread timeouts to protect API availability, and live cloud calls are bypassed in automated test environments (`PYTEST_CURRENT_TEST`).
 
 ---
 

@@ -1,6 +1,6 @@
-"""Data access layer for Firestore user actions, feedback, session metrics, and BigQuery query telemetry."""
-
+import concurrent.futures
 import logging
+import os
 from datetime import UTC, datetime
 
 from google.cloud import bigquery, firestore
@@ -31,6 +31,8 @@ class AnalyticsService:
             return None
         if self._firestore_client is not None:
             return self._firestore_client
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return None
 
         try:
             self._firestore_client = firestore.Client(project=settings.gcp_project)
@@ -47,6 +49,8 @@ class AnalyticsService:
             return None
         if self._bq_client is not None:
             return self._bq_client
+        if os.getenv("PYTEST_CURRENT_TEST"):
+            return None
 
         try:
             self._bq_client = bigquery.Client(project=settings.gcp_project)
@@ -70,13 +74,20 @@ class AnalyticsService:
 
         if client is not None:
             try:
-                _, doc_ref = client.collection("user_actions").add(doc_data)
+                def _do_add() -> str:
+                    _, doc_ref = client.collection("user_actions").add(doc_data)
+                    return doc_ref.id
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_do_add)
+                    doc_id = future.result(timeout=2.0)
+
                 logger.info(
                     "Recorded user action '%s' in Firestore (doc: %s)",
                     action.action_type,
-                    doc_ref.id,
+                    doc_id,
                 )
-                return doc_ref.id
+                return doc_id
             except Exception as e:
                 logger.warning("Failed to persist user action to Firestore: %s", e)
         else:
@@ -99,11 +110,18 @@ class AnalyticsService:
 
         if client is not None:
             try:
-                _, doc_ref = client.collection("feedback").add(doc_data)
+                def _do_add() -> str:
+                    _, doc_ref = client.collection("feedback").add(doc_data)
+                    return doc_ref.id
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_do_add)
+                    doc_id = future.result(timeout=2.0)
+
                 logger.info(
-                    "Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_ref.id
+                    "Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_id
                 )
-                return doc_ref.id
+                return doc_id
             except Exception as e:
                 logger.warning("Failed to persist feedback to Firestore: %s", e)
         else:
@@ -118,32 +136,34 @@ class AnalyticsService:
 
         if client is not None:
             try:
-                doc_ref = client.collection("sessions").document(session_id)
-                doc = doc_ref.get(timeout=2.0)
-                if doc.exists:
-                    doc_ref.update(
-                        {
-                            "comparison_count": firestore.Increment(1),
-                            "last_seen": now_iso,
-                        },
-                        timeout=2.0,
-                    )
-                    updated = doc_ref.get(timeout=2.0)
-                    count = int(updated.get("comparison_count") or 1)
+                def _do_increment() -> int:
+                    doc_ref = client.collection("sessions").document(session_id)
+                    doc = doc_ref.get()
+                    if doc.exists:
+                        doc_ref.update(
+                            {
+                                "comparison_count": firestore.Increment(1),
+                                "last_seen": now_iso,
+                            }
+                        )
+                        updated = doc_ref.get()
+                        return int(updated.get("comparison_count") or 1)
+                    else:
+                        doc_ref.set(
+                            {
+                                "session_id": session_id,
+                                "comparison_count": 1,
+                                "first_seen": now_iso,
+                                "last_seen": now_iso,
+                            }
+                        )
+                        return 1
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_do_increment)
+                    count = future.result(timeout=2.0)
                     self._local_session_counts[session_id] = count
                     return count
-                else:
-                    doc_ref.set(
-                        {
-                            "session_id": session_id,
-                            "comparison_count": 1,
-                            "first_seen": now_iso,
-                            "last_seen": now_iso,
-                        },
-                        timeout=2.0,
-                    )
-                    self._local_session_counts[session_id] = 1
-                    return 1
             except Exception as e:
                 logger.warning("Failed to update session counter in Firestore: %s", e)
 

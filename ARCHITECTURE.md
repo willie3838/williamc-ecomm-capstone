@@ -207,7 +207,7 @@ class QueryIntentAnalysis(BaseModel):
 To guarantee diverse and accurate comparisons across competing brands (e.g., `Mac vs Dell`, `Bose vs Sony`):
 1. **Catalog SKU Deduplication**: Both BigQuery retrieval (`query_catalog`) and `CatalogRetrievalAgent` enforce primary key SKU deduplication via `seen_skus`, preventing duplicate catalog records from corrupting candidate pools.
 2. **Comparative Entity Balancing**: When a customer query compares two distinct brands or entities (`mac vs dell`), `rank_and_select_products` balances candidate selection by picking the highest-scoring candidate from Brand A and the highest-scoring candidate from Brand B. This strictly eliminates the failure mode where two identical or same-brand models are selected for cross-brand comparisons.
-3. **Session Counter In-Memory Fallback**: `AnalyticsService` tracks comparison counters per `session_id` in Firestore (`sessions` collection) with an automatic in-memory fallback dictionary. This ensures session telemetry reliably increments (`1, 2, 3...`) across consecutive queries even during local offline execution or transient network disruptions.
+3. **Session Counter & Analytics Resilience**: `AnalyticsService` tracks comparison counters per `session_id` in Firestore (`sessions` collection) with an automatic in-memory fallback dictionary. All Firestore network calls (`add`, `get`, `set`, `update`) are bounded by 2.0-second timeouts executed via worker threads to prevent hanging during transient disruptions or missing database backends. In automated test environments (`PYTEST_CURRENT_TEST`), live cloud network calls are skipped in favor of mocked/in-memory handling to guarantee sub-second hermetic execution.
 
 ---
 
