@@ -25,7 +25,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt ruff pytest pytest-cov
+          pip install -r backend/requirements.txt google-adk ruff pytest pytest-cov
 
       - name: Run Documentation Synchronization Gate
         run: |
@@ -34,3 +34,24 @@ jobs:
       - name: Run Backend Unit & Entity Balancing Tests
         run: |
           PYTHONPATH=. pytest backend/tests/test_ci_pipeline.py backend/tests/test_entity_balancing.py -v --no-cov
+
+      - name: Run ADK Simple Case & Quality Flywheel Regression Gate (runner.py + analyze.py)
+        run: |
+          mkdir -p reports
+          echo "=== 1. ADK Conformance & Simple EvalSet (test_eval_adk.py) ==="
+          PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv --no-cov
+          echo "=== 2. Simple Fixture Smoke Eval (evals/runner.py) ==="
+          PYTHONPATH=backend/src python evals/runner.py \
+            --dataset evals/dataset/fixtures/simple_test.evalset.json \
+            --output reports/simple_eval.json \
+            --fail-on-threshold \
+            --trigger-source ci
+          echo "=== 3. Full 80-Pair Benchmark & Regression Gate (runner.py + analyze.py) ==="
+          PYTHONPATH=backend/src python evals/runner.py \
+            --output reports/ci_eval.json \
+            --fail-on-threshold \
+            --trigger-source ci
+          python evals/analyze.py \
+            --current reports/ci_eval.json \
+            --baseline evals/reports/baseline_results.json \
+            --fail-on-regression

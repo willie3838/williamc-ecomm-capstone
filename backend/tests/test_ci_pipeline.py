@@ -120,6 +120,7 @@ def test_cloudbuild_step_sequence_and_ids(cloudbuild_config: dict):
         "lint",
         "unit-tests",
         "adk-eval",
+        "eval-benchmark",
         "build-image",
         "push-image",
         "create-cloud-deploy-release",
@@ -166,11 +167,31 @@ def test_unit_test_step_coverage_gate(cloudbuild_config: dict):
 
 
 def test_adk_eval_step(cloudbuild_config: dict):
-    """Verifies adk-eval step executes pytest on test_eval_adk.py."""
+    """Verifies adk-eval and eval-benchmark steps execute simple_test.evalset.json, runner.py, and analyze.py."""
     adk_step = next((s for s in cloudbuild_config["steps"] if s.get("id") == "adk-eval"), None)
     assert adk_step is not None, "Pipeline must include 'adk-eval' step"
-    args_str = " ".join(adk_step.get("args", []))
-    assert "test_eval_adk.py" in args_str, "adk-eval step must run test_eval_adk.py"
+    adk_args_str = " ".join(adk_step.get("args", []))
+    assert "test_eval_adk.py" in adk_args_str, "adk-eval step must run test_eval_adk.py"
+    assert "simple_test.evalset.json" in adk_args_str, (
+        "adk-eval step must run evals/runner.py on simple_test.evalset.json"
+    )
+
+    bench_step = next(
+        (s for s in cloudbuild_config["steps"] if s.get("id") == "eval-benchmark"), None
+    )
+    assert bench_step is not None, "Pipeline must include 'eval-benchmark' step"
+    bench_args_str = " ".join(bench_step.get("args", []))
+    assert "evals/runner.py" in bench_args_str, "eval-benchmark must run evals/runner.py"
+    assert "--fail-on-threshold" in bench_args_str, (
+        "eval-benchmark must enforce --fail-on-threshold"
+    )
+    assert "evals/analyze.py" in bench_args_str, "eval-benchmark must run evals/analyze.py"
+    assert "evals/reports/baseline_results.json" in bench_args_str, (
+        "eval-benchmark must compare against evals/reports/baseline_results.json"
+    )
+    assert "--fail-on-regression" in bench_args_str, (
+        "eval-benchmark must enforce --fail-on-regression"
+    )
 
 
 # ==============================================================================

@@ -608,13 +608,23 @@ class ComparisonOrchestrator:
     def _balance_entities(
         self, candidates: list[ProductSpec], keywords: list[str]
     ) -> list[ProductSpec]:
-        """Balance candidates across distinct brands when comparative query targets multiple entities."""
+        """Balance candidates across distinct brands when comparative query targets multiple brands."""
         if len(candidates) <= 1:
             return candidates
 
         first_brand = candidates[0].brand.strip().lower()
+        kw_text = " ".join(keywords).lower()
+
         alt_candidate = next(
-            (p for p in candidates[1:] if p.brand.strip().lower() != first_brand),
+            (
+                p
+                for p in candidates[1:]
+                if p.brand.strip().lower() != first_brand
+                and (
+                    p.brand.strip().lower() in kw_text
+                    or any(len(tok) >= 3 and tok in kw_text for tok in p.name.lower().split()[:2])
+                )
+            ),
             None,
         )
         if alt_candidate is not None:
