@@ -9,7 +9,9 @@ Provides production-grade orchestration using ADK's native execution engine:
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from google.adk.runners import InMemoryRunner
@@ -17,7 +19,13 @@ from google.adk.sessions import BaseSessionService, InMemorySessionService
 from google.genai import types
 
 from app.agent.orchestrator import catalog_agent
+from app.config import get_settings
 from app.observability.tracing import get_tracer
+
+_settings = get_settings()
+os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
+os.environ.setdefault("GOOGLE_CLOUD_PROJECT", getattr(_settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"))
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
@@ -100,7 +108,7 @@ async def run_adk_agent(
         ADK Event objects representing tool calls, reasoning steps, and final response.
     """
     active_runner = runner or get_adk_runner()
-    target_session_id = session_id or f"sess_{types.datetime.now().strftime('%Y%m%d%H%M%S')}"
+    target_session_id = session_id or f"sess_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
     # Ensure session exists in the session service
     try:

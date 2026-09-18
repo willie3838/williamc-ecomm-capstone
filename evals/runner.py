@@ -410,11 +410,9 @@ def run_benchmark(
         logger.info("Running in HERMETIC mode with mock BigQuery client from %s", catalog_path)
         from unittest.mock import patch
 
-        mock_genai_cls = MagicMock()
-        mock_genai_cls.return_value.models.generate_content.side_effect = RuntimeError(
-            "Hermetic offline mode"
-        )
-        genai_patcher = patch("google.genai.Client", mock_genai_cls)
+        from app.agent.hermetic_adapter import create_hermetic_genai_client
+
+        genai_patcher = patch("google.genai.Client", return_value=create_hermetic_genai_client())
         genai_patcher.start()
         bq_client = create_hermetic_bq_client(catalog_path)
         orchestrator = ComparisonOrchestrator(bq_client=bq_client)

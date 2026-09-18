@@ -135,6 +135,9 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
    - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
 4. **Traceability**:
    - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
+5. **Google ADK Runner Execution & Robust Keyword Extraction**:
+   - `app.agent.runner` provisions an `InMemoryRunner` with `InMemorySessionService` bound to `catalog_agent`. `ComparisonOrchestrator.execute_with_adk_runner` executes queries through ADK's native runner lifecycle, collecting tool calls (`query_catalog`) and synthesized grounded narrative responses.
+   - `ComparisonOrchestrator.extract_keywords` implements robust brand-agnostic entity parsing that accurately isolates product models from question-colon lead-ins (`Which ... is better: Model A or Model B?`), chip comparison prefixes (`Chip X vs Chip Y: Model A vs Model B`), and trailing spec/attribute comparison phrases without discarding target products.
 
 ---
 

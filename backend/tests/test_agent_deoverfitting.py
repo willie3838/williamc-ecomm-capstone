@@ -149,3 +149,47 @@ class TestAgentDeoverfitting:
         skus = {r["sku"] for r in results}
         assert "9000001" in skus
         assert "9000002" in skus
+
+    def test_extract_keywords_complex_trailing_and_colon_patterns(self):
+        """Verify extract_keywords handles trailing comparison phrases and question-colon formats without dropping entities."""
+        orchestrator = ComparisonOrchestrator(model="gemini-2.5-flash")
+
+        # 1. Trailing comparison & attribute phrases
+        q1 = "MacBook Air 13 M3 vs MacBook Pro 14 M3 Pro display size and memory comparison"
+        kws1 = orchestrator.extract_keywords(q1)
+        assert len(kws1) == 2
+        assert "MacBook Air" in kws1[0]
+        assert "MacBook Pro" in kws1[1]
+
+        q2 = "iPad Pro 11 M4 OLED versus Samsung Galaxy Tab S9 AMOLED screen comparison"
+        kws2 = orchestrator.extract_keywords(q2)
+        assert len(kws2) == 2
+        assert "iPad Pro" in kws2[0]
+        assert "Samsung Galaxy Tab S9" in kws2[1]
+
+        q3 = "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison"
+        kws3 = orchestrator.extract_keywords(q3)
+        assert len(kws3) == 2
+        assert "Sony" in kws3[0]
+        assert "AirPods" in kws3[1]
+
+        # 2. Question prefix with colon-separated choices
+        q4 = "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?"
+        kws4 = orchestrator.extract_keywords(q4)
+        assert len(kws4) == 2
+        assert "LG C3" in kws4[0]
+        assert "Samsung S90C" in kws4[1]
+
+        q5 = "Which 65-inch OLED TV is cheaper: LG C3 or Samsung S90C?"
+        kws5 = orchestrator.extract_keywords(q5)
+        assert len(kws5) == 2
+        assert "LG C3" in kws5[0]
+        assert "Samsung S90C" in kws5[1]
+
+        # 3. Specification lead-in with colon-separated target models
+        q6 = "Apple M4 chip vs Snapdragon 8 Gen 2: iPad Pro 11 vs Galaxy Tab S9"
+        kws6 = orchestrator.extract_keywords(q6)
+        assert len(kws6) == 2
+        assert "iPad Pro" in kws6[0]
+        assert "Galaxy Tab S9" in kws6[1]
+

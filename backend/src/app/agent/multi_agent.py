@@ -86,38 +86,14 @@ class QueryIntentAgent:
             span.set_attribute("agent.detected_intent", state.intent_type)
             span.set_attribute("agent.is_comparison_eligible", state.is_comparison_eligible)
 
-            # Assign category: prioritize LLM detection, fall back to keyword heuristic if None
-            if intent_analysis.detected_category:
-                state.detected_category = intent_analysis.detected_category
-            else:
-                lower_q = state.sanitized_query.lower()
-                import re
+            # Assign category and keywords directly from LLM QueryIntentAnalysis
+            state.detected_category = intent_analysis.detected_category
+            state.target_keywords = (
+                intent_analysis.target_keywords
+                if intent_analysis.target_keywords
+                else orchestrator.extract_keywords(state.sanitized_query)
+            )
 
-                if re.search(
-                    r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?|macbooks?|xps|thinkpads?)\b",
-                    lower_q,
-                ):
-                    state.detected_category = "Laptops"
-                elif re.search(r"\b(?:tablets?|e-?readers?|ipads?|galaxy\s*tabs?)\b", lower_q):
-                    state.detected_category = "Tablets"
-                elif re.search(
-                    r"\b(?:headphones?|earbuds?|earphones?|headsets?|airpods?|quietcomfort|wh-?1000\w*)\b",
-                    lower_q,
-                ):
-                    state.detected_category = "Headphones"
-                elif re.search(
-                    r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?|nest)\b",
-                    lower_q,
-                ):
-                    state.detected_category = "Smart Home"
-                elif re.search(r"\b(?:tvs?|televisions?|oled|qled|c3|c4|s90c|s95c)\b", lower_q):
-                    state.detected_category = "TVs"
-
-            # Assign keywords: prioritize LLM target keywords, fall back to token extraction
-            if intent_analysis.target_keywords:
-                state.target_keywords = intent_analysis.target_keywords
-            else:
-                state.target_keywords = orchestrator.extract_keywords(state.sanitized_query)
 
             state.step_history.append(
                 {
@@ -362,16 +338,17 @@ class SpecComparisonAgent:
 
             # Comparison is approved and 2+ products are verified relevant
             matrix = self.orchestrator.build_comparison_matrix(state.ranked_products)
-            summary = self.orchestrator.synthesize_summary(
-                state.ranked_products, matrix, synthesis_model=active_synthesis
-            )
-            recommendations = self.orchestrator.generate_recommendations(
-                state.ranked_products, synthesis_model=active_synthesis
+            summary, recommendations = self.orchestrator.synthesize_comparison_with_llm(
+                state.ranked_products,
+                matrix,
+                query=state.sanitized_query,
+                model=active_synthesis,
             )
             citations = [
                 Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
                 for p in state.ranked_products
             ]
+
 
             state.comparison_response = CompareResponse(
                 summary=summary,

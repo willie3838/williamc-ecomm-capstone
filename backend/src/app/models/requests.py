@@ -99,3 +99,17 @@ class QueryIntentAnalysis(BaseModel):
         default="",
         description="Reasoning explaining intent classification and eligibility verdict",
     )
+
+
+class ComparisonSynthesis(BaseModel):
+    """Structured response schema for LLM comparison narrative synthesis and persona recommendations."""
+
+    summary: str = Field(
+        ...,
+        description="Comprehensive grounded narrative comparing the products across key features, strictly citing [SKU: <sku>].",
+    )
+    recommendations: str | None = Field(
+        default=None,
+        description="Optional tailored buying guidance explaining which product to choose based on user persona or priority use cases, strictly citing [SKU: <sku>].",
+    )
+
