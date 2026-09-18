@@ -203,3 +203,204 @@ def test_get_git_info() -> None:
     commit, branch = get_git_info(REPO_ROOT)
     assert len(commit) > 0
     assert len(branch) > 0
+
+
+def test_checklist_has_expert_score_3_criteria_and_disqualifiers() -> None:
+    """Verify rubric_checklist.json defines explicit Score 3 expert criteria and disqualifiers."""
+    with open(CHECKLIST_PATH, encoding="utf-8") as f:
+        checklist = json.load(f)
+
+    all_items = checklist.get("section_1_presentation_and_advisory", []) + checklist.get(
+        "section_2_engineering_excellence", []
+    )
+    assert len(all_items) == 37
+    for item in all_items:
+        assert "score_3_expert_criteria" in item, f"Missing score_3_expert_criteria in {item['id']}"
+        assert len(item["score_3_expert_criteria"]) > 20
+        assert "score_3_disqualifiers" in item, f"Missing score_3_disqualifiers in {item['id']}"
+        assert isinstance(item["score_3_disqualifiers"], list)
+        assert len(item["score_3_disqualifiers"]) >= 1
+
+
+def test_apply_strict_expert_calibration_downgrades_inflated_scores() -> None:
+    """Verify that apply_strict_expert_calibration harshly downgrades undeserved Score 3s."""
+    from audit_rubric import apply_strict_expert_calibration
+
+    inflated_payload = {
+        "section_1_presentation_and_advisory": [
+            {
+                "id": f"s1_0{i}",
+                "name": f"P{i}",
+                "score": 3,
+                "evidence": "SPEC.md:1-50; ARCHITECTURE.md:1-40",
+                "successes": "Clear business problem and TCO model comparison.",
+                "failures_and_gaps": "Assumes stable BigQuery on-demand pricing without slot reservation.",
+                "reasoning": "Demonstrates deep executive framing, quantified TCO trade-offs, and persona workflows.",
+            }
+            for i in range(1, 6)
+        ],
+        "section_2_engineering_excellence": [
+            {
+                "id": f"s2_{i:02d}",
+                "name": f"E{i}",
+                "score": 3,
+                # s2_01 has ONLY markdown evidence -> must be downgraded from 3!
+                "evidence": "SPEC.md:10-20"
+                if i == 1
+                else "backend/src/app/main.py:1-50; backend/tests/test_compare_api.py:1-30",
+                "successes": "Implemented endpoint and schema."
+                if i != 2
+                else "Good implementation.",
+                # s2_02 has empty/sycophantic failures_and_gaps ("None") -> must be downgraded to 2!
+                "failures_and_gaps": "None"
+                if i == 2
+                else "Does not handle cross-region BigQuery dataset replication failover.",
+                # s2_03 cites a non-existent file -> must be downgraded!
+                "reasoning": "Short"
+                if i == 3
+                else "Expert implementation with verified unit tests, edge-case handling, and failure mode coverage.",
+            }
+            for i in range(1, 33)
+        ],
+    }
+    inflated_payload["section_2_engineering_excellence"][2]["evidence"] = (
+        "non_existent_dir/fake_file.py:10-20"
+    )
+
+    calibrated, downgrades = apply_strict_expert_calibration(inflated_payload, REPO_ROOT)
+    s2_map = {item["id"]: item for item in calibrated["section_2_engineering_excellence"]}
+
+    # s2_01 (docs-only evidence for engineering competency) downgraded to <= 1
+    assert s2_map["s2_01"]["score"] <= 1
+    # s2_02 (claimed "None" for failures_and_gaps) downgraded from 3 to 2
+    assert s2_map["s2_02"]["score"] == 2
+    # s2_03 (non-existent file + shallow reasoning) downgraded from 3
+    assert s2_map["s2_03"]["score"] < 3
+    # s2_04 (valid code + test evidence + real failure analysis + deep reasoning) keeps 3
+    assert s2_map["s2_04"]["score"] == 3
+    assert len(downgrades) >= 3
+
+
+def test_synthesize_panel_deliberation_adversarial_consensus(tmp_path: Path) -> None:
+    """Verify multi-panelist synthesis takes adversarial min-consensus and records successes/failures."""
+    from audit_rubric import synthesize_panel_deliberation
+
+    panel_dir = tmp_path / "panel_deliberation"
+    panel_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create 2 panelist payloads where Panelist 1 scores s2_01 as 3, but Panelist 2 spots a flaw and scores s2_01 as 2
+    def make_panelist_payload(s2_01_score: int, gap_note: str) -> dict:
+        return {
+            "panelist_role": "Panelist",
+            "section_1_presentation_and_advisory": [
+                {
+                    "id": f"s1_0{i}",
+                    "name": f"P{i}",
+                    "score": 2,
+                    "evidence": "SPEC.md:1-30; ARCHITECTURE.md:1-30",
+                    "successes": "Solid persona alignment.",
+                    "failures_and_gaps": "Missing multi-year enterprise discount modeling.",
+                    "reasoning": "Meets Field-Ready FDE expectations with solid TCO analysis.",
+                }
+                for i in range(1, 6)
+            ],
+            "section_2_engineering_excellence": [
+                {
+                    "id": f"s2_{i:02d}",
+                    "name": f"E{i}",
+                    "score": s2_01_score if i == 1 else 2,
+                    "evidence": "backend/src/app/main.py:1-50; backend/tests/test_compare_api.py:1-40",
+                    "successes": "Clean ADK agent routing and Pydantic validation.",
+                    "failures_and_gaps": gap_note,
+                    "reasoning": "Evaluated implementation and edge cases against production standards.",
+                }
+                for i in range(1, 33)
+            ],
+        }
+
+    (panel_dir / "panelist_ai_ml.json").write_text(
+        json.dumps(make_panelist_payload(3, "Minor latency variance under cold start.")),
+        encoding="utf-8",
+    )
+    (panel_dir / "panelist_sec_infra.json").write_text(
+        json.dumps(
+            make_panelist_payload(
+                2, "Missing multi-turn session state eviction under memory pressure."
+            )
+        ),
+        encoding="utf-8",
+    )
+    (panel_dir / "discussion_board.md").write_text(
+        "# Panel Deliberation\n- **Successes**: Grounded SKU retrieval.\n- **Failures**: Session state eviction gap in s2_01.\n",
+        encoding="utf-8",
+    )
+
+    consensus = synthesize_panel_deliberation(panel_dir, REPO_ROOT)
+    s2_01 = next(
+        item for item in consensus["section_2_engineering_excellence"] if item["id"] == "s2_01"
+    )
+    # Adversarial min-consensus must adopt Score 2 (not 3) because Panelist 2 identified a flaw
+    assert s2_01["score"] == 2
+    assert "session state eviction" in s2_01["failures_and_gaps"]
+    assert "panel_deliberation_summary" in consensus
+
+
+def test_update_historical_log_does_not_poison_latest_audit_on_tmp_path(tmp_path: Path) -> None:
+    """Verify that passing a custom tmp_path log_file does not overwrite logs/latest_audit.json."""
+    from audit_rubric import LATEST_AUDIT_FILE
+
+    original_bytes = LATEST_AUDIT_FILE.read_bytes() if LATEST_AUDIT_FILE.exists() else None
+    try:
+        dummy_payload = {
+            "section_1_presentation_and_advisory": [
+                {
+                    "id": f"s1_0{i}",
+                    "name": "Dummy",
+                    "score": 1,
+                    "evidence": "SPEC.md",
+                    "reasoning": "Dummy",
+                }
+                for i in range(1, 6)
+            ],
+            "section_2_engineering_excellence": [
+                {
+                    "id": f"s2_{i:02d}",
+                    "name": "Dummy",
+                    "score": 1,
+                    "evidence": "SPEC.md",
+                    "reasoning": "Dummy",
+                }
+                for i in range(1, 33)
+            ],
+        }
+        tmp_log = tmp_path / "custom_history.md"
+        update_historical_log(tmp_log, dummy_payload, 1.0, 1.0, False, REPO_ROOT)
+        if original_bytes is not None:
+            assert LATEST_AUDIT_FILE.read_bytes() == original_bytes
+    finally:
+        if original_bytes is not None:
+            LATEST_AUDIT_FILE.write_bytes(original_bytes)
+
+
+def test_multi_pane_review_panel_configuration_and_prompts(tmp_path: Path) -> None:
+    """Verify panel_prompts.json and launch_review_panel.py role prompt construction."""
+    from launch_review_panel import PANEL_PROMPTS_PATH, build_role_prompt
+
+    assert PANEL_PROMPTS_PATH.exists()
+    cfg = json.loads(PANEL_PROMPTS_PATH.read_text(encoding="utf-8"))
+    roles = cfg.get("roles", [])
+    assert len(roles) == 4
+    role_ids = [r["role_id"] for r in roles]
+    assert role_ids == [
+        "panel_chair",
+        "panelist_ai_ml",
+        "panelist_sec_infra",
+        "panelist_sre_cto",
+    ]
+
+    for role in roles:
+        prompt_text = build_role_prompt(role, REPO_ROOT)
+        assert "MANDATORY GRADING CALIBRATION (HARSH EXPERT STANDARD)" in prompt_text
+        assert "Default Working Code to Score 2 (Competent)" in prompt_text
+        assert "Paper Architecture Disqualifier" in prompt_text
+        assert str(role["persona"]) in prompt_text
