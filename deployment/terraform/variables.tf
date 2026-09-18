@@ -139,7 +139,7 @@ variable "authorized_ip_subnetworks" {
 variable "enable_cloudbuild_triggers" {
   type        = bool
   description = "Whether to create Cloud Build triggers for GitHub PR and push events"
-  default     = false
+  default     = true
 }
 
 variable "github_repo_owner" {
@@ -153,3 +153,17 @@ variable "github_repo_name" {
   description = "Name of the GitHub repository"
   default     = "williamc-ecomm-capstone"
 }
+
+variable "github_pat" {
+  type        = string
+  description = "GitHub OAuth / Personal Access Token for Cloud Build v2 connection"
+  default     = ""
+  sensitive   = true
+}
+
+variable "github_app_installation_id" {
+  type        = number
+  description = "Numeric GitHub App Installation ID for Google Cloud Build"
+  default     = 0
+}
+

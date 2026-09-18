@@ -80,6 +80,20 @@ resource "google_project_iam_member" "sa_clouddeploy_releaser" {
   member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
 
+# Artifact Registry Access: Writer for BYOSA Cloud Build triggers pushing Docker images
+resource "google_project_iam_member" "sa_artifactregistry_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# Service Account User: Allow BYOSA Cloud Build trigger identity to act as runtime SA
+resource "google_service_account_iam_member" "sa_act_as_self" {
+  service_account_id = google_service_account.catalog_agent_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
 resource "google_project_service_identity" "iap_sa" {
   provider = google-beta
