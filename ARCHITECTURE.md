@@ -503,12 +503,28 @@ The system integrates an automated quality flywheel and anti-overfitting gating 
   2. *Counterfactual Spec Mutations*: Perturbed catalog specifications (e.g. promotional discounts, upgraded RAM, altered battery endurance) asserting the agent adheres strictly to retrieved BigQuery tool facts over parametric memory.
   3. *Negative Chatter & Out-of-Scope Queries*: 0-SKU test cases (customer rants, store hours, culinary questions) verifying zero hallucinated products and zero phantom comparison tables.
   4. *Cross-Category & Single-Product Inquiries*: Mismatch detection across divergent categories.
-- **Anti-Overfitting Gate (`evals/anti_overfitting_gate.py`)**:
-  1. **Generalization Gap ($\Delta$)**: $\Delta_{\text{accuracy}} = \max(0.0, \text{Accuracy}_{\text{benchmark}} - \text{Accuracy}_{\text{holdout}}) \le 0.05$ (5% max gap).
-  2. **Holdout Floors**: $\ge 0.95$ Data Accuracy, $\ge 0.90$ Citation Faithfulness, P95 Latency $\le 3.0$s.
-  3. **Counterfactual Spec Fidelity**: $\ge 0.95$ adherence to perturbed catalog specs.
-  4. **Negative Chatter Suppression**: $100.0\%$ suppression of false SKUs on out-of-scope requests.
+- **Evaluation Criteria & SLAs**:
+  1. **Catalog Spec Accuracy**: $\ge 0.98$ (100% agreement between comparison matrix specs and BigQuery ground truth).
+  2. **Citation Faithfulness**: $\ge 0.95$ (every asserted spec links to a valid, verifiable `[SKU: ...]`).
+  3. **Tool Trajectory Quality**: $\ge 1.00$ (golden sequence and parameter matching; rollback threshold $< 0.90$).
+  4. **P95 Latency**: $\le 3.0$ seconds end-to-end.
+  5. **Generalization Gap ($\Delta$)**: $\Delta_{\text{accuracy}} = \max(0.0, \text{Accuracy}_{\text{benchmark}} - \text{Accuracy}_{\text{holdout}}) \le 0.05$ (5% max gap).
+  6. **Counterfactual Spec Fidelity**: $\ge 0.95$ adherence to perturbed catalog specs.
+  7. **Negative Chatter Suppression**: $100.0\%$ suppression of false SKUs on out-of-scope requests.
+  8. **Refusal Robustness**: Graceful handling of out-of-stock, unknown, or adversarial queries.
 - **LLM-as-a-Judge**: Evaluated via Gemini 3.5 Flash scoring script with threshold enforcement before production promotion.
+
+#### 8.2.1 Tool Trajectory Grader (`evals/trajectory_grader.py`)
+To satisfy FDE Rubric Section 2 competencies (`s2_01`, `s2_04`), the evaluation suite includes a production-grade tool trajectory grading engine:
+- **`TrajectoryGrader`**: Assesses actual vs. expected tool call sequences across four configurable match types:
+  - **`EXACT`**: Strict 1:1 sequential alignment and exact argument equality.
+  - **`IN_ORDER`**: Subsequence matching permitting intermediate exploratory queries from `allowed_extra_tools`.
+  - **`ANY_ORDER`**: Set-based match for independent parallel retrieval calls.
+  - **`FUZZY_SEMANTIC`**: Token Jaccard overlap ($\ge 0.50$) and brand name extraction for natural language query variations.
+- **`TrajectoryRecorder`**: Python `contextvars.ContextVar`-backed tracker that transparently intercepts catalog tool calls in thread-safe and async-safe workflows.
+- **`ADKTrajectoryEvaluator`**: Native implementation of `google.adk.evaluation.evaluator.Evaluator`, producing `EvaluationResult`, `PerInvocationResult`, and `RubricScore` instances for direct use in `AgentEvaluator.evaluate()` pipelines.
+- **Regression Analysis (`evals/analyze.py`)**: Computes trajectory deltas between current and baseline runs, flagging regression if score drops exceed tolerance (default: 0.05), and exports markdown summaries.
+- **Telemetry Export**: Automatically appends `adk_tool_trajectory_score` into `catalog_analytics.evaluation_runs` via BigQuery streaming insert.
 
 ---
 

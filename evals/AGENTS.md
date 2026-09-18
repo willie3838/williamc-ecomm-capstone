@@ -10,8 +10,9 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
 ├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, trajectory)
+├── trajectory_grader.py       # Deterministic & semantic tool trajectory grading engine
 ├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
-├── analyze.py                 # Report analysis and metric visualization
+├── analyze.py                 # Report analysis, metric visualization, and trajectory regression checks
 ├── anti_overfitting_gate.py   # Counterfactual Anti-Overfitting Gate & Generalization analyzer
 ├── judge.py                   # Single-response Faithfulness LLM-as-a-Judge
 ├── pairwise_judge.py          # Head-to-head Pairwise Judge with position-bias swap checks
@@ -26,6 +27,7 @@ evals/
 │   ├── data_accuracy.md       # Ground truth accuracy criteria
 │   ├── citation_faithfulness.md # Citation validity criteria
 │   ├── semantic_coherence.md  # Semantic coherence and hallucination criteria
+│   ├── tool_trajectory.md     # Tool trajectory and argument criteria
 │   └── counterfactual_anti_overfitting.md # Anti-overfitting and counterfactual rubric
 └── reports/                   # Output artifacts from eval runs
     ├── model_decision_matrix.json     # Empirical model decision scorecard JSON
@@ -123,7 +125,24 @@ python3 -m evals.anti_overfitting_gate \
 
 ---
 
+<<<<<<< HEAD
+## 4. Tool Trajectory Grader & Sequence Validation
+
+The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool executions:
+- **Match Modes**:
+  - `EXACT`: Verifies identical tool sequence and exact argument equality.
+  - `IN_ORDER`: Ensures all expected tools are called sequentially while allowing benign intermediate retrieval steps.
+  - `ANY_ORDER`: Allows tools to execute in any sequence.
+  - `FUZZY_SEMANTIC`: Validates that `query_catalog` parameters contain the expected brand and model keywords without failing on punctuation or casing nuances.
+- **Sequence Diagnostics**: Automatically flags missing tool calls, unintended tool calls, argument drift, and tool latency.
+- **Benchmark Integration**: Integrated directly into `evals.runner` and `evals.analyze` to compute `mean_tool_trajectory_score` and enforce $\ge 0.95$ gate.
+
+---
+
+## 5. Continuous Hillclimbing Rule
+=======
 ## 4. Continuous Hillclimbing Rule
+>>>>>>> main
 
 Whenever improving prompts, tool definitions, or response formatting:
 1. First run the baseline eval runner and record metrics.

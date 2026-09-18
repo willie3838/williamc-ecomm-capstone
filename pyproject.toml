@@ -14,5 +14,5 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["backend/tests"]
-pythonpath = ["backend/src", "backend"]
+pythonpath = ["backend/src", "backend", "."]
 addopts = "-v"
