@@ -430,6 +430,7 @@ def test_cloudbuild_triggers_configuration():
     # Resources
     assert 'resource "google_cloudbuild_trigger" "pr_trigger"' in content
     assert 'resource "google_cloudbuild_trigger" "main_deploy_trigger"' in content
+    assert 'resource "google_cloudbuild_trigger" "infra_deploy_trigger"' in content
 
     # PR trigger checks
     assert '"deployment/cloudbuild-pr.yaml"' in content
@@ -439,6 +440,10 @@ def test_cloudbuild_triggers_configuration():
     # Main deploy trigger checks
     assert '"deployment/cloudbuild.yaml"' in content
     assert "push {" in content
+
+    # Infra deploy trigger checks (path-filtered)
+    assert '"deployment/cloudbuild-tf.yaml"' in content
+    assert 'included_files = ["deployment/terraform/**"]' in content
 
     # Feature toggle check
     assert "var.enable_cloudbuild_triggers ? 1 : 0" in content

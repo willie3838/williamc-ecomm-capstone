@@ -13,15 +13,25 @@ evals/
 ├── trajectory_grader.py       # Deterministic & semantic tool trajectory grading engine
 ├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
 ├── analyze.py                 # Report analysis, metric visualization, and trajectory regression checks
+├── anti_overfitting_gate.py   # Counterfactual Anti-Overfitting Gate & Generalization analyzer
+├── judge.py                   # Single-response Faithfulness LLM-as-a-Judge
+├── pairwise_judge.py          # Head-to-head Pairwise Judge with position-bias swap checks
+├── generate_model_matrix.py   # Empirical Foundation Model Decision Scorecard generator (ADR-004)
 ├── dataset/
 │   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet
+│   ├── holdout_catalog.evalset.json   # Curated Holdout & Counterfactual ADK EvalSet
 │   ├── benchmark_queries.json # Legacy 80-pair comparison test cases
 │   └── fixtures/
 │       └── simple_test.evalset.json   # 1-case integration fixture for Pytest
 ├── rubrics/
 │   ├── data_accuracy.md       # Ground truth accuracy criteria
-│   └── citation_faithfulness.md # Citation validity criteria
+│   ├── citation_faithfulness.md # Citation validity criteria
+│   ├── semantic_coherence.md  # Semantic coherence and hallucination criteria
+│   ├── tool_trajectory.md     # Tool trajectory and argument criteria
+│   └── counterfactual_anti_overfitting.md # Anti-overfitting and counterfactual rubric
 └── reports/                   # Output artifacts from eval runs
+    ├── model_decision_matrix.json     # Empirical model decision scorecard JSON
+    ├── model_decision_scorecard.md    # Executive Markdown scorecard for ADR-004
     └── .gitkeep
 ```
 
@@ -35,8 +45,12 @@ evals/
 | **Tool Trajectory Quality** | $1.00$ | ADK `tool_trajectory_avg_score` | Validates that `query_catalog` was invoked with correct arguments |
 | **Data Accuracy** | $\ge 0.98$ | Spec matcher against catalog ground truth | $< 0.95$ triggers immediate rollback |
 | **Citation Faithfulness** | $\ge 0.95$ | Inline `[SKU: ...]` citation validator | Hallucinated SKUs score 0.0 |
+| **Generalization Gap ($\Delta$)** | $\le 0.05$ | `evals.anti_overfitting_gate` | Performance drop between benchmark and holdout dataset |
+| **Counterfactual Fidelity** | $\ge 0.95$ | `evals.anti_overfitting_gate` | Factual adherence to perturbed catalog specs over parametric memory |
+| **Negative Query Suppression**| $100.0\%$ | `evals.anti_overfitting_gate` | Asserts 0 hallucinated products/citations on rants/chatter |
 | **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | $> 3.0$s requires optimization |
 | **Structured Output Validity**| $1.00$ | Pydantic `CompareResponse` schema validation | Any validation error is fatal |
+| **Pairwise Synthesis Win Rate**| $\ge 0.85$ | `evals/pairwise_judge.py` (`PairwiseJudgment` schema) | Position-bias-checked head-to-head comparison against baseline models |
 
 ---
 
@@ -73,13 +87,45 @@ adk web backend/src/app/agent
 For instant local iteration without GCP API quota:
 ```bash
 python3 -m evals.runner \
-  --dataset evals/dataset/benchmark_queries.json \
+  --dataset evals/dataset/benchmark_catalog.evalset.json \
   --output evals/reports/eval_results.json
 ```
 
+### F. Candidate Foundation Model Benchmarking & Vertex AI Experiments (`evals/benchmark_models.py`)
+Benchmark candidate foundation models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`) and log experiment runs to Google Cloud Vertex AI Experiments:
+```bash
+python3 -m evals.benchmark_models \
+  --dataset evals/dataset/benchmark_catalog.evalset.json \
+  --output-json evals/reports/model_benchmark_results.json \
+  --output-md evals/reports/model_benchmark_summary.md
+```
+
+### G. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
+Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
+```bash
+# Generate JSON and Markdown Model Decision Scorecard:
+python3 -m evals.generate_model_matrix \
+  --output-json evals/reports/model_decision_matrix.json \
+  --output-md evals/reports/model_decision_scorecard.md
+
+# Execute standalone head-to-head Pairwise Judge check:
+python3 -m evals.pairwise_judge
+```
+
+### H. Counterfactual Anti-Overfitting & Generalization Gate (`evals/anti_overfitting_gate.py`)
+To verify that prompt optimizations do not overfit to the 80 benchmark queries and that the agent adheres strictly to retrieved facts over parametric memory:
+```bash
+# Run both benchmark and holdout evaluations and compute generalization gap:
+python3 -m evals.anti_overfitting_gate \
+  --benchmark-dataset evals/dataset/benchmark_catalog.evalset.json \
+  --holdout-dataset evals/dataset/holdout_catalog.evalset.json \
+  --max-gap 0.05 \
+  --strict
+```
 
 ---
 
+<<<<<<< HEAD
 ## 4. Tool Trajectory Grader & Sequence Validation
 
 The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool executions:
@@ -94,8 +140,11 @@ The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool execut
 ---
 
 ## 5. Continuous Hillclimbing Rule
+=======
+## 4. Continuous Hillclimbing Rule
+>>>>>>> main
 
 Whenever improving prompts, tool definitions, or response formatting:
 1. First run the baseline eval runner and record metrics.
 2. Make code or prompt modifications.
-3. Re-run eval runner. If Data Accuracy or Citation Faithfulness drops by even $0.01$, the change is rejected.
+3. Re-run eval runner and `evals.generate_model_matrix` on both benchmark and holdout datasets via `evals.anti_overfitting_gate`. If Data Accuracy or Citation Faithfulness drops by even $0.01$ or if the generalization gap exceeds $0.05$, the change is rejected.

@@ -64,6 +64,15 @@ def test_evalset_ground_truth_completeness():
     assert simple_eval_set.eval_set_id == "bestbuy_simple_test"
     assert len(simple_eval_set.eval_cases) == 1
 
+    # Verify holdout & counterfactual evalset
+    holdout_path = REPO_ROOT / "dataset" / "holdout_catalog.evalset.json"
+    assert holdout_path.exists(), f"Missing {holdout_path}"
+    with open(holdout_path, encoding="utf-8") as f:
+        holdout_data = json.load(f)
+    holdout_eval_set = EvalSet.model_validate(holdout_data)
+    assert holdout_eval_set.eval_set_id == "bestbuy_catalog_holdout_counterfactual"
+    assert len(holdout_eval_set.eval_cases) >= 25
+
 
 def test_eval_config_schema_validity():
     """Verify that adk_eval_config.json conforms to ADK EvalConfig schema."""

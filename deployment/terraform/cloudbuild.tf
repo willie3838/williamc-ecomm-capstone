@@ -128,6 +128,36 @@ resource "google_cloudbuild_trigger" "main_deploy_trigger" {
   ]
 }
 
+# 7. Dedicated Infrastructure Pipeline Trigger on Push to Main (Runs Terraform Apply ONLY when deployment/terraform/** changes)
+resource "google_cloudbuild_trigger" "infra_deploy_trigger" {
+  count           = var.enable_cloudbuild_triggers && var.github_app_installation_id != 0 ? 1 : 0
+  name            = "infra-deploy-pipeline"
+  description     = "GitOps infrastructure pipeline triggered on push to main when deployment/terraform/** changes"
+  project         = var.project_id
+  location        = var.region
+  service_account = google_service_account.catalog_agent_sa.id
+  filename        = "deployment/cloudbuild-tf.yaml"
+
+  included_files = ["deployment/terraform/**"]
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.ecomm_repo[0].id
+    push {
+      branch = "^main$"
+    }
+  }
+
+  substitutions = {
+    _PROJECT_ID = var.project_id
+    _REGION     = var.region
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_account.catalog_agent_sa
+  ]
+}
+
 output "cloudbuild_github_connection_state" {
   description = "Installation state and action URI of the Cloud Build v2 GitHub connection"
   value       = var.enable_cloudbuild_triggers ? google_cloudbuildv2_connection.github_connection[0].installation_state : null

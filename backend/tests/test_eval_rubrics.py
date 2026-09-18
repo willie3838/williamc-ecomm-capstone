@@ -13,6 +13,7 @@ def test_eval_rubrics_exist_and_populated():
         "citation_faithfulness.md",
         "semantic_coherence.md",
         "tool_trajectory.md",
+        "counterfactual_anti_overfitting.md",
     ]
 
     for fname in expected_files:
@@ -39,3 +40,8 @@ def test_eval_rubrics_exist_and_populated():
             assert "EXACT" in content
             assert "IN_ORDER" in content
             assert "FUZZY_SEMANTIC" in content
+
+        elif fname == "counterfactual_anti_overfitting.md":
+            assert "Generalization Gap" in content
+            assert "0.05" in content
+            assert "Counterfactual" in content
