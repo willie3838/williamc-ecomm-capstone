@@ -14,17 +14,18 @@ backend/
 ├── src/
 │   └── app/
 │       ├── __init__.py
-│       ├── main.py            # FastAPI application entrypoint (/health, /api/compare)
+│       ├── main.py            # FastAPI application entrypoint (/health, /api/compare, A2A discovery)
 │       ├── config.py          # Environment settings (Pydantic BaseSettings)
 │       ├── models/            # Pydantic data schemas
 │       │   ├── __init__.py
-│       │   ├── requests.py    # ComparisonRequest schema
-│       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation schemas
-│       ├── agent/             # Google ADK agent definitions
+│       │   ├── requests.py    # ComparisonRequest schema (with agent_version)
+│       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation, AgentCard schemas
+│       ├── agent/             # Google ADK agent definitions & registry
 │       │   ├── __init__.py
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent & LLM reranker
-│       │   └── prompts.py     # Anti-hallucination system instructions
+│       │   ├── prompts.py     # Anti-hallucination system instructions
+│       │   └── registry.py    # Google Cloud Agent Registry & A2A Version Manager
 │       └── tools/             # Agent tools
 │           ├── __init__.py
 │           └── catalog.py     # query_catalog BigQuery parameterized tool
@@ -34,6 +35,7 @@ backend/
     ├── test_health.py         # Health probe tests
     ├── test_catalog_tool.py   # query_catalog tool unit tests (mocked BQ)
     ├── test_multi_agent.py    # Multi-node agent unit tests
+    ├── test_agent_registry.py # Agent Registry & A2A versioning unit tests
     └── test_compare_api.py    # End-to-end API route tests
 ```
 
@@ -48,12 +50,16 @@ backend/
 
 ### API Endpoint Contracts
 - `GET /health`: Returns `{"status": "ok", "service": "catalog-backend", "project": "fde-bestbuy-sandbox-dev-508321"}`.
+- `GET /.well-known/agent-card.json`: A2A protocol discovery card conforming to Google Cloud Agent Registry.
+- `GET /api/agent/card`: Returns versioned Agent Card specification (e.g. `?version=1.1.0-flash`).
+- `GET /api/agent/versions`: Returns all registered agent versions with active default, model, and prompt versions.
 - `POST /api/compare`:
   - Request:
     ```json
     {
       "query": "Compare MacBook Air M3 and Dell XPS 13",
-      "category": "Laptops"
+      "category": "Laptops",
+      "agent_version": "1.0.0"
     }
     ```
   - Response:
@@ -70,7 +76,10 @@ backend/
       ],
       "citations": [
         {"sku": "6534606", "url": "https://www.bestbuy.com/site/sku/6534606.p"}
-      ]
+      ],
+      "agent_version": "1.0.0",
+      "model_version": "gemini-2.5-pro@001",
+      "prompt_version": "2026.03-v1"
     }
     ```
 
@@ -101,7 +110,29 @@ backend/
 
 ---
 
-## 4. Testing & Code Quality Protocol
+## 5. Google Cloud Agent Registry & A2A Built-In Versioning
+
+The backend integrates an enterprise **Agent Registry** (`app.agent.registry`) implementing the **Agent-to-Agent (A2A)** specification.
+
+### Immutable Version Releases
+Each release couples:
+- `version`: Semantic version (e.g. `1.0.0`, `1.1.0-flash`).
+- `model`: Gemini foundation model identifier (`gemini-2.5-pro`, `gemini-2.5-flash`).
+- `model_version`: Exact pinned model release (`gemini-2.5-pro@001`, `gemini-2.5-flash@001`).
+- `prompt_version`: Pinned prompt version (`2026.03-v1`, `2026.03-v2`).
+- `system_instruction`: Exact grounding system instructions for the version.
+- `skills`: Declared agent capabilities (`spec-comparison`, `intent-classification`, `catalog-retrieval`).
+
+### Discovery & Side-by-Side Execution
+1. **A2A Discovery**: Any service or agent can introspect capabilities via `GET /.well-known/agent-card.json` or `GET /api/agent/card?version=1.1.0-flash`.
+2. **Version Listing**: `GET /api/agent/versions` lists all active and canary releases.
+3. **Execution Routing**: Clients pass optional `"agent_version"` in `POST /api/compare`. If omitted, the active production default (`1.0.0`) is used.
+4. **Sub-second Rollback**: Switching the active release requires changing `is_default` in the registry without container rebuilds or pipeline delays.
+5. **Traceability**: Every comparison response outputs `agent_version`, `model_version`, and `prompt_version`, and the OpenTelemetry root span is annotated with `ai.agent.version`, `ai.model.name`, `ai.model.version`, and `ai.prompt.version`.
+
+---
+
+## 6. Testing & Code Quality Protocol
 
 Every backend change must pass the automated gate before pushing:
 ```bash
@@ -115,3 +146,4 @@ pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 
 ### Mocking Guidelines
 Never initiate network connections to Google Cloud services during unit tests. Always mock `google.cloud.bigquery.Client` in tests or use the `mock_bq_client` fixture in `conftest.py`.
+

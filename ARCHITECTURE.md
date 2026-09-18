@@ -54,15 +54,16 @@ graph TB
     end
 
     subgraph ServiceLayer ["3. Application Runtime (Google Cloud Run)"]
-        API["FastAPI Gateway (/api/compare, /health, /healthz)"]
+        API["FastAPI Gateway (/api/compare, /health, /.well-known/agent-card.json, /api/agent/versions)"]
         OTEL["OpenTelemetry SDK (Distributed Tracing & Metrics)"]
+        REGISTRY["Google Cloud Agent Registry & A2A Engine<br/>(Immutable Releases, Discovery, Canary Routing)"]
         
         subgraph ADKAgent ["4. Agentic Reasoning Core (Google ADK)"]
             ROUTER["Comparison Orchestrator Agent (ADK Engine)"]
-            PROMPT["System Grounding Prompt (Temperature 0.1)"]
+            PROMPT["System Grounding Prompt (Pinned by AgentVersionSpec)"]
             TOOL["query_catalog BigQuery Tool (Parameterized SQL)"]
             PARSER["Pydantic Response Envelope & Matrix Formatter"]
-            GEMINI["Gemini 2.5 Pro / Gemini 3.5 Flash (Vertex AI API)"]
+            GEMINI["Gemini 2.5 Pro / Gemini 2.5 Flash (Vertex AI API)"]
         end
     end
 
@@ -435,6 +436,14 @@ The end-to-end request budget guarantees sub-3.0 second performance:
   - *Positive*: Unbreakable grounding chain; verifiable audit trail from user query to SQL query to final citation.
   - *Trade-off*: Requires two LLM roundtrips; mitigated by using Gemini 3.5 Flash for rapid extraction and token-capped synthesis.
 
+### ADR-005: Built-In Versioning via Google Cloud Agent Registry & A2A Specification
+- **Status**: ACCEPTED
+- **Context**: Relying on container rebuilds or single hardcoded prompt/model variables creates operational fragility when rolling back prompt regressions or evaluating canary foundation models. Hardcoded prompt overrides risk losing access to previous releases.
+- **Decision**: Adopt Google Cloud Agent Registry and the Agent-to-Agent (A2A) protocol. Immutable version specifications (`AgentVersionSpec`) bind code, foundation model (`gemini-2.5-pro` vs `gemini-2.5-flash`), model version, prompt version, system instruction, and registered skills. Expose standard discovery endpoints `/.well-known/agent-card.json` and `/api/agent/versions`.
+- **Consequences**:
+  - *Positive*: Sub-second rollbacks without container redeployments; enables concurrent side-by-side canary execution (`1.0.0` vs `1.1.0-flash`); provides native A2A inter-agent discovery; guarantees 100% telemetry traceability across prompt/model versions.
+  - *Trade-off*: Requires maintaining registered version definitions in domain registry; mitigated by automated Pydantic schema validation and unit tests.
+
 ---
 
 ## 8. CI/CD Pipeline & Quality Engineering
@@ -463,3 +472,27 @@ The system integrates an automated quality flywheel (`evals/`):
   2. **Citation Precision**: Every asserted spec links to a valid `[SKU: ...]`.
   3. **Refusal Robustness**: Graceful handling of out-of-stock, unknown, or adversarial queries.
 - **LLM-as-a-Judge**: Evaluated via Gemini 3.5 Flash scoring script with threshold enforcement before production promotion.
+
+---
+
+## 9. Google Cloud Agent Registry & A2A Dynamic Versioning Architecture
+
+### 9.1 Multi-Version Release Topology
+```mermaid
+graph TD
+    CLIENT[Client / Agent Consumer] -->|POST /api/compare<br/>optional agent_version| ROUTER[Comparison Orchestrator]
+    ROUTER --> REGISTRY[Agent Registry Singleton]
+    REGISTRY -->|Resolve 1.0.0 (Default)| V1[AgentVersionSpec 1.0.0<br/>Model: Gemini 2.5 Pro<br/>Prompt: 2026.03-v1<br/>Skills: spec-comparison, intent]
+    REGISTRY -->|Resolve 1.1.0-flash (Canary)| V2[AgentVersionSpec 1.1.0-flash<br/>Model: Gemini 2.5 Flash<br/>Prompt: 2026.03-v2<br/>Skills: fast-tradeoff-synthesis]
+    
+    V1 --> ORCH[Orchestrator Execution with Pinned Spec]
+    V2 --> ORCH
+    ORCH --> RESP[CompareResponse<br/>agent_version, model_version, prompt_version]
+    ORCH -.->|Tag Span| OTEL[OpenTelemetry ai.agent.version, ai.model.version]
+```
+
+### 9.2 Standard A2A Discovery Endpoints
+- **`GET /.well-known/agent-card.json`**: Exposes the standard Agent Card conforming to the Google Cloud Agent Registry and A2A specification with `supportedInterfaces`, `skills`, `capabilities`, and `metadata`.
+- **`GET /api/agent/card?version={version_id}`**: Retrieves version-specific Agent Cards for any registered release.
+- **`GET /api/agent/versions`**: Returns active default version (`active_default`) and summary of all registered releases.
+

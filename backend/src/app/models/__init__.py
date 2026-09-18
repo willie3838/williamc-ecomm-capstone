@@ -9,6 +9,8 @@ from app.models.requests import (
     QueryIntentAnalysis,
 )
 from app.models.responses import (
+    AgentVersionsResponse,
+    AgentVersionSummary,
     Citation,
     CompareResponse,
     ComparisonResponse,
@@ -19,6 +21,8 @@ from app.models.responses import (
 )
 
 __all__ = [
+    "AgentVersionSummary",
+    "AgentVersionsResponse",
     "CatalogQueryInput",
     "Citation",
     "CompareRequest",

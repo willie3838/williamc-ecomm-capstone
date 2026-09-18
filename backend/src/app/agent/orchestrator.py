@@ -10,6 +10,7 @@ from google.cloud import bigquery
 from google.genai import types
 
 from app.agent.prompts import SYSTEM_INSTRUCTION
+from app.agent.registry import AgentVersionSpec, get_agent_registry
 from app.config import settings
 from app.models.requests import QueryIntentAnalysis
 from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
@@ -487,7 +488,9 @@ class ComparisonOrchestrator:
             reasoning="Heuristic intent classification.",
         )
 
-    def classify_intent_with_llm(self, query: str) -> QueryIntentAnalysis | None:
+    def classify_intent_with_llm(
+        self, query: str, model: str = settings.gemini_model
+    ) -> QueryIntentAnalysis | None:
         """Use Gemini LLM structured JSON output to semantically classify user query intent."""
         if not query or not query.strip():
             return QueryIntentAnalysis(
@@ -527,7 +530,7 @@ class ComparisonOrchestrator:
             )
 
             response = client.models.generate_content(
-                model=settings.gemini_model,
+                model=model,
                 contents=prompt,
                 config=config,
             )
@@ -542,7 +545,9 @@ class ComparisonOrchestrator:
             )
             return None
 
-    def classify_intent(self, query: str) -> QueryIntentAnalysis:
+    def classify_intent(
+        self, query: str, model: str = settings.gemini_model
+    ) -> QueryIntentAnalysis:
         """Classify user query intent using Gemini LLM with graceful offline heuristic fallback."""
         if not query or not query.strip():
             return QueryIntentAnalysis(
@@ -590,7 +595,7 @@ class ComparisonOrchestrator:
             )
 
         # Ambiguous, opinion, chatter, or single-entity queries dispatch to Gemini LLM
-        llm_result = self.classify_intent_with_llm(query)
+        llm_result = self.classify_intent_with_llm(query, model=model)
         if llm_result is not None:
             return llm_result
         return self._classify_intent_with_heuristics(query)
@@ -623,6 +628,7 @@ class ComparisonOrchestrator:
         products: list[ProductSpec],
         keywords: list[str],
         original_query: str = "",
+        model: str = settings.gemini_model,
     ) -> list[ProductSpec]:
         """Rerank candidate products using Gemini LLM against the raw user query with strict relevance gating."""
         if not products:
@@ -637,7 +643,7 @@ class ComparisonOrchestrator:
                 unique_products.append(p)
 
         # If query is an opinion or rant, reject candidates immediately
-        intent = self.classify_intent(original_query)
+        intent = self.classify_intent(original_query, model=model)
         if intent.intent_type == "OPINION_OR_CHATTER":
             logger.info(
                 "Query '%s' detected as non-comparison intent (%s); rejecting candidates.",
@@ -647,7 +653,9 @@ class ComparisonOrchestrator:
             return []
 
         # Attempt LLM-based Reranking using the original user query as the frame of reference
-        llm_ranked = self._rerank_with_llm(unique_products, original_query or " ".join(keywords))
+        llm_ranked = self._rerank_with_llm(
+            unique_products, original_query or " ".join(keywords), model=model
+        )
         if llm_ranked is not None:
             # LLM ran successfully. If it found 0 relevant items, llm_ranked is [], which is honored!
             return self._balance_entities(llm_ranked, keywords)
@@ -656,7 +664,9 @@ class ComparisonOrchestrator:
         heur_ranked = self._rerank_with_heuristics(unique_products, keywords, original_query)
         return self._balance_entities(heur_ranked, keywords)
 
-    def _rerank_with_llm(self, products: list[ProductSpec], query: str) -> list[ProductSpec] | None:
+    def _rerank_with_llm(
+        self, products: list[ProductSpec], query: str, model: str = settings.gemini_model
+    ) -> list[ProductSpec] | None:
         """Call Gemini to score and rank candidate products based on query relevance."""
         if not query.strip() or len(products) <= 1:
             return None
@@ -700,7 +710,7 @@ class ComparisonOrchestrator:
 
             try:
                 response = client.models.generate_content(
-                    model=settings.gemini_model,
+                    model=model,
                     contents=prompt,
                     config=config,
                 )
@@ -715,7 +725,7 @@ class ComparisonOrchestrator:
                         temperature=0.0,
                     )
                     response = client.models.generate_content(
-                        model=settings.gemini_model,
+                        model=model,
                         contents=prompt,
                         config=fallback_config,
                     )
@@ -845,8 +855,14 @@ class ComparisonOrchestrator:
         query: str,
         category: str | None = None,
         session_id: str | None = None,
+        agent_version: str | None = None,
+        version_spec: AgentVersionSpec | None = None,
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
+        if version_spec is None:
+            registry = get_agent_registry()
+            version_spec = registry.get_version(agent_version)
+
         tracer = get_tracer("app.agent")
 
         with tracer.start_as_current_span("catalog_comparison.orchestrate") as span:
@@ -854,11 +870,15 @@ class ComparisonOrchestrator:
             span.set_attribute("category", category or "")
             if session_id:
                 span.set_attribute("session_id", session_id)
+            span.set_attribute("ai.agent.version", version_spec.version)
+            span.set_attribute("ai.model.name", version_spec.model)
+            span.set_attribute("ai.model.version", version_spec.model_version)
+            span.set_attribute("ai.prompt.version", version_spec.prompt_version)
 
             trace_id = get_current_trace_id()
 
             # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
-            intent = self.classify_intent(query)
+            intent = self.classify_intent(query, model=version_spec.model)
             if intent.intent_type == "OPINION_OR_CHATTER":
                 span.set_attribute("comparison_matrix_suppressed", True)
                 summary = (
@@ -875,6 +895,9 @@ class ComparisonOrchestrator:
                     recommendations="Specify two or more devices or models to view a detailed comparison matrix.",
                     session_id=session_id,
                     trace_id=trace_id,
+                    agent_version=version_spec.version,
+                    model_version=version_spec.model_version,
+                    prompt_version=version_spec.prompt_version,
                 )
 
             with tracer.start_as_current_span("extract_keywords"):
@@ -903,17 +926,22 @@ class ComparisonOrchestrator:
                     recommendations="Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category.",
                     session_id=session_id,
                     trace_id=trace_id,
+                    agent_version=version_spec.version,
+                    model_version=version_spec.model_version,
+                    prompt_version=version_spec.prompt_version,
                 )
 
             # Convert to ProductSpec schemas and rank products to match query intent
             products = [ProductSpec(**row) for row in catalog_rows]
-            products = self.rank_and_select_products(products, keywords, original_query=query)
+            products = self.rank_and_select_products(
+                products, keywords, original_query=query, model=version_spec.model
+            )
             target_skus = [p.sku for p in products]
             span.set_attribute("product_count", len(products))
             span.set_attribute("target_skus", ",".join(target_skus))
 
             # Gate: If query is not comparison-eligible, is an opinion/rant, or fewer than 2 relevant products exist, suppress comparison matrix!
-            intent = self.classify_intent(query)
+            intent = self.classify_intent(query, model=version_spec.model)
             if (
                 len(products) < 2
                 or not intent.is_comparison_eligible
@@ -950,6 +978,9 @@ class ComparisonOrchestrator:
                     recommendations=recommendations,
                     session_id=session_id,
                     trace_id=trace_id,
+                    agent_version=version_spec.version,
+                    model_version=version_spec.model_version,
+                    prompt_version=version_spec.prompt_version,
                     input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                     output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
                 )
@@ -977,6 +1008,9 @@ class ComparisonOrchestrator:
                 recommendations=recommendations,
                 session_id=session_id,
                 trace_id=trace_id,
+                agent_version=version_spec.version,
+                model_version=version_spec.model_version,
+                prompt_version=version_spec.prompt_version,
                 input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                 output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
             )

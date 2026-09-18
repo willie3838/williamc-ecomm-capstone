@@ -3,13 +3,17 @@
 import time
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.agent.orchestrator import ComparisonOrchestrator
+from app.agent.registry import get_agent_registry
 from app.config import Settings, get_settings
 from app.data.analytics import analytics_service
 from app.models import (
+    AgentVersionsResponse,
+    AgentVersionSummary,
     Citation,
     CompareRequest,
     CompareResponse,
@@ -123,6 +127,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             query=request.query,
             category=request.category,
             session_id=request.session_id,
+            agent_version=request.agent_version,
         )
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         result.latency_ms = latency_ms
@@ -159,6 +164,50 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
         return result
+
+    @application.get(
+        "/.well-known/agent-card.json",
+        tags=["Agent Registry"],
+        summary="A2A Agent Card Discovery Endpoint",
+    )
+    async def well_known_agent_card(request: Request) -> JSONResponse:
+        """Expose A2A Agent Card conforming to Google Cloud Agent Registry protocol."""
+        registry = get_agent_registry()
+        base_url = str(request.base_url).rstrip("/")
+        card = registry.generate_agent_card(base_url=base_url)
+        return JSONResponse(content=card)
+
+    @application.get(
+        "/api/agent/card",
+        tags=["Agent Registry"],
+        summary="A2A Agent Card Query Endpoint",
+    )
+    async def get_agent_card(
+        request: Request,
+        version: str | None = None,
+    ) -> JSONResponse:
+        """Retrieve A2A Agent Card for a specific version or the active default."""
+        registry = get_agent_registry()
+        base_url = str(request.base_url).rstrip("/")
+        card = registry.generate_agent_card(base_url=base_url, version=version)
+        return JSONResponse(content=card)
+
+    @application.get(
+        "/api/agent/versions",
+        response_model=AgentVersionsResponse,
+        tags=["Agent Registry"],
+        summary="List Registered Agent Versions",
+    )
+    async def list_agent_versions() -> AgentVersionsResponse:
+        """List all available agent versions registered in Google Cloud Agent Registry."""
+        registry = get_agent_registry()
+        versions = [AgentVersionSummary(**v) for v in registry.list_versions()]
+        default_version = registry.get_version().version
+        return AgentVersionsResponse(
+            active_default=default_version,
+            total_versions=len(versions),
+            versions=versions,
+        )
 
     @application.post(
         "/api/actions",
@@ -211,6 +260,8 @@ app = create_app()
 
 __all__ = [
     "PROJECT_ID",
+    "AgentVersionSummary",
+    "AgentVersionsResponse",
     "Citation",
     "CompareRequest",
     "CompareResponse",

@@ -31,6 +31,11 @@ class ComparisonRequest(BaseModel):
         description="Optional client session identifier for distributed tracing and analytics",
         examples=["session-xyz-1234"],
     )
+    agent_version: str | None = Field(
+        default=None,
+        description="Optional registered agent version to execute (e.g., '1.0.0', '1.1.0-flash'). Defaults to active production release.",
+        examples=["1.0.0"],
+    )
 
     @field_validator("category")
     @classmethod

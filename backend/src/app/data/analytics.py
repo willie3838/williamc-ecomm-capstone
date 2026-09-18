@@ -74,6 +74,7 @@ class AnalyticsService:
 
         if client is not None:
             try:
+
                 def _do_add() -> str:
                     _, doc_ref = client.collection("user_actions").add(doc_data)
                     return doc_ref.id
@@ -110,6 +111,7 @@ class AnalyticsService:
 
         if client is not None:
             try:
+
                 def _do_add() -> str:
                     _, doc_ref = client.collection("feedback").add(doc_data)
                     return doc_ref.id
@@ -118,9 +120,7 @@ class AnalyticsService:
                     future = executor.submit(_do_add)
                     doc_id = future.result(timeout=2.0)
 
-                logger.info(
-                    "Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_id
-                )
+                logger.info("Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_id)
                 return doc_id
             except Exception as e:
                 logger.warning("Failed to persist feedback to Firestore: %s", e)
@@ -136,6 +136,7 @@ class AnalyticsService:
 
         if client is not None:
             try:
+
                 def _do_increment() -> int:
                     doc_ref = client.collection("sessions").document(session_id)
                     doc = doc_ref.get()

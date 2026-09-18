@@ -148,7 +148,45 @@ class ComparisonResponse(BaseModel):
         default=None,
         description="Total BigQuery catalog query bytes billed",
     )
+    agent_version: str | None = Field(
+        default=None,
+        description="Semantic version of agent orchestration logic executed",
+        examples=["1.0.0"],
+    )
+    model_version: str | None = Field(
+        default=None,
+        description="Pinned foundation model version that generated response",
+        examples=["gemini-2.5-pro@001"],
+    )
+    prompt_version: str | None = Field(
+        default=None,
+        description="System prompt template version identifier executed",
+        examples=["2026.03-v1"],
+    )
 
 
 # Backward compatibility alias
 CompareResponse = ComparisonResponse
+
+
+class AgentVersionSummary(BaseModel):
+    """Summary information for a registered agent version."""
+
+    version: str
+    display_name: str
+    description: str
+    model: str
+    model_version: str
+    prompt_version: str
+    is_default: bool
+    skills_count: int
+    created_at: str
+    changelog: str = ""
+
+
+class AgentVersionsResponse(BaseModel):
+    """List of all registered agent versions in the Agent Registry."""
+
+    active_default: str
+    total_versions: int
+    versions: list[AgentVersionSummary]
