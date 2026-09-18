@@ -30,39 +30,59 @@ Agents operating in this repository must always pass `--project=fde-bestbuy-sand
 
 ---
 
-## 3. Project Management & Observability (Taskflow + Buganizer)
+## 3. Project Management, GitHub PRs & Observability (Taskflow + Buganizer + GitHub)
 
-Project tracking and task state observability are managed through Google's internal Buganizer and Taskflow infrastructure.
+Project tracking, pull request reviews, and task state observability are managed across Google's internal **Buganizer + Taskflow** infrastructure and the **GitHub Repository** (`willie3838/williamc-ecomm-capstone`).
 
 ### Identifiers
+- **GitHub Repository**: [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone)
 - **Taskflow Workspace**: `6062895` ("Capstone")
 - **Buganizer Component**: `2257265` (`Personal issues > williamwlchan`)
 - **Active Sprint Iteration**: `6062377` (`Test (Current)`, Hotlist: `8948653`)
 
-### Agent Protocol for Taskflow & Buganizer
-Before, during, and after implementing features or bug fixes, autonomous agents must maintain issue observability:
-1. **Pre-Task Check**:
+### Mandatory Triple-Track Protocol (Buganizer + Taskflow + GitHub PR)
+Every feature implementation, architectural change, or bug fix MUST maintain full bidirectional traceability between Buganizer/Taskflow and GitHub Pull Requests:
+
+1. **Pre-Task Check & Ticket Creation**:
    - Check the active iteration for assigned tickets:
      ```bash
      taskflow iterations view-items --iteration 6062377 --workspace 6062895
      ```
-   - If no existing ticket covers the task, create one in component `2257265` and attach it to iteration `6062377`:
+   - If no existing ticket covers the task, create one in component `2257265` and attach it to iteration `6062377` (Hotlist `8948653`):
      ```bash
-     issues create --title "[Feature/Bug]: <Brief description>" --component 2257265 --type BUG --priority P2 --severity S2 --description "<Detailed context and acceptance criteria>"
-     taskflow iterations add-items --iteration 6062377 --workspace 6062895 --issues <ISSUE_ID>
+     /google/bin/releases/issues-cli/issues create --title "[Feature/Bug]: <Brief description>" --component_id 2257265 --assignee williamwlchan --status ASSIGNED --hotlists 8948653 --type BUG --priority P2 --severity S2 --description "<Detailed context and acceptance criteria>"
      ```
-2. **In-Progress Transition**:
-   - Update issue status to `ASSIGNED` / `IN_PROGRESS`:
+2. **In-Progress Transition & Feature Branch**:
+   - Ensure issue status is `ASSIGNED`:
      ```bash
-     issues update status <ISSUE_ID> ASSIGNED
-     issues update assignees <ISSUE_ID> williamwlchan
+     /google/bin/releases/issues-cli/issues update status --issue_id <ISSUE_ID> --status ASSIGNED
      ```
-3. **Post-Task Completion**:
-   - Run verification suite (Pytest + Ruff + Evals).
-   - Once all checks pass, close the ticket with verification details:
+   - Create a dedicated feature branch referencing the Buganizer issue ID:
      ```bash
-     issues update comments <ISSUE_ID> "Completed in git commit $(git rev-parse --short HEAD). All unit tests and eval suites passing."
-     issues update status <ISSUE_ID> FIXED
+     git checkout -b feat/b-<ISSUE_ID>-<short-slug>
+     ```
+3. **GitHub Pull Request Creation (`What + Why + Buganizer Link`)**:
+   - Push the feature branch to `origin` and open a GitHub Pull Request (`gh pr create`).
+   - **Mandatory PR Title Format**: `[b/<ISSUE_ID>] <type>(<scope>): <concise summary>`
+   - **Mandatory PR Description Structure**: Every PR description MUST explicitly document **What Was Implemented**, **Why (Problem Context & Rationale)**, and the **Buganizer & Taskflow Link**:
+     ```markdown
+     ## What Was Implemented
+     - <Concrete summary of code, architecture, test, and documentation changes>
+
+     ## Why (Problem Context & Design Rationale)
+     - **Root Cause / Motivation**: <Why this change was needed>
+     - **Design Decisions**: <Why this specific technical approach was selected>
+
+     ## Buganizer & Taskflow Tracking
+     - **Buganizer Ticket**: Fixes b/<ISSUE_ID> (https://b.corp.google.com/issues/<ISSUE_ID>)
+     - **Taskflow Workspace**: `6062895` (Iteration: `6062377`)
+     ```
+4. **PR Merge & Bidirectional Buganizer Closure (`Buganizer -> PR Link`)**:
+   - After passing pre-merge verification (Pytest + Ruff + Doc Sync Gate), merge the PR into `main` (`gh pr merge --merge --delete-branch`).
+   - Close the Buganizer ticket (`FIXED`) with a comment that explicitly links the **GitHub PR URL**, **merge commit SHA**, and **What + Why summary**:
+     ```bash
+     /google/bin/releases/issues-cli/issues comment --issue_id <ISSUE_ID> --comment "Completed and merged in GitHub PR <PR_URL> (commit $(git rev-parse --short HEAD)).\n\nWhat was implemented: <Summary>\nWhy: <Rationale>\nAll unit tests, doc-sync gates, and eval suites passing."
+     /google/bin/releases/issues-cli/issues update status --issue_id <ISSUE_ID> --status FIXED
      ```
 
 ---
@@ -73,7 +93,7 @@ This repository uses hierarchical `AGENTS.md` files. When working within any sub
 
 | Directory | Scope & Responsibilities | Guide File |
 | :--- | :--- | :--- |
-| **`/` (Root)** | Master orchestration, governance, GCP config, Taskflow rules, rubric alignment | [AGENTS.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/AGENTS.md) |
+| **`/` (Root)** | Master orchestration, governance, GCP config, Taskflow/PR rules, rubric alignment | [AGENTS.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/AGENTS.md) |
 | **`backend/`** | FastAPI, Google ADK agent framework, BigQuery tool calling, Pydantic schemas, Pytest harness | [backend/AGENTS.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/backend/AGENTS.md) |
 | **`frontend/`** | React 18+ / TypeScript / Vite UI, comparison matrix, SKU citations, responsive layout | [frontend/AGENTS.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/frontend/AGENTS.md) |
 | **`deployment/`** | Terraform HCL, Cloud Build CI/CD pipeline, Cloud Run config, IAM least-privilege, VPC-SC | [deployment/AGENTS.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/deployment/AGENTS.md) |
@@ -87,14 +107,13 @@ To enable agents to make progress autonomously and reliably without regression (
 
 ```mermaid
 flowchart TD
-    A[Read Task & Rubric Target] --> B[Write Failing Unit Test / Eval Case]
+    A[Read Task & Create/Assign Buganizer b/ID] --> B[Checkout Branch feat/b-ID-slug & Write Failing Test]
     B --> C[Run Pytest / Eval Runner -> Verify Failure]
-    C --> D[Implement Minimal Code Solution]
-    D --> E[Run Pytest & Ruff Linter]
+    C --> D[Implement Minimal Code & Doc Solution]
+    D --> E[Run Pytest, Ruff & Doc Sync Gate]
     E -->|Fails| D
-    E -->|Passes| F[Run Regression Benchmark Suite]
-    F -->|Score Decreased| D
-    F -->|Score Maintained/Improved| G[Commit Code & Update Taskflow Ticket]
+    E -->|Passes| F[Open GitHub PR with What + Why + b/ID Link]
+    F --> G[Merge PR to Main & Post PR URL to Buganizer Ticket]
 ```
 
 ### Operational Rules for Hillclimbing
@@ -103,15 +122,36 @@ flowchart TD
 3. **No Muted Errors**: All exceptions must be explicitly typed, handled, and logged with OpenTelemetry spans.
 4. **Documentation Sync**: When updating any API, data model, or workflow, immediately update the corresponding `AGENTS.md`, `ARCHITECTURE.md`, or `SKILLS.md`.
 
-### 5.1 Post-Task Worktree & Main Merge Protocol (Always Merge to Main)
-Whenever working in an isolated worktree or feature branch (`feat/*`):
-1. **Pre-Merge Verification**: Run all unit tests, linters, and eval suites (`pytest --cov=src --cov-fail-under=80`, `ruff check`, `ruff format --check`).
-2. **Sync Base Branch**: Fetch latest `main` and rebase or fast-forward (`git fetch origin main && git rebase main`).
-3. **Mandatory Atomic Merge to Main**:
-   - All completed features MUST be merged back into `main` before concluding the task.
-   - Switch to `main`: `git checkout main`.
-   - Merge feature branch: `git merge --ff-only <feat-branch>` (or `--no-ff`).
-4. **Post-Merge Verification on Main**: Run verification suite on `main` to verify zero regressions.
+### 5.1 Feature Branch, GitHub Pull Request & Main Merge Protocol
+Whenever implementing any change (in main workspace or an isolated worktree `feat/*`):
+1. **Pre-PR Verification**: Run all unit tests, linters, doc-sync gates, and eval suites (`pytest --cov=src --cov-fail-under=80`, `ruff check`, `ruff format --check`).
+2. **Push Feature Branch & Create GitHub PR**:
+   ```bash
+   git push -u origin feat/b-<ISSUE_ID>-<short-slug>
+   gh pr create \
+     --repo willie3838/williamc-ecomm-capstone \
+     --base main \
+     --head feat/b-<ISSUE_ID>-<short-slug> \
+     --title "[b/<ISSUE_ID>] feat: <Brief description>" \
+     --body "## What Was Implemented
+   - <Details of implementation>
+
+   ## Why (Problem Context & Rationale)
+   - <Motivation and architectural rationale>
+
+   ## Buganizer & Taskflow Tracking
+   - **Buganizer Ticket**: Fixes b/<ISSUE_ID> (https://b.corp.google.com/issues/<ISSUE_ID>)
+   - **Taskflow Workspace**: 6062895 (Iteration: 6062377)"
+   ```
+3. **Mandatory Atomic PR Merge to Main**:
+   - Merge the Pull Request into `main`:
+     ```bash
+     gh pr merge --merge --delete-branch
+     git checkout main && git pull origin main
+     ```
+4. **Post-Merge Verification & Buganizer Closure**:
+   - Run verification suite on `main` to verify zero regressions.
+   - Update Buganizer issue `b/<ISSUE_ID>` with the merged GitHub PR URL and commit hash, and mark status `FIXED`.
 5. **Worktree Cleanup**: Remove feature worktree once merged (`git worktree remove .swarm/worktrees/<task>`).
 
 ### 5.2 Architectural Synchronization & Score 3 Rubric Gate
