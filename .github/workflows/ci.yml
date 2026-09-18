@@ -33,4 +33,4 @@ jobs:
 
       - name: Run Backend Unit & Entity Balancing Tests
         run: |
-          PYTHONPATH=. pytest backend/tests/test_entity_balancing.py backend/tests/test_relevance_gate.py -v --no-cov
+          PYTHONPATH=. pytest backend/tests/test_entity_balancing.py backend/tests/test_agent_nodes.py -v --no-cov
