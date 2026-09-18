@@ -36,14 +36,22 @@ steps:
         set -euo pipefail
         pip install --no-cache-dir -r backend/requirements.txt
         mkdir -p reports
-        echo "=== Running Evaluation Flywheel Benchmark Suite ==="
-        PYTHONPATH=backend/src python evals/runner.py --output reports/pr_eval.json
-        if [ -f "reports/baseline.json" ]; then
-          echo "=== Running Regression Analysis against Baseline ==="
-          python evals/analyze.py --current reports/pr_eval.json --baseline reports/baseline.json --fail-on-regression
-        else
-          echo "No baseline.json found, skipping regression check."
-        fi
+        echo "=== Running Simple Fixture Smoke Eval via runner.py ==="
+        PYTHONPATH=backend/src python evals/runner.py \
+          --dataset evals/dataset/fixtures/simple_test.evalset.json \
+          --output reports/simple_eval.json \
+          --fail-on-threshold \
+          --trigger-source ci
+        echo "=== Running Evaluation Flywheel 80-Pair Benchmark Suite ==="
+        PYTHONPATH=backend/src python evals/runner.py \
+          --output reports/pr_eval.json \
+          --fail-on-threshold \
+          --trigger-source ci
+        echo "=== Running Regression Analysis against Baseline ==="
+        python evals/analyze.py \
+          --current reports/pr_eval.json \
+          --baseline evals/reports/baseline_results.json \
+          --fail-on-regression
 
   # Step 4: ADK Agent Evaluator & Conformance Gate
   - name: 'python:3.11-slim'
@@ -55,7 +63,7 @@ steps:
         set -euo pipefail
         pip install --no-cache-dir -r backend/requirements.txt google-adk
         echo "=== Running ADK Agent Conformance & Evaluation Gate ==="
-        PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv
+        PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv --no-cov
 
 substitutions:
   _REGION: 'us-central1'

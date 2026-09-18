@@ -1,5 +1,11 @@
 # System Architecture: Best Buy Catalog Comparison Agent
 
+> **Last Updated**: 2026-09-18 18:54:18 UTC  
+> **Specification**: [SPEC.md](SPEC.md)  
+> **Rubric**: [RUBRIC.md](RUBRIC.md)  
+> **Review Status**: PENDING ARGON LLM ARCHITECTURE REVIEW GATE
+
+
 > **Project ID**: `fde-bestbuy-sandbox-dev-508321`  
 > **Region**: `us-central1`  
 > **Service Account**: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`  
@@ -455,12 +461,13 @@ Automated via two Google Cloud Build GitHub App triggers (`enable_cloudbuild_tri
 
 ```mermaid
 flowchart LR
-    COMMIT[Git Push to main] --> LINT[Step 1: Ruff Lint & Format]
+    COMMIT[Git Push / PR to main] --> LINT[Step 1: Ruff Lint & Format]
     LINT --> TEST[Step 2: Pytest >=80% Cov]
-    TEST --> ADK[Step 3: ADK Conformance]
-    ADK --> DOCKER[Step 4: Multi-Stage Docker Build]
-    DOCKER --> AR[Step 5: Push Image to Artifact Registry]
-    AR --> REL[Step 6: Create Cloud Deploy Release]
+    TEST --> ADK[Step 3: ADK Conformance & simple_test.evalset.json]
+    ADK --> BENCH[Step 4: 80-Pair runner.py + analyze.py Regression Gate]
+    BENCH --> DOCKER[Step 5: Multi-Stage Docker Build]
+    DOCKER --> AR[Step 6: Push Image to Artifact Registry]
+    AR --> REL[Step 7: Create Cloud Deploy Release]
     REL --> CANARY[Cloud Deploy 0% Candidate Phase]
     CANARY --> VERIFY{Skaffold Health Probes}
     VERIFY --> PROMOTE[Automated 100% Traffic Promotion]
