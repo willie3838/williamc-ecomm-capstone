@@ -145,7 +145,7 @@ variable "enable_cloudbuild_triggers" {
 variable "github_repo_owner" {
   type        = string
   description = "Owner/organization of the GitHub repository"
-  default     = "williamwlchan"
+  default     = "willie3838"
 }
 
 variable "github_repo_name" {

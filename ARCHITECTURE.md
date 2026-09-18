@@ -449,7 +449,7 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 ## 8. CI/CD Pipeline & Quality Engineering
 
 ### 8.1 Cloud Build CI & Cloud Deploy CD Architecture
-Automated on every Git push to the `main` branch:
+Automated on every Git push to the `main` branch of [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
 
 ```mermaid
 flowchart LR
