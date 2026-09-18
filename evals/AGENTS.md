@@ -82,7 +82,16 @@ python3 -m evals.runner \
   --output evals/reports/eval_results.json
 ```
 
-### F. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
+### F. Candidate Foundation Model Benchmarking & Vertex AI Experiments (`evals/benchmark_models.py`)
+Benchmark candidate foundation models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`) and log experiment runs to Google Cloud Vertex AI Experiments:
+```bash
+python3 -m evals.benchmark_models \
+  --dataset evals/dataset/benchmark_catalog.evalset.json \
+  --output-json evals/reports/model_benchmark_results.json \
+  --output-md evals/reports/model_benchmark_summary.md
+```
+
+### G. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
 Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
 ```bash
 # Generate JSON and Markdown Model Decision Scorecard:

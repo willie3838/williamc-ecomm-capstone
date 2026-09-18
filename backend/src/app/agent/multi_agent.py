@@ -17,9 +17,12 @@ from typing import Any
 from google.adk.agents import Agent
 from google.cloud import bigquery
 
-from app.agent.orchestrator import ComparisonOrchestrator, sanitize_user_prompt
+from app.agent.orchestrator import (
+    ComparisonOrchestrator,
+    resolve_model_pair,
+    sanitize_user_prompt,
+)
 from app.agent.prompts import SYSTEM_INSTRUCTION
-from app.config import settings
 from app.models.responses import Citation, CompareResponse, ProductSpec
 from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
@@ -45,15 +48,18 @@ class ComparisonAgentState:
     metadata: dict[str, Any] = field(default_factory=dict)
     session_id: str | None = None
     trace_id: str | None = None
+    model: str | None = None
+    synthesis_model: str | None = None
 
 
 class QueryIntentAgent:
     """Specialist agent responsible for query parsing, intent extraction, and security sanitization."""
 
-    def __init__(self) -> None:
+    def __init__(self, model: str | None = None) -> None:
+        self.model, _, _ = resolve_model_pair(model=model)
         self.adk_agent = Agent(
             name="query_intent_specialist",
-            model=settings.gemini_model,
+            model=self.model,
             instruction=(
                 "You are an Intent Extraction Specialist for consumer electronics comparisons.\n"
                 "Semantically analyze the customer query to identify intent (COMPARISON, PRODUCT_SEARCH, or OPINION_OR_CHATTER), "
@@ -67,10 +73,14 @@ class QueryIntentAgent:
         with tracer.start_as_current_span("agent.query_intent") as span:
             state.sanitized_query = sanitize_user_prompt(state.raw_query)
             span.set_attribute("agent.input_length", len(state.raw_query))
+            active_model = state.model or self.model
+            span.set_attribute("ai.model.name", active_model)
 
             # Semantically classify intent, eligibility, category, and keywords via LLM
-            orchestrator = ComparisonOrchestrator()
-            intent_analysis = orchestrator.classify_intent(state.sanitized_query)
+            orchestrator = ComparisonOrchestrator(model=active_model)
+            intent_analysis = orchestrator.classify_intent(
+                state.sanitized_query, model=active_model
+            )
             state.intent_type = intent_analysis.intent_type
             state.is_comparison_eligible = intent_analysis.is_comparison_eligible
             span.set_attribute("agent.detected_intent", state.intent_type)
@@ -102,6 +112,7 @@ class QueryIntentAgent:
                 {
                     "agent": "QueryIntentAgent",
                     "status": "COMPLETED",
+                    "model": active_model,
                     "intent_type": state.intent_type,
                     "is_comparison_eligible": state.is_comparison_eligible,
                     "keywords": state.target_keywords,
@@ -116,11 +127,12 @@ class QueryIntentAgent:
 class CatalogRetrievalAgent:
     """Specialist agent responsible for grounded catalog querying and schema validation."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None) -> None:
+    def __init__(self, bq_client: bigquery.Client | None = None, model: str | None = None) -> None:
         self.bq_client = bq_client
+        self.model, _, _ = resolve_model_pair(model=model)
         self.adk_agent = Agent(
             name="catalog_retrieval_specialist",
-            model=settings.gemini_model,
+            model=self.model,
             instruction="Retrieve grounded catalog records strictly from BigQuery database tools.",
             tools=[query_catalog],
         )
@@ -176,11 +188,12 @@ class CatalogRetrievalAgent:
 class RelevanceDetectorAgent:
     """Specialist agent responsible for evaluating retrieved product relevance using LLM reranker."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None) -> None:
-        self.orchestrator = ComparisonOrchestrator(bq_client=bq_client)
+    def __init__(self, bq_client: bigquery.Client | None = None, model: str | None = None) -> None:
+        self.model, _, _ = resolve_model_pair(model=model)
+        self.orchestrator = ComparisonOrchestrator(bq_client=bq_client, model=self.model)
         self.adk_agent = Agent(
             name="relevance_detector_specialist",
-            model=settings.gemini_model,
+            model=self.model,
             instruction=(
                 "You are a Product Relevance & Comparison Detector.\n"
                 "Evaluate whether candidate products match the customer's intent and whether a comparison matrix is justified.\n"
@@ -191,6 +204,8 @@ class RelevanceDetectorAgent:
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Execute LLM reranker and verify whether selected products genuinely match query intent."""
         with tracer.start_as_current_span("agent.relevance_detector") as span:
+            active_model = state.model or self.model
+            span.set_attribute("ai.model.name", active_model)
             if not state.is_comparison_eligible or not state.retrieved_products:
                 state.ranked_products = []
                 state.is_comparison_eligible = False
@@ -209,6 +224,7 @@ class RelevanceDetectorAgent:
                 state.retrieved_products,
                 state.target_keywords,
                 original_query=state.sanitized_query,
+                model=active_model,
             )
 
             if len(ranked) < 2:
@@ -224,6 +240,7 @@ class RelevanceDetectorAgent:
                 {
                     "agent": "RelevanceDetectorAgent",
                     "status": "COMPLETED",
+                    "model": active_model,
                     "decision": decision,
                     "relevant_count": len(state.ranked_products),
                 }
@@ -236,23 +253,40 @@ class RelevanceDetectorAgent:
 class SpecComparisonAgent:
     """Specialist agent responsible for matrix alignment, winner badges, and synthesis."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None) -> None:
-        self.orchestrator = ComparisonOrchestrator(bq_client=bq_client)
+    def __init__(
+        self,
+        bq_client: bigquery.Client | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+    ) -> None:
+        self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
+            model=model, synthesis_model=synthesis_model
+        )
+        self.orchestrator = ComparisonOrchestrator(
+            bq_client=bq_client,
+            model=self.model,
+            synthesis_model=self.synthesis_model,
+        )
         self.adk_agent = Agent(
             name="spec_comparison_specialist",
-            model=settings.gemini_model,
+            model=self.synthesis_model,
             instruction=SYSTEM_INSTRUCTION,
         )
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Build structured comparison matrix and generate recommendations or guidance."""
         with tracer.start_as_current_span("agent.spec_comparison") as span:
+            active_synthesis = state.synthesis_model or self.synthesis_model
+            active_routing = state.model or self.model
+            span.set_attribute("ai.synthesis_model.name", active_synthesis)
+
             # If ranked_products has not been populated by RelevanceDetectorAgent, evaluate retrieved_products
             if not state.ranked_products and state.retrieved_products:
                 ranked = self.orchestrator.rank_and_select_products(
                     state.retrieved_products,
                     state.target_keywords,
                     original_query=state.sanitized_query,
+                    model=active_routing,
                 )
                 state.ranked_products = ranked[:2] if len(ranked) >= 2 else ranked
 
@@ -271,7 +305,9 @@ class SpecComparisonAgent:
                     citations: list[Citation] = []
                 elif len(state.ranked_products) == 1:
                     p = state.ranked_products[0]
-                    summary = self.orchestrator.synthesize_summary(state.ranked_products, [])
+                    summary = self.orchestrator.synthesize_summary(
+                        state.ranked_products, [], synthesis_model=active_synthesis
+                    )
                     recommendations = None
                     citations = [
                         Citation(
@@ -294,6 +330,7 @@ class SpecComparisonAgent:
                     recommendations=recommendations,
                     session_id=state.session_id,
                     trace_id=state.trace_id,
+                    synthesis_model=active_synthesis,
                     input_tokens=self.orchestrator.last_input_tokens
                     if self.orchestrator.last_input_tokens > 0
                     else None,
@@ -305,6 +342,7 @@ class SpecComparisonAgent:
                     {
                         "agent": "SpecComparisonAgent",
                         "status": "COMPLETED",
+                        "synthesis_model": active_synthesis,
                         "compared_count": len(state.ranked_products),
                         "matrix_rows": 0,
                     }
@@ -313,8 +351,12 @@ class SpecComparisonAgent:
 
             # Comparison is approved and 2+ products are verified relevant
             matrix = self.orchestrator.build_comparison_matrix(state.ranked_products)
-            summary = self.orchestrator.synthesize_summary(state.ranked_products, matrix)
-            recommendations = self.orchestrator.generate_recommendations(state.ranked_products)
+            summary = self.orchestrator.synthesize_summary(
+                state.ranked_products, matrix, synthesis_model=active_synthesis
+            )
+            recommendations = self.orchestrator.generate_recommendations(
+                state.ranked_products, synthesis_model=active_synthesis
+            )
             citations = [
                 Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
                 for p in state.ranked_products
@@ -328,6 +370,7 @@ class SpecComparisonAgent:
                 recommendations=recommendations,
                 session_id=state.session_id,
                 trace_id=state.trace_id,
+                synthesis_model=active_synthesis,
                 input_tokens=self.orchestrator.last_input_tokens
                 if self.orchestrator.last_input_tokens > 0
                 else None,
@@ -340,6 +383,7 @@ class SpecComparisonAgent:
                 {
                     "agent": "SpecComparisonAgent",
                     "status": "COMPLETED",
+                    "synthesis_model": active_synthesis,
                     "compared_count": len(state.ranked_products),
                     "matrix_rows": len(matrix),
                 }
@@ -351,24 +395,45 @@ class SpecComparisonAgent:
 class MultiAgentCoordinator:
     """Coordinates specialist agents across the comparison pipeline with shared state."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None) -> None:
+    def __init__(
+        self,
+        bq_client: bigquery.Client | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+    ) -> None:
         self.bq_client = bq_client
-        self.intent_agent = QueryIntentAgent()
-        self.retrieval_agent = CatalogRetrievalAgent(bq_client=bq_client)
-        self.relevance_agent = RelevanceDetectorAgent(bq_client=bq_client)
-        self.comparison_agent = SpecComparisonAgent(bq_client=bq_client)
+        self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
+            model=model, synthesis_model=synthesis_model
+        )
+        self.intent_agent = QueryIntentAgent(model=self.model)
+        self.retrieval_agent = CatalogRetrievalAgent(bq_client=bq_client, model=self.model)
+        self.relevance_agent = RelevanceDetectorAgent(bq_client=bq_client, model=self.model)
+        self.comparison_agent = SpecComparisonAgent(
+            bq_client=bq_client,
+            model=self.model,
+            synthesis_model=self.synthesis_model,
+        )
 
     def execute(
         self,
         raw_query: str,
         category: str | None = None,
         session_id: str | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline."""
+        active_routing, active_synthesis, is_hybrid = resolve_model_pair(
+            model=model or self.model,
+            synthesis_model=synthesis_model or self.synthesis_model,
+        )
         with tracer.start_as_current_span("agent.multi_agent_pipeline") as span:
             trace_id = get_current_trace_id()
             span.set_attribute("pipeline.architecture", "multi_node_cooperative")
             span.set_attribute("query", raw_query)
+            span.set_attribute("ai.model.name", active_routing)
+            span.set_attribute("ai.synthesis_model.name", active_synthesis)
+            span.set_attribute("ai.model.tiered_hybrid", is_hybrid)
             if category:
                 span.set_attribute("category", category)
             if session_id:
@@ -379,6 +444,8 @@ class MultiAgentCoordinator:
                 detected_category=category,
                 session_id=session_id,
                 trace_id=trace_id,
+                model=active_routing,
+                synthesis_model=active_synthesis,
             )
 
             # Node 1: Query Intent Extraction & Security Sanitization
@@ -400,6 +467,7 @@ class MultiAgentCoordinator:
                     comparison_matrix=[],
                     session_id=session_id,
                     trace_id=trace_id,
+                    synthesis_model=active_synthesis,
                 )
 
             return state.comparison_response
