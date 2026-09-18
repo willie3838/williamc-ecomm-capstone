@@ -34,6 +34,10 @@ class AgentVersionSpec(BaseModel):
     display_name: str = Field(..., description="Display title for Agent Registry catalog")
     description: str = Field(..., description="High-level description of this agent version")
     model: str = Field(..., description="Foundation model family (e.g. gemini-2.5-pro)")
+    synthesis_model: str | None = Field(
+        default=None,
+        description="Optional dedicated synthesis model for tiered-hybrid routing (e.g. gemini-2.5-pro)",
+    )
     model_version: str = Field(
         ..., description="Pinned Vertex AI model version (e.g. gemini-2.5-pro@001)"
     )
@@ -123,11 +127,13 @@ class AgentRegistry:
         )
 
         # 1. Version 1.0.0: Production Baseline (Gemini 2.5 Pro)
+        default_model = getattr(settings, "gemini_model", "gemini-2.5-pro")
         v1_spec = AgentVersionSpec(
             version="1.0.0",
             display_name="Best Buy Catalog Comparison Agent (Stable Baseline)",
             description="Production comparison assistant grounded strictly in Google Cloud BigQuery catalog",
-            model=getattr(settings, "gemini_model", "gemini-2.5-pro"),
+            model=default_model,
+            synthesis_model=default_model,
             model_version=getattr(settings, "model_version", "gemini-2.5-pro@001"),
             prompt_version=getattr(settings, "prompt_version", "2026.03-v1"),
             system_instruction=SYSTEM_INSTRUCTION,
@@ -155,6 +161,7 @@ class AgentRegistry:
             display_name="Best Buy Catalog Comparison Agent (Flash Canary)",
             description="High-throughput canary variant powered by Gemini 2.5 Flash for sub-second comparison synthesis",
             model="gemini-2.5-flash",
+            synthesis_model="gemini-2.5-flash",
             model_version="gemini-2.5-flash@001",
             prompt_version="2026.03-v2",
             system_instruction=flash_instruction,
@@ -165,15 +172,33 @@ class AgentRegistry:
         )
         self.register(v1_1_flash)
 
+        # 3. Version 1.2.0-tiered: Tiered-Hybrid Candidate (Gemini 2.5 Flash routing + Gemini 2.5 Pro synthesis)
+        v1_2_tiered = AgentVersionSpec(
+            version="1.2.0-tiered",
+            display_name="Best Buy Catalog Comparison Agent (Tiered-Hybrid)",
+            description="Tiered-hybrid variant pairing Gemini 2.5 Flash intent/reranking with Gemini 2.5 Pro synthesis",
+            model="gemini-2.5-flash",
+            synthesis_model="gemini-2.5-pro",
+            model_version="tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001",
+            prompt_version="2026.03-v2",
+            system_instruction=flash_instruction,
+            skills=[skill_compare, skill_intent, skill_retrieval, skill_fast_synthesis],
+            is_default=False,
+            changelog="Introduced dynamic tiered-hybrid model routing (Flash for intent/reranking, Pro for spec synthesis).",
+            created_at="2026-03-20T00:00:00Z",
+        )
+        self.register(v1_2_tiered)
+
     def register(self, spec: AgentVersionSpec) -> None:
         """Register a new immutable agent version specification."""
         self._versions[spec.version] = spec
         if spec.is_default:
             self._default_version = spec.version
         logger.info(
-            "Registered Agent Version '%s' (model=%s, prompt=%s, default=%s)",
+            "Registered Agent Version '%s' (model=%s, synthesis_model=%s, prompt=%s, default=%s)",
             spec.version,
             spec.model_version,
+            spec.synthesis_model or spec.model,
             spec.prompt_version,
             spec.is_default,
         )
@@ -202,6 +227,7 @@ class AgentRegistry:
                     "display_name": v.display_name,
                     "description": v.description,
                     "model": v.model,
+                    "synthesis_model": v.synthesis_model or v.model,
                     "model_version": v.model_version,
                     "prompt_version": v.prompt_version,
                     "is_default": v.version == self._default_version,
@@ -245,6 +271,7 @@ class AgentRegistry:
             skills=spec.skills,
             metadata={
                 "model": spec.model,
+                "synthesis_model": spec.synthesis_model or spec.model,
                 "model_version": spec.model_version,
                 "prompt_version": spec.prompt_version,
                 "framework": "google-adk",

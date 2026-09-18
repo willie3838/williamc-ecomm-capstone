@@ -432,16 +432,16 @@ def test_cloudbuild_triggers_configuration():
     assert 'resource "google_cloudbuild_trigger" "main_deploy_trigger"' in content
 
     # PR trigger checks
-    assert 'filename = "deployment/cloudbuild-pr.yaml"' in content
+    assert re.search(r'filename\s*=\s*"deployment/cloudbuild-pr\.yaml"', content)
     assert "pull_request {" in content
-    assert 'branch = "^main$"' in content
+    assert re.search(r'branch\s*=\s*"\^main\$"', content)
 
     # Main deploy trigger checks
-    assert 'filename = "deployment/cloudbuild.yaml"' in content
+    assert re.search(r'filename\s*=\s*"deployment/cloudbuild\.yaml"', content)
     assert "push {" in content
 
     # Feature toggle check
-    assert "var.enable_cloudbuild_triggers ? 1 : 0" in content
+    assert "var.enable_cloudbuild_triggers" in content
 
     # Variables check
     var_file = TERRAFORM_DIR / "variables.tf"

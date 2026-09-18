@@ -158,6 +158,11 @@ class ComparisonResponse(BaseModel):
         description="Pinned foundation model version that generated response",
         examples=["gemini-2.5-pro@001"],
     )
+    synthesis_model: str | None = Field(
+        default=None,
+        description="Foundation model used for comparison synthesis and trade-off narrative",
+        examples=["gemini-2.5-pro"],
+    )
     prompt_version: str | None = Field(
         default=None,
         description="System prompt template version identifier executed",
@@ -176,6 +181,7 @@ class AgentVersionSummary(BaseModel):
     display_name: str
     description: str
     model: str
+    synthesis_model: str | None = None
     model_version: str
     prompt_version: str
     is_default: bool
