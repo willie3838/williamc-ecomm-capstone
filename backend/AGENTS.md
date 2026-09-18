@@ -140,6 +140,13 @@ ruff format .
 pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 ```
 
+### Model Swappability & Benchmark Testing
+Run dynamic model swappability and pairwise evaluation test suites:
+```bash
+pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py -v
+```
+
 ### Mocking Guidelines
 Never initiate network connections to Google Cloud services during unit tests. Always mock `google.cloud.bigquery.Client` in tests or use the `mock_bq_client` fixture in `conftest.py`.
+
 

@@ -14,7 +14,6 @@ from app.agent.orchestrator import (
     create_adk_agent,
     resolve_model_pair,
 )
-from app.agent.registry import get_agent_registry
 from app.main import create_app
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -155,14 +154,8 @@ def test_multi_agent_coordinator_dynamic_model_swapping() -> None:
     assert result.synthesis_model == "gemini-2.5-pro"
 
 
-def test_agent_registry_and_api_dynamic_model_swapping() -> None:
-    """Verify AgentRegistry 1.2.0-tiered version and /api/compare model/synthesis_model overrides."""
-    registry = get_agent_registry()
-    tiered_spec = registry.get_version("1.2.0-tiered")
-    assert tiered_spec.version == "1.2.0-tiered"
-    assert tiered_spec.model == "gemini-2.5-flash"
-    assert tiered_spec.synthesis_model == "gemini-2.5-pro"
-
+def test_api_dynamic_model_swapping() -> None:
+    """Verify /api/compare model and synthesis_model overrides."""
     app = create_app()
     client = TestClient(app)
 

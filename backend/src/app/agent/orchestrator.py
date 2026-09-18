@@ -102,11 +102,13 @@ def resolve_model_pair(
 
     if raw_model.lower() == "tiered-hybrid":
         routing = "gemini-2.5-flash"
-        synthesis = (synthesis_model or "").strip() or "gemini-2.5-pro"
+        syn = (synthesis_model or "").strip()
+        synthesis = syn if syn and syn.lower() != "tiered-hybrid" else "gemini-2.5-pro"
         return routing, synthesis, True
 
     routing = raw_model or fallback
-    synthesis = (synthesis_model or "").strip() or routing
+    syn = (synthesis_model or "").strip()
+    synthesis = syn if syn and syn.lower() != "tiered-hybrid" else routing
     is_hybrid = routing != synthesis
     return routing, synthesis, is_hybrid
 
@@ -952,8 +954,10 @@ class ComparisonOrchestrator:
         is_flash = "flash" in resolved_agent_ver.lower()
         target_prompt_ver = "2026.03-v2" if is_flash else settings.prompt_version
         _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
-        base_model = "gemini-2.5-flash" if is_flash else (self._injected_model or settings.gemini_model)
-        base_synthesis = self._injected_synthesis_model or self._injected_model or base_model
+        base_model = (
+            "gemini-2.5-flash" if is_flash else (self._injected_model or settings.gemini_model)
+        )
+        base_synthesis = self._injected_synthesis_model or self.synthesis_model or base_model
 
         raw_model = model or base_model
         raw_synthesis = synthesis_model or base_synthesis
@@ -971,9 +975,7 @@ class ComparisonOrchestrator:
         elif model or self._injected_model:
             effective_model_version = f"{active_routing_model}@001"
         else:
-            effective_model_version = (
-                "gemini-2.5-flash@001" if is_flash else settings.model_version
-            )
+            effective_model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
 
         tracer = get_tracer("app.agent")
 

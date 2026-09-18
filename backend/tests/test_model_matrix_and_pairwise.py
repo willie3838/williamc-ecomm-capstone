@@ -353,6 +353,7 @@ def test_pairwise_judge_cli_main(
 ) -> None:
     """Verify CLI entrypoint of pairwise_judge runs and prints JSON."""
     import sys
+
     from evals import pairwise_judge
 
     monkeypatch.setattr(sys, "argv", ["pairwise_judge"])
@@ -367,6 +368,7 @@ def test_generate_model_matrix_cli_main(
 ) -> None:
     """Verify CLI entrypoint of generate_model_matrix writes files and prints scorecard."""
     import sys
+
     from evals import generate_model_matrix
 
     json_path = tmp_path / "cli_matrix.json"
