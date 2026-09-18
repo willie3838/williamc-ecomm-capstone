@@ -684,13 +684,19 @@ class TrajectoryGrader:
 
         # 3. Fallback synthesis from expected_skus / category
         if not records and "category" in case and "expected_skus" in case:
-            # Synthetic default query_catalog call
+            gt = case.get("ground_truth_specs", {})
+            extracted_names = [
+                spec.get("name") or spec.get("brand")
+                for spec in gt.values()
+                if isinstance(spec, dict) and (spec.get("name") or spec.get("brand"))
+            ]
+            keywords = case.get("keywords") or extracted_names or case.get("expected_skus", [])
             records.append(
                 ToolCallRecord(
                     name="query_catalog",
                     args={
                         "category": case.get("category"),
-                        "keywords": case.get("expected_skus", []),
+                        "keywords": keywords,
                     },
                 )
             )

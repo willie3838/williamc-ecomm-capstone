@@ -116,7 +116,10 @@ class TestADKRunnerIntegration:
                 "category": "Laptops",
                 "query": "Compare Model Alpha Laptop and Model Beta Laptop",
                 "expected_skus": ["1001", "1002"],
-                "ground_truth_specs": {"1001": {"price": 899.0}, "1002": {"price": 999.0}},
+                "ground_truth_specs": {
+                    "1001": {"name": "Model Alpha Laptop", "price": 899.0},
+                    "1002": {"name": "Model Beta Laptop", "price": 999.0},
+                },
             }
         ]
         data_file = tmp_path / "evalset.json"
