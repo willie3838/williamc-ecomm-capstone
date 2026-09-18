@@ -406,11 +406,20 @@ def run_benchmark(
         raise ValueError(f"No benchmark test cases found matching criteria in {dataset_path}")
 
     # Set up orchestrator
+    genai_patcher = None
     if live:
         logger.info("Running in LIVE mode with Google Cloud BigQuery client")
         orchestrator = ComparisonOrchestrator()
     else:
         logger.info("Running in HERMETIC mode with mock BigQuery client from %s", catalog_path)
+        from unittest.mock import patch
+
+        mock_genai_cls = MagicMock()
+        mock_genai_cls.return_value.models.generate_content.side_effect = RuntimeError(
+            "Hermetic offline mode"
+        )
+        genai_patcher = patch("google.genai.Client", mock_genai_cls)
+        genai_patcher.start()
         bq_client = create_hermetic_bq_client(catalog_path)
         orchestrator = ComparisonOrchestrator(bq_client=bq_client)
 
@@ -545,6 +554,9 @@ def run_benchmark(
                 f"[{idx:02d}/{len(cases):02d}] {case_id:<14} {case_cat:<12} "
                 f"Acc: {accuracy:.2f}  Cit: {citation_score:.2f}  Lat: {latency:.3f}s -> {status_str}"
             )
+
+    if genai_patcher is not None:
+        genai_patcher.stop()
 
     n_cases = max(1, len(cases))
     mean_acc = round(total_accuracy / n_cases, 4)

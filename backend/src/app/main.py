@@ -7,8 +7,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.agent.agent_card import build_a2a_agent_card
 from app.agent.orchestrator import ComparisonOrchestrator
-from app.agent.registry import get_agent_registry
 from app.config import Settings, get_settings
 from app.data.analytics import analytics_service
 from app.models import (
@@ -172,9 +172,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     async def well_known_agent_card(request: Request) -> JSONResponse:
         """Expose A2A Agent Card conforming to Google Cloud Agent Registry protocol."""
-        registry = get_agent_registry()
         base_url = str(request.base_url).rstrip("/")
-        card = registry.generate_agent_card(base_url=base_url)
+        card = build_a2a_agent_card(base_url=base_url)
         return JSONResponse(content=card)
 
     @application.get(
@@ -187,9 +186,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version: str | None = None,
     ) -> JSONResponse:
         """Retrieve A2A Agent Card for a specific version or the active default."""
-        registry = get_agent_registry()
         base_url = str(request.base_url).rstrip("/")
-        card = registry.generate_agent_card(base_url=base_url, version=version)
+        card = build_a2a_agent_card(base_url=base_url, version=version)
         return JSONResponse(content=card)
 
     @application.get(
@@ -198,13 +196,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tags=["Agent Registry"],
         summary="List Registered Agent Versions",
     )
-    async def list_agent_versions() -> AgentVersionsResponse:
-        """List all available agent versions registered in Google Cloud Agent Registry."""
-        registry = get_agent_registry()
-        versions = [AgentVersionSummary(**v) for v in registry.list_versions()]
-        default_version = registry.get_version().version
+    async def list_agent_versions(
+        app_settings: Annotated[Settings, Depends(get_settings)],
+    ) -> AgentVersionsResponse:
+        """List available agent versions backed by Vertex AI Prompt Management & Cloud Run."""
+        versions = [
+            AgentVersionSummary(
+                version=app_settings.agent_version,
+                display_name="Best Buy Catalog Comparison Agent (Baseline Pro)",
+                description="Grounded comparison orchestrator using Gemini 2.5 Pro",
+                model=app_settings.gemini_model,
+                model_version=app_settings.model_version,
+                prompt_version=app_settings.prompt_version,
+                is_default=True,
+                skills_count=2,
+                created_at="2026-03-01T00:00:00Z",
+                changelog="Production baseline managed via Vertex AI Prompt Management",
+            ),
+            AgentVersionSummary(
+                version="1.1.0-flash",
+                display_name="Best Buy Catalog Comparison Agent (Flash Canary)",
+                description="High-throughput canary variant powered by Gemini 2.5 Flash",
+                model="gemini-2.5-flash",
+                model_version="gemini-2.5-flash@001",
+                prompt_version="2026.03-v2",
+                is_default=False,
+                skills_count=2,
+                created_at="2026-03-15T00:00:00Z",
+                changelog="Canary model variant managed via Vertex AI Prompt Management",
+            ),
+        ]
         return AgentVersionsResponse(
-            active_default=default_version,
+            active_default=app_settings.agent_version,
             total_versions=len(versions),
             versions=versions,
         )

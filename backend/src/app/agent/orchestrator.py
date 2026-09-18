@@ -10,7 +10,7 @@ from google.cloud import bigquery
 from google.genai import types
 
 from app.agent.prompts import SYSTEM_INSTRUCTION
-from app.agent.registry import AgentVersionSpec, get_agent_registry
+from app.agent.prompts_service import get_active_prompt
 from app.config import settings
 from app.models.requests import QueryIntentAnalysis
 from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
@@ -866,12 +866,14 @@ class ComparisonOrchestrator:
         category: str | None = None,
         session_id: str | None = None,
         agent_version: str | None = None,
-        version_spec: AgentVersionSpec | None = None,
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
-        if version_spec is None:
-            registry = get_agent_registry()
-            version_spec = registry.get_version(agent_version)
+        resolved_agent_ver = agent_version or settings.agent_version
+        is_flash = "flash" in resolved_agent_ver.lower()
+        target_prompt_ver = "2026.03-v2" if is_flash else settings.prompt_version
+        _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+        resolved_model = "gemini-2.5-flash" if is_flash else settings.gemini_model
+        resolved_model_ver = "gemini-2.5-flash@001" if is_flash else settings.model_version
 
         tracer = get_tracer("app.agent")
 
@@ -880,15 +882,15 @@ class ComparisonOrchestrator:
             span.set_attribute("category", category or "")
             if session_id:
                 span.set_attribute("session_id", session_id)
-            span.set_attribute("ai.agent.version", version_spec.version)
-            span.set_attribute("ai.model.name", version_spec.model)
-            span.set_attribute("ai.model.version", version_spec.model_version)
-            span.set_attribute("ai.prompt.version", version_spec.prompt_version)
+            span.set_attribute("ai.agent.version", resolved_agent_ver)
+            span.set_attribute("ai.model.name", resolved_model)
+            span.set_attribute("ai.model.version", resolved_model_ver)
+            span.set_attribute("ai.prompt.version", resolved_prompt_ver)
 
             trace_id = get_current_trace_id()
 
             # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
-            intent = self.classify_intent(query, model=version_spec.model)
+            intent = self.classify_intent(query, model=resolved_model)
             if intent.intent_type == "OPINION_OR_CHATTER":
                 span.set_attribute("comparison_matrix_suppressed", True)
                 summary = (
@@ -905,9 +907,9 @@ class ComparisonOrchestrator:
                     recommendations="Specify two or more devices or models to view a detailed comparison matrix.",
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
-                    model_version=version_spec.model_version,
-                    prompt_version=version_spec.prompt_version,
+                    agent_version=resolved_agent_ver,
+                    model_version=resolved_model_ver,
+                    prompt_version=resolved_prompt_ver,
                 )
 
             with tracer.start_as_current_span("extract_keywords"):
@@ -936,22 +938,22 @@ class ComparisonOrchestrator:
                     recommendations="Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category.",
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
-                    model_version=version_spec.model_version,
-                    prompt_version=version_spec.prompt_version,
+                    agent_version=resolved_agent_ver,
+                    model_version=resolved_model_ver,
+                    prompt_version=resolved_prompt_ver,
                 )
 
             # Convert to ProductSpec schemas and rank products to match query intent
             products = [ProductSpec(**row) for row in catalog_rows]
             products = self.rank_and_select_products(
-                products, keywords, original_query=query, model=version_spec.model
+                products, keywords, original_query=query, model=resolved_model
             )
             target_skus = [p.sku for p in products]
             span.set_attribute("product_count", len(products))
             span.set_attribute("target_skus", ",".join(target_skus))
 
             # Gate: If query is not comparison-eligible, is an opinion/rant, or fewer than 2 relevant products exist, suppress comparison matrix!
-            intent = self.classify_intent(query, model=version_spec.model)
+            intent = self.classify_intent(query, model=resolved_model)
             if (
                 len(products) < 2
                 or not intent.is_comparison_eligible
@@ -988,9 +990,9 @@ class ComparisonOrchestrator:
                     recommendations=recommendations,
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
-                    model_version=version_spec.model_version,
-                    prompt_version=version_spec.prompt_version,
+                    agent_version=resolved_agent_ver,
+                    model_version=resolved_model_ver,
+                    prompt_version=resolved_prompt_ver,
                     input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                     output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
                 )
@@ -1018,9 +1020,9 @@ class ComparisonOrchestrator:
                 recommendations=recommendations,
                 session_id=session_id,
                 trace_id=trace_id,
-                agent_version=version_spec.version,
-                model_version=version_spec.model_version,
-                prompt_version=version_spec.prompt_version,
+                agent_version=resolved_agent_ver,
+                model_version=resolved_model_ver,
+                prompt_version=resolved_prompt_ver,
                 input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                 output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
             )

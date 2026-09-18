@@ -459,13 +459,16 @@ The end-to-end request budget guarantees sub-3.0 second performance:
   - *Negative / Trade-off*: Requires managing two model endpoints across Turn 1 and Turn 2; mitigated by unified `AgentVersionSpec` pinning and automatic fallback to `gemini-2.5-flash`.
   - *Re-Evaluation Trigger*: If a future `gemini-3.5-flash` release achieves `>= 4.80 / 5.0` synthesis quality score and `>= 0.992` Data Accuracy on `evals/generate_model_matrix.py`, promote single-tier Flash from `1.1.0-flash` canary to default production to capture an additional `$0.63 / 1,000 queries` cost reduction.
 
-### ADR-005: Built-In Versioning via Google Cloud Agent Registry & A2A Specification
+### ADR-005: Built-In Versioning via Native Google Cloud Agent Registry & Vertex AI Prompt Management
 - **Status**: ACCEPTED
-- **Context**: Relying on container rebuilds or single hardcoded prompt/model variables creates operational fragility when rolling back prompt regressions or evaluating canary foundation models. Hardcoded prompt overrides risk losing access to previous releases.
-- **Decision**: Adopt Google Cloud Agent Registry and the Agent-to-Agent (A2A) protocol. Immutable version specifications (`AgentVersionSpec`) bind code, foundation model (`gemini-2.5-pro` vs `gemini-2.5-flash`), model version, prompt version, system instruction, and registered skills. Expose standard discovery endpoints `/.well-known/agent-card.json` and `/api/agent/versions`.
+- **Context**: Relying on container rebuilds, hardcoded prompt strings, or custom in-memory Python registry classes creates operational fragility and unnecessary boilerplate when Google Cloud provides native managed services for prompt versioning, service discovery, and traffic splitting.
+- **Decision**: Eliminate custom in-memory registry code and adopt a 100% native Google Cloud architecture:
+  1. **Vertex AI Prompt Management (`vertexai.preview.prompts`)**: Store and version system instructions in Google Cloud (`app.agent.prompts_service.get_active_prompt`), allowing instant version pinning or rollback (`v1`, `v2`) with safe offline fallback (`SYSTEM_INSTRUCTION`).
+  2. **Google Cloud Agent Registry (`agentregistry.googleapis.com`) & Stateless A2A Card**: Provision `google_project_service.agentregistry_api` in Terraform (`deployment/terraform/agent_registry.tf`) and expose a stateless `GET /.well-known/agent-card.json` endpoint (`app.agent.agent_card.build_a2a_agent_card`) so `gcloud agent-registry` and Gemini Enterprise can discover our Cloud Run service.
+  3. **Cloud Run Revision Traffic Splitting**: Use native Cloud Run revision traffic tags for canary rollouts and sub-second rollbacks.
 - **Consequences**:
-  - *Positive*: Sub-second rollbacks without container redeployments; enables concurrent side-by-side canary execution (`1.0.0` vs `1.1.0-flash`); provides native A2A inter-agent discovery; guarantees 100% telemetry traceability across prompt/model versions.
-  - *Trade-off*: Requires maintaining registered version definitions in domain registry; mitigated by automated Pydantic schema validation and unit tests.
+  - *Positive*: Zero custom registry maintenance; sub-second prompt rollback via Vertex AI Prompt Management; native fleet governance in Google Cloud Console (`gcloud agent-registry`); 100% OpenTelemetry span traceability (`ai.agent.version`, `ai.model.version`, `ai.prompt.version`).
+  - *Trade-off*: Requires graceful fallback when running offline in local unit tests; handled by `prompts_service.py` defaulting to `SYSTEM_INSTRUCTION` when `ENABLE_VERTEX_PROMPT_REGISTRY=false` or in `pytest`.
 
 ---
 
@@ -501,24 +504,27 @@ The system integrates an automated quality flywheel (`evals/`):
 
 ---
 
-## 9. Google Cloud Agent Registry & A2A Dynamic Versioning Architecture
+## 9. Native Google Cloud Agent Registry & Vertex AI Prompt Management Architecture
 
-### 9.1 Multi-Version Release Topology
+### 9.1 Managed Versioning & Discovery Topology
 ```mermaid
 graph TD
-    CLIENT[Client / Agent Consumer] -->|POST /api/compare<br/>optional agent_version| ROUTER[Comparison Orchestrator]
-    ROUTER --> REGISTRY[Agent Registry Singleton]
-    REGISTRY -->|Resolve 1.0.0 (Default)| V1[AgentVersionSpec 1.0.0<br/>Model: Gemini 2.5 Pro<br/>Prompt: 2026.03-v1<br/>Skills: spec-comparison, intent]
-    REGISTRY -->|Resolve 1.1.0-flash (Canary)| V2[AgentVersionSpec 1.1.0-flash<br/>Model: Gemini 2.5 Flash<br/>Prompt: 2026.03-v2<br/>Skills: fast-tradeoff-synthesis]
-    
-    V1 --> ORCH[Orchestrator Execution with Pinned Spec]
-    V2 --> ORCH
-    ORCH --> RESP[CompareResponse<br/>agent_version, model_version, prompt_version]
-    ORCH -.->|Tag Span| OTEL[OpenTelemetry ai.agent.version, ai.model.version]
+    subgraph GCP_Control_Plane["Google Cloud Managed Control Plane"]
+        AR_SVC["Google Cloud Agent Registry<br/>(agentregistry.googleapis.com)"]
+        VAI_PROMPT["Vertex AI Prompt Management<br/>(vertexai.preview.prompts)"]
+    end
+
+    CLIENT["Client / Gemini Enterprise"] -->|POST /api/compare| CR["Cloud Run: catalog-agent-backend"]
+    AR_SVC -.->|Discovers GET /.well-known/agent-card.json| CR
+    CR -->|get_active_prompt(version_id)| VAI_PROMPT
+    VAI_PROMPT -->|Pinned Prompt Version + Model| ORCH["ComparisonOrchestrator"]
+    ORCH --> RESP["ComparisonResponse<br/>(agent_version, model_version, prompt_version)"]
+    ORCH -.->|Tag Span| OTEL["Cloud Trace (ai.agent.version, ai.prompt.version)"]
 ```
 
-### 9.2 Standard A2A Discovery Endpoints
-- **`GET /.well-known/agent-card.json`**: Exposes the standard Agent Card conforming to the Google Cloud Agent Registry and A2A specification with `supportedInterfaces`, `skills`, `capabilities`, and `metadata`.
-- **`GET /api/agent/card?version={version_id}`**: Retrieves version-specific Agent Cards for any registered release.
-- **`GET /api/agent/versions`**: Returns active default version (`active_default`) and summary of all registered releases.
+### 9.2 Native Discovery & Prompt Governance Components
+- **`deployment/terraform/agent_registry.tf`**: Enables `agentregistry.googleapis.com` (`google_project_service.agentregistry_api`) and tracks the Cloud Run service registration (`bestbuy-catalog-comparison-agent`) with its `/.well-known/agent-card.json` endpoint.
+- **`backend/src/app/agent/prompts_service.py`**: Resolves immutable prompt versions from Vertex AI Prompt Management (`vertexai.preview.prompts.get`) with fallback to `SYSTEM_INSTRUCTION`.
+- **`backend/src/app/agent/agent_card.py`**: Stateless generator serving `GET /.well-known/agent-card.json` and `GET /api/agent/card` for Google Cloud Agent Registry discovery.
+
 

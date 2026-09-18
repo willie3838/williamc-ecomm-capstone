@@ -231,12 +231,16 @@ def verify_live_comparison(service_url: str) -> dict:
             body = json.loads(response.read().decode("utf-8"))
 
         citations = body.get("citations", [])
-        print(f"[PASS] Response received in {latency_s:.2f}s with {len(citations)} SKU citations.")
+        latency_ok = latency_s <= 3.0
+        citations_ok = len(citations) > 0
+        passed = latency_ok and citations_ok
+        status_str = "PASS" if passed else "FAIL"
+        print(f"[{status_str}] Response received in {latency_s:.2f}s (target <=3.0s) with {len(citations)} SKU citations.")
         return {
-            "status": "PASS",
+            "status": status_str,
             "latency_seconds": round(latency_s, 2),
             "citations_count": len(citations),
-            "latency_target_met": latency_s <= 3.0
+            "latency_target_met": latency_ok
         }
     except Exception as e:
         print(f"[FAIL] Live comparison probe failed: {e}", file=sys.stderr)

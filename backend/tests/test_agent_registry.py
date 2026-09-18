@@ -1,21 +1,14 @@
-"""Unit and integration tests for Google Cloud Agent Registry & A2A Versioning."""
+"""Unit and integration tests for Vertex AI Prompt Management & A2A Agent Card Discovery."""
+
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agent.registry import (
-    AgentRegistry,
-    AgentSkill,
-    AgentVersionSpec,
-    get_agent_registry,
-)
+from app.agent.agent_card import build_a2a_agent_card
+from app.agent.prompts_service import get_active_prompt
+from app.config import settings
 from app.main import create_app
-
-
-@pytest.fixture
-def registry() -> AgentRegistry:
-    """Provide a clean AgentRegistry instance."""
-    return get_agent_registry()
 
 
 @pytest.fixture
@@ -25,81 +18,78 @@ def client() -> TestClient:
     return TestClient(app)
 
 
-def test_agent_registry_default_version(registry: AgentRegistry) -> None:
-    """Verify registry returns default version 1.0.0 when no version specified."""
-    version_spec = registry.get_version()
-    assert version_spec.version == "1.0.0"
-    assert "gemini-2.5-pro" in version_spec.model
-    assert version_spec.prompt_version == "2026.03-v1"
-    assert len(version_spec.skills) >= 2
-    assert any(s.id == "spec-comparison" for s in version_spec.skills)
+def test_get_active_prompt_default_fallback() -> None:
+    """Verify get_active_prompt returns local SYSTEM_INSTRUCTION when registry disabled."""
+    prompt_text, prompt_ver = get_active_prompt()
+    assert "Best Buy Catalog Comparison Agent" in prompt_text or "SKU" in prompt_text
+    assert prompt_ver == settings.prompt_version
 
 
-def test_agent_registry_get_flash_canary(registry: AgentRegistry) -> None:
-    """Verify registry can resolve candidate 1.1.0-flash version."""
-    version_spec = registry.get_version("1.1.0-flash")
-    assert version_spec.version == "1.1.0-flash"
-    assert "gemini-2.5-flash" in version_spec.model
-    assert "flash" in version_spec.model_version
+def test_get_active_prompt_vertex_ai_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify get_active_prompt fetches prompt template from vertexai.preview.prompts when enabled."""
+    monkeypatch.setattr(settings, "enable_vertex_prompt_registry", True)
+
+    mock_prompt_obj = MagicMock()
+    mock_prompt_obj.prompt_data = "Vertex AI Managed Grounding Instruction v99"
+    mock_prompt_obj.version_id = "2026.04-v99"
+
+    with (
+        patch("vertexai.init") as mock_init,
+        patch("vertexai.preview.prompts.get", return_value=mock_prompt_obj) as mock_get,
+    ):
+        prompt_text, prompt_ver = get_active_prompt(
+            prompt_id="catalog-comparison-grounding",
+            version_id="2026.04-v99",
+        )
+        mock_init.assert_called_once_with(project=settings.gcp_project, location="us-central1")
+        mock_get.assert_called_once_with(
+            prompt_id="catalog-comparison-grounding",
+            version_id="2026.04-v99",
+        )
+        assert prompt_text == "Vertex AI Managed Grounding Instruction v99"
+        assert prompt_ver == "2026.04-v99"
 
 
-def test_agent_registry_unknown_fallback(registry: AgentRegistry) -> None:
-    """Verify registry falls back to default version on unknown version identifier."""
-    version_spec = registry.get_version("non-existent-version-99")
-    assert version_spec.version == "1.0.0"
-    assert "gemini-2.5-pro" in version_spec.model
+def test_get_active_prompt_vertex_ai_exception_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify get_active_prompt falls back gracefully if Vertex AI call raises an error."""
+    monkeypatch.setattr(settings, "enable_vertex_prompt_registry", True)
+
+    with (
+        patch("vertexai.init"),
+        patch("vertexai.preview.prompts.get", side_effect=RuntimeError("GCP network error")),
+    ):
+        prompt_text, prompt_ver = get_active_prompt(version_id="2026.03-v2")
+        assert len(prompt_text) > 50
+        assert prompt_ver == "2026.03-v2"
 
 
-def test_agent_registry_list_versions(registry: AgentRegistry) -> None:
-    """Verify listing all registered versions returns summaries."""
-    versions = registry.list_versions()
-    assert len(versions) >= 2
-    version_ids = [v["version"] for v in versions]
-    assert "1.0.0" in version_ids
-    assert "1.1.0-flash" in version_ids
-    default_entry = next(v for v in versions if v["is_default"])
-    assert default_entry["version"] == "1.0.0"
-
-
-def test_agent_registry_generate_a2a_agent_card(registry: AgentRegistry) -> None:
-    """Verify A2A compliant Agent Card generation."""
-    card = registry.generate_agent_card(base_url="https://catalog-comparison-service.a.run.app")
+def test_build_a2a_agent_card_default() -> None:
+    """Verify stateless A2A Agent Card generation for Google Cloud Agent Registry."""
+    card = build_a2a_agent_card(base_url="https://catalog-comparison-service.a.run.app")
     assert card["name"] == "bestbuy-catalog-comparison-agent"
     assert card["version"] == "1.0.0"
-    assert "supportedInterfaces" in card
-    assert len(card["supportedInterfaces"]) == 1
     assert card["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
     assert (
         card["supportedInterfaces"][0]["url"]
         == "https://catalog-comparison-service.a.run.app/api/compare"
     )
-    assert "skills" in card
     assert len(card["skills"]) >= 2
-    assert "capabilities" in card
-    assert "metadata" in card
     assert card["metadata"]["model_version"] == "gemini-2.5-pro@001"
-    assert card["metadata"]["prompt_version"] == "2026.03-v1"
+    assert card["metadata"]["gcp_agent_registry"] == "agentregistry.googleapis.com"
 
 
-def test_agent_registry_register_custom_version(registry: AgentRegistry) -> None:
-    """Verify dynamic registration of an experimental agent version."""
-    custom_spec = AgentVersionSpec(
-        version="2.0.0-experimental",
-        display_name="Experimental Autonomous Agent",
-        description="Experimental 2.0 version",
-        model="gemini-2.5-pro",
-        model_version="gemini-2.5-pro@002",
-        prompt_version="2026.04-exp",
-        system_instruction="You are an experimental assistant.",
-        skills=[AgentSkill(id="exp-skill", name="ExpSkill", description="Exp description")],
-        is_default=False,
-        changelog="Added experimental planning features",
-        created_at="2026-04-01T00:00:00Z",
+def test_build_a2a_agent_card_flash_variant() -> None:
+    """Verify stateless A2A Agent Card generation for flash canary."""
+    card = build_a2a_agent_card(
+        base_url="https://catalog-comparison-service.a.run.app",
+        version="1.1.0-flash",
     )
-    registry.register(custom_spec)
-    retrieved = registry.get_version("2.0.0-experimental")
-    assert retrieved.version == "2.0.0-experimental"
-    assert retrieved.prompt_version == "2026.04-exp"
+    assert card["version"] == "1.1.0-flash"
+    assert card["metadata"]["model"] == "gemini-2.5-flash"
+    assert card["metadata"]["model_version"] == "gemini-2.5-flash@001"
+    assert card["metadata"]["prompt_version"] == "2026.03-v2"
 
 
 def test_api_well_known_agent_card_endpoint(client: TestClient) -> None:
@@ -123,12 +113,10 @@ def test_api_agent_card_version_query(client: TestClient) -> None:
 
 
 def test_api_agent_versions_list_endpoint(client: TestClient) -> None:
-    """Verify /api/agent/versions returns list of registered versions."""
+    """Verify /api/agent/versions returns list of versions."""
     resp = client.get("/api/agent/versions")
     assert resp.status_code == 200
     data = resp.json()
-    assert "versions" in data
-    assert "active_default" in data
     assert data["active_default"] == "1.0.0"
     version_ids = [v["version"] for v in data["versions"]]
     assert "1.0.0" in version_ids
