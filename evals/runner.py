@@ -352,7 +352,7 @@ def evaluate_semantic_coherence(
 
 def run_benchmark(
     dataset_path: Path,
-    catalog_path: Path,
+    catalog_path: Path = BACKEND_SRC / "app" / "data" / "catalog_seed.json",
     category: str | None = None,
     limit: int | None = None,
     judge_model: str = "gemini-1.5-flash",

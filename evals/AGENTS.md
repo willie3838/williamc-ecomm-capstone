@@ -90,6 +90,7 @@ python3 -m evals.runner \
   --dataset evals/dataset/benchmark_catalog.evalset.json \
   --output evals/reports/eval_results.json
 ```
+`run_benchmark()` defaults `catalog_path` to `backend/src/app/data/catalog_seed.json` for ergonomic programmatic usage, and supports custom catalog seeds for counterfactual perturbation tests.
 
 To execute evaluations through the Google ADK Runner lifecycle:
 ```bash

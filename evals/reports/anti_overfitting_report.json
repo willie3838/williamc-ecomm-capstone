@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-09-18T20:41:41.617360+00:00",
+  "gate_passed": false,
+  "benchmark_metrics": {
+    "mean_data_accuracy": 0.9625,
+    "mean_citation_faithfulness": 0.975,
+    "mean_retrieval_precision": 0.8375,
+    "mean_retrieval_recall": 0.9625,
+    "mean_semantic_score": 1.0,
+    "mean_tool_trajectory_score": 0.925,
+    "adk_tool_trajectory_score": 0.925,
+    "structured_output_validity": 1.0,
+    "latency_p50_seconds": 0.0117,
+    "latency_p90_seconds": 0.0266,
+    "latency_p95_seconds": 0.0315,
+    "target_threshold_met": false,
+    "targets": {
+      "target_accuracy": 0.98,
+      "target_citation": 0.95,
+      "target_latency_p95": 3.0,
+      "target_schema_validity": 1.0,
+      "target_trajectory": 1.0
+    }
+  },
+  "holdout_metrics": {
+    "mean_data_accuracy": 0.6753,
+    "mean_citation_faithfulness": 0.8025,
+    "mean_retrieval_precision": 0.5988,
+    "mean_retrieval_recall": 0.7037,
+    "mean_semantic_score": 1.0,
+    "mean_tool_trajectory_score": 0.8889,
+    "adk_tool_trajectory_score": 0.8889,
+    "structured_output_validity": 1.0,
+    "latency_p50_seconds": 0.0078,
+    "latency_p90_seconds": 0.0142,
+    "latency_p95_seconds": 0.0156,
+    "target_threshold_met": false,
+    "targets": {
+      "target_accuracy": 0.98,
+      "target_citation": 0.95,
+      "target_latency_p95": 3.0,
+      "target_schema_validity": 1.0,
+      "target_trajectory": 1.0
+    }
+  },
+  "accuracy_gap": 0.2872,
+  "citation_gap": 0.1725,
+  "counterfactual_fidelity": 0.8722166666666666,
+  "negative_chatter_suppression": 0.0,
+  "failure_reasons": [
+    "OVERFITTING REGRESSION: Accuracy generalization gap 0.2872 exceeds maximum threshold 0.0500 (Benchmark: 0.9625, Holdout: 0.6753)",
+    "OVERFITTING REGRESSION: Citation generalization gap 0.1725 exceeds maximum threshold 0.0500 (Benchmark: 0.9750, Holdout: 0.8025)",
+    "Holdout data accuracy 0.6753 is below floor 0.9500",
+    "Holdout citation faithfulness 0.8025 is below floor 0.9000",
+    "Counterfactual spec grounding 0.8722 is below target 0.9500 (agent failed to respect perturbed catalog specs over parametric memory)",
+    "Negative query suppression 0.0000 is below required rate 1.0000"
+  ]
+}
