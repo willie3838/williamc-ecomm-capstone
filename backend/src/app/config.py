@@ -22,6 +22,11 @@ class Settings(BaseSettings):
         alias="GCP_PROJECT",
         description="Target Google Cloud project ID",
     )
+    region: str = Field(
+        default="us-central1",
+        alias="GCP_REGION",
+        description="Primary Google Cloud region",
+    )
     service_name: str = Field(
         default="catalog-backend",
         description="Logical service identifier for tracing and logging",
@@ -65,7 +70,17 @@ class Settings(BaseSettings):
     prompt_version: str = Field(
         default="2026.03-v1",
         alias="PROMPT_VERSION",
-        description="System prompt template version identifier",
+        description="System prompt template version identifier in Vertex AI Prompt Management",
+    )
+    vertex_prompt_id: str = Field(
+        default="catalog-comparison-system-prompt",
+        alias="VERTEX_PROMPT_ID",
+        description="Google Cloud Vertex AI Prompt Management resource ID",
+    )
+    enable_vertex_prompt_registry: bool = Field(
+        default=False,
+        alias="ENABLE_VERTEX_PROMPT_REGISTRY",
+        description="Fetch versioned prompts from Google Cloud Vertex AI Prompt Management",
     )
     model_version: str = Field(
         default="gemini-2.5-pro@001",

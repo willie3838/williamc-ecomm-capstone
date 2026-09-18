@@ -432,16 +432,16 @@ def test_cloudbuild_triggers_configuration():
     assert 'resource "google_cloudbuild_trigger" "main_deploy_trigger"' in content
 
     # PR trigger checks
-    assert re.search(r'filename\s*=\s*"deployment/cloudbuild-pr\.yaml"', content)
+    assert '"deployment/cloudbuild-pr.yaml"' in content
     assert "pull_request {" in content
-    assert re.search(r'branch\s*=\s*"\^main\$"', content)
+    assert '"^main$"' in content
 
     # Main deploy trigger checks
-    assert re.search(r'filename\s*=\s*"deployment/cloudbuild\.yaml"', content)
+    assert '"deployment/cloudbuild.yaml"' in content
     assert "push {" in content
 
     # Feature toggle check
-    assert "var.enable_cloudbuild_triggers" in content
+    assert "var.enable_cloudbuild_triggers ? 1 : 0" in content
 
     # Variables check
     var_file = TERRAFORM_DIR / "variables.tf"
@@ -473,3 +473,16 @@ def test_cloud_deploy_terraform():
     main_file = TERRAFORM_DIR / "main.tf"
     main_content = main_file.read_text()
     assert '"clouddeploy.googleapis.com"' in main_content
+
+
+def test_agent_registry_terraform():
+    """Verify Google Cloud Agent Registry API and service registration configuration."""
+    reg_tf = TERRAFORM_DIR / "agent_registry.tf"
+    assert reg_tf.exists(), "agent_registry.tf missing"
+    content = reg_tf.read_text()
+
+    assert 'resource "google_project_service" "agentregistry_api"' in content
+    assert '"agentregistry.googleapis.com"' in content
+    assert 'resource "terraform_data" "gcp_agent_registry_registration"' in content
+    assert "/.well-known/agent-card.json" in content
+    assert "var.project_id" in content

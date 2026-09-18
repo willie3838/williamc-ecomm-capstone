@@ -10,7 +10,7 @@ from google.cloud import bigquery
 from google.genai import types
 
 from app.agent.prompts import SYSTEM_INSTRUCTION
-from app.agent.registry import AgentVersionSpec, get_agent_registry
+from app.agent.prompts_service import get_active_prompt
 from app.config import settings
 from app.models.requests import QueryIntentAnalysis
 from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
@@ -944,25 +944,24 @@ class ComparisonOrchestrator:
         category: str | None = None,
         session_id: str | None = None,
         agent_version: str | None = None,
-        version_spec: AgentVersionSpec | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
-        if version_spec is None:
-            registry = get_agent_registry()
-            version_spec = registry.get_version(agent_version)
+        resolved_agent_ver = agent_version or settings.agent_version
+        is_flash = "flash" in resolved_agent_ver.lower()
+        target_prompt_ver = "2026.03-v2" if is_flash else settings.prompt_version
+        _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+        base_model = "gemini-2.5-flash" if is_flash else (self._injected_model or settings.gemini_model)
+        base_synthesis = self._injected_synthesis_model or self._injected_model or base_model
 
-        raw_model = model or self._injected_model or version_spec.model
-        raw_synthesis = (
-            synthesis_model
-            or self._injected_synthesis_model
-            or getattr(version_spec, "synthesis_model", None)
-        )
+        raw_model = model or base_model
+        raw_synthesis = synthesis_model or base_synthesis
+
         active_routing_model, active_synthesis_model, is_hybrid = resolve_model_pair(
             model=raw_model,
             synthesis_model=raw_synthesis,
-            default_model=version_spec.model,
+            default_model=settings.gemini_model,
         )
 
         if (raw_model and raw_model.lower() == "tiered-hybrid") or is_hybrid:
@@ -972,7 +971,9 @@ class ComparisonOrchestrator:
         elif model or self._injected_model:
             effective_model_version = f"{active_routing_model}@001"
         else:
-            effective_model_version = version_spec.model_version
+            effective_model_version = (
+                "gemini-2.5-flash@001" if is_flash else settings.model_version
+            )
 
         tracer = get_tracer("app.agent")
 
@@ -981,12 +982,12 @@ class ComparisonOrchestrator:
             span.set_attribute("category", category or "")
             if session_id:
                 span.set_attribute("session_id", session_id)
-            span.set_attribute("ai.agent.version", version_spec.version)
+            span.set_attribute("ai.agent.version", resolved_agent_ver)
             span.set_attribute("ai.model.name", active_routing_model)
             span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
             span.set_attribute("ai.model.tiered_hybrid", is_hybrid)
             span.set_attribute("ai.model.version", effective_model_version)
-            span.set_attribute("ai.prompt.version", version_spec.prompt_version)
+            span.set_attribute("ai.prompt.version", resolved_prompt_ver)
 
             trace_id = get_current_trace_id()
 
@@ -1008,10 +1009,10 @@ class ComparisonOrchestrator:
                     recommendations="Specify two or more devices or models to view a detailed comparison matrix.",
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
+                    agent_version=resolved_agent_ver,
                     model_version=effective_model_version,
                     synthesis_model=active_synthesis_model,
-                    prompt_version=version_spec.prompt_version,
+                    prompt_version=resolved_prompt_ver,
                 )
 
             with tracer.start_as_current_span("extract_keywords"):
@@ -1040,10 +1041,10 @@ class ComparisonOrchestrator:
                     recommendations="Try searching for broader keywords like 'MacBook', 'Dell', or specify a valid category.",
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
+                    agent_version=resolved_agent_ver,
                     model_version=effective_model_version,
                     synthesis_model=active_synthesis_model,
-                    prompt_version=version_spec.prompt_version,
+                    prompt_version=resolved_prompt_ver,
                 )
 
             # Convert to ProductSpec schemas and rank products to match query intent
@@ -1095,10 +1096,10 @@ class ComparisonOrchestrator:
                     recommendations=recommendations,
                     session_id=session_id,
                     trace_id=trace_id,
-                    agent_version=version_spec.version,
+                    agent_version=resolved_agent_ver,
                     model_version=effective_model_version,
                     synthesis_model=active_synthesis_model,
-                    prompt_version=version_spec.prompt_version,
+                    prompt_version=resolved_prompt_ver,
                     input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                     output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
                 )
@@ -1131,10 +1132,10 @@ class ComparisonOrchestrator:
                 recommendations=recommendations,
                 session_id=session_id,
                 trace_id=trace_id,
-                agent_version=version_spec.version,
+                agent_version=resolved_agent_ver,
                 model_version=effective_model_version,
                 synthesis_model=active_synthesis_model,
-                prompt_version=version_spec.prompt_version,
+                prompt_version=resolved_prompt_ver,
                 input_tokens=self.last_input_tokens if self.last_input_tokens > 0 else None,
                 output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
             )

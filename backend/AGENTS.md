@@ -20,12 +20,13 @@ backend/
 │       │   ├── __init__.py
 │       │   ├── requests.py    # ComparisonRequest schema (with agent_version)
 │       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation, AgentCard schemas
-│       ├── agent/             # Google ADK agent definitions & registry
+│       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
 │       │   ├── __init__.py
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent & LLM reranker
-│       │   ├── prompts.py     # Anti-hallucination system instructions
-│       │   └── registry.py    # Google Cloud Agent Registry & A2A Version Manager
+│       │   ├── prompts.py     # Anti-hallucination default system instructions
+│       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
+│       │   └── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
 │       └── tools/             # Agent tools
 │           ├── __init__.py
 │           └── catalog.py     # query_catalog BigQuery parameterized tool
@@ -35,7 +36,7 @@ backend/
     ├── test_health.py         # Health probe tests
     ├── test_catalog_tool.py   # query_catalog tool unit tests (mocked BQ)
     ├── test_multi_agent.py    # Multi-node agent unit tests
-    ├── test_agent_registry.py # Agent Registry & A2A versioning unit tests
+    ├── test_agent_registry.py # Vertex AI Prompt Management & A2A Agent Card unit tests
     └── test_compare_api.py    # End-to-end API route tests
 ```
 
@@ -50,9 +51,8 @@ backend/
 
 ### API Endpoint Contracts
 - `GET /health`: Returns `{"status": "ok", "service": "catalog-backend", "project": "fde-bestbuy-sandbox-dev-508321"}`.
-- `GET /.well-known/agent-card.json`: A2A protocol discovery card conforming to Google Cloud Agent Registry.
-- `GET /api/agent/card`: Returns versioned Agent Card specification (e.g. `?version=1.1.0-flash`).
-- `GET /api/agent/versions`: Returns all registered agent versions with active default, model, and prompt versions.
+- `GET /.well-known/agent-card.json`: Stateless A2A protocol discovery card conforming to Google Cloud Agent Registry (`gcloud agent-registry`).
+- `GET /api/agent/card`: Returns A2A Agent Card specification.
 - `POST /api/compare`:
   - Request:
     ```json
@@ -110,28 +110,21 @@ backend/
 
 ---
 
-## 5. Google Cloud Agent Registry & A2A Built-In Versioning
+## 5. Native Google Cloud Agent Registry & Vertex AI Prompt Management
 
-The backend integrates an enterprise **Agent Registry** (`app.agent.registry`) implementing the **Agent-to-Agent (A2A)** specification.
+Instead of maintaining a custom in-memory registry class, the backend integrates directly with native Google Cloud managed services:
 
-### Immutable Version Releases & Dynamic Model Swappability
-Each release couples:
-- `version`: Semantic version (e.g. `1.0.0`, `1.1.0-flash`, `1.2.0-tiered`).
-- `model`: Gemini foundation model identifier (`gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-1.5-flash`, `tiered-hybrid`).
-- `synthesis_model`: Optional dedicated model for comparison narrative synthesis (e.g. `gemini-2.5-pro` in `tiered-hybrid` mode).
-- `model_version`: Exact pinned model release (`gemini-2.5-pro@001`, `gemini-2.5-flash@001`, `tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001`).
-- `prompt_version`: Pinned prompt version (`2026.03-v1`, `2026.03-v2`).
-- `system_instruction`: Exact grounding system instructions for the version.
-- `skills`: Declared agent capabilities (`spec-comparison`, `intent-classification`, `catalog-retrieval`).
-
-`ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair` and `create_adk_agent`. When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while feature synthesis executes on `gemini-2.5-pro`.
-
-### Discovery & Side-by-Side Execution
-1. **A2A Discovery**: Any service or agent can introspect capabilities via `GET /.well-known/agent-card.json` or `GET /api/agent/card?version=1.1.0-flash`.
-2. **Version Listing**: `GET /api/agent/versions` lists all active and canary releases.
-3. **Execution Routing**: Clients pass optional `"agent_version"`, `"model"`, and `"synthesis_model"` in `POST /api/compare`. If omitted, the active production default (`1.0.0`) is used.
-4. **Sub-second Rollback**: Switching the active release requires changing `is_default` in the registry without container rebuilds or pipeline delays.
-5. **Traceability**: Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and the OpenTelemetry root span is annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
+1. **Vertex AI Prompt Management (`app.agent.prompts_service`)**:
+   - Uses `vertexai.preview.prompts.get(prompt_id=..., version_id=...)` to fetch immutable, cloud-versioned prompts (`v1`, `v2`, etc.) stored in Google Cloud Vertex AI Prompt Management.
+   - Enables instant prompt version pinning or rollback (`PROMPT_VERSION` / `agent_version`) without modifying code or rebuilding Docker containers, with safe local fallback (`SYSTEM_INSTRUCTION`) when running offline or in unit tests.
+2. **Stateless A2A Discovery (`app.agent.agent_card`) & Google Cloud Agent Registry**:
+   - Serves the standard Agent-to-Agent (A2A) JSON manifest at `GET /.well-known/agent-card.json` (`build_a2a_agent_card`).
+   - Provisioned in Terraform (`deployment/terraform/agent_registry.tf` enabling `agentregistry.googleapis.com`) so `gcloud agent-registry services` and Gemini Enterprise can discover our Cloud Run service's endpoints, skills (`spec-comparison`, `intent-classification`, `catalog-retrieval`), and active model/prompt metadata.
+3. **Dynamic Model Swappability & Tiered-Hybrid Architecture**:
+   - `ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair`.
+   - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
+4. **Traceability**:
+   - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
 
 ---
 
