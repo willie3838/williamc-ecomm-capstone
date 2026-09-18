@@ -10,8 +10,9 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
 ├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, trajectory)
+├── trajectory_grader.py       # Deterministic & semantic tool trajectory grading engine
 ├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
-├── analyze.py                 # Report analysis and metric visualization
+├── analyze.py                 # Report analysis, metric visualization, and trajectory regression checks
 ├── dataset/
 │   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet
 │   ├── benchmark_queries.json # Legacy 80-pair comparison test cases
@@ -76,6 +77,19 @@ python3 -m evals.runner \
   --output evals/reports/eval_results.json
 ```
 
+
+---
+
+## 4. Tool Trajectory Grader & Sequence Validation
+
+The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool executions:
+- **Match Modes**:
+  - `EXACT`: Verifies identical tool sequence and exact argument equality.
+  - `IN_ORDER`: Ensures all expected tools are called sequentially while allowing benign intermediate retrieval steps.
+  - `ANY_ORDER`: Allows tools to execute in any sequence.
+  - `FUZZY_SEMANTIC`: Validates that `query_catalog` parameters contain the expected brand and model keywords without failing on punctuation or casing nuances.
+- **Sequence Diagnostics**: Automatically flags missing tool calls, unintended tool calls, argument drift, and tool latency.
+- **Benchmark Integration**: Integrated directly into `evals.runner` and `evals.analyze` to compute `mean_tool_trajectory_score` and enforce $\ge 0.95$ gate.
 
 ---
 

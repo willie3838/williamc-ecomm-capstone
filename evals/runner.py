@@ -24,6 +24,12 @@ if str(REPO_ROOT) not in sys.path:
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import CompareResponse
 
+from evals.trajectory_grader import (
+    MatchType,
+    TrajectoryGrader,
+    TrajectoryRecorder,
+)
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("evals.runner")
 
@@ -369,6 +375,7 @@ def run_benchmark(
     target_citation: float = 0.95,
     target_latency: float = 3.0,
     target_schema: float = 1.00,
+    target_trajectory: float = 1.00,
 ) -> dict[str, Any]:
     with open(dataset_path, encoding="utf-8") as f:
         raw_data = json.load(f)
@@ -387,6 +394,8 @@ def run_benchmark(
                     "expected_skus": c.get("expected_skus", []),
                     "key_differential_features": c.get("key_differential_features", []),
                     "ground_truth_specs": c.get("ground_truth_specs", {}),
+                    "conversation": c.get("conversation", []),
+                    "expected_tool_use": c.get("expected_tool_use", []),
                 }
             )
     elif isinstance(raw_data, list):
@@ -430,8 +439,10 @@ def run_benchmark(
     total_precision = 0.0
     total_recall = 0.0
     total_semantic = 0.0
+    total_trajectory = 0.0
     valid_schema_count = 0
 
+    trajectory_grader = TrajectoryGrader(default_match_type=MatchType.FUZZY_SEMANTIC)
     category_stats: dict[str, dict[str, Any]] = {}
 
     print(f"\n🚀 Running Evaluation Benchmark ({len(cases)} test cases)...")
@@ -451,14 +462,19 @@ def run_benchmark(
                 "accuracy_sum": 0.0,
                 "citation_sum": 0.0,
                 "latency_sum": 0.0,
+                "trajectory_sum": 0.0,
             }
 
         start_time = time.perf_counter()
         case_errors: list[str] = []
         is_schema_valid = False
+        actual_tool_records = []
+        traj_result = None
+        trajectory_score = 0.0
 
         try:
-            response = orchestrator.compare(query=query, category=case_cat)
+            with TrajectoryRecorder() as recorder:
+                response = orchestrator.compare(query=query, category=case_cat)
             latency = time.perf_counter() - start_time
             latencies.append(latency)
 
@@ -492,6 +508,18 @@ def run_benchmark(
             )
             case_errors.extend(sem_errs)
 
+            # 5. Tool Trajectory Evaluation
+            actual_tool_records = recorder.get_records()
+            expected_tool_records = trajectory_grader.extract_expected_from_eval_case(case)
+            traj_result = trajectory_grader.grade(
+                actual=actual_tool_records,
+                expected=expected_tool_records,
+                match_type=MatchType.FUZZY_SEMANTIC,
+            )
+            trajectory_score = traj_result.score
+            if not traj_result.passed:
+                case_errors.append(f"Trajectory mismatch: {traj_result.diagnosis.explanation}")
+
         except Exception as exc:  # noqa: BLE001
             latency = time.perf_counter() - start_time
             latencies.append(latency)
@@ -500,11 +528,18 @@ def run_benchmark(
             precision = 0.0
             recall = 0.0
             semantic_score = 0.0
+            trajectory_score = 0.0
             retrieved_skus = []
             case_errors.append(f"Execution error: {exc}")
 
         # Determine pass/fail status
-        passed = accuracy >= 0.95 and citation_score >= 0.90 and is_schema_valid and latency <= 5.0
+        passed = (
+            accuracy >= 0.95
+            and citation_score >= 0.90
+            and is_schema_valid
+            and latency <= 5.0
+            and trajectory_score >= (target_trajectory * 0.90)
+        )
         status_str = "PASS" if passed else "FAIL"
 
         total_accuracy += accuracy
@@ -512,6 +547,7 @@ def run_benchmark(
         total_precision += precision
         total_recall += recall
         total_semantic += semantic_score
+        total_trajectory += trajectory_score
 
         # Update category stats
         category_stats[case_cat]["total"] += 1
@@ -520,6 +556,7 @@ def run_benchmark(
         category_stats[case_cat]["accuracy_sum"] += accuracy
         category_stats[case_cat]["citation_sum"] += citation_score
         category_stats[case_cat]["latency_sum"] += latency
+        category_stats[case_cat]["trajectory_sum"] += trajectory_score
 
         results.append(
             {
@@ -533,6 +570,14 @@ def run_benchmark(
                 "data_accuracy": accuracy,
                 "citation_faithfulness": citation_score,
                 "semantic_score": semantic_score,
+                "tool_trajectory_score": round(trajectory_score, 4),
+                "tool_trajectory_passed": traj_result.passed if traj_result else False,
+                "tool_trajectory_match_type": traj_result.match_type.value if traj_result else None,
+                "actual_tool_count": len(actual_tool_records),
+                "expected_tool_count": len(trajectory_grader.extract_expected_from_eval_case(case)),
+                "trajectory_diagnosis": traj_result.diagnosis.explanation
+                if traj_result
+                else "Execution error",
                 "structured_output_valid": is_schema_valid,
                 "latency_seconds": round(latency, 4),
                 "status": status_str,
@@ -555,6 +600,8 @@ def run_benchmark(
     mean_prec = round(total_precision / n_cases, 4)
     mean_rec = round(total_recall / n_cases, 4)
     mean_sem = round(total_semantic / n_cases, 4)
+    mean_traj = round(total_trajectory / n_cases, 4)
+    target_traj_met = mean_traj >= (target_trajectory * 0.95)
     schema_validity = round(valid_schema_count / n_cases, 4)
 
     # Latency percentiles
@@ -576,6 +623,7 @@ def run_benchmark(
             "pass_rate": round(data["passed"] / c_total, 4),
             "mean_data_accuracy": round(data["accuracy_sum"] / c_total, 4),
             "mean_citation_faithfulness": round(data["citation_sum"] / c_total, 4),
+            "mean_tool_trajectory_score": round(data["trajectory_sum"] / c_total, 4),
             "mean_latency_seconds": round(data["latency_sum"] / c_total, 4),
         }
 
@@ -584,6 +632,7 @@ def run_benchmark(
         and mean_cit >= target_citation
         and lat_p95 <= target_latency
         and schema_validity >= target_schema
+        and target_traj_met
     )
 
     passed_total = sum(1 for r in results if r["status"] == "PASS")
@@ -604,6 +653,8 @@ def run_benchmark(
             "mean_retrieval_precision": mean_prec,
             "mean_retrieval_recall": mean_rec,
             "mean_semantic_score": mean_sem,
+            "mean_tool_trajectory_score": mean_traj,
+            "adk_tool_trajectory_score": mean_traj,
             "structured_output_validity": schema_validity,
             "latency_p50_seconds": lat_p50,
             "latency_p90_seconds": lat_p90,
@@ -614,6 +665,7 @@ def run_benchmark(
                 "target_citation": target_citation,
                 "target_latency_p95": target_latency,
                 "target_schema_validity": target_schema,
+                "target_trajectory": target_trajectory,
             },
         },
         "category_metrics": cat_summary,
@@ -629,9 +681,9 @@ def run_benchmark(
     )
     print(f"Mean Data Accuracy              : {mean_acc:.4f} (Target: >= {target_accuracy:.2f})")
     print(f"Mean Citation Faithfulness      : {mean_cit:.4f} (Target: >= {target_citation:.2f})")
+    print(f"Mean Tool Trajectory Score      : {mean_traj:.4f} (Target: >= {target_trajectory:.2f})")
     print(f"Mean Retrieval Precision / Recall: {mean_prec:.4f} / {mean_rec:.4f}")
     print(f"Structured Output Validity      : {schema_validity:.4f} (Target: 1.0000)")
-    print(f"End-to-End P95 Latency          : {lat_p95:.4f}s (Target: <= {target_latency:.2f}s)")
     print(f"Overall Target Met              : {'✅ PASS' if target_met else '❌ FAIL'}")
     print("=" * 80)
 
@@ -782,6 +834,12 @@ def main() -> None:
         help="Structured output schema validity target (default 1.00).",
     )
     parser.add_argument(
+        "--target-trajectory",
+        type=float,
+        default=1.00,
+        help="Tool trajectory target threshold (default 1.00).",
+    )
+    parser.add_argument(
         "--fail-on-threshold",
         action="store_true",
         default=False,
@@ -813,6 +871,7 @@ def main() -> None:
         target_citation=args.target_citation,
         target_latency=args.target_latency,
         target_schema=args.target_schema,
+        target_trajectory=args.target_trajectory,
     )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

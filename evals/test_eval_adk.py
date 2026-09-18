@@ -93,3 +93,78 @@ async def test_with_single_test_file():
         )
 
         mock_internal_eval.assert_awaited_once()
+
+
+def test_adk_trajectory_evaluator_all_80_benchmark_cases():
+    """Test ADKTrajectoryEvaluator evaluation directly across all 80 benchmark cases without mocking."""
+    from google.adk.evaluation.evaluator import EvalStatus
+
+    from evals.trajectory_grader import ADKTrajectoryEvaluator, MatchType
+
+    with open(BENCHMARK_EVALSET, encoding="utf-8") as f:
+        bench_data = json.load(f)
+    eval_set = EvalSet.model_validate(bench_data)
+
+    evaluator = ADKTrajectoryEvaluator(match_type=MatchType.IN_ORDER)
+
+    for case in eval_set.eval_cases:
+        inv = case.conversation[0]
+        # Evaluate identical invocation: golden expectation meets identical actual
+        res = evaluator.evaluate_invocations(
+            actual_invocations=[inv],
+            expected_invocations=[inv],
+        )
+
+        assert res.overall_score == 1.0, f"Case {case.eval_id} failed trajectory match: {res}"
+        assert res.overall_eval_status == EvalStatus.PASSED
+        assert len(res.per_invocation_results) == 1
+        per_inv = res.per_invocation_results[0]
+        assert per_inv.score == 1.0
+        assert per_inv.eval_status == EvalStatus.PASSED
+        assert per_inv.rubric_scores is not None
+        assert per_inv.rubric_scores[0].rubric_id == "tool_trajectory"
+        assert res.overall_rubric_scores[0].rubric_id == "tool_trajectory_avg_score"
+
+
+def test_adk_trajectory_evaluator_detects_deviations_and_failures():
+    """Test ADKTrajectoryEvaluator correctly flags deviations, empty calls, and corrupted arguments."""
+    from copy import deepcopy
+
+    from google.adk.evaluation.evaluator import EvalStatus
+
+    from evals.trajectory_grader import ADKTrajectoryEvaluator, MatchType
+
+    with open(SIMPLE_TEST_EVALSET, encoding="utf-8") as f:
+        simple_data = json.load(f)
+    eval_set = EvalSet.model_validate(simple_data)
+    golden_inv = eval_set.eval_cases[0].conversation[0]
+
+    evaluator = ADKTrajectoryEvaluator(match_type=MatchType.EXACT)
+
+    # 1. Corrupted tool name
+    corrupted_inv = deepcopy(golden_inv)
+    corrupted_inv.intermediate_data.tool_uses[0].name = "web_search"
+    res_bad_tool = evaluator.evaluate_invocations(
+        actual_invocations=[corrupted_inv],
+        expected_invocations=[golden_inv],
+    )
+    assert res_bad_tool.overall_score == 0.0
+    assert res_bad_tool.overall_eval_status == EvalStatus.FAILED
+
+    # 2. Corrupted arguments
+    corrupted_args_inv = deepcopy(golden_inv)
+    corrupted_args_inv.intermediate_data.tool_uses[0].args = {"category": "WrongCategory"}
+    res_bad_args = evaluator.evaluate_invocations(
+        actual_invocations=[corrupted_args_inv],
+        expected_invocations=[golden_inv],
+    )
+    assert res_bad_args.overall_score == 0.0
+    assert res_bad_args.overall_eval_status == EvalStatus.FAILED
+
+    # 3. Missing actual invocations
+    res_missing = evaluator.evaluate_invocations(
+        actual_invocations=[],
+        expected_invocations=[golden_inv],
+    )
+    assert res_missing.overall_score == 0.0
+    assert res_missing.overall_eval_status == EvalStatus.FAILED

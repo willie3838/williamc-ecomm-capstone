@@ -12,6 +12,7 @@ def test_eval_rubrics_exist_and_populated():
         "data_accuracy.md",
         "citation_faithfulness.md",
         "semantic_coherence.md",
+        "tool_trajectory.md",
     ]
 
     for fname in expected_files:
@@ -32,3 +33,9 @@ def test_eval_rubrics_exist_and_populated():
         elif fname == "semantic_coherence.md":
             assert "LLM" in content
             assert "scale" in content.lower() or "score" in content.lower()
+
+        elif fname == "tool_trajectory.md":
+            assert "1.00" in content or "0.95" in content
+            assert "EXACT" in content
+            assert "IN_ORDER" in content
+            assert "FUZZY_SEMANTIC" in content

@@ -200,7 +200,9 @@ This Technical Design Document outlines the architecture for the **Best Buy Cata
 3. **Automates CI/CD**: Automatically builds, tests, and deploys the application using Google Cloud Build.
 
 ### Core "North Star" Metrics
-- **Data Accuracy**: 100% agreement between the specs generated in the comparison matrix and the actual values in the BigQuery tables.
+- **Data Accuracy**: 100% agreement between the specs generated in the comparison matrix and the actual values in the BigQuery tables ($\ge 0.98$ target).
+- **Citation Faithfulness**: $\ge 0.95$ inline SKU citation fidelity (`[SKU: ...]`) grounded in catalog data.
+- **Tool Trajectory Quality**: $\ge 1.00$ golden sequence and argument compliance evaluated via `TrajectoryGrader` and `ADKTrajectoryEvaluator` across the 80 benchmark queries (rollback threshold $< 0.90$).
 - **IaC Deployment Success**: 100% automated provisioning via Terraform without manual GCP console overrides.
 - **CI/CD Execution Time**: Total Cloud Build pipeline duration $\le$ 5 minutes from git push to Cloud Run deployment.
 - **Query Latency**: p95 latency $\le$ 3.0 seconds for generating a complete comparison report.

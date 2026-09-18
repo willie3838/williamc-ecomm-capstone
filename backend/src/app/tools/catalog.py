@@ -47,6 +47,24 @@ def query_catalog(
         span.set_attribute("bq.category", category or "")
         span.set_attribute("bq.limit", limit)
 
+        try:
+            from evals.trajectory_grader import TrajectoryRecorder
+
+            active_recorder = TrajectoryRecorder.get_current()
+            if active_recorder is not None:
+                active_recorder.record_call(
+                    name="query_catalog",
+                    args={
+                        "keywords": clean_keywords,
+                        "category": category,
+                        "min_price": min_price,
+                        "max_price": max_price,
+                        "limit": limit,
+                    },
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
         if not clean_keywords:
             logger.info("query_catalog called with empty keywords; returning empty list.")
             span.set_attribute("bq.result_count", 0)
