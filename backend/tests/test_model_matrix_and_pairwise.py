@@ -334,3 +334,56 @@ def test_adr_004_and_evals_agents_documentation_synchronized() -> None:
 
     assert "generate_model_matrix.py" in evals_agents_text
     assert "pairwise_judge.py" in evals_agents_text
+
+
+def test_evaluate_pairwise_batch_empty_pairs() -> None:
+    """Verify evaluate_pairwise_batch handles empty pairs gracefully."""
+    summary = evaluate_pairwise_batch(
+        model_a="model-a",
+        model_b="model-b",
+        pairs=[],
+    )
+    assert isinstance(summary, PairwiseBatchSummary)
+    assert summary.total_pairs == 0
+    assert summary.overall_winner == "TIE"
+
+
+def test_pairwise_judge_cli_main(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify CLI entrypoint of pairwise_judge runs and prints JSON."""
+    import sys
+    from evals import pairwise_judge
+
+    monkeypatch.setattr(sys, "argv", ["pairwise_judge"])
+    pairwise_judge.main()
+    captured = capsys.readouterr()
+    assert "overall_winner" in captured.out
+    assert "score_a" in captured.out
+
+
+def test_generate_model_matrix_cli_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify CLI entrypoint of generate_model_matrix writes files and prints scorecard."""
+    import sys
+    from evals import generate_model_matrix
+
+    json_path = tmp_path / "cli_matrix.json"
+    md_path = tmp_path / "cli_scorecard.md"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "generate_model_matrix",
+            "--output-json",
+            str(json_path),
+            "--output-md",
+            str(md_path),
+        ],
+    )
+    generate_model_matrix.main()
+    captured = capsys.readouterr()
+    assert "# Empirical Foundation Model Decision Scorecard" in captured.out
+    assert json_path.exists()
+    assert md_path.exists()
