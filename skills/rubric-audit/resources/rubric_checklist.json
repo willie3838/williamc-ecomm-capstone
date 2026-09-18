@@ -5,35 +5,62 @@
       "category": "Presentation & Advisory Rigor",
       "name": "Strategic Delivery & Value Articulation",
       "focus": "Can they connect technical architecture to business value? Can they clearly articulate why they built this solution and how it handles commercial reality?",
-      "criteria": "Delivers a compelling, narrative-driven walkthrough of the user experience framed around customer personas and operational impact. Explicitly justifies why the architecture directly solves the root business problem (avoiding a 'science project') and presents a viable Total Cost of Ownership (TCO) model that demonstrates fiscal responsibility."
+      "criteria": "Delivers a compelling, narrative-driven walkthrough of the user experience framed around customer personas and operational impact. Explicitly justifies why the architecture directly solves the root business problem (avoiding a 'science project') and presents a viable Total Cost of Ownership (TCO) model that demonstrates fiscal responsibility.",
+      "score_3_expert_criteria": "Quantifies unit economics ($/1k queries, BigQuery scan cost per SKU lookup, Cloud Run CPU/memory second billing vs provisioned vector cluster baseline), ties latency and citation accuracy directly to retail conversion/cart-abandonment KPIs, and models sensitivity under 10x traffic burst.",
+      "score_3_disqualifiers": [
+        "Qualitative cost claims without per-query or monthly dollar math",
+        "Missing comparison against alternative architectures (e.g. provisioned Vector DB or unconstrained Text-to-SQL)",
+        "No explicit mapping between technical SLAs and retail business KPIs"
+      ]
     },
     {
       "id": "s1_02",
       "category": "Presentation & Advisory Rigor",
       "name": "Objection Handling & Technical Defense",
       "focus": "How do they react to executive pushback, and can they programmatically defend their implementation choices?",
-      "criteria": "Remains entirely calm, collected, and collaborative under pressure when facing stakeholder resistance. Confidently defends engineering decisions and structural design choices during the Q&A matrix using data-backed logic, while cleanly evaluating and addressing technical trade-offs (e.g., cost vs. latency, model tiering)."
+      "criteria": "Remains entirely calm, collected, and collaborative under pressure when facing stakeholder resistance. Confidently defends engineering decisions and structural design choices during the Q&A matrix using data-backed logic, while cleanly evaluating and addressing technical trade-offs (e.g., cost vs. latency, model tiering).",
+      "score_3_expert_criteria": "Preempts CISO, CTO, and CFO objections with empirical benchmark data (measured p95 latency breakdown, adversarial jailbreak rejection rates, SQL injection vs prompt injection separation) and explicitly documents where current design trade-offs break down at scale.",
+      "score_3_disqualifiers": [
+        "Claims architecture has zero weaknesses or trade-offs",
+        "Defends choices with buzzwords rather than measured latency/accuracy/cost numbers",
+        "Conflates database query parameterization with LLM prompt security"
+      ]
     },
     {
       "id": "s1_03",
       "category": "Presentation & Advisory Rigor",
       "name": "Presentation Skills & Time Management",
       "focus": "How effectively do they manage time, pacing, and the overall flow of the meeting?",
-      "criteria": "Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers."
+      "criteria": "Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers.",
+      "score_3_expert_criteria": "Provides a structured 5-8 slide executive narrative with explicit time-boxed agendas, demo scripts anchored to verifiable SKUs, and a parking-lot matrix for out-of-scope enterprise integrations (ERP, real-time inventory locking).",
+      "score_3_disqualifiers": [
+        "No structured slide-by-slide executive walkthrough or demo runbook",
+        "Fails to explicitly define out-of-scope boundaries to deflect rabbit holes"
+      ]
     },
     {
       "id": "s1_04",
       "category": "Presentation & Advisory Rigor",
       "name": "AI Driven Development Discussion",
       "focus": "How effectively do they demonstrate the use of GenAI tools and harness concepts to accelerate their own development lifecycle and code quality?",
-      "criteria": "Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions."
+      "criteria": "Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions.",
+      "score_3_expert_criteria": "Implements a multi-agent adversarial harness (hierarchical AGENTS.md, TDD/eval hillclimbing loops, doc-sync enforcement gates, and multi-pane tmux review panels) with concrete post-mortems showing how past agent mistakes were encoded into automated guardrails.",
+      "score_3_disqualifiers": [
+        "Static AGENTS.md without automated test/lint/doc-sync enforcement hooks",
+        "No closed-loop feedback mechanism showing how agent failures updated harness rules"
+      ]
     },
     {
       "id": "s1_05",
       "category": "Presentation & Advisory Rigor",
       "name": "Futures / Roadmap (GCP Value)",
       "focus": "Can they communicate what the next phase of development would look like while driving home the value of Google Cloud?",
-      "criteria": "Articulates a clear, progressive roadmap for future development phases, addressing key elements like production-grade scalability, performance optimization, and features of the solution that the customer would want in production. Effectively demonstrates the strategic value of Google Cloud integration, explaining how native GCP services enhance stability, security, and long-term business value."
+      "criteria": "Articulates a clear, progressive roadmap for future development phases, addressing key elements like production-grade scalability, performance optimization, and features of the solution that the customer would want in production. Effectively demonstrates the strategic value of Google Cloud integration, explaining how native GCP services enhance stability, security, and long-term business value.",
+      "score_3_expert_criteria": "Sequences concrete Phase 2/3 GCP architectural upgrades (Vertex AI Vector Search hybrid retrieval, BigQuery BI Engine / slot autoscaling, Model Armor, Cloud CDN + Global External Application Load Balancer) with migration triggers, cost impact, and latency delta estimates.",
+      "score_3_disqualifiers": [
+        "Generic wishlist of GCP service names without architectural integration paths or migration triggers",
+        "No analysis of cost/complexity increases introduced by Phase 2 services"
+      ]
     }
   ],
   "section_2_engineering_excellence": [
@@ -42,224 +69,362 @@
       "category": "AI/ML Engineering",
       "name": "Agentic & Multi-Agent Systems",
       "focus": "Agent orchestration patterns, tool/function calling, planning and reasoning loops, memory and state management, multi-agent coordination, cognitive architectures, and integrating agents with legacy/external APIs.",
-      "criteria": "Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, state management, and error handling within enterprise latency thresholds."
+      "criteria": "Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, state management, and error handling within enterprise latency thresholds.",
+      "score_3_expert_criteria": "Implements Google ADK orchestration with specialized sub-agent delegation or deterministic tool pipelines, bounded execution loops preventing infinite tool recursion, session state isolation, strict timeout budgets per stage, and automated tests covering partial tool failure.",
+      "score_3_disqualifiers": [
+        "Single monolithic LLM prompt without structured ADK tool schemas or state management",
+        "Unbounded agent loops without max-step or wall-clock timeout guards",
+        "Evidence cites only SPEC.md/ARCHITECTURE.md without executable ADK agent code and tests"
+      ]
     },
     {
       "id": "s2_02",
       "category": "AI/ML Engineering",
       "name": "Retrieval & Data Engineering for AI",
       "focus": "RAG architecture patterns, embedding models and vector databases, chunking and indexing strategies, hybrid search, grounding and citation, data pipelines for AI, parsing complex document formats (PDF/HTML tables), and citation/grounding.",
-      "criteria": "Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys."
+      "criteria": "Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys.",
+      "score_3_expert_criteria": "Enforces programmatic post-generation SKU citation verification against retrieved BigQuery rows, entity balancing across comparison targets, deterministic spec normalization, and automated rejection/strip of any ungrounded claim or hallucinated SKU.",
+      "score_3_disqualifiers": [
+        "Relies solely on system prompt instructions ('please cite SKUs') without programmatic post-verification in Python",
+        "Allows unverified SKUs or fabricated attributes to pass through to the API response"
+      ]
     },
     {
       "id": "s2_03",
       "category": "AI/ML Engineering",
       "name": "Model Selection, Tuning & Optimization",
       "focus": "Model assessment and selection (quality, latency, cost, context), tuning, quantization, distillation, prompt engineering, structured output enforcement (JSON mode), and inference optimization.",
-      "criteria": "Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality."
+      "criteria": "Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality.",
+      "score_3_expert_criteria": "Enforces low-temperature (`<= 0.1`) deterministic generation, native `response_schema` / Pydantic JSON enforcement, explicit input/output token caps, and documented latency/quality benchmark comparisons across model tiers (e.g. Gemini Flash vs Pro).",
+      "score_3_disqualifiers": [
+        "Parses free-form markdown with fragile regex instead of schema-constrained structured outputs",
+        "Default/high temperature settings or missing max_output_tokens bounds"
+      ]
     },
     {
       "id": "s2_04",
       "category": "AI/ML Engineering",
       "name": "LLM Ops and Evaluation",
       "focus": "Evaluation methodology for generative AI, quality metrics (faithfulness, relevance, coherence), eval dataset design, human vs. automated evaluation, regression detection, Observability (tracing/logging).",
-      "criteria": "Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge, regression detection, and automated gates."
+      "criteria": "Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge, regression detection, and automated gates.",
+      "score_3_expert_criteria": "Combines deterministic programmatic evaluators (exact spec value verification, SKU citation set-membership, latency SLA check) with calibrated LLM-as-a-Judge rubrics across an 80+ query dataset, plus automated failure-mode clustering and regression diffing.",
+      "score_3_disqualifiers": [
+        "Relies exclusively on LLM-as-a-Judge without deterministic programmatic spec/SKU accuracy metrics",
+        "Small toy eval dataset (< 20 examples) or missing adversarial/edge-case queries"
+      ]
     },
     {
       "id": "s2_05",
       "category": "AI/ML Engineering",
       "name": "Domain-Applied AI/ML Expertise",
       "focus": "Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain-specific feature engineering, data handling, and regulatory compliance.",
-      "criteria": "Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain feature engineering, data handling, and enterprise compliance."
+      "criteria": "Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain feature engineering, data handling, and enterprise compliance.",
+      "score_3_expert_criteria": "Implements retail-specific catalog domain logic: category-aware attribute comparison matrices (Laptops vs TVs vs Headphones), price-to-performance trade-off synthesis, cross-category mismatch detection, and strict catalog price/availability fidelity.",
+      "score_3_disqualifiers": [
+        "Treats consumer electronics comparison as generic text summarization without domain attribute schemas",
+        "Does not handle cross-category or single-product edge cases in domain logic"
+      ]
     },
     {
       "id": "s2_06",
       "category": "Scoping and Documentation",
       "name": "Problem Definition",
       "focus": "Identifying and articulating the business problem, translating ambiguity into a technical opportunity, documenting what success unlocks for the customer.",
-      "criteria": "Identifies, articulates business problems clearly; translates ambiguity into actionable technical opportunity. Documents customer success unlocks, justifying architecture as direct solution to root business problem."
+      "criteria": "Identifies, articulates business problems clearly; translates ambiguity into actionable technical opportunity. Documents customer success unlocks, justifying architecture as direct solution to root business problem.",
+      "score_3_expert_criteria": "Frames the business problem with quantified baseline pain points (high research bounce rates, spec confusion across 50+ attributes), maps Critical User Journeys (CUJs) to measurable engineering SLAs, and proves why structured retrieval + synthesis beats keyword search.",
+      "score_3_disqualifiers": [
+        "Vague problem statement without Critical User Journeys (CUJs) or measurable success metrics"
+      ]
     },
     {
       "id": "s2_07",
       "category": "Scoping and Documentation",
       "name": "Technical Scope & Constraints",
       "focus": "Defining technical scope, identifying constraints and assumptions, documenting system boundaries and the architectural approach prior to build.",
-      "criteria": "Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase."
+      "criteria": "Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase.",
+      "score_3_expert_criteria": "Explicitly delineates MVP sandbox scope vs enterprise production scope, documents hard system limits (max SKUs per comparison, query payload size, BigQuery timeout ceilings, regional residency), and enforces those constraints in code.",
+      "score_3_disqualifiers": [
+        "Documented scope constraints are not enforced by actual validation rules in the API/backend"
+      ]
     },
     {
       "id": "s2_08",
       "category": "Scoping and Documentation",
       "name": "Stakeholder Alignment & Success Criteria",
       "focus": "Evidence of stakeholder alignment, defined success criteria and acceptance criteria, phased delivery plan or architectural roadmap.",
-      "criteria": "Demonstrates robust stakeholder alignment; defines clear success and acceptance criteria. Comprehensive phased delivery plan synchronized with business expectations."
+      "criteria": "Demonstrates robust stakeholder alignment; defines clear success and acceptance criteria. Comprehensive phased delivery plan synchronized with business expectations.",
+      "score_3_expert_criteria": "Establishes a multi-sprint delivery plan with verifiable Definition of Done (DoD) gates (coverage >= 80%, accuracy >= 0.98, faithfulness >= 0.95, p95 <= 3.0s) and bidirectional traceability across Buganizer, Taskflow, and GitHub PRs.",
+      "score_3_disqualifiers": [
+        "Acceptance criteria are subjective and not verified by automated test or eval thresholds"
+      ]
     },
     {
       "id": "s2_09",
       "category": "Scoping and Documentation",
       "name": "System Design Artifacts",
       "focus": "Architecture diagrams, data flow diagrams, sequence diagrams.",
-      "criteria": "Produces comprehensive architecture, data flow, and sequence diagrams clearly mapping system components, interaction patterns, and data lifecycles."
+      "criteria": "Produces comprehensive architecture, data flow, and sequence diagrams clearly mapping system components, interaction patterns, and data lifecycles.",
+      "score_3_expert_criteria": "Maintains multi-layer Mermaid diagrams (System Topology, End-to-End Request Sequence with error/fallback branches, IAM & VPC-SC Security Perimeter, Data Ingestion & Eval Flywheel) that match the exact file/module names and ports in the codebase.",
+      "score_3_disqualifiers": [
+        "Diagrams depict aspirational components that do not match the actual implemented modules or ports",
+        "Missing sequence diagrams showing error/degradation paths"
+      ]
     },
     {
       "id": "s2_10",
       "category": "Scoping and Documentation",
       "name": "Decision Records",
       "focus": "ADRs, documenting trade-offs, alternatives considered, rationale.",
-      "criteria": "Maintains comprehensive Architecture Decision Records (ADRs) documenting critical trade-offs, alternatives considered, and logical rationale."
+      "criteria": "Maintains comprehensive Architecture Decision Records (ADRs) documenting critical trade-offs, alternatives considered, and logical rationale.",
+      "score_3_expert_criteria": "Documents formal ADRs covering compute (Cloud Run vs GKE), data layer (BigQuery parameterized SQL vs Vector DB vs AlloyDB), agent framework (Google ADK vs LangChain), and frontend stack, explicitly listing rejected alternatives, failure modes, and re-evaluation triggers.",
+      "score_3_disqualifiers": [
+        "One-sided ADRs that fail to state negative consequences or when the chosen approach would need to be replaced"
+      ]
     },
     {
       "id": "s2_11",
       "category": "Scoping and Documentation",
       "name": "API Documentation",
       "focus": "OpenAPI specs, integration guides, SDK documentation.",
-      "criteria": "Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions."
+      "criteria": "Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions.",
+      "score_3_expert_criteria": "Generates strict OpenAPI 3.1 schemas via FastAPI/Pydantic with field-level descriptions, regex/length bounds, explicit HTTP 400/422/500/503 error response models, example payloads, and integration curl/client recipes.",
+      "score_3_disqualifiers": [
+        "Untyped dict/Any API responses or missing error response schemas in OpenAPI"
+      ]
     },
     {
       "id": "s2_12",
       "category": "Scoping and Documentation",
       "name": "Operational Documentation",
       "focus": "Deployment guides, runbooks, onboarding docs, troubleshooting guides.",
-      "criteria": "Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills."
+      "criteria": "Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills.",
+      "score_3_expert_criteria": "Provides copy-pasteable operational runbooks (`SKILLS.md`, hierarchical `AGENTS.md`, modular `skills/*/SKILL.md`) covering local setup, Terraform provisioning, Cloud Run rollback, quota exhaustion triage, and automated doc-sync verification (`test_docs_sync.py`).",
+      "score_3_disqualifiers": [
+        "Outdated commands or missing troubleshooting steps for common GCP deployment/auth failures"
+      ]
     },
     {
       "id": "s2_13",
       "category": "Security, Privacy & Compliance",
       "name": "Authentication & Authorization",
       "focus": "Service accounts, IAM, API key scoping, OAuth/OIDC, Least Privilege.",
-      "criteria": "Implements robust authentication/authorization via dedicated service accounts, scoped credentials, and strict Principle of Least Privilege across all IAM configurations."
+      "criteria": "Implements robust authentication/authorization via dedicated service accounts, scoped credentials, and strict Principle of Least Privilege across all IAM configurations.",
+      "score_3_expert_criteria": "Provisions dedicated runtime (`catalog-agent-sa`) and CI/CD service accounts in Terraform with zero primitive roles (`roles/owner`, `roles/editor`), dataset-scoped `bigquery.dataViewer` + project-scoped `bigquery.jobUser` and `aiplatform.user`, Workload Identity / ADC auth (zero static JSON keys), and unit tests auditing Terraform IAM bindings.",
+      "score_3_disqualifiers": [
+        "Uses default compute service account, primitive roles, or hardcoded service account keys",
+        "IAM bindings exist only in documentation without declarative Terraform enforcement and test verification"
+      ]
     },
     {
       "id": "s2_14",
       "category": "Security, Privacy & Compliance",
       "name": "Infrastructure & Network Security",
       "focus": "VPC design, network segmentation, private endpoints, zero-trust architecture, service perimeters, firewall policies.",
-      "criteria": "Designs secure VPCs with network segmentation, private endpoints, and zero-trust principles. Configures service perimeters (VPC-SC) and firewall policies protecting enterprise assets."
+      "criteria": "Designs secure VPCs with network segmentation, private endpoints, and zero-trust principles. Configures service perimeters (VPC-SC) and firewall policies protecting enterprise assets.",
+      "score_3_expert_criteria": "Codifies VPC Service Controls (`google_access_context_manager_service_perimeter`) protecting `bigquery.googleapis.com` and `aiplatform.googleapis.com` in Terraform, enforces Cloud Run ingress controls and CORS allowlists, and documents/tests egress exfiltration boundaries.",
+      "score_3_disqualifiers": [
+        "Wildcard CORS (`*`) with credentials in production mode or missing VPC-SC resource definitions in Terraform"
+      ]
     },
     {
       "id": "s2_15",
       "category": "Security, Privacy & Compliance",
       "name": "Data Protection & Privacy",
       "focus": "Encryption at rest/transit, PII handling, data classification, DLP, Secrets management.",
-      "criteria": "Ensures encryption at rest and transit, manages PII handling and data classification, and utilizes secure secrets management preventing credential exposure."
+      "criteria": "Ensures encryption at rest and transit, manages PII handling and data classification, and utilizes secure secrets management preventing credential exposure.",
+      "score_3_expert_criteria": "Enforces PII redaction/scrubbing on incoming user queries before logging or LLM synthesis (SSN, credit card, email, phone regex/DLP scrubbers), Secret Manager integration for sensitive configs, TLS in transit, and automated unit tests verifying PII never reaches logs or prompts.",
+      "score_3_disqualifiers": [
+        "Logs raw unsanitized user queries containing potential customer PII to stdout/Cloud Logging",
+        "No programmatic PII scrubbing layer verified by unit tests"
+      ]
     },
     {
       "id": "s2_16",
       "category": "Security, Privacy & Compliance",
       "name": "AI-Specific Security",
       "focus": "Prompt injection mitigation, output filtering, guardrails, model access controls, content safety.",
-      "criteria": "Implements dedicated prompt injection mitigation (adversarial sanitization, tag delimiter encapsulation, system prompt immutability), output filtering/guardrails, model access controls, and content safety layers protecting against adversarial use."
+      "criteria": "Implements dedicated prompt injection mitigation (adversarial sanitization, tag delimiter encapsulation, system prompt immutability), output filtering/guardrails, model access controls, and content safety layers protecting against adversarial use.",
+      "score_3_expert_criteria": "Implements multi-layer defense-in-depth: pre-inference adversarial prompt injection detection & neutralization, XML `<user_query>` structural encapsulation, Vertex AI `SafetySetting` thresholds, post-inference output guardrails blocking system-prompt leakage or ungrounded SKUs, and red-team unit tests.",
+      "score_3_disqualifiers": [
+        "Conflates BigQuery SQL parameterization with LLM prompt injection defense",
+        "Missing input sanitization, delimiter encapsulation, or output leakage filters"
+      ]
     },
     {
       "id": "s2_17",
       "category": "Security, Privacy & Compliance",
       "name": "Compliance & Governance",
       "focus": "Audit logging, data residency, regulatory requirements, policy enforcement.",
-      "criteria": "Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments."
+      "criteria": "Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments.",
+      "score_3_expert_criteria": "Configures `google_project_iam_audit_config` (`ADMIN_READ`, `DATA_READ`, `DATA_WRITE`) for BigQuery and Vertex AI in Terraform, enforces single-region (`us-central1`) data residency across all storage/compute resources, and emits structured audit metadata in application telemetry.",
+      "score_3_disqualifiers": [
+        "Cloud Audit Logs (`DATA_READ`/`DATA_WRITE`) not codified in Terraform or missing regional pinning (`us-central1`)"
+      ]
     },
     {
       "id": "s2_18",
       "category": "Reliability & Resilience",
       "name": "Availability Design",
       "focus": "Redundancy, failover, health checks, SLO/SLA definition, distributed systems patterns.",
-      "criteria": "Implements redundancy, failover, and automated health checks aligning with explicit SLO/SLA definitions. Utilizes distributed patterns ensuring high availability."
+      "criteria": "Implements redundancy, failover, and automated health checks aligning with explicit SLO/SLA definitions. Utilizes distributed patterns ensuring high availability.",
+      "score_3_expert_criteria": "Configures Cloud Run multi-zone redundancy, startup and liveness `/health` probes in Terraform and FastAPI, explicit latency/availability SLO budgets (`p95 <= 3.0s`, `99.9%` availability), and stateless horizontal instance design.",
+      "score_3_disqualifiers": [
+        "Health endpoint returns static 200 OK without readiness/config awareness or missing Cloud Run probe config in Terraform"
+      ]
     },
     {
       "id": "s2_19",
       "category": "Reliability & Resilience",
       "name": "Observability",
       "focus": "Structured logging, metrics, distributed tracing, AI-specific monitoring.",
-      "criteria": "Configures structured logging, metrics, and distributed tracing (OpenTelemetry / Cloud Trace). Monitors AI-specific KPIs (latency, token usage, quality) ensuring runtime visibility."
+      "criteria": "Configures structured logging, metrics, and distributed tracing (OpenTelemetry / Cloud Trace). Monitors AI-specific KPIs (latency, token usage, quality) ensuring runtime visibility.",
+      "score_3_expert_criteria": "Instruments OpenTelemetry spans across retrieval, LLM synthesis, and validation stages with Cloud Trace export, emits GCP-compatible structured JSON logs (`severity`, `logging.googleapis.com/trace`, `latency_ms`, `sku_count`, `token_usage`), and verifies telemetry emission in tests.",
+      "score_3_disqualifiers": [
+        "Uses unstructured print() statements or basic logging without OpenTelemetry spans and trace correlation fields"
+      ]
     },
     {
       "id": "s2_20",
       "category": "Reliability & Resilience",
       "name": "Failure & Recovery Testing",
       "focus": "Failure injection, red teaming, disaster recovery validation, backup/restore testing.",
-      "criteria": "Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols."
+      "criteria": "Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols.",
+      "score_3_expert_criteria": "Maintains dedicated failure-injection test suites (`test_failure_injection.py`) simulating BigQuery timeouts, Vertex AI quota exhaustion (`429 ResourceExhausted`), corrupted/malformed JSON responses, empty SKU results, and adversarial red-team inputs.",
+      "score_3_disqualifiers": [
+        "Only tests happy-path mocks without dedicated failure-injection tests for timeouts, 429s, and malformed LLM outputs"
+      ]
     },
     {
       "id": "s2_21",
       "category": "Reliability & Resilience",
       "name": "Graceful Degradation",
       "focus": "Fallback strategies, circuit breakers, retry policies, timeout handling.",
-      "criteria": "Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing."
+      "criteria": "Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing.",
+      "score_3_expert_criteria": "Implements bounded exponential backoff with jitter for transient RPC failures, circuit-breaker state transitions (Closed -> Open -> Half-Open), deterministic fallback comparison synthesis when Vertex AI is unavailable, and zero unhandled 500 stack-trace leaks.",
+      "score_3_disqualifiers": [
+        "Silent `except Exception: pass` blocks or crashing with raw HTTP 500 when LLM inference times out"
+      ]
     },
     {
       "id": "s2_22",
       "category": "Performance & Cost Optimization",
       "name": "Scalability & Elasticity",
       "focus": "Horizontal and vertical scaling strategies, autoscaling policies, load balancing.",
-      "criteria": "Designs horizontal/vertical scaling strategies with autoscaling policies and load balancing, optimizing API throughput and scaling dynamically for load."
+      "criteria": "Designs horizontal/vertical scaling strategies with autoscaling policies and load balancing, optimizing API throughput and scaling dynamically for load.",
+      "score_3_expert_criteria": "Configures Cloud Run concurrency limits, min/max instance autoscaling annotations in Terraform, async non-blocking FastAPI endpoints (`async def` + threadpool/async I/O offloading), and connection pooling to prevent event-loop starvation under concurrent load.",
+      "score_3_disqualifiers": [
+        "Blocks the FastAPI event loop with synchronous network calls without concurrency/autoscaling tuning"
+      ]
     },
     {
       "id": "s2_23",
       "category": "Performance & Cost Optimization",
       "name": "Resource Efficiency",
       "focus": "Compute/GPU right-sizing, autoscaling strategies, spot/preemptible usage.",
-      "criteria": "Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste."
+      "criteria": "Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste.",
+      "score_3_expert_criteria": "Uses multi-stage `python:3.12-slim` (or distroless) Dockerfiles running as non-root user, right-sized Cloud Run CPU/Memory limits (`1-2 vCPU`, `512Mi-1Gi`) with CPU throttling / scale-to-zero config in Terraform, and dependency pruning.",
+      "score_3_disqualifiers": [
+        "Bloated single-stage Dockerfile running as `root` or over-provisioned GPU/VM resources for an API-bound agent"
+      ]
     },
     {
       "id": "s2_24",
       "category": "Performance & Cost Optimization",
       "name": "AI Cost Management",
       "focus": "Model selection trade-offs, response caching, batching, memory and embeddings, token optimization.",
-      "criteria": "Evaluates model selection trade-offs, manages token budgeting and query filtering to minimize database bytes scanned, and models infrastructure/inference costs."
+      "criteria": "Evaluates model selection trade-offs, manages token budgeting and query filtering to minimize database bytes scanned, and models infrastructure/inference costs.",
+      "score_3_expert_criteria": "Implements TTL/LRU response caching for repeated SKU comparisons, BigQuery `SELECT` column pruning + `LIMIT` + `maximum_bytes_billed` guards to prevent full-table scans, and prompt context compression reducing input token footprint.",
+      "score_3_disqualifiers": [
+        "Uses `SELECT *` without column pruning/limits in BigQuery or lacks response caching / bytes-billed safeguards"
+      ]
     },
     {
       "id": "s2_25",
       "category": "Operational Excellence",
       "name": "CI/CD & Deployment",
       "focus": "Pipeline design, deployment strategies, rollback automation.",
-      "criteria": "Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation."
+      "criteria": "Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation.",
+      "score_3_expert_criteria": "Codifies multi-stage `cloudbuild.yaml` enforcing Ruff lint/format, Pytest `>= 80%` coverage gate, doc-sync verification, container build & push to Artifact Registry, Cloud Run traffic deployment, post-deploy `/health` smoke verification, and automated revision rollback on smoke-check failure.",
+      "score_3_disqualifiers": [
+        "CI/CD pipeline deploys directly to 100% traffic without post-deploy health check and automated rollback step"
+      ]
     },
     {
       "id": "s2_26",
       "category": "Operational Excellence",
       "name": "Infrastructure as Code",
       "focus": "Terraform/Pulumi, Cloud Build, reproducible environments, environment parity.",
-      "criteria": "Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration."
+      "criteria": "Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration.",
+      "score_3_expert_criteria": "Maintains complete, parameterized Terraform configuration (`main.tf`, `variables.tf`, `iam.tf`, `vpc_sc.tf`, `outputs.tf`) covering API enablement, BigQuery dataset/table schema, Artifact Registry, Cloud Run v2 service, IAM, VPC-SC, and Audit Logs, validated by automated HCL tests (`test_terraform.py`).",
+      "score_3_disqualifiers": [
+        "Missing core GCP resources in Terraform (requiring manual ClickOps) or hardcoded project IDs without `variables.tf`"
+      ]
     },
     {
       "id": "s2_27",
       "category": "Operational Excellence",
       "name": "AI Lifecycle Management",
       "focus": "Model and agent versioning, A/B testing, configurations, experiment tracking.",
-      "criteria": "Manages model/agent versioning, evaluation dataset versioning, experiment tracking, and operational tooling for regression detection across iterations."
+      "criteria": "Manages model/agent versioning, evaluation dataset versioning, experiment tracking, and operational tooling for regression detection across iterations.",
+      "score_3_expert_criteria": "Tracks explicit prompt/agent versions, model identifiers, and dataset versions in evaluation run artifacts (`evals/results/`) and historical progression logs (`logs/rubric_audit_history.md`), enabling side-by-side experiment comparison and automated regression blocking.",
+      "score_3_disqualifiers": [
+        "Overwrites evaluation outputs without versioned metadata or experiment comparison tooling"
+      ]
     },
     {
       "id": "s2_28",
       "category": "Operational Excellence",
       "name": "Testing & Quality Engineering",
       "focus": "Unit, integration, e2e testing, load and performance testing.",
-      "criteria": "Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates."
+      "criteria": "Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates.",
+      "score_3_expert_criteria": "Achieves `>= 85%` verified line coverage across backend source code with 20+ specialized test modules covering API contracts, ADK orchestration, BigQuery retrieval, AI security red-teaming, failure injection, Terraform IaC, CI pipelines, and Selenium E2E UI flows.",
+      "score_3_disqualifiers": [
+        "Test suite relies on shallow `assert True` placeholders or coverage falls below 80%"
+      ]
     },
     {
       "id": "s2_29",
       "category": "Designing for Change",
       "name": "Modularity & Abstraction",
       "focus": "Loose coupling, interface contracts, model swappability, dependency injection.",
-      "criteria": "Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries."
+      "criteria": "Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries.",
+      "score_3_expert_criteria": "Decouples FastAPI transport routes, ADK orchestrator, BigQuery catalog repository, AI security guardrails, and Pydantic domain schemas via dependency injection and clean interfaces, allowing model or database backends to be swapped without modifying route handlers.",
+      "score_3_disqualifiers": [
+        "Tightly couples SQL queries, prompt strings, and HTTP route handling inside a single monolithic function"
+      ]
     },
     {
       "id": "s2_30",
       "category": "Designing for Change",
       "name": "Configuration Management",
       "focus": "Environment separation, feature flags, externalized config.",
-      "criteria": "Separates environment configurations using externalized settings (env files, secrets, parameters) enabling dynamic system adjustments without code changes."
+      "criteria": "Separates environment configurations using externalized settings (env files, secrets, parameters) enabling dynamic system adjustments without code changes.",
+      "score_3_expert_criteria": "Centralizes all runtime settings in typed `pydantic-settings` (`Settings` class in `config.py`) supporting environment variables (`PROJECT_ID`, `DATASET_ID`, `MODEL_NAME`, `TEMPERATURE`, `TIMEOUT_SECONDS`, feature flags) with validation defaults and zero hardcoded magic constants.",
+      "score_3_disqualifiers": [
+        "Scattered `os.getenv()` calls with inconsistent defaults or hardcoded GCP project/model strings in business logic"
+      ]
     },
     {
       "id": "s2_31",
       "category": "Designing for Change",
       "name": "API Design & Versioning",
       "focus": "Backward compatibility, contract-first design, schema evolution.",
-      "criteria": "Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases."
+      "criteria": "Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases.",
+      "score_3_expert_criteria": "Enforces versioned API routing (`/api/v1/compare`) with backward-compatible alias support, strict Pydantic v2 request/response contracts with default-safe optional fields for schema evolution, and contract regression tests (`test_compare_api.py`).",
+      "score_3_disqualifiers": [
+        "Unversioned endpoints or breaking schema changes without default-safe backward compatibility"
+      ]
     },
     {
       "id": "s2_32",
       "category": "Designing for Change",
       "name": "Extensibility",
       "focus": "Plugin patterns, event-driven architecture, webhook/callback support.",
-      "criteria": "Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption."
+      "criteria": "Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption.",
+      "score_3_expert_criteria": "Provides a dynamic tool/skill registry pattern (`agent_registry.py` and modular `skills/*/SKILL.md` plugin architecture) with lifecycle callbacks/telemetry hooks enabling new catalog tools, domain categories, or evaluation judges to be registered declaratively.",
+      "score_3_disqualifiers": [
+        "Adding a new tool or product category requires rewriting core orchestrator control flow"
+      ]
     }
   ]
 }

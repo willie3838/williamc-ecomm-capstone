@@ -1,244 +1,116 @@
 ---
 name: rubric-audit
-description: Agent-driven rubric audit protocol where the LLM agent dynamically explores any repository and critically evaluates compliance against all 37 FDE Capstone competencies in RUBRIC.md, with semantic reasoning, zero heuristic false positives, and historical progression tracking.
+description: Multi-pane Adversarial FDE Review Panel protocol where 4 specialized LLM reviewers in tmux (Panel Chair + Staff AI/ML Architect + Principal Security/Infra Lead + Distinguished SRE/CTO) inspect the codebase, debate project successes and failures in a shared deliberation room, and enforce harsh Staff/Principal Score-3 calibration across all 37 FDE Capstone competencies.
 ---
 
-# Agent-Driven Capstone Rubric Audit Protocol
+# Multi-Pane Adversarial FDE Review Panel (`rubric-audit`)
 
-This skill provides an **Agent-Driven Rubric Audit Protocol** for an AI software engineer (Jetski or autonomous agent) to thoroughly, critically, and objectively audit any repository against all 37 competencies defined in [RUBRIC.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/RUBRIC.md).
+This skill orchestrates a **4-Pane Adversarial FDE Capstone Review Panel in Tmux** that models a real Google Cloud FDE Readiness Panel ([RUBRIC.md Section 3: "The Panel"](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/RUBRIC.md#L47-L57)).
 
----
-
-## 1. Core Philosophy: Why the Agent is the Auditor
-
-### The Flaw of Programmatic Regex Heuristics
-Static regex scanners and keyword search scripts fail catastrophically at grading architecture and security:
-- A regex looking for `ArrayQueryParameter` or `ScalarQueryParameter` falsely flags an application as having "Score 3: AI-Specific Security" simply because database queries are parameterized.
-- In reality, database SQL parameterization **only protects against SQL injection**. It provides **zero defense** against LLM prompt injection, prompt leakage, adversarial jailbreaks, or model safety bypasses!
-- Similarly, a regex looking for `try ... except` cannot distinguish between lazy, silent error suppression (`except: pass`) and true, production-grade graceful degradation with exponential backoffs and circuit breakers.
-
-### The Solution: LLM Agent-as-Auditor
-The LLM agent (you) conducts the review directly using deep engineering comprehension:
-1. **Dynamic Exploration**: You use repository exploration tools (`find_by_name`, `code_search`, `view_file`, `list_dir`) to discover files without hardcoded path assumptions.
-2. **Semantic Verification**: You evaluate the actual code, configuration, tests, and architecture against the qualitative definitions of Competent (Score 2) and Proficient (Score 3).
-3. **Intellectual Honesty**: You award scores based solely on verified evidence. If a requirement is missing or shallow, you score it 0 or 1 and provide actionable remediation.
-4. **Deterministic Recording**: The companion CLI (`scripts/audit_rubric.py`) handles schema validation, mathematical averaging, and chronological tracking in [`logs/rubric_audit_history.md`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/rubric_audit_history.md).
-
-### 1.1 Unbiased Independent Review Pane (Clean-Context Protocol)
-To ensure the audit is completely objective, rigorous, and devoid of prior conversation bias or hallucinated memory from implementation steps:
-- **Mandatory Automated Execution (Do Not Just Advise — Execute!)**: Whenever performing or initiating a rubric audit or review, the agent **MUST NOT** merely suggest or document launching the review pane. The agent **MUST explicitly and automatically execute the launch command** via tool call:
-  ```bash
-  # Asynchronously launch the review pane:
-  bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh
-
-  # Or synchronously monitor, auto-close the pane upon completion, and return summary:
-  bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh --wait-and-close
-  ```
-  Or directly via tmux:
-  ```bash
-  tmux split-window -h "/google/bin/releases/jetski-devs/tools/cli --model gemini-3.8-flash --effort high -i 'Review the codebase against RUBRIC.md using the rubric-audit skill with an unbiased perspective'"
-  ```
-- **Lifecycle Management: Auto-Close Pane & Return Summary**:
-  - The review pane is **ephemeral**: once the independent review is completed and findings are recorded to `logs/unbiased_rubric_audit.json`, the reviewer pane **MUST be terminated** (`tmux kill-pane -t "$PANE_ID"`).
-  - The summary scorecard **MUST be brought back and presented in the main pane conversation** via `python3 skills/rubric-audit/scripts/audit_rubric.py --summary`.
-- **Why `gemini-3.8-flash` on `high`**:
-  1. **Clean Context**: Starts with empty conversation history and zero confirmation bias.
-  2. **High Reasoning Effort**: Thoroughly traces code dependencies, verifies tests, audits Terraform perimeters, and detects architectural anti-patterns without cutting corners.
-  3. **Adversarial Verification**: Validates that all 37 competencies genuinely earn Score 3 by inspecting repository files rather than trusting implementation claims.
-  4. **Output Contract**: Writes the audit findings JSON to `logs/unbiased_rubric_audit.json` and records it via:
-     ```bash
-     python3 skills/rubric-audit/scripts/audit_rubric.py --record logs/unbiased_rubric_audit.json
-     ```
+Instead of a single lenient agent rubber-stamping `3.00 / 3.00`, the skill spawns **three specialized adversarial domain panelists** plus a **Principal FDE Panel Chair** in isolated tmux panes. The panelists independently inspect code, tests, and Terraform infrastructure, **debate the project's concrete successes and failures** in [`logs/panel_deliberation/discussion_board.md`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/discussion_board.md), and compute a strict consensus scorecard where **Score 2 = Competent Field-Ready FDE** and **Score 3 = True Staff/Principal Expert Mastery**.
 
 ---
 
-## 2. Scoring Scale & Passing Standard
-
-| Score | Level | Definition |
-| :--- | :--- | :--- |
-| **0** | **Not Demonstrated** | Missed the mark, ignored the requirement, or missing core implementation. *(Growth Opportunity)* |
-| **1** | **Awareness** | Understands the concept but lacks practical implementation or misses critical edge cases. *(Needs Additional Coaching)* |
-| **2** | **Competent** | Solid implementation, understands trade-offs, and meets expectations of a Field-Ready FDE. *(Pass)* |
-| **3** | **Proficient** | Production-grade depth, anticipates complex failure modes, robust security, and deep optimization. *(Strong Pass)* |
-
-### Passing Thresholds
-1. **FDE Baseline Pass**:
-   - Average score in Section 1 (Presentation & Advisory Rigor) $\ge 2.00$.
-   - Average score in Section 2 (Engineering Excellence) $\ge 2.00$.
-   - **Zero scores of 0**: Scoring a 0 on *any* competency is an automatic disqualifying failure.
-2. **Production Merge Standard (Score 3 Gate)**:
-   - Before architectural changes or feature branches merge to `main`, the audit must verify that competencies achieve **Score 3 (Proficient)**.
-
----
-
-## 3. The 4-Phase Agent Audit Protocol
+## 1. Multi-Pane Review Panel Architecture
 
 ```mermaid
-flowchart TD
-    A[Phase 1: Dynamic Discovery] --> B[Phase 2: Semantic Verification]
-    B --> C[Phase 3: Anti-Heuristic Checks]
-    C --> D[Phase 4: Record & Track Progression]
+flowchart LR
+    subgraph Tmux Window ["Tmux Window: rubric-panel (main-vertical Layout)"]
+        direction TB
+        subgraph Left ["Left 45% Column"]
+            CHAIR["Panel Chair (Principal FDE)\nModerator & Final Arbitrator\njetski --model argon"]
+        end
+        subgraph Right ["Right 55% Column (Stacked)"]
+            P1["Panelist 1: Staff AI/ML & Data Architect\n(ADK, Grounding, Evals, Extensibility)\njetski --model argon"]
+            P2["Panelist 2: Principal Security & Infra Lead\n(IAM, VPC-SC, DLP, Prompt Sec, CI/CD, IaC)\njetski --model argon"]
+            P3["Panelist 3: Distinguished SRE & Commercial CTO/CFO\n(Business/TCO, Scoping/ADRs, HA/OTel, Failure Tests)\njetski --model argon"]
+        end
+    end
+
+    P1 -->|1. Post Successes, Failures & JSON| Board["logs/panel_deliberation/\ndiscussion_board.md\n+ panelist_*.json"]
+    P2 -->|1. Post Successes, Failures & JSON| Board
+    P3 -->|1. Post Successes, Failures & JSON| Board
+
+    Board <-->|2. Cross-Challenge & Debate Score 3 Claims| CHAIR
+    CHAIR -->|3. Adversarial Min-Consensus + Strict Calibration| Synth["audit_rubric.py --synthesize-panel"]
+    Synth --> Out["logs/unbiased_rubric_audit.json\n+ logs/rubric_audit_history.md"]
 ```
 
-### Phase 1: Dynamic Repository Discovery (Zero Hardcoded Paths)
-Do not assume fixed directory names. Dynamically discover the project structure using tools:
-1. **Locate Architecture & Scoping Documents**:
-   - Search for markdown files: `find_by_name(Pattern="*.md")`.
-   - Read `README.md`, `ARCHITECTURE.md`, `SPEC.md`, and any ADR files.
-2. **Locate Core Application Code**:
-   - Search for backend and frontend source files (`find_by_name` for `*.py`, `*.ts`, `*.go`).
-   - Identify frameworks (FastAPI, Flask, Next.js, React) and data client libraries (BigQuery, Spanner, Postgres).
-3. **Locate Infrastructure as Code (IaC)**:
-   - Search for Terraform or Pulumi configurations (`*.tf`, `*.hcl`).
-   - Inspect service accounts, IAM role bindings, VPC Service Controls, and dataset resources.
-4. **Locate CI/CD & Deployment Pipelines**:
-   - Search for pipeline configs: `cloudbuild.yaml`, `.github/workflows/`, `Dockerfile`.
-   - Inspect build steps, linting gates, test gates, and deployment scripts.
-5. **Locate Test & Evaluation Suites**:
-   - Search for test directories (`tests/`, `evals/`).
-   - Inspect unit tests, integration tests, benchmark datasets, and evaluation runners.
+### The 4 Panel Roles ([`resources/panel_prompts.json`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/skills/rubric-audit/resources/panel_prompts.json))
+
+| Tmux Pane | Role ID | Persona | Primary Audit Scope |
+| :--- | :--- | :--- | :--- |
+| **Left 45%** | `panel_chair` | **Principal FDE & Panel Chair** | Moderates debate in `discussion_board.md`, challenges unsubstantiated `Score 3` claims, runs `audit_rubric.py --synthesize-panel`, and closes panes upon completion. |
+| **Right Top** | `panelist_ai_ml` | **Staff AI/ML & Data Systems Architect** | `s2_01`–`s2_05` (ADK Orchestration, BigQuery Grounding, Model Selection, Eval Flywheel, Domain AI), `s2_27` (AI Lifecycle), `s2_29`–`s2_32` (Designing for Change). |
+| **Right Mid** | `panelist_sec_infra` | **Principal Security, IAM & Cloud Infra Lead (CISO)** | `s2_13`–`s2_17` (Auth/IAM Least Privilege, VPC-SC, PII/DLP, AI Prompt-Injection Defense, Audit Logs), `s2_25`–`s2_26` (CI/CD Rollback, Terraform IaC). |
+| **Right Bot** | `panelist_sre_cto` | **Distinguished SRE & Commercial CTO/CFO** | `s1_01`–`s1_05` (Business KPIs, TCO Unit Economics, Objection Defense, AI Dev Harness, GCP Roadmap), `s2_06`–`s2_12` (Scoping, ADRs, OpenAPI, Runbooks), `s2_18`–`s2_24` (HA, OpenTelemetry, Failure Injection, Graceful Degradation, Cost), `s2_28` (Testing). |
 
 ---
 
-### Phase 2: Systematic Competency Audit (All 37 Competencies)
+## 2. Harsh Expert Grading Calibration (`Score 2` vs `Score 3`)
 
-Evaluate every single competency across Section 1 and Section 2:
+Every competency in [`resources/rubric_checklist.json`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/skills/rubric-audit/resources/rubric_checklist.json) explicitly defines both `"criteria"` (for **Score 2: Competent**) and `"score_3_expert_criteria"` + `"score_3_disqualifiers"` (for **Score 3: Proficient / Expert**):
 
-#### Section 1: Presentation & Advisory Rigor (5 Competencies)
-- **`s1_01`: Strategic Delivery & Value Articulation**: Does the project frame the problem around business KPIs (conversion rates, operational deflection)? Is there a quantified Total Cost of Ownership (TCO) model comparing architectural alternatives?
-- **`s1_02`: Objection Handling & Technical Defense**: Does the architecture defensively preempt executive pushback (hallucinations, latency, data leakage) with data-backed rationale?
-- **`s1_03`: Presentation Skills & Time Management**: Is there a customer-ready presentation outline (5-8 slides, ~10 mins) with clear scope boundaries?
-- **`s1_04`: AI Driven Development Discussion**: Does the repository demonstrate an advanced AI harness (hierarchical `AGENTS.md`, outer-loop verification, lint/test loops)?
-- **`s1_05`: Futures / Roadmap (GCP Value)**: Is there an actionable GCP expansion roadmap (e.g. Vertex AI Vector Search, Gemini Multimodal, BigQuery ML)?
+| Score | Level | Strict Panel Definition |
+| :--- | :--- | :--- |
+| **0** | **Not Demonstrated** | Missing requirement, broken build/tests, or unable to handle basic flow. *(Disqualifying Failure)* |
+| **1** | **Awareness** | **Paper Architecture / Stub**: Documented in `SPEC.md` or `ARCHITECTURE.md`, or stubbed with mocks, but not enforced in executable code/IaC/tests. |
+| **2** | **Competent (Pass)** | **Field-Ready FDE Standard (DEFAULT FOR WORKING CODE)**: Clean, modular implementation in code/IaC with passing happy-path and basic error unit tests. |
+| **3** | **Proficient (Expert)** | **Staff/Principal FDE Mastery (RARE)**: Deep production implementation that **(a)** anticipates complex failure modes verified by automated failure-injection/edge-case tests, **(b)** quantifies architectural trade-offs (latency, cost math, security blast radius), **(c)** satisfies all `score_3_expert_criteria` with zero `score_3_disqualifiers`, AND **(d)** explicitly documents residual limitations/risks in `failures_and_gaps`. |
 
-#### Section 2: Engineering Excellence (32 Competencies across 7 Categories)
-1. **AI/ML Engineering (`s2_01` - `s2_05`)**:
-   - `s2_01`: Agentic & Multi-Agent Systems (Google ADK orchestration, structured tools, state management).
-   - `s2_02`: Retrieval & Data Engineering for AI (grounding, zero hallucination, verified SKU citations).
-   - `s2_03`: Model Selection, Tuning & Optimization (temperature determinism, token budgeting, structured JSON).
-   - `s2_04`: LLM Ops and Evaluation (evaluation flywheel, multi-metric benchmarking, regression detection beyond simple judge).
-   - `s2_05`: Domain-Applied AI/ML Expertise (vertical KPIs, domain attribute schema handling).
-2. **Scoping & Documentation (`s2_06` - `s2_12`)**:
-   - `s2_06`: Problem Definition (business problem, customer success unlocks).
-   - `s2_07`: Technical Scope & Constraints (in-scope vs out-of-scope boundaries).
-   - `s2_08`: Stakeholder Alignment & Success Criteria (phased roadmap, Definition of Done).
-   - `s2_09`: System Design Artifacts (multi-layer Mermaid architecture, data flow, sequence diagrams).
-   - `s2_10`: Decision Records (comprehensive Architecture Decision Records with trade-offs).
-   - `s2_11`: API Documentation (OpenAPI specs, Pydantic contracts, Swagger UI).
-   - `s2_12`: Operational Documentation (runbooks, agent skills, deployment guides).
-3. **Security, Privacy & Compliance (`s2_13` - `s2_17`)**:
-   - `s2_13`: Authentication & Authorization (IAM least privilege, dedicated service account).
-   - `s2_14`: Infrastructure & Network Security (VPC-SC perimeter, private endpoints, ingress control).
-   - `s2_15`: Data Protection & Privacy (TLS 1.3 in transit, encryption at rest, zero PII).
-   - `s2_16`: AI-Specific Security (adversarial prompt injection sanitization, delimiter encapsulation, system prompt immutability, Vertex AI content safety settings).
-   - `s2_17`: Compliance & Governance (Cloud Audit Logs, policy enforcement).
-4. **Reliability & Resilience (`s2_18` - `s2_21`)**:
-   - `s2_18`: Availability Design (Cloud Run multi-zone autoscaling, health probes, SLO definitions).
-   - `s2_19`: Observability (OpenTelemetry distributed tracing to Cloud Trace, structured JSON logging to Cloud Logging).
-   - `s2_20`: Failure & Recovery Testing (failure injection, timeouts, database disconnections, empty catalog).
-   - `s2_21`: Graceful Degradation (fallback strategies, retry policies with backoff, partial-match envelopes).
-5. **Performance & Cost Optimization (`s2_22` - `s2_24`)**:
-   - `s2_22`: Scalability & Elasticity (horizontal autoscaling 0 to N instances, serverless compute).
-   - `s2_23`: Resource Efficiency (lightweight container base images, sub-second cold starts).
-   - `s2_24`: AI Cost Management (token optimization, query filtering to minimize bytes scanned).
-6. **Operational Excellence (`s2_25` - `s2_28`)**:
-   - `s2_25`: CI/CD & Deployment (automated Cloud Build pipeline, linting, test gates, rollback automation).
-   - `s2_26`: Infrastructure as Code (declarative, modular Terraform HCL for all GCP resources).
-   - `s2_27`: AI Lifecycle Management (version-controlled benchmark datasets and prompt iterations).
-   - `s2_28`: Testing & Quality Engineering (unit, integration, e2e testing with coverage gate $\ge 80\%$).
-7. **Designing for Change (`s2_29` - `s2_32`)**:
-   - `s2_29`: Modularity & Abstraction (loose coupling, model swappability, tool abstraction).
-   - `s2_30`: Configuration Management (externalized environment variables, Terraform variables).
-   - `s2_31`: API Design & Versioning (contract-first Pydantic schemas, backward compatibility).
-   - `s2_32`: Extensibility (modular agent skills architecture, plugin patterns).
+### Programmatic Anti-Inflation Rules Enforced by `audit_rubric.py`
+When `audit_rubric.py` synthesizes or records panel findings (`apply_strict_expert_calibration`), it **automatically downgrades** inflated scores:
+1. **Adversarial Min-Consensus**: Across the panelists, if *any* panelist uncovers a flaw or disqualifier that scores a competency lower (e.g., Panelist 1 gives `3` but Panelist 2 gives `2`), the panel consensus adopts `min(panelist_scores)`.
+2. **Paper Architecture Disqualifier (`3 -> 1`)**: Any Section 2 (`s2_*`) engineering competency whose `evidence` cites only `.md` files (`SPEC.md`, `ARCHITECTURE.md`) without existing executable code/IaC/test files (`.py`, `.ts`, `.tsx`, `.tf`, `.yaml`, `.sh`, `Dockerfile`) is immediately capped at **Score 1**.
+3. **Non-Existent Evidence Disqualifier (`3 -> 1`)**: Every file path in `evidence` is checked against the repository filesystem. Hallucinated or missing file paths cap the score at **Score 1**.
+4. **Sycophancy Disqualifier (`3 -> 2`)**: Any competency scored `3` where `failures_and_gaps` is empty or claims `"None"` / `"No issues"` / `"N/A"` is automatically downgraded to **Score 2**. A true expert always identifies where an architecture breaks down or what residual risks remain.
+5. **Shallow Reasoning Disqualifier (`3 -> 2`)**: Any `Score 3` with brief or generic reasoning (`< 25` characters) is automatically downgraded to **Score 2**.
 
 ---
 
-### Phase 3: Critical Anti-Heuristic Verification Rules
+## 3. Launching the Multi-Pane Review Panel
 
-When reviewing, you must enforce semantic truth over superficial keywords:
+### Automated Execution (Mandatory When Performing a Full Audit)
+Launch all 4 tmux panes (`Panel-Chair` + 3 specialized `Panelists`) using [`scripts/launch_review_panel.py`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/skills/rubric-audit/scripts/launch_review_panel.py) or [`scripts/launch_unbiased_reviewer.sh`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/skills/rubric-audit/scripts/launch_unbiased_reviewer.sh):
 
-1. **AI Security != Database SQL Parameters (`s2_16`)**:
-   - Parameterized queries (`ArrayQueryParameter`) protect BigQuery against SQL injection; they do **NOT** protect the LLM against prompt injection.
-   - To earn a **Score of 3** in AI-Specific Security, the codebase **must** have:
-     - Explicit prompt injection sanitization (neutralizing instruction overrides, jailbreak phrases).
-     - XML delimiter encapsulation (`<user_query>...</user_query>`) with system instructions treating delimited content strictly as data.
-     - Vertex AI content safety settings (`types.GenerateContentConfig.safety_settings`).
-     - Structural output validation preventing data leakage upon adversarial input.
-   - If only database SQL parameters exist without prompt injection defenses, **score no higher than 1 or 2** and flag the gap.
+```bash
+# Spawn the 4-pane FDE Review Panel in a dedicated 'rubric-panel' tmux window:
+python3 skills/rubric-audit/scripts/launch_review_panel.py
 
-2. **Graceful Degradation != Silent Exception Suppression (`s2_21`)**:
-   - An empty `try: ... except Exception: pass` is poor engineering, not graceful degradation.
-   - Score 3 requires active fallback strategies, exponential backoff retries, and structured error responses that inform the user without leaking stack traces.
+# Spawn, wait for all panelists to debate & finish, synthesize consensus, auto-close panes, and print summary:
+bash skills/rubric-audit/scripts/launch_unbiased_reviewer.sh --wait-and-close
+```
 
-3. **Total Cost of Ownership != Qualitative Mention (`s1_01`, `s2_24`)**:
-   - Merely writing "this solution is cheap" does not qualify as a TCO model.
-   - Score 3 requires quantified architectural trade-offs (e.g., comparing serverless query costs against fixed provisioned VM/vector index clusters).
-
-4. **Testing != Empty Mocks (`s2_28`)**:
-   - Having test files with dummy `assert True` is a failure.
-   - Score 3 requires verified test executions, branch/statement coverage $\ge 80\%$, and comprehensive edge-case failure assertions.
-
----
-
-### Phase 4: Recording and Historical Progression Logging
-
-Once you have reviewed the codebase and compiled the scores, evidence, and justifications:
-1. Save your findings to a structured JSON file (or scratch file):
-   ```json
-   {
-     "section_1_presentation_and_advisory": [
-       {
-         "id": "s1_01",
-         "score": 3,
-         "evidence": "SPEC.md:76-89; ARCHITECTURE.md Section 1",
-         "reasoning": "Score 3 (Proficient) awarded because..."
-       }
-     ],
-     "section_2_engineering_excellence": [
-       {
-         "id": "s2_01",
-         "score": 3,
-         "evidence": "backend/src/app/main.py:40-85; SPEC.md Part 2",
-         "reasoning": "Score 3 (Proficient) awarded because..."
-       }
-     ]
-   }
-   ```
-2. Use the companion CLI to validate the findings, compute the section averages, and append to the historical progression log:
-   ```bash
-   python3 skills/rubric-audit/scripts/audit_rubric.py --record /path/to/audit_findings.json
-   ```
-3. Verify that the audit meets the Score 3 target:
-   ```bash
-   python3 skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 3
-   ```
+### The 3-Round Panel Deliberation Workflow (`logs/panel_deliberation/`)
+1. **Round 1 — Independent Deep-Dive (`discussion_board.md` + `panelist_*.json`)**:
+   - Each panelist inspects the codebase and posts concrete **Project Successes** and **Project Failures / Shortcuts** (with `file:line` citations) to [`logs/panel_deliberation/discussion_board.md`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/discussion_board.md).
+   - Each panelist writes their 37-competency JSON evaluation (`panelist_ai_ml.json`, `panelist_sec_infra.json`, `panelist_sre_cto.json`).
+2. **Round 2 — Cross-Panelist Debate & Challenges**:
+   - The Panel Chair and fellow panelists cross-examine proposed `Score 3` ratings in `discussion_board.md`, flagging any gap where implementation does not match architectural prose.
+3. **Round 3 — Consensus Synthesis & Recording**:
+   - `python3 skills/rubric-audit/scripts/audit_rubric.py --synthesize-panel logs/panel_deliberation --record logs/unbiased_rubric_audit.json` merges all panelist JSONs using Adversarial Min-Consensus, applies `apply_strict_expert_calibration()`, updates [`logs/rubric_audit_history.md`](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/rubric_audit_history.md), and terminates the temporary review panes.
 
 ---
 
 ## 4. CLI Tool Reference (`scripts/audit_rubric.py`)
 
-The companion Python script handles validation, math, and log updates:
-
 ```bash
-# 1. Output a blank checklist template for all 37 competencies
+# 1. Spawn the 4-pane tmux FDE Review Panel and synthesize consensus upon completion
+python3 skills/rubric-audit/scripts/audit_rubric.py --panel
+
+# 2. Synthesize panelist JSON evaluations & discussion_board.md into strict consensus
+python3 skills/rubric-audit/scripts/audit_rubric.py --synthesize-panel logs/panel_deliberation --record logs/unbiased_rubric_audit.json
+
+# 3. Record a single audit JSON with strict Expert Score-3 anti-inflation calibration
+python3 skills/rubric-audit/scripts/audit_rubric.py --record <audit_file.json> --strict
+
+# 4. Output a blank checklist template (including score_3_expert_criteria & score_3_disqualifiers)
 python3 skills/rubric-audit/scripts/audit_rubric.py --template
 
-# 2. Record an agent audit evaluation into logs/rubric_audit_history.md
-python3 skills/rubric-audit/scripts/audit_rubric.py --record <audit_file.json>
-
-# 3. View the latest audit scorecard summary
+# 5. View the latest audit scorecard summary or detailed breakdown
 python3 skills/rubric-audit/scripts/audit_rubric.py --summary
-
-# 4. View the detailed breakdown of the latest audit snapshot
 python3 skills/rubric-audit/scripts/audit_rubric.py --detailed
 
-# 5. Verify that the latest audit passes and meets target score (e.g. 3.0)
-python3 skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 3
-
-# 6. Display the historical progression timeline table
-python3 skills/rubric-audit/scripts/audit_rubric.py --history
-
-# 7. Export standalone markdown report of the latest audit
-python3 skills/rubric-audit/scripts/audit_rubric.py --output rubric_report.md
+# 6. Verify baseline FDE readiness (Avg >= 2.0, zero 0s) or custom target score
+python3 skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 2.0
 ```

@@ -154,14 +154,18 @@ Whenever implementing any change (in main workspace or an isolated worktree `fea
    - Update Buganizer issue `b/<ISSUE_ID>` with the merged GitHub PR URL and commit hash, and mark status `FIXED`.
 5. **Worktree Cleanup**: Remove feature worktree once merged (`git worktree remove .swarm/worktrees/<task>`).
 
-### 5.2 Architectural Synchronization & Score 3 Rubric Gate
+### 5.2 Architectural Synchronization & Multi-Pane Adversarial Rubric Panel Gate
 Any architectural or system design change (adding or modifying services, database schemas, IAM roles, CI/CD pipelines, security controls, or agent workflows) MUST:
 1. **Immediately Update `ARCHITECTURE.md`**: Synchronize all architecture diagrams (Mermaid), sequence diagrams, data flows, ADRs, security perimeters (VPC-SC), and Total Cost of Ownership (TCO) justifications.
-2. **Execute Rubric Audit**: Rerun the comprehensive, dynamic rubric audit engine to verify that the implementation satisfies the standard for a **Score of 3 (Proficient)**:
+2. **Execute Multi-Pane Adversarial Rubric Panel**: Launch the 4-pane tmux FDE Review Panel (`Panel-Chair` + `Panelist-AI-ML` + `Panelist-Sec-Infra` + `Panelist-SRE-CTO`) or synthesize panel consensus to verify harsh Staff/Principal calibration (`Score 2 = Competent Field-Ready FDE`, `Score 3 = Rare Expert Mastery`):
    ```bash
-   python3 skills/rubric-audit/scripts/audit_rubric.py --detailed --target-score 3
+   # Spawn the 4-pane tmux deliberation panel:
+   python3 skills/rubric-audit/scripts/launch_review_panel.py --wait-and-close
+   # Or verify/synthesize panel consensus:
+   python3 skills/rubric-audit/scripts/audit_rubric.py --synthesize-panel logs/panel_deliberation --strict
    ```
-3. **Zero Regressions Standard**: Merging to `main` is prohibited if any single competency scores `< 2` (disqualifying failure) or if any competency falls below the target score of 3.
+3. **Zero Regressions Standard**: Merging to `main` is prohibited if any single competency scores `0` (disqualifying failure) or if section averages fall below `2.00` (FDE Baseline Pass), and any `Score 3` claim must pass programmatic anti-inflation checks (`apply_strict_expert_calibration`).
+
 
 ### 5.3 Documentation Synchronization Enforcement Policy (Zero Un-documented Changes)
 **Strict Enforcement Rule**:

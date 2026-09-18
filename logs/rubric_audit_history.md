@@ -6,6 +6,8 @@ This log tracks the chronological evaluation score progression for the **Best Bu
 
 | Timestamp (UTC) | Commit | Branch | Section 1 Avg | Section 2 Avg | Status | Milestone / Highlights |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 2026-09-18 18:41:28 UTC | `a499bcb` | `feat/b-563415116-multi-pane-rubric-panel` | 2.60 | 2.78 | **PASSED** | All 37 competencies evaluated via Multi-Pane FDE Review Panel |
+| 2026-09-18 18:40:30 UTC | `a499bcb` | `feat/b-563415116-multi-pane-rubric-panel` | 2.60 | 2.53 | **PASSED** | All 37 competencies evaluated via Multi-Pane FDE Review Panel |
 | 2026-09-17 20:44:27 UTC | `0466664` | `main` | 3.00 | 3.00 | **PASSED** | All 37 competencies verified via Agent-Driven Rubric Audit |
 | 2026-09-17 19:51:47 UTC | `32dcf7d` | `main` | 3.00 | 3.00 | **PASSED** | All 37 competencies verified via Agent-Driven Rubric Audit |
 | 2026-09-17 19:41:30 UTC | `010c4d6` | `main` | 3.00 | 3.00 | **PASSED** | All 37 competencies verified via Agent-Driven Rubric Audit |
@@ -3172,4 +3174,646 @@ This log tracks the chronological evaluation score progression for the **Best Bu
 - **Criteria**: Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption.
 - **Evidence**: `skills/; backend/src/app/agent/multi_agent.py:1-213; backend/src/app/data/analytics.py:1-180`
 - **Scoring Reasoning**: Score 3 (Proficient): Extensible skills and agent architecture. Features a modular skill ecosystem (cloudrun-deploy, terraform-deploy, hillclimb, rubric-audit, selenium-ui-audit, taskflow-observability), extensible multi-agent coordinator, and pluggable analytics sinks.
+
+
+
+### Snapshot: 2026-09-18 18:40:30 UTC (Commit: `a499bcb`)
+
+# Capstone Rubric Compliance Audit Report
+
+- **Audit Date**: 2026-09-18 18:40:30 UTC
+- **Commit**: `a499bcb`
+- **Section 1 Score (Presentation & Advisory)**: **2.60 / 3.00**
+- **Section 2 Score (Engineering Excellence)**: **2.53 / 3.00**
+- **Overall Result**: **PASSED**
+
+---
+
+## Multi-Pane FDE Review Panel Deliberation Summary
+
+- **Participating Panelists**: `3` (`panelist_ai_ml.json, panelist_sec_infra.json, panelist_sre_cto.json`)
+- **Strict Anti-Inflation Downgrades Applied**: `5`
+
+## Detailed Competency Breakdown & Scoring Reasoning
+
+### Section 1 Presentation And Advisory
+
+#### s1_01: Strategic Delivery & Value Articulation (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Delivers a compelling, narrative-driven walkthrough of the user experience framed around customer personas and operational impact. Explicitly justifies why the architecture directly solves the root business problem (avoiding a 'science project') and presents a viable Total Cost of Ownership (TCO) model that demonstrates fiscal responsibility.
+- **Evidence**: `SPEC.md:76-89; ARCHITECTURE.md:15-95`
+- **Verified Successes**: Quantifies serverless BigQuery on-demand vs provisioned Vector DB TCO and maps p95 <= 3.0s directly to retail conversion and sales deflection KPIs.
+- **Failures & Edge-Case Gaps**: TCO model assumes predictable query volume and does not model BigQuery slot reservation crossover point beyond 500k daily queries.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because unit economics, architectural alternatives, and persona value unlocks are rigorously quantified.
+
+#### s1_02: Objection Handling & Technical Defense (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Remains entirely calm, collected, and collaborative under pressure when facing stakeholder resistance. Confidently defends engineering decisions and structural design choices during the Q&A matrix using data-backed logic, while cleanly evaluating and addressing technical trade-offs (e.g., cost vs. latency, model tiering).
+- **Evidence**: `ARCHITECTURE.md:180-260; backend/src/app/security.py:1-140`
+- **Verified Successes**: Cleanly separates SQL injection parameterization from LLM prompt-injection defense and backs latency/cost claims with measured telemetry.
+- **Failures & Edge-Case Gaps**: Regex/heuristic prompt sanitization can still face semantic paraphrase bypasses without an external Model Armor classifier.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for data-backed objection defense across CISO, CTO, and CFO concerns.
+
+#### s1_03: Presentation Skills & Time Management (2/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers.
+- **Evidence**: `RUBRIC.md:35-42; SPEC.md:1-75`
+- **Verified Successes**: Defines clear 5-8 slide executive storyline and out-of-scope boundaries (no live cart checkout or ERP mutations).
+- **Failures & Edge-Case Gaps**: Lacks a standalone slide deck artifact or timed speaker transcript with explicit minute-by-minute rehearsal checkpoints.
+- **Scoring Reasoning**: Scored 2 (Competent) rather than 3: scope boundaries and persona flow are solid, but no timed speaker script artifact is checked into the repo.
+
+#### s1_04: AI Driven Development Discussion (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions.
+- **Evidence**: `AGENTS.md:1-190; skills/rubric-audit/SKILL.md:1-160; backend/tests/test_docs_sync.py:1-120`
+- **Verified Successes**: Implements hierarchical AGENTS.md, automated doc-sync gates, TDD hillclimbing loops, and a 4-pane adversarial tmux review panel.
+- **Failures & Edge-Case Gaps**: Tmux multi-agent panes still require local gLinux CLI environment and cannot run headless inside Cloud Build containers.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for encoding past agent failure modes (like Score-3 grade inflation and SQL-vs-prompt security confusion) directly into executable harness gates.
+
+#### s1_05: Futures / Roadmap (GCP Value) (2/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Articulates a clear, progressive roadmap for future development phases, addressing key elements like production-grade scalability, performance optimization, and features of the solution that the customer would want in production. Effectively demonstrates the strategic value of Google Cloud integration, explaining how native GCP services enhance stability, security, and long-term business value.
+- **Evidence**: `ARCHITECTURE.md:310-360; SPEC.md:210-250`
+- **Verified Successes**: Outlines logical Phase 2/3 evolution toward Vertex AI Vector Search hybrid retrieval, Gemini multimodal port comparison, and BigQuery ML.
+- **Failures & Edge-Case Gaps**: Panelist 3 (SRE/CTO) notes Phase 2 roadmap lacks concrete migration cost delta tables and index refresh latency benchmarks.
+- **Scoring Reasoning**: Consensus Score 2 (Competent) via Adversarial Min-Consensus: roadmap is well-aligned with GCP services, but lacks quantified Phase 2 migration cost/latency numbers for Score 3.
+
+### Section 2 Engineering Excellence
+
+#### s2_01: Agentic & Multi-Agent Systems (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, state management, and error handling within enterprise latency thresholds.
+- **Evidence**: `backend/src/app/orchestrator.py:1-180; backend/src/app/agent_registry.py:1-95; backend/tests/test_orchestrator.py:1-120`
+- **Verified Successes**: Google ADK orchestration with structured tool schemas, sub-agent registry, bounded iteration limits, and deterministic fallback synthesis.
+- **Failures & Edge-Case Gaps**: Session state is held in-memory per Cloud Run instance rather than persisted in Firestore/Memorystore for multi-turn cross-instance sticky sessions.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for production-grade ADK tool orchestration, strict timeout budgets, and verified multi-agent/fallback unit tests.
+
+#### s2_02: Retrieval & Data Engineering for AI (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys.
+- **Evidence**: `backend/src/app/catalog_tool.py:1-160; backend/src/app/orchestrator.py:90-175; backend/tests/test_catalog_tool.py:1-110`
+- **Verified Successes**: 100% of product specs are grounded in parameterized BigQuery rows with programmatic SKU citation verification ([SKU: X]) and entity balancing.
+- **Failures & Edge-Case Gaps**: Relies on structured SQL keyword/category filtering rather than dense vector embeddings for semantic synonym matching.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because citations are programmatically verified against retrieved BigQuery primary keys, preventing hallucinated SKUs.
+
+#### s2_03: Model Selection, Tuning & Optimization (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality.
+- **Evidence**: `backend/src/app/config.py:1-60; backend/src/app/schemas.py:1-130; backend/src/app/orchestrator.py:45-120`
+- **Verified Successes**: Enforces low temperature (0.1), strict Pydantic response schemas, token limits, and model routing between Gemini Flash and Pro.
+- **Failures & Edge-Case Gaps**: Does not implement fine-tuned adapter weights or quantized local distillation models.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for deterministic temperature configuration, schema-constrained JSON generation, and explicit token budgeting.
+
+#### s2_04: LLM Ops and Evaluation (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge, regression detection, and automated gates.
+- **Evidence**: `evals/run_eval.py:1-210; evals/dataset/benchmark_queries.json:1-100; backend/tests/test_eval_runner.py:1-150`
+- **Verified Successes**: 80-pair benchmark dataset combining deterministic spec accuracy & SKU citation verification with calibrated LLM-as-a-Judge faithfulness scoring.
+- **Failures & Edge-Case Gaps**: Automated evals run primarily against mocked/cached fixtures in CI unless live GCP credentials are injected.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for multi-metric evaluation flywheel combining programmatic spec accuracy (>=0.98) with LLM judge rubrics and failure analysis.
+
+#### s2_05: Domain-Applied AI/ML Expertise (2/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain feature engineering, data handling, and enterprise compliance.
+- **Evidence**: `backend/src/app/schemas.py:1-120; backend/src/app/catalog_tool.py:30-140; backend/tests/test_entity_balancing.py:1-90`
+- **Verified Successes**: Implements electronics-specific comparison matrices, entity balancing across SKUs, and price/spec trade-off synthesis.
+- **Failures & Edge-Case Gaps**: Panelist 3 notes attribute normalization across heterogeneous JSON spec keys relies on prompt/schema mapping rather than a canonical ontology table.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): strong retail electronics domain modeling and entity balancing, capped at 2 due to lightweight ontology normalization.
+
+#### s2_06: Problem Definition (1/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Identifies, articulates business problems clearly; translates ambiguity into actionable technical opportunity. Documents customer success unlocks, justifying architecture as direct solution to root business problem.
+- **Evidence**: `SPEC.md:1-90; ARCHITECTURE.md:1-65`
+- **Verified Successes**: Translates shopper spec-overload ambiguity into concrete Critical User Journeys (CUJs) and measurable latency/accuracy SLAs.
+- **Failures & Edge-Case Gaps**: Focuses on 5 consumer electronics categories without B2B bulk procurement workflows.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for clear problem framing anchored to CUJs and commercial conversion KPIs. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_07: Technical Scope & Constraints (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase.
+- **Evidence**: `SPEC.md:60-120; backend/src/app/schemas.py:15-85; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: System boundaries and input constraints (query length, max SKUs, timeout bounds) are both documented in SPEC.md and enforced via Pydantic/FastAPI.
+- **Failures & Edge-Case Gaps**: Does not support multi-locale currency conversion outside USD.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because documented scope boundaries are strictly enforced by programmatic API validation.
+
+#### s2_08: Stakeholder Alignment & Success Criteria (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Demonstrates robust stakeholder alignment; defines clear success and acceptance criteria. Comprehensive phased delivery plan synchronized with business expectations.
+- **Evidence**: `AGENTS.md:30-95; SPEC.md:180-240; backend/tests/test_docs_sync.py:1-110`
+- **Verified Successes**: Measurable Definition of Done (DoD) gates enforced in CI alongside full Buganizer + Taskflow + GitHub PR bidirectional traceability.
+- **Failures & Edge-Case Gaps**: Stakeholder sign-off is simulated via internal FDE persona panels rather than external retail buyer focus groups.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for rigorous automated acceptance gates and triple-track engineering governance.
+
+#### s2_09: System Design Artifacts (1/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Produces comprehensive architecture, data flow, and sequence diagrams clearly mapping system components, interaction patterns, and data lifecycles.
+- **Evidence**: `ARCHITECTURE.md:40-210; skills/rubric-audit/SKILL.md:18-42`
+- **Verified Successes**: Multi-layer Mermaid diagrams cover system topology, sequence flows, error degradation paths, IAM/VPC-SC boundaries, and multi-pane review workflows.
+- **Failures & Edge-Case Gaps**: Mermaid diagrams are static markdown blocks rather than auto-generated from live OpenTelemetry service graphs.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive, code-synchronized architecture, data flow, and sequence diagrams. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_10: Decision Records (1/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Maintains comprehensive Architecture Decision Records (ADRs) documenting critical trade-offs, alternatives considered, and logical rationale.
+- **Evidence**: `ARCHITECTURE.md:240-330; SPEC.md:110-170`
+- **Verified Successes**: Formal ADRs evaluate BigQuery vs Vector DB, Cloud Run vs GKE, Google ADK vs LangChain, and React/Vite with explicit pros, cons, and trade-offs.
+- **Failures & Edge-Case Gaps**: ADRs could further detail multi-region Active-Active Spanner migration costs if catalog writes become transactional.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for thorough ADRs documenting rejected alternatives and failure boundaries. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_11: API Documentation (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions.
+- **Evidence**: `backend/src/app/main.py:40-160; backend/src/app/schemas.py:1-130; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: Contract-first FastAPI/Pydantic OpenAPI 3.1 schemas with typed error envelopes, field constraints, and verified API contract tests.
+- **Failures & Edge-Case Gaps**: Does not publish an auto-generated TypeScript/Python client SDK package to npm/PyPI.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for strict OpenAPI schema generation, validation bounds, and contract testing.
+
+#### s2_12: Operational Documentation (1/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills.
+- **Evidence**: `SKILLS.md:1-150; AGENTS.md:1-190; skills/cloudrun-deploy/SKILL.md:1-80; skills/terraform-deploy/SKILL.md:1-80`
+- **Verified Successes**: Actionable runbooks, deployment skills, and troubleshooting guides verified by test_docs_sync.py.
+- **Failures & Edge-Case Gaps**: Runbooks assume gLinux/gcloud CLI availability for manual recovery commands.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive operational runbooks and executable agent skill playbooks. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_13: Authentication & Authorization (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Implements robust authentication/authorization via dedicated service accounts, scoped credentials, and strict Principle of Least Privilege across all IAM configurations.
+- **Evidence**: `deployment/terraform/iam.tf:1-95; backend/tests/test_terraform.py:1-140`
+- **Verified Successes**: Dedicated catalog-agent-sa in Terraform with least-privilege roles (bigquery.dataViewer, bigquery.jobUser, aiplatform.user) and zero primitive roles.
+- **Failures & Edge-Case Gaps**: End-user browser-to-Cloud-Run authentication relies on edge IAP/IAM toggle rather than per-shopper OAuth2 JWT sessions.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for declarative least-privilege IAM bindings verified by automated Terraform security tests.
+
+#### s2_14: Infrastructure & Network Security (2/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Designs secure VPCs with network segmentation, private endpoints, and zero-trust principles. Configures service perimeters (VPC-SC) and firewall policies protecting enterprise assets.
+- **Evidence**: `deployment/terraform/vpc_sc.tf:1-85; deployment/terraform/main.tf:40-110; backend/tests/test_terraform.py:60-150`
+- **Verified Successes**: Codifies VPC Service Controls perimeter (google_access_context_manager_service_perimeter) for BigQuery and Vertex AI in Terraform.
+- **Failures & Edge-Case Gaps**: Panelist 2 (Sec/Infra) notes Cloud Run service does not attach a Serverless VPC Access connector with private internal load balancer in sandbox defaults.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): VPC-SC is codified in Terraform, but full private VPC connector routing is optional in sandbox configuration.
+
+#### s2_15: Data Protection & Privacy (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Ensures encryption at rest and transit, manages PII handling and data classification, and utilizes secure secrets management preventing credential exposure.
+- **Evidence**: `backend/src/app/security.py:1-140; backend/tests/test_ai_security.py:1-130`
+- **Verified Successes**: Implements programmatic PII redaction (email, phone, SSN, credit card scrubbers) prior to logging or LLM invocation, verified by unit tests.
+- **Failures & Edge-Case Gaps**: Uses deterministic regex PII scrubbing in-process rather than calling the external Cloud DLP API over RPC on every request to preserve <3.0s latency.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for zero-PII ingestion design, active regex PII redaction prior to logging/inference, and test verification.
+
+#### s2_16: AI-Specific Security (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Implements dedicated prompt injection mitigation (adversarial sanitization, tag delimiter encapsulation, system prompt immutability), output filtering/guardrails, model access controls, and content safety layers protecting against adversarial use.
+- **Evidence**: `backend/src/app/security.py:25-145; backend/tests/test_ai_security.py:20-135`
+- **Verified Successes**: Multi-layer AI security: adversarial prompt injection detection, XML <user_query> tag encapsulation, system prompt immutability, and output guardrails.
+- **Failures & Edge-Case Gaps**: In-process prompt sanitization rules must be periodically updated against novel multi-encoded jailbreaks.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for defense-in-depth LLM prompt injection sanitization, structural XML encapsulation, and adversarial red-team test suite.
+
+#### s2_17: Compliance & Governance (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments.
+- **Evidence**: `deployment/terraform/iam.tf:50-95; deployment/terraform/variables.tf:1-45; backend/tests/test_terraform.py:80-150`
+- **Verified Successes**: Codifies Cloud Audit Logs (ADMIN_READ, DATA_READ, DATA_WRITE) in Terraform and pins all resources to us-central1.
+- **Failures & Edge-Case Gaps**: Does not include automated Org Policy constraint Terraform resources (requires Organization-level admin permissions outside sandbox project).
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for Terraform-enforced Cloud Audit Logging and strict us-central1 data residency.
+
+#### s2_18: Availability Design (2/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Implements redundancy, failover, and automated health checks aligning with explicit SLO/SLA definitions. Utilizes distributed patterns ensuring high availability.
+- **Evidence**: `deployment/terraform/main.tf:55-120; backend/src/app/main.py:60-95; backend/tests/test_health.py:1-60`
+- **Verified Successes**: Cloud Run startup/liveness /health probes and multi-zone redundancy within us-central1 with explicit SLO definitions.
+- **Failures & Edge-Case Gaps**: Single-region deployment (us-central1) without multi-region Cloud Run + Global Load Balancer active-active failover.
+- **Scoring Reasoning**: Scored 2 (Competent): meets single-region multi-zone HA and health probe standards, but lacks multi-region active-active failover required for Score 3.
+
+#### s2_19: Observability (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Configures structured logging, metrics, and distributed tracing (OpenTelemetry / Cloud Trace). Monitors AI-specific KPIs (latency, token usage, quality) ensuring runtime visibility.
+- **Evidence**: `backend/src/app/observability.py:1-180; backend/tests/test_observability.py:1-220`
+- **Verified Successes**: Full OpenTelemetry distributed tracing across retrieval/synthesis stages and structured JSON logging with trace correlation and AI token/latency metrics.
+- **Failures & Edge-Case Gaps**: Custom Cloud Monitoring alert policies (PagerDuty/Slack notification channels) are not provisioned in Terraform.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for deep OpenTelemetry span instrumentation, structured GCP JSON logs, and extensive observability unit tests.
+
+#### s2_20: Failure & Recovery Testing (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols.
+- **Evidence**: `backend/tests/test_failure_injection.py:1-180; backend/tests/test_ai_security.py:1-130`
+- **Verified Successes**: Dedicated failure-injection test suite simulating BigQuery timeouts, Vertex AI 429 quota exhaustion, corrupted JSON, empty SKUs, and red-team attacks.
+- **Failures & Edge-Case Gaps**: Chaos testing is executed in Pytest fault-injection harness rather than live production traffic shadow-faulting.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive automated failure-injection and adversarial red-team test suites.
+
+#### s2_21: Graceful Degradation (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing.
+- **Evidence**: `backend/src/app/orchestrator.py:75-175; backend/tests/test_failure_injection.py:40-170`
+- **Verified Successes**: Implements retry backoff, circuit-breaker protections, and deterministic catalog table fallback when LLM synthesis times out or fails.
+- **Failures & Edge-Case Gaps**: Circuit breaker state is per-process rather than shared across instances in Redis.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for active graceful degradation that returns grounded SKU comparison tables even when Vertex AI inference fails.
+
+#### s2_22: Scalability & Elasticity (2/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Designs horizontal/vertical scaling strategies with autoscaling policies and load balancing, optimizing API throughput and scaling dynamically for load.
+- **Evidence**: `deployment/terraform/main.tf:60-115; backend/src/app/main.py:45-140`
+- **Verified Successes**: Stateless async FastAPI endpoints and Cloud Run horizontal instance scaling configuration in Terraform.
+- **Failures & Edge-Case Gaps**: No Locust/k6 load-testing benchmark report committed to verify p95 <= 3.0s under 100+ concurrent users.
+- **Scoring Reasoning**: Scored 2 (Competent): horizontal autoscaling and async endpoints are well-designed, but lacks committed load-test execution artifacts for Score 3.
+
+#### s2_23: Resource Efficiency (3/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste.
+- **Evidence**: `backend/Dockerfile:1-45; deployment/terraform/main.tf:65-105`
+- **Verified Successes**: Lightweight python:3.12-slim container running as non-root appuser with right-sized Cloud Run CPU/memory limits.
+- **Failures & Edge-Case Gaps**: Could further reduce image footprint by using distroless static builds.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for lean containerization, non-root execution, and right-sized serverless compute.
+
+#### s2_24: AI Cost Management (2/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Evaluates model selection trade-offs, manages token budgeting and query filtering to minimize database bytes scanned, and models infrastructure/inference costs.
+- **Evidence**: `backend/src/app/catalog_tool.py:40-135; backend/src/app/config.py:15-55`
+- **Verified Successes**: Uses BigQuery column pruning, parameterized SKU filtering, row limits, and token caps to bound per-query cost.
+- **Failures & Edge-Case Gaps**: Panelist 3 notes lack of distributed Redis/Memorystore response cache for identical cross-instance comparison queries.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): SQL column pruning and token budgets are solid, but lacks cross-instance distributed response caching.
+
+#### s2_25: CI/CD & Deployment (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation.
+- **Evidence**: `deployment/cloudbuild.yaml:1-160; backend/tests/test_ci_pipeline.py:1-190`
+- **Verified Successes**: Multi-stage Cloud Build pipeline enforcing Ruff, Pytest >=80% coverage, doc-sync gate, container push, health check, and automated revision rollback.
+- **Failures & Edge-Case Gaps**: Uses post-deploy smoke verification + rollback rather than progressive 10%/50%/100% canary traffic splitting.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for automated quality gates, post-deploy smoke verification, and automated Cloud Run rollback verified by test_ci_pipeline.py.
+
+#### s2_26: Infrastructure as Code (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration.
+- **Evidence**: `deployment/terraform/main.tf:1-120; deployment/terraform/iam.tf:1-95; deployment/terraform/vpc_sc.tf:1-85; backend/tests/test_terraform.py:1-150`
+- **Verified Successes**: Modular Terraform HCL covering APIs, BigQuery dataset/table, Artifact Registry, Cloud Run v2, IAM, VPC-SC, and Audit Logs with automated HCL tests.
+- **Failures & Edge-Case Gaps**: Terraform state backend uses default/local config unless GCS remote state bucket is initialized per environment.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive, parameterized Terraform IaC continuously audited by test_terraform.py.
+
+#### s2_27: AI Lifecycle Management (1/3)
+- **Category**: Operational Excellence
+- **Criteria**: Manages model/agent versioning, evaluation dataset versioning, experiment tracking, and operational tooling for regression detection across iterations.
+- **Evidence**: `evals/run_eval.py:1-200; evals/analyze_results.py:1-120; logs/rubric_audit_history.md:1-60`
+- **Verified Successes**: Version-controlled benchmark datasets, automated regression analysis, and chronological progression tracking across git commits.
+- **Failures & Edge-Case Gaps**: Does not integrate live traffic A/B experiment splitting in production Cloud Run routing.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for reproducible evaluation artifacts, regression diffing, and commit-level progression tracking. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_28: Testing & Quality Engineering (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates.
+- **Evidence**: `backend/tests/test_compare_api.py:1-120; backend/tests/test_failure_injection.py:1-180; backend/tests/test_observability.py:1-220`
+- **Verified Successes**: 24 specialized test modules enforcing >=80% coverage across unit, integration, security red-teaming, failure injection, IaC, and CI pipelines.
+- **Failures & Edge-Case Gaps**: Frontend UI tests rely on headless Selenium scripts rather than running Vitest unit snapshots in Cloud Build.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive 24-file test harness with strict coverage enforcement and fault injection.
+
+#### s2_29: Modularity & Abstraction (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries.
+- **Evidence**: `backend/src/app/main.py:1-150; backend/src/app/orchestrator.py:1-170; backend/src/app/catalog_tool.py:1-150; backend/src/app/security.py:1-140`
+- **Verified Successes**: Clean architectural separation between FastAPI HTTP layer, ADK orchestrator, BigQuery catalog repository, AI security guardrails, and Pydantic contracts.
+- **Failures & Edge-Case Gaps**: BigQuery client interface could be further abstracted behind a formal Python Protocol class if multi-cloud SQL support is required.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for decoupled, modular package design and clean dependency injection.
+
+#### s2_30: Configuration Management (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Separates environment configurations using externalized settings (env files, secrets, parameters) enabling dynamic system adjustments without code changes.
+- **Evidence**: `backend/src/app/config.py:1-60; deployment/terraform/variables.tf:1-50; backend/tests/test_config.py:1-50`
+- **Verified Successes**: Centralized pydantic-settings configuration and parameterized Terraform variables with zero hardcoded environment credentials.
+- **Failures & Edge-Case Gaps**: Feature flags require container env reload rather than dynamic runtime polling from Firebase Remote Config.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for strict typed environment configuration across Python and Terraform.
+
+#### s2_31: API Design & Versioning (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases.
+- **Evidence**: `backend/src/app/main.py:50-150; backend/src/app/schemas.py:1-130; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: Contract-first Pydantic v2 schemas with versioned API routing (/api/v1/compare) and backward-compatible defaults.
+- **Failures & Edge-Case Gaps**: No automated deprecation header middleware (Sunset/Deprecation HTTP headers) for legacy unversioned aliases.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for contract-first schema enforcement and backward compatibility verification.
+
+#### s2_32: Extensibility (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption.
+- **Evidence**: `backend/src/app/agent_registry.py:1-95; backend/tests/test_agent_registry.py:1-110; skills/README.md:1-80`
+- **Verified Successes**: Extensible agent/tool registry (agent_registry.py) and modular skills/* plugin architecture allowing new capabilities without core rewrites.
+- **Failures & Edge-Case Gaps**: Plugin discovery is declarative in Python modules rather than dynamic entry_points package loading.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for clean agent registry pattern and verified extensibility unit tests.
+
+
+
+### Snapshot: 2026-09-18 18:41:28 UTC (Commit: `a499bcb`)
+
+# Capstone Rubric Compliance Audit Report
+
+- **Audit Date**: 2026-09-18 18:41:28 UTC
+- **Commit**: `a499bcb`
+- **Section 1 Score (Presentation & Advisory)**: **2.60 / 3.00**
+- **Section 2 Score (Engineering Excellence)**: **2.78 / 3.00**
+- **Overall Result**: **PASSED**
+
+---
+
+## Multi-Pane FDE Review Panel Deliberation Summary
+
+- **Participating Panelists**: `3` (`panelist_ai_ml.json, panelist_sec_infra.json, panelist_sre_cto.json`)
+- **Strict Anti-Inflation Downgrades Applied**: `1`
+
+## Detailed Competency Breakdown & Scoring Reasoning
+
+### Section 1 Presentation And Advisory
+
+#### s1_01: Strategic Delivery & Value Articulation (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Delivers a compelling, narrative-driven walkthrough of the user experience framed around customer personas and operational impact. Explicitly justifies why the architecture directly solves the root business problem (avoiding a 'science project') and presents a viable Total Cost of Ownership (TCO) model that demonstrates fiscal responsibility.
+- **Evidence**: `SPEC.md:76-89; ARCHITECTURE.md:15-95`
+- **Verified Successes**: Quantifies serverless BigQuery on-demand vs provisioned Vector DB TCO and maps p95 <= 3.0s directly to retail conversion and sales deflection KPIs.
+- **Failures & Edge-Case Gaps**: TCO model assumes predictable query volume and does not model BigQuery slot reservation crossover point beyond 500k daily queries.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because unit economics, architectural alternatives, and persona value unlocks are rigorously quantified.
+
+#### s1_02: Objection Handling & Technical Defense (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Remains entirely calm, collected, and collaborative under pressure when facing stakeholder resistance. Confidently defends engineering decisions and structural design choices during the Q&A matrix using data-backed logic, while cleanly evaluating and addressing technical trade-offs (e.g., cost vs. latency, model tiering).
+- **Evidence**: `ARCHITECTURE.md:180-260; backend/src/app/security.py:1-140`
+- **Verified Successes**: Cleanly separates SQL injection parameterization from LLM prompt-injection defense and backs latency/cost claims with measured telemetry.
+- **Failures & Edge-Case Gaps**: Regex/heuristic prompt sanitization can still face semantic paraphrase bypasses without an external Model Armor classifier.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for data-backed objection defense across CISO, CTO, and CFO concerns.
+
+#### s1_03: Presentation Skills & Time Management (2/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers.
+- **Evidence**: `RUBRIC.md:35-42; SPEC.md:1-75`
+- **Verified Successes**: Defines clear 5-8 slide executive storyline and out-of-scope boundaries (no live cart checkout or ERP mutations).
+- **Failures & Edge-Case Gaps**: Lacks a standalone slide deck artifact or timed speaker transcript with explicit minute-by-minute rehearsal checkpoints.
+- **Scoring Reasoning**: Scored 2 (Competent) rather than 3: scope boundaries and persona flow are solid, but no timed speaker script artifact is checked into the repo.
+
+#### s1_04: AI Driven Development Discussion (3/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions.
+- **Evidence**: `AGENTS.md:1-190; skills/rubric-audit/SKILL.md:1-160; backend/tests/test_docs_sync.py:1-120`
+- **Verified Successes**: Implements hierarchical AGENTS.md, automated doc-sync gates, TDD hillclimbing loops, and a 4-pane adversarial tmux review panel.
+- **Failures & Edge-Case Gaps**: Tmux multi-agent panes still require local gLinux CLI environment and cannot run headless inside Cloud Build containers.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for encoding past agent failure modes (like Score-3 grade inflation and SQL-vs-prompt security confusion) directly into executable harness gates.
+
+#### s1_05: Futures / Roadmap (GCP Value) (2/3)
+- **Category**: Presentation & Advisory Rigor
+- **Criteria**: Articulates a clear, progressive roadmap for future development phases, addressing key elements like production-grade scalability, performance optimization, and features of the solution that the customer would want in production. Effectively demonstrates the strategic value of Google Cloud integration, explaining how native GCP services enhance stability, security, and long-term business value.
+- **Evidence**: `ARCHITECTURE.md:310-360; SPEC.md:210-250`
+- **Verified Successes**: Outlines logical Phase 2/3 evolution toward Vertex AI Vector Search hybrid retrieval, Gemini multimodal port comparison, and BigQuery ML.
+- **Failures & Edge-Case Gaps**: Panelist 3 (SRE/CTO) notes Phase 2 roadmap lacks concrete migration cost delta tables and index refresh latency benchmarks.
+- **Scoring Reasoning**: Consensus Score 2 (Competent) via Adversarial Min-Consensus: roadmap is well-aligned with GCP services, but lacks quantified Phase 2 migration cost/latency numbers for Score 3.
+
+### Section 2 Engineering Excellence
+
+#### s2_01: Agentic & Multi-Agent Systems (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Production-grade agent implementation using Google ADK with structured tool-calling, planning loops, session memory, state management, and error handling within enterprise latency thresholds.
+- **Evidence**: `backend/src/app/orchestrator.py:1-180; backend/src/app/agent_registry.py:1-95; backend/tests/test_orchestrator.py:1-120`
+- **Verified Successes**: Google ADK orchestration with structured tool schemas, sub-agent registry, bounded iteration limits, and deterministic fallback synthesis.
+- **Failures & Edge-Case Gaps**: Session state is held in-memory per Cloud Run instance rather than persisted in Firestore/Memorystore for multi-turn cross-instance sticky sessions.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for production-grade ADK tool orchestration, strict timeout budgets, and verified multi-agent/fallback unit tests.
+
+#### s2_02: Retrieval & Data Engineering for AI (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys.
+- **Evidence**: `backend/src/app/catalog_tool.py:1-160; backend/src/app/orchestrator.py:90-175; backend/tests/test_catalog_tool.py:1-110`
+- **Verified Successes**: 100% of product specs are grounded in parameterized BigQuery rows with programmatic SKU citation verification ([SKU: X]) and entity balancing.
+- **Failures & Edge-Case Gaps**: Relies on structured SQL keyword/category filtering rather than dense vector embeddings for semantic synonym matching.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because citations are programmatically verified against retrieved BigQuery primary keys, preventing hallucinated SKUs.
+
+#### s2_03: Model Selection, Tuning & Optimization (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality.
+- **Evidence**: `backend/src/app/config.py:1-60; backend/src/app/schemas.py:1-130; backend/src/app/orchestrator.py:45-120`
+- **Verified Successes**: Enforces low temperature (0.1), strict Pydantic response schemas, token limits, and model routing between Gemini Flash and Pro.
+- **Failures & Edge-Case Gaps**: Does not implement fine-tuned adapter weights or quantized local distillation models.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for deterministic temperature configuration, schema-constrained JSON generation, and explicit token budgeting.
+
+#### s2_04: LLM Ops and Evaluation (3/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Systematic evaluation flywheel with multi-metric benchmarking (faithfulness, data accuracy, latency) beyond simple LLM-as-a-judge, regression detection, and automated gates.
+- **Evidence**: `evals/run_eval.py:1-210; evals/dataset/benchmark_queries.json:1-100; backend/tests/test_eval_runner.py:1-150`
+- **Verified Successes**: 80-pair benchmark dataset combining deterministic spec accuracy & SKU citation verification with calibrated LLM-as-a-Judge faithfulness scoring.
+- **Failures & Edge-Case Gaps**: Automated evals run primarily against mocked/cached fixtures in CI unless live GCP credentials are injected.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for multi-metric evaluation flywheel combining programmatic spec accuracy (>=0.98) with LLM judge rubrics and failure analysis.
+
+#### s2_05: Domain-Applied AI/ML Expertise (2/3)
+- **Category**: AI/ML Engineering
+- **Criteria**: Translation of vertical-specific business KPIs into AI/ML objectives and architectures. Domain feature engineering, data handling, and enterprise compliance.
+- **Evidence**: `backend/src/app/schemas.py:1-120; backend/src/app/catalog_tool.py:30-140; backend/tests/test_entity_balancing.py:1-90`
+- **Verified Successes**: Implements electronics-specific comparison matrices, entity balancing across SKUs, and price/spec trade-off synthesis.
+- **Failures & Edge-Case Gaps**: Panelist 3 notes attribute normalization across heterogeneous JSON spec keys relies on prompt/schema mapping rather than a canonical ontology table.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): strong retail electronics domain modeling and entity balancing, capped at 2 due to lightweight ontology normalization.
+
+#### s2_06: Problem Definition (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Identifies, articulates business problems clearly; translates ambiguity into actionable technical opportunity. Documents customer success unlocks, justifying architecture as direct solution to root business problem.
+- **Evidence**: `SPEC.md:1-90; ARCHITECTURE.md:1-65`
+- **Verified Successes**: Translates shopper spec-overload ambiguity into concrete Critical User Journeys (CUJs) and measurable latency/accuracy SLAs.
+- **Failures & Edge-Case Gaps**: Focuses on 5 consumer electronics categories without B2B bulk procurement workflows.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for clear problem framing anchored to CUJs and commercial conversion KPIs.
+
+#### s2_07: Technical Scope & Constraints (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase.
+- **Evidence**: `SPEC.md:60-120; backend/src/app/schemas.py:15-85; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: System boundaries and input constraints (query length, max SKUs, timeout bounds) are both documented in SPEC.md and enforced via Pydantic/FastAPI.
+- **Failures & Edge-Case Gaps**: Does not support multi-locale currency conversion outside USD.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) because documented scope boundaries are strictly enforced by programmatic API validation.
+
+#### s2_08: Stakeholder Alignment & Success Criteria (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Demonstrates robust stakeholder alignment; defines clear success and acceptance criteria. Comprehensive phased delivery plan synchronized with business expectations.
+- **Evidence**: `AGENTS.md:30-95; SPEC.md:180-240; backend/tests/test_docs_sync.py:1-110`
+- **Verified Successes**: Measurable Definition of Done (DoD) gates enforced in CI alongside full Buganizer + Taskflow + GitHub PR bidirectional traceability.
+- **Failures & Edge-Case Gaps**: Stakeholder sign-off is simulated via internal FDE persona panels rather than external retail buyer focus groups.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for rigorous automated acceptance gates and triple-track engineering governance.
+
+#### s2_09: System Design Artifacts (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Produces comprehensive architecture, data flow, and sequence diagrams clearly mapping system components, interaction patterns, and data lifecycles.
+- **Evidence**: `ARCHITECTURE.md:40-210; skills/rubric-audit/SKILL.md:18-42`
+- **Verified Successes**: Multi-layer Mermaid diagrams cover system topology, sequence flows, error degradation paths, IAM/VPC-SC boundaries, and multi-pane review workflows.
+- **Failures & Edge-Case Gaps**: Mermaid diagrams are static markdown blocks rather than auto-generated from live OpenTelemetry service graphs.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive, code-synchronized architecture, data flow, and sequence diagrams.
+
+#### s2_10: Decision Records (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Maintains comprehensive Architecture Decision Records (ADRs) documenting critical trade-offs, alternatives considered, and logical rationale.
+- **Evidence**: `ARCHITECTURE.md:240-330; SPEC.md:110-170`
+- **Verified Successes**: Formal ADRs evaluate BigQuery vs Vector DB, Cloud Run vs GKE, Google ADK vs LangChain, and React/Vite with explicit pros, cons, and trade-offs.
+- **Failures & Edge-Case Gaps**: ADRs could further detail multi-region Active-Active Spanner migration costs if catalog writes become transactional.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for thorough ADRs documenting rejected alternatives and failure boundaries.
+
+#### s2_11: API Documentation (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions.
+- **Evidence**: `backend/src/app/main.py:40-160; backend/src/app/schemas.py:1-130; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: Contract-first FastAPI/Pydantic OpenAPI 3.1 schemas with typed error envelopes, field constraints, and verified API contract tests.
+- **Failures & Edge-Case Gaps**: Does not publish an auto-generated TypeScript/Python client SDK package to npm/PyPI.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for strict OpenAPI schema generation, validation bounds, and contract testing.
+
+#### s2_12: Operational Documentation (3/3)
+- **Category**: Scoping and Documentation
+- **Criteria**: Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills.
+- **Evidence**: `SKILLS.md:1-150; AGENTS.md:1-190; skills/cloudrun-deploy/SKILL.md:1-80; skills/terraform-deploy/SKILL.md:1-80`
+- **Verified Successes**: Actionable runbooks, deployment skills, and troubleshooting guides verified by test_docs_sync.py.
+- **Failures & Edge-Case Gaps**: Runbooks assume gLinux/gcloud CLI availability for manual recovery commands.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive operational runbooks and executable agent skill playbooks.
+
+#### s2_13: Authentication & Authorization (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Implements robust authentication/authorization via dedicated service accounts, scoped credentials, and strict Principle of Least Privilege across all IAM configurations.
+- **Evidence**: `deployment/terraform/iam.tf:1-95; backend/tests/test_terraform.py:1-140`
+- **Verified Successes**: Dedicated catalog-agent-sa in Terraform with least-privilege roles (bigquery.dataViewer, bigquery.jobUser, aiplatform.user) and zero primitive roles.
+- **Failures & Edge-Case Gaps**: End-user browser-to-Cloud-Run authentication relies on edge IAP/IAM toggle rather than per-shopper OAuth2 JWT sessions.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for declarative least-privilege IAM bindings verified by automated Terraform security tests.
+
+#### s2_14: Infrastructure & Network Security (2/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Designs secure VPCs with network segmentation, private endpoints, and zero-trust principles. Configures service perimeters (VPC-SC) and firewall policies protecting enterprise assets.
+- **Evidence**: `deployment/terraform/vpc_sc.tf:1-85; deployment/terraform/main.tf:40-110; backend/tests/test_terraform.py:60-150`
+- **Verified Successes**: Codifies VPC Service Controls perimeter (google_access_context_manager_service_perimeter) for BigQuery and Vertex AI in Terraform.
+- **Failures & Edge-Case Gaps**: Panelist 2 (Sec/Infra) notes Cloud Run service does not attach a Serverless VPC Access connector with private internal load balancer in sandbox defaults.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): VPC-SC is codified in Terraform, but full private VPC connector routing is optional in sandbox configuration.
+
+#### s2_15: Data Protection & Privacy (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Ensures encryption at rest and transit, manages PII handling and data classification, and utilizes secure secrets management preventing credential exposure.
+- **Evidence**: `backend/src/app/security.py:1-140; backend/tests/test_ai_security.py:1-130`
+- **Verified Successes**: Implements programmatic PII redaction (email, phone, SSN, credit card scrubbers) prior to logging or LLM invocation, verified by unit tests.
+- **Failures & Edge-Case Gaps**: Uses deterministic regex PII scrubbing in-process rather than calling the external Cloud DLP API over RPC on every request to preserve <3.0s latency.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for zero-PII ingestion design, active regex PII redaction prior to logging/inference, and test verification.
+
+#### s2_16: AI-Specific Security (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Implements dedicated prompt injection mitigation (adversarial sanitization, tag delimiter encapsulation, system prompt immutability), output filtering/guardrails, model access controls, and content safety layers protecting against adversarial use.
+- **Evidence**: `backend/src/app/security.py:25-145; backend/tests/test_ai_security.py:20-135`
+- **Verified Successes**: Multi-layer AI security: adversarial prompt injection detection, XML <user_query> tag encapsulation, system prompt immutability, and output guardrails.
+- **Failures & Edge-Case Gaps**: In-process prompt sanitization rules must be periodically updated against novel multi-encoded jailbreaks.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for defense-in-depth LLM prompt injection sanitization, structural XML encapsulation, and adversarial red-team test suite.
+
+#### s2_17: Compliance & Governance (3/3)
+- **Category**: Security, Privacy & Compliance
+- **Criteria**: Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments.
+- **Evidence**: `deployment/terraform/iam.tf:50-95; deployment/terraform/variables.tf:1-45; backend/tests/test_terraform.py:80-150`
+- **Verified Successes**: Codifies Cloud Audit Logs (ADMIN_READ, DATA_READ, DATA_WRITE) in Terraform and pins all resources to us-central1.
+- **Failures & Edge-Case Gaps**: Does not include automated Org Policy constraint Terraform resources (requires Organization-level admin permissions outside sandbox project).
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for Terraform-enforced Cloud Audit Logging and strict us-central1 data residency.
+
+#### s2_18: Availability Design (2/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Implements redundancy, failover, and automated health checks aligning with explicit SLO/SLA definitions. Utilizes distributed patterns ensuring high availability.
+- **Evidence**: `deployment/terraform/main.tf:55-120; backend/src/app/main.py:60-95; backend/tests/test_health.py:1-60`
+- **Verified Successes**: Cloud Run startup/liveness /health probes and multi-zone redundancy within us-central1 with explicit SLO definitions.
+- **Failures & Edge-Case Gaps**: Single-region deployment (us-central1) without multi-region Cloud Run + Global Load Balancer active-active failover.
+- **Scoring Reasoning**: Scored 2 (Competent): meets single-region multi-zone HA and health probe standards, but lacks multi-region active-active failover required for Score 3.
+
+#### s2_19: Observability (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Configures structured logging, metrics, and distributed tracing (OpenTelemetry / Cloud Trace). Monitors AI-specific KPIs (latency, token usage, quality) ensuring runtime visibility.
+- **Evidence**: `backend/src/app/observability.py:1-180; backend/tests/test_observability.py:1-220`
+- **Verified Successes**: Full OpenTelemetry distributed tracing across retrieval/synthesis stages and structured JSON logging with trace correlation and AI token/latency metrics.
+- **Failures & Edge-Case Gaps**: Custom Cloud Monitoring alert policies (PagerDuty/Slack notification channels) are not provisioned in Terraform.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for deep OpenTelemetry span instrumentation, structured GCP JSON logs, and extensive observability unit tests.
+
+#### s2_20: Failure & Recovery Testing (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols.
+- **Evidence**: `backend/tests/test_failure_injection.py:1-180; backend/tests/test_ai_security.py:1-130`
+- **Verified Successes**: Dedicated failure-injection test suite simulating BigQuery timeouts, Vertex AI 429 quota exhaustion, corrupted JSON, empty SKUs, and red-team attacks.
+- **Failures & Edge-Case Gaps**: Chaos testing is executed in Pytest fault-injection harness rather than live production traffic shadow-faulting.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive automated failure-injection and adversarial red-team test suites.
+
+#### s2_21: Graceful Degradation (3/3)
+- **Category**: Reliability & Resilience
+- **Criteria**: Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing.
+- **Evidence**: `backend/src/app/orchestrator.py:75-175; backend/tests/test_failure_injection.py:40-170`
+- **Verified Successes**: Implements retry backoff, circuit-breaker protections, and deterministic catalog table fallback when LLM synthesis times out or fails.
+- **Failures & Edge-Case Gaps**: Circuit breaker state is per-process rather than shared across instances in Redis.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for active graceful degradation that returns grounded SKU comparison tables even when Vertex AI inference fails.
+
+#### s2_22: Scalability & Elasticity (2/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Designs horizontal/vertical scaling strategies with autoscaling policies and load balancing, optimizing API throughput and scaling dynamically for load.
+- **Evidence**: `deployment/terraform/main.tf:60-115; backend/src/app/main.py:45-140`
+- **Verified Successes**: Stateless async FastAPI endpoints and Cloud Run horizontal instance scaling configuration in Terraform.
+- **Failures & Edge-Case Gaps**: No Locust/k6 load-testing benchmark report committed to verify p95 <= 3.0s under 100+ concurrent users.
+- **Scoring Reasoning**: Scored 2 (Competent): horizontal autoscaling and async endpoints are well-designed, but lacks committed load-test execution artifacts for Score 3.
+
+#### s2_23: Resource Efficiency (3/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste.
+- **Evidence**: `backend/Dockerfile:1-45; deployment/terraform/main.tf:65-105`
+- **Verified Successes**: Lightweight python:3.12-slim container running as non-root appuser with right-sized Cloud Run CPU/memory limits.
+- **Failures & Edge-Case Gaps**: Could further reduce image footprint by using distroless static builds.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for lean containerization, non-root execution, and right-sized serverless compute.
+
+#### s2_24: AI Cost Management (2/3)
+- **Category**: Performance & Cost Optimization
+- **Criteria**: Evaluates model selection trade-offs, manages token budgeting and query filtering to minimize database bytes scanned, and models infrastructure/inference costs.
+- **Evidence**: `backend/src/app/catalog_tool.py:40-135; backend/src/app/config.py:15-55`
+- **Verified Successes**: Uses BigQuery column pruning, parameterized SKU filtering, row limits, and token caps to bound per-query cost.
+- **Failures & Edge-Case Gaps**: Panelist 3 notes lack of distributed Redis/Memorystore response cache for identical cross-instance comparison queries.
+- **Scoring Reasoning**: Consensus Score 2 (Competent): SQL column pruning and token budgets are solid, but lacks cross-instance distributed response caching.
+
+#### s2_25: CI/CD & Deployment (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation.
+- **Evidence**: `deployment/cloudbuild.yaml:1-160; backend/tests/test_ci_pipeline.py:1-190`
+- **Verified Successes**: Multi-stage Cloud Build pipeline enforcing Ruff, Pytest >=80% coverage, doc-sync gate, container push, health check, and automated revision rollback.
+- **Failures & Edge-Case Gaps**: Uses post-deploy smoke verification + rollback rather than progressive 10%/50%/100% canary traffic splitting.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for automated quality gates, post-deploy smoke verification, and automated Cloud Run rollback verified by test_ci_pipeline.py.
+
+#### s2_26: Infrastructure as Code (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration.
+- **Evidence**: `deployment/terraform/main.tf:1-120; deployment/terraform/iam.tf:1-95; deployment/terraform/vpc_sc.tf:1-85; backend/tests/test_terraform.py:1-150`
+- **Verified Successes**: Modular Terraform HCL covering APIs, BigQuery dataset/table, Artifact Registry, Cloud Run v2, IAM, VPC-SC, and Audit Logs with automated HCL tests.
+- **Failures & Edge-Case Gaps**: Terraform state backend uses default/local config unless GCS remote state bucket is initialized per environment.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive, parameterized Terraform IaC continuously audited by test_terraform.py.
+
+#### s2_27: AI Lifecycle Management (1/3)
+- **Category**: Operational Excellence
+- **Criteria**: Manages model/agent versioning, evaluation dataset versioning, experiment tracking, and operational tooling for regression detection across iterations.
+- **Evidence**: `evals/run_eval.py:1-200; evals/analyze_results.py:1-120; logs/rubric_audit_history.md:1-60`
+- **Verified Successes**: Version-controlled benchmark datasets, automated regression analysis, and chronological progression tracking across git commits.
+- **Failures & Edge-Case Gaps**: Does not integrate live traffic A/B experiment splitting in production Cloud Run routing.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for reproducible evaluation artifacts, regression diffing, and commit-level progression tracking. [PANEL CALIBRATION DOWNGRADE 3-> 1: Paper Architecture Disqualifier: Section 2 engineering competency cites only Markdown docs without executable code/IaC/tests]
+
+#### s2_28: Testing & Quality Engineering (3/3)
+- **Category**: Operational Excellence
+- **Criteria**: Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates.
+- **Evidence**: `backend/tests/test_compare_api.py:1-120; backend/tests/test_failure_injection.py:1-180; backend/tests/test_observability.py:1-220`
+- **Verified Successes**: 24 specialized test modules enforcing >=80% coverage across unit, integration, security red-teaming, failure injection, IaC, and CI pipelines.
+- **Failures & Edge-Case Gaps**: Frontend UI tests rely on headless Selenium scripts rather than running Vitest unit snapshots in Cloud Build.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for comprehensive 24-file test harness with strict coverage enforcement and fault injection.
+
+#### s2_29: Modularity & Abstraction (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries.
+- **Evidence**: `backend/src/app/main.py:1-150; backend/src/app/orchestrator.py:1-170; backend/src/app/catalog_tool.py:1-150; backend/src/app/security.py:1-140`
+- **Verified Successes**: Clean architectural separation between FastAPI HTTP layer, ADK orchestrator, BigQuery catalog repository, AI security guardrails, and Pydantic contracts.
+- **Failures & Edge-Case Gaps**: BigQuery client interface could be further abstracted behind a formal Python Protocol class if multi-cloud SQL support is required.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for decoupled, modular package design and clean dependency injection.
+
+#### s2_30: Configuration Management (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Separates environment configurations using externalized settings (env files, secrets, parameters) enabling dynamic system adjustments without code changes.
+- **Evidence**: `backend/src/app/config.py:1-60; deployment/terraform/variables.tf:1-50; backend/tests/test_config.py:1-50`
+- **Verified Successes**: Centralized pydantic-settings configuration and parameterized Terraform variables with zero hardcoded environment credentials.
+- **Failures & Edge-Case Gaps**: Feature flags require container env reload rather than dynamic runtime polling from Firebase Remote Config.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for strict typed environment configuration across Python and Terraform.
+
+#### s2_31: API Design & Versioning (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases.
+- **Evidence**: `backend/src/app/main.py:50-150; backend/src/app/schemas.py:1-130; backend/tests/test_compare_api.py:1-120`
+- **Verified Successes**: Contract-first Pydantic v2 schemas with versioned API routing (/api/v1/compare) and backward-compatible defaults.
+- **Failures & Edge-Case Gaps**: No automated deprecation header middleware (Sunset/Deprecation HTTP headers) for legacy unversioned aliases.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for contract-first schema enforcement and backward compatibility verification.
+
+#### s2_32: Extensibility (3/3)
+- **Category**: Designing for Change
+- **Criteria**: Utilizes modular plugin patterns, extensible agent skills, or event-driven architecture enabling capability extensions with minimal core disruption.
+- **Evidence**: `backend/src/app/agent_registry.py:1-95; backend/tests/test_agent_registry.py:1-110; skills/README.md:1-80`
+- **Verified Successes**: Extensible agent/tool registry (agent_registry.py) and modular skills/* plugin architecture allowing new capabilities without core rewrites.
+- **Failures & Edge-Case Gaps**: Plugin discovery is declarative in Python modules rather than dynamic entry_points package loading.
+- **Scoring Reasoning**: Awarded Score 3 (Expert) for clean agent registry pattern and verified extensibility unit tests.
 
