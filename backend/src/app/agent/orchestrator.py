@@ -478,17 +478,23 @@ class ComparisonOrchestrator:
         keywords = self.extract_keywords(query)
         lower_q = query.lower()
         detected_category = None
-        if re.search(r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?)\b", lower_q):
+        if re.search(
+            r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?|macbooks?|xps|thinkpads?)\b",
+            lower_q,
+        ):
             detected_category = "Laptops"
-        elif re.search(r"\b(?:tablets?|e-?readers?|ipads?)\b", lower_q):
+        elif re.search(r"\b(?:tablets?|e-?readers?|ipads?|galaxy\s*tabs?)\b", lower_q):
             detected_category = "Tablets"
-        elif re.search(r"\b(?:headphones?|earbuds?|earphones?|headsets?)\b", lower_q):
+        elif re.search(
+            r"\b(?:headphones?|earbuds?|earphones?|headsets?|airpods?|quietcomfort|wh-?1000\w*)\b",
+            lower_q,
+        ):
             detected_category = "Headphones"
         elif re.search(
-            r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?)\b", lower_q
+            r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?|nest)\b", lower_q
         ):
             detected_category = "Smart Home"
-        elif re.search(r"\b(?:tvs?|televisions?|oled|qled)\b", lower_q):
+        elif re.search(r"\b(?:tvs?|televisions?|oled|qled|c3|c4|s90c|s95c)\b", lower_q):
             detected_category = "TVs"
 
         comparative_tokens = [
@@ -605,17 +611,23 @@ class ComparisonOrchestrator:
 
         if has_comparative_token and len(keywords) >= 2:
             detected_cat = None
-            if re.search(r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?)\b", lower_q):
+            if re.search(
+                r"\b(?:laptops?|notebooks?|ultrabooks?|chromebooks?|macbooks?|xps|thinkpads?)\b",
+                lower_q,
+            ):
                 detected_cat = "Laptops"
-            elif re.search(r"\b(?:tablets?|e-?readers?|ipads?)\b", lower_q):
+            elif re.search(r"\b(?:tablets?|e-?readers?|ipads?|galaxy\s*tabs?)\b", lower_q):
                 detected_cat = "Tablets"
-            elif re.search(r"\b(?:headphones?|earbuds?|earphones?|headsets?)\b", lower_q):
+            elif re.search(
+                r"\b(?:headphones?|earbuds?|earphones?|headsets?|airpods?|quietcomfort|wh-?1000\w*)\b",
+                lower_q,
+            ):
                 detected_cat = "Headphones"
             elif re.search(
-                r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?)\b", lower_q
+                r"\b(?:smart\s*home|thermostats?|doorbells?|security\s*cameras?|nest)\b", lower_q
             ):
                 detected_cat = "Smart Home"
-            elif re.search(r"\b(?:tvs?|televisions?|oled|qled)\b", lower_q):
+            elif re.search(r"\b(?:tvs?|televisions?|oled|qled|c3|c4|s90c|s95c)\b", lower_q):
                 detected_cat = "TVs"
 
             return QueryIntentAnalysis(

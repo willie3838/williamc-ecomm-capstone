@@ -109,7 +109,8 @@ backend/
     - All Firestore network calls in `AnalyticsService` are wrapped in 2.0-second worker thread timeouts to protect API availability, and live cloud calls are bypassed in automated test environments (`PYTEST_CURRENT_TEST`).
 6. **Anti-Overfitting & Brand-Agnostic Keyword Extraction**:
     - `ComparisonOrchestrator.extract_keywords` uses syntactic token splitting and structural attribute lead-in stripping rather than hardcoded brand dictionaries or benchmark question prefix regexes.
-    - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) to prevent data leakage and benchmark memorization.
+    - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) and abstract device models ("Model Alpha", "Model Beta") to prevent data leakage and benchmark memorization.
+    - Category classification leverages semantic Gemini structured classification (`QueryIntentAnalysis`) while supporting fast-path taxonomy aliases across all primary consumer electronics categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`).
     - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
 7. **Google ADK Runner Integration (`app.agent.runner`)**:
     - Operates through `google.adk.runners.InMemoryRunner` and `google.adk.sessions.InMemorySessionService`.

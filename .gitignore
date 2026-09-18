@@ -77,3 +77,4 @@ Thumbs.db
 logs/
 skills/project-creation
 skills/swarm-development
+uv.lock
