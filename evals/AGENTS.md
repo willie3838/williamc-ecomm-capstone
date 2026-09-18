@@ -10,8 +10,11 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
 ├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, trajectory)
-├── runner.py                  # Hermetic in-memory SQL evaluation runner
+├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
 ├── analyze.py                 # Report analysis and metric visualization
+├── judge.py                   # Single-response Faithfulness LLM-as-a-Judge
+├── pairwise_judge.py          # Head-to-head Pairwise Judge with position-bias swap checks
+├── generate_model_matrix.py   # Empirical Foundation Model Decision Scorecard generator (ADR-004)
 ├── dataset/
 │   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet
 │   ├── benchmark_queries.json # Legacy 80-pair comparison test cases
@@ -21,6 +24,8 @@ evals/
 │   ├── data_accuracy.md       # Ground truth accuracy criteria
 │   └── citation_faithfulness.md # Citation validity criteria
 └── reports/                   # Output artifacts from eval runs
+    ├── model_decision_matrix.json     # Empirical model decision scorecard JSON
+    ├── model_decision_scorecard.md    # Executive Markdown scorecard for ADR-004
     └── .gitkeep
 ```
 
@@ -36,6 +41,7 @@ evals/
 | **Citation Faithfulness** | $\ge 0.95$ | Inline `[SKU: ...]` citation validator | Hallucinated SKUs score 0.0 |
 | **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | $> 3.0$s requires optimization |
 | **Structured Output Validity**| $1.00$ | Pydantic `CompareResponse` schema validation | Any validation error is fatal |
+| **Pairwise Synthesis Win Rate**| $\ge 0.85$ | `evals/pairwise_judge.py` (`PairwiseJudgment` schema) | Position-bias-checked head-to-head comparison against baseline models |
 
 ---
 
@@ -85,6 +91,17 @@ python3 -m evals.benchmark_models \
   --output-md evals/reports/model_benchmark_summary.md
 ```
 
+### G. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
+Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
+```bash
+# Generate JSON and Markdown Model Decision Scorecard:
+python3 -m evals.generate_model_matrix \
+  --output-json evals/reports/model_decision_matrix.json \
+  --output-md evals/reports/model_decision_scorecard.md
+
+# Execute standalone head-to-head Pairwise Judge check:
+python3 -m evals.pairwise_judge
+```
 
 ---
 
@@ -93,4 +110,4 @@ python3 -m evals.benchmark_models \
 Whenever improving prompts, tool definitions, or response formatting:
 1. First run the baseline eval runner and record metrics.
 2. Make code or prompt modifications.
-3. Re-run eval runner. If Data Accuracy or Citation Faithfulness drops by even $0.01$, the change is rejected.
+3. Re-run eval runner and `evals.generate_model_matrix`. If Data Accuracy or Citation Faithfulness drops by even $0.01$, the change is rejected.

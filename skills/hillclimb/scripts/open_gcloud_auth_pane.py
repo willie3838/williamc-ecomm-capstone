@@ -22,6 +22,9 @@ def check_auth_valid() -> bool:
     res_gcloud = run_cmd(["gcloud", "auth", "print-access-token"])
     if res_gcloud.returncode != 0 or not res_gcloud.stdout.strip() or "ERROR" in res_gcloud.stdout or "Reauthentication" in res_gcloud.stdout:
         return False
+    res_adc = run_cmd(["gcloud", "auth", "application-default", "print-access-token"])
+    if res_adc.returncode != 0 or not res_adc.stdout.strip() or "ERROR" in res_adc.stdout or "Reauthentication" in res_adc.stdout:
+        return False
     return True
 
 
