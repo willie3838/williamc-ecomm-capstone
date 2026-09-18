@@ -91,7 +91,18 @@ python3 -m evals.runner \
   --output evals/reports/eval_results.json
 ```
 
-### F. Candidate Foundation Model Benchmarking & Vertex AI Experiments (`evals/benchmark_models.py`)
+To execute evaluations through the Google ADK Runner lifecycle:
+```bash
+python3 -m evals.runner \
+  --dataset evals/dataset/fixtures/simple_test.evalset.json \
+  --output evals/reports/eval_results.json \
+  --use-adk-runner
+```
+
+### F. Brand-Agnostic Hermetic Mocking (Anti-Overfitting)
+`create_hermetic_bq_client` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
+
+### G. Candidate Foundation Model Benchmarking & Vertex AI Experiments (`evals/benchmark_models.py`)
 Benchmark candidate foundation models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`) and log experiment runs to Google Cloud Vertex AI Experiments:
 ```bash
 python3 -m evals.benchmark_models \
@@ -100,7 +111,7 @@ python3 -m evals.benchmark_models \
   --output-md evals/reports/model_benchmark_summary.md
 ```
 
-### G. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
+### H. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
 Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
 ```bash
 # Generate JSON and Markdown Model Decision Scorecard:
@@ -112,7 +123,7 @@ python3 -m evals.generate_model_matrix \
 python3 -m evals.pairwise_judge
 ```
 
-### H. Counterfactual Anti-Overfitting & Generalization Gate (`evals/anti_overfitting_gate.py`)
+### I. Counterfactual Anti-Overfitting & Generalization Gate (`evals/anti_overfitting_gate.py`)
 To verify that prompt optimizations do not overfit to the 80 benchmark queries and that the agent adheres strictly to retrieved facts over parametric memory:
 ```bash
 # Run both benchmark and holdout evaluations and compute generalization gap:
@@ -125,7 +136,6 @@ python3 -m evals.anti_overfitting_gate \
 
 ---
 
-<<<<<<< HEAD
 ## 4. Tool Trajectory Grader & Sequence Validation
 
 The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool executions:
@@ -140,9 +150,6 @@ The Trajectory Grader (`evals/trajectory_grader.py`) validates agent tool execut
 ---
 
 ## 5. Continuous Hillclimbing Rule
-=======
-## 4. Continuous Hillclimbing Rule
->>>>>>> main
 
 Whenever improving prompts, tool definitions, or response formatting:
 1. First run the baseline eval runner and record metrics.
