@@ -1,0 +1,42 @@
+# Dedicated GitOps Terraform Infrastructure Deployment Pipeline
+# Triggered strictly when files in deployment/terraform/** change on main
+
+steps:
+  # Step 1: Terraform Init, Format Check & Validation
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'tf-validate'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Initializing Terraform ==="
+        cd deployment/terraform
+        terraform init -input=false
+        echo "=== Checking Terraform Format ==="
+        terraform fmt -check
+        echo "=== Validating Terraform Configuration ==="
+        terraform validate
+
+  # Step 2: Terraform Apply (Auto-Approved for Merged Infra Changes)
+  - name: 'hashicorp/terraform:1.6.0'
+    id: 'tf-apply'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Applying Infrastructure Changes to ${_PROJECT_ID} ==="
+        cd deployment/terraform
+        terraform apply -auto-approve -input=false \
+          -var="project_id=${_PROJECT_ID}" \
+          -var="region=${_REGION}"
+
+substitutions:
+  _REGION: 'us-central1'
+  _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1200s'

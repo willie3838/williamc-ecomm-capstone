@@ -474,10 +474,11 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 
 ## 8. CI/CD Pipeline & Quality Engineering
 
-### 8.1 Cloud Build CI & Cloud Deploy CD Architecture
-Automated via two Google Cloud Build GitHub App triggers (`enable_cloudbuild_triggers = true`) using Bring-Your-Own-Service-Account (`BYOSA`: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`) on [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
+### 8.1 Cloud Build CI, CD & GitOps Infrastructure Architecture
+Automated via three Google Cloud Build GitHub App triggers (`enable_cloudbuild_triggers = true`) using Bring-Your-Own-Service-Account (`BYOSA`: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`) on [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
 - **`pr-quality-gate`** (`deployment/cloudbuild-pr.yaml`): Triggered automatically on every Pull Request targeting `main`.
-- **`main-deploy-pipeline`** (`deployment/cloudbuild.yaml`): Triggered automatically on every Git push/merge to the `main` branch:
+- **`main-deploy-pipeline`** (`deployment/cloudbuild.yaml`): Triggered automatically on push to `main` for application code changes; builds Docker image, executes Cloud Deploy progressive canary rollout, and synchronizes Google Cloud Agent Registry & Vertex AI Prompt Management.
+- **`infra-deploy-pipeline`** (`deployment/cloudbuild-tf.yaml`): Safe path-filtered GitOps infrastructure pipeline triggered **only** when files in `deployment/terraform/**` change, preventing application code pushes from incurring unnecessary infrastructure mutation.
 
 ```mermaid
 flowchart LR
@@ -488,7 +489,8 @@ flowchart LR
     BENCH --> DOCKER[Step 5: Multi-Stage Docker Build]
     DOCKER --> AR[Step 6: Push Image to Artifact Registry]
     AR --> REL[Step 7: Create Cloud Deploy Release]
-    REL --> CANARY[Cloud Deploy 0% Candidate Phase]
+    REL --> SYNC[Step 8: Sync Agent Registry & Prompt Management]
+    SYNC --> CANARY[Cloud Deploy 0% Candidate Phase]
     CANARY --> VERIFY{Skaffold Health Probes}
     VERIFY --> PROMOTE[Automated 100% Traffic Promotion]
 ```
@@ -511,7 +513,7 @@ The system integrates an automated quality flywheel (`evals/`):
 graph TD
     subgraph GCP_Control_Plane["Google Cloud Managed Control Plane"]
         AR_SVC["Google Cloud Agent Registry<br/>(agentregistry.googleapis.com)"]
-        VAI_PROMPT["Vertex AI Prompt Management<br/>(vertexai.preview.prompts)"]
+        VAI_PROMPT["Vertex AI Prompt Management<br/>(Resource: 6884046974429954048)"]
     end
 
     CLIENT["Client / Gemini Enterprise"] -->|POST /api/compare| CR["Cloud Run: catalog-agent-backend"]
@@ -524,7 +526,7 @@ graph TD
 
 ### 9.2 Native Discovery & Prompt Governance Components
 - **`deployment/terraform/agent_registry.tf`**: Enables `agentregistry.googleapis.com` (`google_project_service.agentregistry_api`) and tracks the Cloud Run service registration (`bestbuy-catalog-comparison-agent`) with its `/.well-known/agent-card.json` endpoint.
-- **`backend/src/app/agent/prompts_service.py`**: Resolves immutable prompt versions from Vertex AI Prompt Management (`vertexai.preview.prompts.get`) with fallback to `SYSTEM_INSTRUCTION`.
-- **`backend/src/app/agent/agent_card.py`**: Stateless generator serving `GET /.well-known/agent-card.json` and `GET /api/agent/card` for Google Cloud Agent Registry discovery.
+- **`backend/src/app/agent/prompts_service.py`**: Resolves immutable prompt versions from Vertex AI Prompt Management (`vertexai.preview.prompts.get`, resource `6884046974429954048`) with fallback to `SYSTEM_INSTRUCTION`.
+- **`backend/src/app/agent/agent_card.py`**: Stateless generator serving `GET /.well-known/agent-card.json` and `GET /api/agent/card` for Google Cloud Agent Registry discovery (`gcloud agent-registry services create/update`).
 
 
