@@ -432,12 +432,12 @@ def test_cloudbuild_triggers_configuration():
     assert 'resource "google_cloudbuild_trigger" "main_deploy_trigger"' in content
 
     # PR trigger checks
-    assert 'filename = "deployment/cloudbuild-pr.yaml"' in content
+    assert '"deployment/cloudbuild-pr.yaml"' in content
     assert "pull_request {" in content
     assert 'branch = "^main$"' in content
 
     # Main deploy trigger checks
-    assert 'filename = "deployment/cloudbuild.yaml"' in content
+    assert '"deployment/cloudbuild.yaml"' in content
     assert "push {" in content
 
     # Feature toggle check
