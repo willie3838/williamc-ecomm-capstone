@@ -321,3 +321,28 @@ def test_export_evaluation_to_bigquery_handles_errors():
         bq_client=mock_client,
     )
     assert success_exc is False
+
+
+def test_run_benchmark_computes_tool_trajectory():
+    """Verify run_benchmark records and grades tool trajectories."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    dataset_path = repo_root / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
+    catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
+
+    report = run_benchmark(
+        dataset_path=dataset_path,
+        catalog_path=catalog_path,
+        target_trajectory=0.95,
+    )
+
+    summary = report["summary"]
+    assert "mean_tool_trajectory_score" in summary
+    assert "adk_tool_trajectory_score" in summary
+    assert summary["mean_tool_trajectory_score"] == 1.0
+    assert summary["adk_tool_trajectory_score"] == 1.0
+
+    details = report["details"]
+    assert len(details) == 1
+    assert details[0]["tool_trajectory_score"] == 1.0
+    assert details[0]["tool_trajectory_passed"] is True
+    assert details[0]["tool_trajectory_match_type"] == "FUZZY_SEMANTIC"
