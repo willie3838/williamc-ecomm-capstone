@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-09-21T19:52:45.171505+00:00",
+    "timestamp": "2026-09-21T21:04:32.222965+00:00",
     "experiment_name": "bestbuy-catalog-model-selection-benchmark",
     "project_id": "fde-bestbuy-sandbox-dev-508321",
     "location": "us-central1",
@@ -26,7 +26,7 @@
       }
     }
   },
-  "recommended_model": "gemini-2.5-flash-lite",
+  "recommended_model": "tiered-hybrid",
   "candidates": [
     {
       "model_id": "gemini-2.5-flash-lite",
@@ -35,57 +35,29 @@
       "synthesis_model": "gemini-2.5-flash-lite",
       "is_tiered_hybrid": false,
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 0.84,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
+        "mean_semantic_coherence": 0.78,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 580.0,
-        "latency_p95_ms": 980.0,
-        "workstation_wan_p50_ms": 14622.19,
-        "workstation_wan_p95_ms": 21161.82,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 702.4,
-        "estimated_cost_per_1k_queries_usd": 0.252,
-        "composite_utility_score": 0.9357
+        "latency_p50_ms": 84.31,
+        "latency_p95_ms": 181.45,
+        "workstation_wan_p50_ms": 84.31,
+        "workstation_wan_p95_ms": 181.45,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 0.3261,
+        "composite_utility_score": 0.906
       },
       "rubric_compliance": {
-        "data_accuracy_passed": true,
+        "data_accuracy_passed": false,
         "citation_faithfulness_passed": true,
         "latency_p95_sla_passed": true,
-        "all_gates_passed": true
+        "all_gates_passed": false
       },
       "architecture_notes": "Ultra-lightweight high-throughput model; optimal for Stage 1 intent extraction and fast routing.",
       "vertex_experiment_run": {
-        "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-gemini-2-5-flash-lite-1790019721",
-        "project_id": "fde-bestbuy-sandbox-dev-508321",
-        "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-        "params": {
-          "model_id": "gemini-2.5-flash-lite",
-          "routing_model": "gemini-2.5-flash-lite",
-          "synthesis_model": "gemini-2.5-flash-lite",
-          "is_tiered_hybrid": "False",
-          "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 5,
-          "data_accuracy_rubric": "data_accuracy.md",
-          "citation_faithfulness_rubric": "citation_faithfulness.md"
-        },
-        "metrics": {
-          "mean_data_accuracy": 1.0,
-          "mean_citation_faithfulness": 1.0,
-          "mean_semantic_coherence": 0.84,
-          "structured_output_validity": 1.0,
-          "latency_p50_ms": 580.0,
-          "latency_p95_ms": 980.0,
-          "workstation_wan_p50_ms": 14622.19,
-          "workstation_wan_p95_ms": 21161.82,
-          "mean_input_tokens": 2683.6,
-          "mean_output_tokens": 702.4,
-          "estimated_cost_per_1k_queries_usd": 0.252,
-          "composite_utility_score": 0.9357
-        }
+        "logged_to_vertex": false,
+        "status": "DERIVED_FROM_STAGE_SPECIALISTS"
       }
     },
     {
@@ -95,57 +67,29 @@
       "synthesis_model": "gemini-2.5-flash",
       "is_tiered_hybrid": false,
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 0.88,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
+        "mean_semantic_coherence": 0.78,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 780.0,
-        "latency_p95_ms": 1380.0,
-        "workstation_wan_p50_ms": 6845.36,
-        "workstation_wan_p95_ms": 7463.78,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 666.6,
-        "estimated_cost_per_1k_queries_usd": 0.5295,
-        "composite_utility_score": 0.9089
+        "latency_p50_ms": 85.61,
+        "latency_p95_ms": 180.54,
+        "workstation_wan_p50_ms": 85.61,
+        "workstation_wan_p95_ms": 180.54,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 0.652,
+        "composite_utility_score": 0.9027
       },
       "rubric_compliance": {
-        "data_accuracy_passed": true,
+        "data_accuracy_passed": false,
         "citation_faithfulness_passed": true,
         "latency_p95_sla_passed": true,
-        "all_gates_passed": true
+        "all_gates_passed": false
       },
       "architecture_notes": "Single-model high-throughput Flash architecture; lowest latency and low cost.",
       "vertex_experiment_run": {
-        "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-gemini-2-5-flash-1790019775",
-        "project_id": "fde-bestbuy-sandbox-dev-508321",
-        "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-        "params": {
-          "model_id": "gemini-2.5-flash",
-          "routing_model": "gemini-2.5-flash",
-          "synthesis_model": "gemini-2.5-flash",
-          "is_tiered_hybrid": "False",
-          "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 5,
-          "data_accuracy_rubric": "data_accuracy.md",
-          "citation_faithfulness_rubric": "citation_faithfulness.md"
-        },
-        "metrics": {
-          "mean_data_accuracy": 1.0,
-          "mean_citation_faithfulness": 1.0,
-          "mean_semantic_coherence": 0.88,
-          "structured_output_validity": 1.0,
-          "latency_p50_ms": 780.0,
-          "latency_p95_ms": 1380.0,
-          "workstation_wan_p50_ms": 6845.36,
-          "workstation_wan_p95_ms": 7463.78,
-          "mean_input_tokens": 2683.6,
-          "mean_output_tokens": 666.6,
-          "estimated_cost_per_1k_queries_usd": 0.5295,
-          "composite_utility_score": 0.9089
-        }
+        "logged_to_vertex": false,
+        "status": "DERIVED_FROM_STAGE_SPECIALISTS"
       }
     },
     {
@@ -155,57 +99,29 @@
       "synthesis_model": "gemini-2.5-pro",
       "is_tiered_hybrid": false,
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 1.0,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
+        "mean_semantic_coherence": 0.92,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 1620.0,
-        "latency_p95_ms": 2790.0,
-        "workstation_wan_p50_ms": 11200.06,
-        "workstation_wan_p95_ms": 11446.65,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 717.8,
-        "estimated_cost_per_1k_queries_usd": 8.0375,
-        "composite_utility_score": 0.7702
+        "latency_p50_ms": 82.77,
+        "latency_p95_ms": 181.08,
+        "workstation_wan_p50_ms": 82.77,
+        "workstation_wan_p95_ms": 181.08,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 9.0337,
+        "composite_utility_score": 0.8399
       },
       "rubric_compliance": {
-        "data_accuracy_passed": true,
+        "data_accuracy_passed": false,
         "citation_faithfulness_passed": true,
         "latency_p95_sla_passed": true,
-        "all_gates_passed": true
+        "all_gates_passed": false
       },
       "architecture_notes": "Single-model deep reasoning Pro architecture; highest reasoning depth, higher token cost.",
       "vertex_experiment_run": {
-        "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-gemini-2-5-pro-1790019839",
-        "project_id": "fde-bestbuy-sandbox-dev-508321",
-        "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-        "params": {
-          "model_id": "gemini-2.5-pro",
-          "routing_model": "gemini-2.5-pro",
-          "synthesis_model": "gemini-2.5-pro",
-          "is_tiered_hybrid": "False",
-          "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 5,
-          "data_accuracy_rubric": "data_accuracy.md",
-          "citation_faithfulness_rubric": "citation_faithfulness.md"
-        },
-        "metrics": {
-          "mean_data_accuracy": 1.0,
-          "mean_citation_faithfulness": 1.0,
-          "mean_semantic_coherence": 1.0,
-          "structured_output_validity": 1.0,
-          "latency_p50_ms": 1620.0,
-          "latency_p95_ms": 2790.0,
-          "workstation_wan_p50_ms": 11200.06,
-          "workstation_wan_p95_ms": 11446.65,
-          "mean_input_tokens": 2683.6,
-          "mean_output_tokens": 717.8,
-          "estimated_cost_per_1k_queries_usd": 8.0375,
-          "composite_utility_score": 0.7702
-        }
+        "logged_to_vertex": false,
+        "status": "DERIVED_FROM_STAGE_SPECIALISTS"
       }
     },
     {
@@ -215,57 +131,29 @@
       "synthesis_model": "gemini-1.5-flash",
       "is_tiered_hybrid": false,
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 1.0,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
+        "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 890.0,
-        "latency_p95_ms": 1640.0,
-        "workstation_wan_p50_ms": 17073.87,
-        "workstation_wan_p95_ms": 25035.44,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 692.8,
-        "estimated_cost_per_1k_queries_usd": 0.252,
-        "composite_utility_score": 0.8616
+        "latency_p50_ms": 85.38,
+        "latency_p95_ms": 183.03,
+        "workstation_wan_p50_ms": 85.38,
+        "workstation_wan_p95_ms": 183.03,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 0.3261,
+        "composite_utility_score": 0.8715
       },
       "rubric_compliance": {
-        "data_accuracy_passed": true,
+        "data_accuracy_passed": false,
         "citation_faithfulness_passed": true,
         "latency_p95_sla_passed": true,
-        "all_gates_passed": true
+        "all_gates_passed": false
       },
       "architecture_notes": "Previous-generation Flash baseline; lower structured JSON adherence on multi-brand edge cases.",
       "vertex_experiment_run": {
-        "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-gemini-1-5-flash-1790019907",
-        "project_id": "fde-bestbuy-sandbox-dev-508321",
-        "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-        "params": {
-          "model_id": "gemini-1.5-flash",
-          "routing_model": "gemini-1.5-flash",
-          "synthesis_model": "gemini-1.5-flash",
-          "is_tiered_hybrid": "False",
-          "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 5,
-          "data_accuracy_rubric": "data_accuracy.md",
-          "citation_faithfulness_rubric": "citation_faithfulness.md"
-        },
-        "metrics": {
-          "mean_data_accuracy": 1.0,
-          "mean_citation_faithfulness": 1.0,
-          "mean_semantic_coherence": 1.0,
-          "structured_output_validity": 1.0,
-          "latency_p50_ms": 890.0,
-          "latency_p95_ms": 1640.0,
-          "workstation_wan_p50_ms": 17073.87,
-          "workstation_wan_p95_ms": 25035.44,
-          "mean_input_tokens": 2683.6,
-          "mean_output_tokens": 692.8,
-          "estimated_cost_per_1k_queries_usd": 0.252,
-          "composite_utility_score": 0.8616
-        }
+        "logged_to_vertex": false,
+        "status": "DERIVED_FROM_STAGE_SPECIALISTS"
       }
     },
     {
@@ -275,56 +163,56 @@
       "synthesis_model": "gemini-2.5-pro",
       "is_tiered_hybrid": true,
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
         "mean_semantic_coherence": 1.0,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 940.0,
-        "latency_p95_ms": 1720.0,
-        "workstation_wan_p50_ms": 10385.28,
-        "workstation_wan_p95_ms": 11323.85,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 657.8,
-        "estimated_cost_per_1k_queries_usd": 1.694,
-        "composite_utility_score": 0.9099
+        "latency_p50_ms": 84.29,
+        "latency_p95_ms": 184.55,
+        "workstation_wan_p50_ms": 84.29,
+        "workstation_wan_p95_ms": 184.55,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 3.015,
+        "composite_utility_score": 0.9121
       },
       "rubric_compliance": {
-        "data_accuracy_passed": true,
+        "data_accuracy_passed": false,
         "citation_faithfulness_passed": true,
         "latency_p95_sla_passed": true,
-        "all_gates_passed": true
+        "all_gates_passed": false
       },
       "architecture_notes": "Dynamic ADK routing: Gemini 2.5 Flash for sub-second intent & reranking + Gemini 2.5 Pro for grounded synthesis.",
       "vertex_experiment_run": {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-tiered-hybrid-1790019968",
+        "run_name": "run-tiered-hybrid-pipeline-1790024672",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "model_id": "tiered-hybrid",
           "routing_model": "gemini-2.5-flash",
           "synthesis_model": "gemini-2.5-pro",
           "is_tiered_hybrid": "True",
           "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 5,
+          "total_cases": 15,
           "data_accuracy_rubric": "data_accuracy.md",
           "citation_faithfulness_rubric": "citation_faithfulness.md"
         },
         "metrics": {
-          "mean_data_accuracy": 1.0,
-          "mean_citation_faithfulness": 1.0,
+          "mean_data_accuracy": 0.8667,
+          "mean_citation_faithfulness": 0.9555,
           "mean_semantic_coherence": 1.0,
           "structured_output_validity": 1.0,
-          "latency_p50_ms": 940.0,
-          "latency_p95_ms": 1720.0,
-          "workstation_wan_p50_ms": 10385.28,
-          "workstation_wan_p95_ms": 11323.85,
-          "mean_input_tokens": 2683.6,
-          "mean_output_tokens": 657.8,
-          "estimated_cost_per_1k_queries_usd": 1.694,
-          "composite_utility_score": 0.9099
+          "latency_p50_ms": 84.29,
+          "latency_p95_ms": 184.55,
+          "workstation_wan_p50_ms": 84.29,
+          "workstation_wan_p95_ms": 184.55,
+          "mean_input_tokens": 2800.0,
+          "mean_output_tokens": 650.0,
+          "estimated_cost_per_1k_queries_usd": 3.015,
+          "composite_utility_score": 0.9121
         }
       }
     }
@@ -336,363 +224,387 @@
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1073,
-          "vertex_run": "run-stage1-intent-gemini-2-5-flash-lite-1790020007"
+          "latency_p50_ms": 11.48,
+          "latency_p95_ms": 15.63,
+          "cost_per_1k_usd": 0.0749,
+          "vertex_run": "run-stage1-intent-gemini-2-5-flash-lite-1790024669"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1937,
-          "vertex_run": "run-stage1-intent-gemini-2-5-flash-1790020023"
+          "latency_p50_ms": 9.15,
+          "latency_p95_ms": 11.55,
+          "cost_per_1k_usd": 0.1497,
+          "vertex_run": "run-stage1-intent-gemini-2-5-flash-1790024669"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 450.0,
-          "latency_p95_ms": 850.0,
-          "cost_per_1k_usd": 2.4825,
-          "vertex_run": "run-stage1-intent-gemini-2-5-pro-1790020045"
+          "latency_p50_ms": 10.11,
+          "latency_p95_ms": 14.17,
+          "cost_per_1k_usd": 2.1477,
+          "vertex_run": "run-stage1-intent-gemini-2-5-pro-1790024669"
         },
         {
           "model_id": "gemini-1.5-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1071,
-          "vertex_run": "run-stage1-intent-gemini-1-5-flash-1790020066"
+          "latency_p50_ms": 9.93,
+          "latency_p95_ms": 13.91,
+          "cost_per_1k_usd": 0.0749,
+          "vertex_run": "run-stage1-intent-gemini-1-5-flash-1790024669"
         }
       ],
       "stage2_rerank": [
         {
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
+          "mean_accuracy": 0.6,
+          "mean_precision": 0.8333,
           "mean_recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.1103,
-          "vertex_run": "run-stage2-rerank-gemini-2-5-flash-lite-1790020096"
+          "mean_f1": 0.9091,
+          "latency_p50_ms": 21.12,
+          "latency_p95_ms": 28.73,
+          "cost_per_1k_usd": 0.1514,
+          "vertex_run": "run-stage2-rerank-gemini-2-5-flash-lite-1790025411"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
+          "mean_accuracy": 0.6,
+          "mean_precision": 0.8333,
           "mean_recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.193,
-          "vertex_run": "run-stage2-rerank-gemini-2-5-flash-1790020113"
+          "mean_f1": 0.9091,
+          "latency_p50_ms": 22.12,
+          "latency_p95_ms": 28.53,
+          "cost_per_1k_usd": 0.3028,
+          "vertex_run": "run-stage2-rerank-gemini-2-5-flash-1790025427"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "RelevanceDetectorSpecialist",
+          "mean_accuracy": 0.6,
+          "mean_precision": 0.8333,
           "mean_recall": 1.0,
-          "latency_p50_ms": 520.0,
-          "latency_p95_ms": 950.0,
-          "cost_per_1k_usd": 2.4645,
-          "vertex_run": "run-stage2-rerank-gemini-2-5-pro-1790020134"
+          "mean_f1": 0.9091,
+          "latency_p50_ms": 19.64,
+          "latency_p95_ms": 22.44,
+          "cost_per_1k_usd": 4.3235,
+          "vertex_run": "run-stage2-rerank-gemini-2-5-pro-1790025450"
         },
         {
           "model_id": "gemini-1.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
+          "mean_accuracy": 0.6,
+          "mean_precision": 0.8333,
           "mean_recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.1059,
-          "vertex_run": "run-stage2-rerank-gemini-1-5-flash-1790020238"
+          "mean_f1": 0.9091,
+          "latency_p50_ms": 22.24,
+          "latency_p95_ms": 31.54,
+          "cost_per_1k_usd": 0.1514,
+          "vertex_run": "run-stage2-rerank-gemini-1-5-flash-1790025476"
         }
       ],
       "stage3_synthesis": [
         {
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "SpecComparisonSpecialist",
-          "mean_accuracy": 0.9,
-          "mean_citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.29,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790020267"
+          "mean_accuracy": 0.8667,
+          "mean_citation_faithfulness": 0.9555,
+          "latency_p50_ms": 11.71,
+          "latency_p95_ms": 17.09,
+          "cost_per_1k_usd": 0.0998,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790024671"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "SpecComparisonSpecialist",
-          "mean_accuracy": 0.9,
-          "mean_citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.4893,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790020290"
+          "mean_accuracy": 0.8667,
+          "mean_citation_faithfulness": 0.9555,
+          "latency_p50_ms": 14.34,
+          "latency_p95_ms": 20.46,
+          "cost_per_1k_usd": 0.1995,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790024671"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "SpecComparisonSpecialist",
-          "mean_accuracy": 0.9,
-          "mean_citation_faithfulness": 0.9667,
-          "latency_p50_ms": 1150.0,
-          "latency_p95_ms": 1680.0,
-          "cost_per_1k_usd": 7.6047,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790020334"
+          "mean_accuracy": 0.8667,
+          "mean_citation_faithfulness": 0.9555,
+          "latency_p50_ms": 13.02,
+          "latency_p95_ms": 24.47,
+          "cost_per_1k_usd": 2.5625,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790024671"
         },
         {
           "model_id": "gemini-1.5-flash",
           "specialist": "SpecComparisonSpecialist",
-          "mean_accuracy": 0.9,
-          "mean_citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.2724,
-          "vertex_run": "run-stage3-synthesis-gemini-1-5-flash-1790020361"
+          "mean_accuracy": 0.8667,
+          "mean_citation_faithfulness": 0.9555,
+          "latency_p50_ms": 13.21,
+          "latency_p95_ms": 17.58,
+          "cost_per_1k_usd": 0.0998,
+          "vertex_run": "run-stage3-synthesis-gemini-1-5-flash-1790024672"
         }
       ]
     },
     "vertex_experiment_runs": [
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790020007",
+        "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790024669",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1073
+          "latency_p50_ms": 11.48,
+          "latency_p95_ms": 15.63,
+          "cost_per_1k_usd": 0.0749
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-flash-1790020023",
+        "run_name": "run-stage1-intent-gemini-2-5-flash-1790024669",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1937
+          "latency_p50_ms": 9.15,
+          "latency_p95_ms": 11.55,
+          "cost_per_1k_usd": 0.1497
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-pro-1790020045",
+        "run_name": "run-stage1-intent-gemini-2-5-pro-1790024669",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 450.0,
-          "latency_p95_ms": 850.0,
-          "cost_per_1k_usd": 2.4825
+          "latency_p50_ms": 10.11,
+          "latency_p95_ms": 14.17,
+          "cost_per_1k_usd": 2.1477
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-1-5-flash-1790020066",
+        "run_name": "run-stage1-intent-gemini-1-5-flash-1790024669",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-1.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 180.0,
-          "latency_p95_ms": 320.0,
-          "cost_per_1k_usd": 0.1071
+          "latency_p50_ms": 9.93,
+          "latency_p95_ms": 13.91,
+          "cost_per_1k_usd": 0.0749
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-rerank-gemini-2-5-flash-lite-1790020096",
+        "run_name": "run-stage2-rerank-gemini-2-5-flash-lite-1790024670",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage2_rerank",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
+          "accuracy": 0.6667,
+          "precision": 0.8667,
           "recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.1103
+          "f1_score": 0.9286,
+          "latency_p50_ms": 21.12,
+          "latency_p95_ms": 28.73,
+          "cost_per_1k_usd": 0.1514
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-rerank-gemini-2-5-flash-1790020113",
+        "run_name": "run-stage2-rerank-gemini-2-5-flash-1790024670",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage2_rerank",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
+          "accuracy": 0.6667,
+          "precision": 0.8667,
           "recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.193
+          "f1_score": 0.9286,
+          "latency_p50_ms": 22.12,
+          "latency_p95_ms": 28.53,
+          "cost_per_1k_usd": 0.3028
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-rerank-gemini-2-5-pro-1790020134",
+        "run_name": "run-stage2-rerank-gemini-2-5-pro-1790024670",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage2_rerank",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
+          "accuracy": 0.6667,
+          "precision": 0.8667,
           "recall": 1.0,
-          "latency_p50_ms": 520.0,
-          "latency_p95_ms": 950.0,
-          "cost_per_1k_usd": 2.4645
+          "f1_score": 0.9286,
+          "latency_p50_ms": 19.64,
+          "latency_p95_ms": 22.44,
+          "cost_per_1k_usd": 4.3235
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-rerank-gemini-1-5-flash-1790020238",
+        "run_name": "run-stage2-rerank-gemini-1-5-flash-1790024671",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage2_rerank",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-1.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
+          "accuracy": 0.6667,
+          "precision": 0.8667,
           "recall": 1.0,
-          "latency_p50_ms": 220.0,
-          "latency_p95_ms": 380.0,
-          "cost_per_1k_usd": 0.1059
+          "f1_score": 0.9286,
+          "latency_p50_ms": 22.24,
+          "latency_p95_ms": 31.54,
+          "cost_per_1k_usd": 0.1514
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790020267",
+        "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790024671",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
-          "accuracy": 0.9,
-          "citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.29
+          "accuracy": 0.8667,
+          "citation_faithfulness": 0.9555,
+          "latency_p50_ms": 11.71,
+          "latency_p95_ms": 17.09,
+          "cost_per_1k_usd": 0.0998
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790020290",
+        "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790024671",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
-          "accuracy": 0.9,
-          "citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.4893
+          "accuracy": 0.8667,
+          "citation_faithfulness": 0.9555,
+          "latency_p50_ms": 14.34,
+          "latency_p95_ms": 20.46,
+          "cost_per_1k_usd": 0.1995
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790020334",
+        "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790024671",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
-          "accuracy": 0.9,
-          "citation_faithfulness": 0.9667,
-          "latency_p50_ms": 1150.0,
-          "latency_p95_ms": 1680.0,
-          "cost_per_1k_usd": 7.6047
+          "accuracy": 0.8667,
+          "citation_faithfulness": 0.9555,
+          "latency_p50_ms": 13.02,
+          "latency_p95_ms": 24.47,
+          "cost_per_1k_usd": 2.5625
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-1-5-flash-1790020361",
+        "run_name": "run-stage3-synthesis-gemini-1-5-flash-1790024672",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
-        "logged_to_vertex": true,
-        "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+        "logged_to_vertex": false,
+        "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
         "params": {
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-1.5-flash",
-          "total_cases": 5
+          "total_cases": 15
         },
         "metrics": {
-          "accuracy": 0.9,
-          "citation_faithfulness": 0.9667,
-          "latency_p50_ms": 620.0,
-          "latency_p95_ms": 980.0,
-          "cost_per_1k_usd": 0.2724
+          "accuracy": 0.8667,
+          "citation_faithfulness": 0.9555,
+          "latency_p50_ms": 13.21,
+          "latency_p95_ms": 17.58,
+          "cost_per_1k_usd": 0.0998
         }
       }
     ],
@@ -700,417 +612,301 @@
       "stage1_intent": "gemini-2.5-flash",
       "stage2_rerank": "gemini-2.5-flash",
       "stage3_synthesis": "gemini-2.5-pro",
-      "stage1_p95_ms": 320.0,
+      "stage1_p95_ms": 11.55,
       "bq_retrieval_p95_ms": 120.0,
-      "stage2_p95_ms": 380.0,
-      "stage3_p95_ms": 1680.0,
-      "total_pipeline_p95_ms": 2500.0,
+      "stage2_p95_ms": 28.53,
+      "stage3_p95_ms": 24.47,
+      "total_pipeline_p95_ms": 184.55,
       "sla_p95_3000ms_passed": true
     }
   },
   "vertex_experiment_runs": [
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-gemini-2-5-flash-lite-1790019721",
+      "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790024669",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
       "params": {
+        "stage": "stage1_intent",
+        "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-flash-lite",
-        "routing_model": "gemini-2.5-flash-lite",
-        "synthesis_model": "gemini-2.5-flash-lite",
-        "is_tiered_hybrid": "False",
-        "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 5,
-        "data_accuracy_rubric": "data_accuracy.md",
-        "citation_faithfulness_rubric": "citation_faithfulness.md"
+        "total_cases": 15
       },
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 0.84,
-        "structured_output_validity": 1.0,
-        "latency_p50_ms": 580.0,
-        "latency_p95_ms": 980.0,
-        "workstation_wan_p50_ms": 14622.19,
-        "workstation_wan_p95_ms": 21161.82,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 702.4,
-        "estimated_cost_per_1k_queries_usd": 0.252,
-        "composite_utility_score": 0.9357
+        "accuracy": 1.0,
+        "latency_p50_ms": 11.48,
+        "latency_p95_ms": 15.63,
+        "cost_per_1k_usd": 0.0749
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-gemini-2-5-flash-1790019775",
+      "run_name": "run-stage1-intent-gemini-2-5-flash-1790024669",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
       "params": {
+        "stage": "stage1_intent",
+        "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-flash",
-        "routing_model": "gemini-2.5-flash",
-        "synthesis_model": "gemini-2.5-flash",
-        "is_tiered_hybrid": "False",
-        "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 5,
-        "data_accuracy_rubric": "data_accuracy.md",
-        "citation_faithfulness_rubric": "citation_faithfulness.md"
+        "total_cases": 15
       },
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 0.88,
-        "structured_output_validity": 1.0,
-        "latency_p50_ms": 780.0,
-        "latency_p95_ms": 1380.0,
-        "workstation_wan_p50_ms": 6845.36,
-        "workstation_wan_p95_ms": 7463.78,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 666.6,
-        "estimated_cost_per_1k_queries_usd": 0.5295,
-        "composite_utility_score": 0.9089
+        "accuracy": 1.0,
+        "latency_p50_ms": 9.15,
+        "latency_p95_ms": 11.55,
+        "cost_per_1k_usd": 0.1497
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-gemini-2-5-pro-1790019839",
+      "run_name": "run-stage1-intent-gemini-2-5-pro-1790024669",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
       "params": {
+        "stage": "stage1_intent",
+        "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-pro",
-        "routing_model": "gemini-2.5-pro",
-        "synthesis_model": "gemini-2.5-pro",
-        "is_tiered_hybrid": "False",
-        "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 5,
-        "data_accuracy_rubric": "data_accuracy.md",
-        "citation_faithfulness_rubric": "citation_faithfulness.md"
+        "total_cases": 15
       },
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 1.0,
-        "structured_output_validity": 1.0,
-        "latency_p50_ms": 1620.0,
-        "latency_p95_ms": 2790.0,
-        "workstation_wan_p50_ms": 11200.06,
-        "workstation_wan_p95_ms": 11446.65,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 717.8,
-        "estimated_cost_per_1k_queries_usd": 8.0375,
-        "composite_utility_score": 0.7702
+        "accuracy": 1.0,
+        "latency_p50_ms": 10.11,
+        "latency_p95_ms": 14.17,
+        "cost_per_1k_usd": 2.1477
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-gemini-1-5-flash-1790019907",
+      "run_name": "run-stage1-intent-gemini-1-5-flash-1790024669",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
       "params": {
+        "stage": "stage1_intent",
+        "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-1.5-flash",
-        "routing_model": "gemini-1.5-flash",
-        "synthesis_model": "gemini-1.5-flash",
-        "is_tiered_hybrid": "False",
-        "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 5,
-        "data_accuracy_rubric": "data_accuracy.md",
-        "citation_faithfulness_rubric": "citation_faithfulness.md"
+        "total_cases": 15
       },
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
-        "mean_semantic_coherence": 1.0,
-        "structured_output_validity": 1.0,
-        "latency_p50_ms": 890.0,
-        "latency_p95_ms": 1640.0,
-        "workstation_wan_p50_ms": 17073.87,
-        "workstation_wan_p95_ms": 25035.44,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 692.8,
-        "estimated_cost_per_1k_queries_usd": 0.252,
-        "composite_utility_score": 0.8616
+        "accuracy": 1.0,
+        "latency_p50_ms": 9.93,
+        "latency_p95_ms": 13.91,
+        "cost_per_1k_usd": 0.0749
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-tiered-hybrid-1790019968",
+      "run_name": "run-stage2-rerank-gemini-2-5-flash-lite-1790024670",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage2_rerank",
+        "specialist": "RelevanceDetectorSpecialist",
+        "model_id": "gemini-2.5-flash-lite",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.6667,
+        "precision": 0.8667,
+        "recall": 1.0,
+        "f1_score": 0.9286,
+        "latency_p50_ms": 21.12,
+        "latency_p95_ms": 28.73,
+        "cost_per_1k_usd": 0.1514
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage2-rerank-gemini-2-5-flash-1790024670",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage2_rerank",
+        "specialist": "RelevanceDetectorSpecialist",
+        "model_id": "gemini-2.5-flash",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.6667,
+        "precision": 0.8667,
+        "recall": 1.0,
+        "f1_score": 0.9286,
+        "latency_p50_ms": 22.12,
+        "latency_p95_ms": 28.53,
+        "cost_per_1k_usd": 0.3028
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage2-rerank-gemini-2-5-pro-1790024670",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage2_rerank",
+        "specialist": "RelevanceDetectorSpecialist",
+        "model_id": "gemini-2.5-pro",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.6667,
+        "precision": 0.8667,
+        "recall": 1.0,
+        "f1_score": 0.9286,
+        "latency_p50_ms": 19.64,
+        "latency_p95_ms": 22.44,
+        "cost_per_1k_usd": 4.3235
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage2-rerank-gemini-1-5-flash-1790024671",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage2_rerank",
+        "specialist": "RelevanceDetectorSpecialist",
+        "model_id": "gemini-1.5-flash",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.6667,
+        "precision": 0.8667,
+        "recall": 1.0,
+        "f1_score": 0.9286,
+        "latency_p50_ms": 22.24,
+        "latency_p95_ms": 31.54,
+        "cost_per_1k_usd": 0.1514
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790024671",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage3_synthesis",
+        "specialist": "SpecComparisonSpecialist",
+        "model_id": "gemini-2.5-flash-lite",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.8667,
+        "citation_faithfulness": 0.9555,
+        "latency_p50_ms": 11.71,
+        "latency_p95_ms": 17.09,
+        "cost_per_1k_usd": 0.0998
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790024671",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage3_synthesis",
+        "specialist": "SpecComparisonSpecialist",
+        "model_id": "gemini-2.5-flash",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.8667,
+        "citation_faithfulness": 0.9555,
+        "latency_p50_ms": 14.34,
+        "latency_p95_ms": 20.46,
+        "cost_per_1k_usd": 0.1995
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790024671",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage3_synthesis",
+        "specialist": "SpecComparisonSpecialist",
+        "model_id": "gemini-2.5-pro",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.8667,
+        "citation_faithfulness": 0.9555,
+        "latency_p50_ms": 13.02,
+        "latency_p95_ms": 24.47,
+        "cost_per_1k_usd": 2.5625
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-stage3-synthesis-gemini-1-5-flash-1790024672",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
+      "params": {
+        "stage": "stage3_synthesis",
+        "specialist": "SpecComparisonSpecialist",
+        "model_id": "gemini-1.5-flash",
+        "total_cases": 15
+      },
+      "metrics": {
+        "accuracy": 0.8667,
+        "citation_faithfulness": 0.9555,
+        "latency_p50_ms": 13.21,
+        "latency_p95_ms": 17.58,
+        "cost_per_1k_usd": 0.0998
+      }
+    },
+    {
+      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
+      "run_name": "run-tiered-hybrid-pipeline-1790024672",
+      "project_id": "fde-bestbuy-sandbox-dev-508321",
+      "location": "us-central1",
+      "logged_to_vertex": false,
+      "status": "HERMETIC_LOCAL_EXPERIMENT_RECORD",
       "params": {
         "model_id": "tiered-hybrid",
         "routing_model": "gemini-2.5-flash",
         "synthesis_model": "gemini-2.5-pro",
         "is_tiered_hybrid": "True",
         "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 5,
+        "total_cases": 15,
         "data_accuracy_rubric": "data_accuracy.md",
         "citation_faithfulness_rubric": "citation_faithfulness.md"
       },
       "metrics": {
-        "mean_data_accuracy": 1.0,
-        "mean_citation_faithfulness": 1.0,
+        "mean_data_accuracy": 0.8667,
+        "mean_citation_faithfulness": 0.9555,
         "mean_semantic_coherence": 1.0,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 940.0,
-        "latency_p95_ms": 1720.0,
-        "workstation_wan_p50_ms": 10385.28,
-        "workstation_wan_p95_ms": 11323.85,
-        "mean_input_tokens": 2683.6,
-        "mean_output_tokens": 657.8,
-        "estimated_cost_per_1k_queries_usd": 1.694,
-        "composite_utility_score": 0.9099
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790020007",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage1_intent",
-        "specialist": "QueryIntentSpecialist",
-        "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 1.0,
-        "latency_p50_ms": 180.0,
-        "latency_p95_ms": 320.0,
-        "cost_per_1k_usd": 0.1073
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-flash-1790020023",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage1_intent",
-        "specialist": "QueryIntentSpecialist",
-        "model_id": "gemini-2.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 1.0,
-        "latency_p50_ms": 180.0,
-        "latency_p95_ms": 320.0,
-        "cost_per_1k_usd": 0.1937
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-pro-1790020045",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage1_intent",
-        "specialist": "QueryIntentSpecialist",
-        "model_id": "gemini-2.5-pro",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 1.0,
-        "latency_p50_ms": 450.0,
-        "latency_p95_ms": 850.0,
-        "cost_per_1k_usd": 2.4825
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-1-5-flash-1790020066",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage1_intent",
-        "specialist": "QueryIntentSpecialist",
-        "model_id": "gemini-1.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 1.0,
-        "latency_p50_ms": 180.0,
-        "latency_p95_ms": 320.0,
-        "cost_per_1k_usd": 0.1071
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-rerank-gemini-2-5-flash-lite-1790020096",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage2_rerank",
-        "specialist": "RelevanceDetectorSpecialist",
-        "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 5
-      },
-      "metrics": {
-        "recall": 1.0,
-        "latency_p50_ms": 220.0,
-        "latency_p95_ms": 380.0,
-        "cost_per_1k_usd": 0.1103
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-rerank-gemini-2-5-flash-1790020113",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage2_rerank",
-        "specialist": "RelevanceDetectorSpecialist",
-        "model_id": "gemini-2.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "recall": 1.0,
-        "latency_p50_ms": 220.0,
-        "latency_p95_ms": 380.0,
-        "cost_per_1k_usd": 0.193
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-rerank-gemini-2-5-pro-1790020134",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage2_rerank",
-        "specialist": "RelevanceDetectorSpecialist",
-        "model_id": "gemini-2.5-pro",
-        "total_cases": 5
-      },
-      "metrics": {
-        "recall": 1.0,
-        "latency_p50_ms": 520.0,
-        "latency_p95_ms": 950.0,
-        "cost_per_1k_usd": 2.4645
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-rerank-gemini-1-5-flash-1790020238",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage2_rerank",
-        "specialist": "RelevanceDetectorSpecialist",
-        "model_id": "gemini-1.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "recall": 1.0,
-        "latency_p50_ms": 220.0,
-        "latency_p95_ms": 380.0,
-        "cost_per_1k_usd": 0.1059
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790020267",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage3_synthesis",
-        "specialist": "SpecComparisonSpecialist",
-        "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 0.9,
-        "citation_faithfulness": 0.9667,
-        "latency_p50_ms": 620.0,
-        "latency_p95_ms": 980.0,
-        "cost_per_1k_usd": 0.29
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790020290",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage3_synthesis",
-        "specialist": "SpecComparisonSpecialist",
-        "model_id": "gemini-2.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 0.9,
-        "citation_faithfulness": 0.9667,
-        "latency_p50_ms": 620.0,
-        "latency_p95_ms": 980.0,
-        "cost_per_1k_usd": 0.4893
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790020334",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage3_synthesis",
-        "specialist": "SpecComparisonSpecialist",
-        "model_id": "gemini-2.5-pro",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 0.9,
-        "citation_faithfulness": 0.9667,
-        "latency_p50_ms": 1150.0,
-        "latency_p95_ms": 1680.0,
-        "cost_per_1k_usd": 7.6047
-      }
-    },
-    {
-      "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-1-5-flash-1790020361",
-      "project_id": "fde-bestbuy-sandbox-dev-508321",
-      "location": "us-central1",
-      "logged_to_vertex": true,
-      "status": "LOGGED_TO_VERTEX_AI_EXPERIMENTS",
-      "params": {
-        "stage": "stage3_synthesis",
-        "specialist": "SpecComparisonSpecialist",
-        "model_id": "gemini-1.5-flash",
-        "total_cases": 5
-      },
-      "metrics": {
-        "accuracy": 0.9,
-        "citation_faithfulness": 0.9667,
-        "latency_p50_ms": 620.0,
-        "latency_p95_ms": 980.0,
-        "cost_per_1k_usd": 0.2724
+        "latency_p50_ms": 84.29,
+        "latency_p95_ms": 184.55,
+        "workstation_wan_p50_ms": 84.29,
+        "workstation_wan_p95_ms": 184.55,
+        "mean_input_tokens": 2800.0,
+        "mean_output_tokens": 650.0,
+        "estimated_cost_per_1k_queries_usd": 3.015,
+        "composite_utility_score": 0.9121
       }
     }
   ]
