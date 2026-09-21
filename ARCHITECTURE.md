@@ -706,7 +706,7 @@ To continuously track model drift, latency degradation, and new Gemini foundatio
 
 ### 11.4 Continuous Delivery Pipeline with Cloud Deploy & IAP Protection
 - **Skaffold Verification Probes**:
-  `deployment/clouddeploy/skaffold.yaml` candidate post-deploy health verification probes validate both HTTP 200 (direct) and HTTP 302 (OAuth redirect via Google Cloud Identity-Aware Proxy) to guarantee health without failing IAP security perimeter enforcement.
+  `deployment/clouddeploy/skaffold.yaml` candidate post-deploy health verification probes validate HTTP 200 (direct), HTTP 302 (OAuth redirect via Google Cloud Identity-Aware Proxy), and HTTP 401 (OIDC client mismatch challenge under IAP enforcement) to guarantee health without failing IAP security perimeter enforcement.
 - **Resilient Startup Probes**:
   `deployment/clouddeploy/service.yaml` defines a 120-second startup probe envelope (`initialDelaySeconds: 5`, `periodSeconds: 5`, `failureThreshold: 24`) ensuring deterministic cold starts under multi-stage Python initialization.
 
