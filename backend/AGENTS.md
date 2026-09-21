@@ -23,7 +23,8 @@ backend/
 │       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
 │       │   ├── __init__.py
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
-│       │   ├── orchestrator.py# Comparison orchestrator agent & LLM reranker
+│       │   ├── orchestrator.py# Comparison orchestrator agent, precomputed_intent deduplication & LLM reranker
+│       │   ├── hermetic_adapter.py # CatalogAdkLlm BaseLlm with automatic structured Pydantic schema inference
 │       │   ├── prompts.py     # Anti-hallucination default system instructions
 │       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
 │       │   ├── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
@@ -112,11 +113,11 @@ backend/
     - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) and abstract device models ("Model Alpha", "Model Beta") to prevent data leakage and benchmark memorization.
     - Category classification leverages semantic Gemini structured classification (`QueryIntentAnalysis`) while supporting fast-path taxonomy aliases across all primary consumer electronics categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`).
     - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
-7. **Google ADK Runner Integration (`app.agent.runner`)**:
-    - Operates through `google.adk.runners.InMemoryRunner` and `google.adk.sessions.InMemorySessionService`.
-    - Exposes `get_adk_runner()`, `create_catalog_runner()`, and `catalog_runner` bound to `root_agent` (`catalog_comparison_orchestrator`).
-    - Exposes `run_adk_agent(query, session_id=...)` for asynchronous event streaming and multi-turn state tracking.
-    - `ComparisonOrchestrator.execute_with_adk_runner` bridges orchestrator pipelines directly through the ADK Runner execution lifecycle.
+7. **Google ADK Runner & Persistent Session Integration (`app.agent.runner`, `app.agent.hermetic_adapter`)**:
+    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`) and `FirestoreSessionService` (`InMemorySessionService` / `BaseSessionService`).
+    - `FirestoreSessionService` combines a zero-latency L1 in-memory cache with L2 write-through and read-through persistence to Google Cloud Firestore (`adk_sessions` collection) across stateless Cloud Run container instances.
+    - `CatalogAdkLlm(BaseLlm)` is registered in `LLMRegistry` for `gemini-*` models, unifying live Vertex AI Gemini execution (with Model Armor & safety settings) and offline hermetic execution (`HermeticModelAdapter`), including multi-turn ADK `FunctionCall(query_catalog)` -> `FunctionResponse` -> `ComparisonSynthesis` trajectories.
+    - `MultiAgentCoordinator` specialists (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) and `ComparisonOrchestrator.execute_with_adk_runner` execute through `CatalogAdkRunner`.
 
 ---
 

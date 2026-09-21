@@ -10,6 +10,8 @@ from google.adk.sessions import InMemorySessionService
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.agent.runner import (
+    CatalogAdkRunner,
+    FirestoreSessionService,
     create_catalog_runner,
     get_adk_runner,
     run_adk_agent,
@@ -21,13 +23,15 @@ class TestADKRunnerIntegration:
     """Verify ADK Runner lifecycle, session management, and integration."""
 
     def test_get_adk_runner_defaults(self):
-        """Verify get_adk_runner initializes an InMemoryRunner with root_agent and session service."""
+        """Verify get_adk_runner initializes a CatalogAdkRunner with FirestoreSessionService."""
         runner = get_adk_runner()
         assert isinstance(runner, InMemoryRunner)
+        assert isinstance(runner, CatalogAdkRunner)
         assert runner.agent is not None
         assert runner.agent.name == "catalog_comparison_orchestrator"
         assert runner.app_name == "app"
         assert isinstance(runner.session_service, InMemorySessionService)
+        assert isinstance(runner.session_service, FirestoreSessionService)
 
     def test_create_catalog_runner_custom_agent(self):
         """Verify creating a runner with custom agent or session service."""
@@ -40,8 +44,7 @@ class TestADKRunnerIntegration:
 
     @pytest.mark.asyncio
     async def test_run_adk_agent_execution(self):
-        """Verify run_adk_agent runs an invocation and records events."""
-        # Hermetic test of runner event generator
+        """Verify run_adk_agent runs a real multi-turn ADK invocation (FunctionCall -> FunctionResponse -> synthesis)."""
         events = []
         async for event in run_adk_agent(
             query="Compare Laptop Alpha and Laptop Beta",
@@ -50,7 +53,55 @@ class TestADKRunnerIntegration:
         ):
             events.append(event)
 
-        assert len(events) >= 0  # Valid generator execution
+        # Should emit FunctionCall(query_catalog), FunctionResponse, and final synthesis LlmResponse
+        assert len(events) >= 2
+        has_tool_call = any(
+            getattr(p, "function_call", None) is not None
+            for ev in events
+            if getattr(ev, "content", None) and getattr(ev.content, "parts", None)
+            for p in ev.content.parts
+        )
+        assert has_tool_call, "Expected ADK Runner to emit FunctionCall(query_catalog) event"
+
+    @pytest.mark.asyncio
+    async def test_firestore_session_service_write_through_and_read_through(self):
+        """Verify FirestoreSessionService persists sessions to Cloud Firestore and hydrates on L1 cache miss."""
+        from unittest.mock import MagicMock
+
+        mock_fs_client = MagicMock()
+        mock_doc_ref = MagicMock()
+        mock_doc_snapshot = MagicMock()
+        mock_doc_snapshot.exists = True
+        mock_doc_snapshot.to_dict.return_value = {
+            "session_id": "cloud_run_sess_42",
+            "app_name": "app",
+            "user_id": "enterprise_user",
+            "state": {"category": "Laptops"},
+            "last_update_time": 1700000000.0,
+        }
+        mock_doc_ref.get.return_value = mock_doc_snapshot
+        mock_fs_client.collection.return_value.document.return_value = mock_doc_ref
+
+        service = FirestoreSessionService(firestore_client=mock_fs_client)
+        created = await service.create_session(
+            app_name="app",
+            user_id="enterprise_user",
+            state={"category": "Laptops"},
+            session_id="cloud_run_sess_42",
+        )
+        assert created.id == "cloud_run_sess_42"
+        mock_doc_ref.set.assert_called_once()
+
+        # Simulate stateless Cloud Run instance restart by clearing L1 RAM cache
+        service.sessions.clear()
+        hydrated = await service.get_session(
+            app_name="app",
+            user_id="enterprise_user",
+            session_id="cloud_run_sess_42",
+        )
+        assert hydrated is not None
+        assert hydrated.id == "cloud_run_sess_42"
+        assert hydrated.state.get("category") == "Laptops"
 
     def test_orchestrator_execute_with_adk_runner(self):
         """Verify ComparisonOrchestrator can execute queries via ADK runner path."""

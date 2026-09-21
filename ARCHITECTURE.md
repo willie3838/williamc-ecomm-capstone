@@ -68,11 +68,11 @@ graph TB
         
         subgraph ADKAgent ["4. Agentic Reasoning Core (Google ADK)"]
             ROUTER["Comparison Orchestrator Agent (ADK Engine)"]
-            RUNNER["ADK Runner (InMemoryRunner & InMemorySessionService)"]
+            RUNNER["CatalogAdkRunner (FirestoreSessionService & L1 In-Memory Cache)"]
             PROMPT["System Grounding Prompt (Pinned by AgentVersionSpec)"]
             TOOL["query_catalog BigQuery Tool (Parameterized SQL)"]
             PARSER["Pydantic Response Envelope & Matrix Formatter"]
-            GEMINI["Gemini 2.5 Pro / Gemini 2.5 Flash (Vertex AI API)"]
+            GEMINI["CatalogAdkLlm (BaseLlm: Gemini 2.5 Pro / Flash + Hermetic Adapter)"]
         end
     end
 
