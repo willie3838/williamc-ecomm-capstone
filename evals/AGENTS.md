@@ -103,16 +103,18 @@ python3 -m evals.runner \
 ### F. Brand-Agnostic Hermetic Mocking (Anti-Overfitting)
 `create_hermetic_bq_client` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
 
-### G. Candidate Foundation Model & Per-Stage ADK Agent Benchmarking (`evals/benchmark_models.py`)
-Benchmark candidate foundation models (`gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`), stratified 5-category sampling (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`), and sanitized Vertex AI Metadata run IDs (`run-gemini-2-5-flash-<ts>`):
-1. **Per-Stage ADK Agent Evaluation (`run_per_stage_benchmarks`)**:
-   - **Stage 1 (`QueryIntentSpecialist`)**: Measures intent classification accuracy, token usage, and P95 latency across all 4 models (`run-stage1-intent-<model>-<ts>`).
-   - **Stage 2 (`RelevanceDetectorSpecialist`)**: Measures post-retrieval candidate rerank recall and P95 latency across identical candidate pools (`run-stage2-rerank-<model>-<ts>`).
-   - **Stage 3 (`SpecComparisonSpecialist`)**: Measures grounded matrix synthesis, spec accuracy, citation faithfulness, and P95 latency (`run-stage3-synthesis-<model>-<ts>`).
-   - **Summed Latency SLA Check**: Verifies that $\text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}} \le 3000\text{ ms}$ without artificial per-stage constraints.
+### G. Candidate Foundation Model & Stage-First Specialist Benchmarking (`evals/benchmark_models.py`)
+Benchmark candidate foundation models (`gemini-2.5-flash-lite`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using a **Stage-First (Specialist-Only)** architecture, custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`), stratified 5-category sampling (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`), and sanitized Vertex AI Metadata run IDs (`run-stage1-intent-<model>-<ts>`, `run-stage2-rerank-<model>-<ts>`, `run-stage3-synthesis-<model>-<ts>`):
+1. **Stage-First ADK Agent Specialist Evaluation (`run_per_stage_benchmarks`)**:
+   - **Stage 1 (`QueryIntentSpecialist`)**: Measures query intent classification accuracy, token usage, cost, and P95 latency across all 4 models (`run-stage1-intent-<model>-<ts>`).
+   - **Stage 2 (`RelevanceDetectorSpecialist`)**: Measures post-retrieval candidate reranking with explicit **Accuracy (Exact Match)**, **Precision**, **Recall**, **F1 Score**, cost, and P95 latency across identical candidate pools (`run-stage2-rerank-<model>-<ts>`).
+   - **Stage 3 (`SpecComparisonSpecialist`)**: Measures grounded matrix synthesis, spec data accuracy, citation faithfulness, cost, and P95 latency (`run-stage3-synthesis-<model>-<ts>`).
+   - **Synthesized Architecture Reports**: Candidate architecture metrics (`tiered-hybrid`, `gemini-2.5-flash`, etc.) are synthesized directly and analytically from their constituent specialist stages ($\text{P95}_{\text{Pipeline}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}}$), avoiding black-box error attribution.
+   - **Optional End-to-End Evaluation**: Monolithic end-to-end multi-agent evaluation can be optionally run using `--include-end-to-end`.
+   - **Summed Latency SLA Check**: Empirically verifies that total pipeline latency satisfies $\le 3000\text{ ms}$ without artificial per-stage constraints.
 2. **Execution**:
 ```bash
-# Execute live Vertex AI Experiments sweep and log to GCP project fde-bestbuy-sandbox-dev-508321:
+# Execute Stage-First specialist benchmark sweep and log to GCP project fde-bestbuy-sandbox-dev-508321:
 python3 evals/benchmark_models.py \
   --live \
   --limit 15 \
@@ -120,8 +122,11 @@ python3 evals/benchmark_models.py \
   --experiment-name bestbuy-catalog-model-selection-benchmark \
   --output-json evals/reports/model_benchmark_results.json \
   --output-md evals/reports/model_benchmark_summary.md
+
+# To include legacy end-to-end multi-agent execution:
+python3 evals/benchmark_models.py --live --include-end-to-end
 ```
-This single command logs both the 12 per-stage runs and the end-to-end architecture runs to Vertex AI Experiments, and automatically regenerates `evals/reports/model_decision_scorecard.md`.
+This command logs the 12 per-stage runs and the champion tiered-hybrid pipeline run to Vertex AI Experiments, and automatically updates `evals/reports/model_decision_scorecard.md`.
 
 ### H. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
 Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
