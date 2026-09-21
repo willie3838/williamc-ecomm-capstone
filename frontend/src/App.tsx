@@ -268,7 +268,7 @@ export const App: React.FC = () => {
                 </h3>
                 <p className="text-xs text-gray-600">
                   Every specification above is strictly verified against Google Cloud BigQuery. Click any SKU badge
-                  to view canonical product details on BestBuy.com.
+                  to view canonical product details on TechBuy.com.
                 </p>
                 <div className="flex flex-wrap items-center gap-3 pt-2">
                   {comparison.citations.map((citation) => (
