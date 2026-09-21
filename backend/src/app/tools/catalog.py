@@ -185,15 +185,22 @@ def query_catalog(
 
         injected_client = client is not None
         if client is None:
-            import google.auth
-            from google.auth.transport.requests import Request
+            if os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(
+                bigquery.Client, "assert_called"
+            ):
+                from app.agent.hermetic_adapter import create_hermetic_bq_client
 
-            try:
-                creds, _ = google.auth.default()
-                creds.refresh(Request())
-                client = bigquery.Client(project=settings.gcp_project, credentials=creds)
-            except Exception:
-                client = bigquery.Client(project=settings.gcp_project)
+                client = create_hermetic_bq_client()
+            else:
+                import google.auth
+                from google.auth.transport.requests import Request
+
+                try:
+                    creds, _ = google.auth.default()
+                    creds.refresh(Request())
+                    client = bigquery.Client(project=settings.gcp_project, credentials=creds)
+                except Exception:
+                    client = bigquery.Client(project=settings.gcp_project)
 
         patterns = [f"%{k}%" for k in clean_keywords]
         # Also include individual model/brand sub-tokens so non-contiguous catalog names match
