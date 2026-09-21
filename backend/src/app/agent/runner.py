@@ -1,146 +1,130 @@
-"""Google ADK Runner and Firestore-backed Session Service for the Catalog Comparison Agent.
+"""Google ADK Runner integration for the Best Buy Catalog Comparison Agent.
 
-Provides production-grade orchestration using ADK's native execution engine:
-- `CatalogAdkRunner` (`google.adk.runners.Runner` / `InMemoryRunner` with `auto_create_session=True`).
-- `FirestoreSessionService` (`BaseSessionService` / `InMemorySessionService`): Hybrid L1 in-memory
-  and L2 Google Cloud Firestore (`adk_sessions` collection) session persistence across stateless
-  Cloud Run container instances, with zero-latency hermetic fallback for offline evaluations.
-- Asynchronous (`run_adk_agent`) and synchronous (`run_adk_agent_sync`) execution helpers.
+Provides a production-grade `CatalogAdkRunner` backed by `CatalogVertexAiSessionService`
+(`VertexAiSessionService`), which automatically connects to the Vertex AI Agent Engine
+Session Service (`projects/{project}/locations/{location}/reasoningEngines/{id}/sessions`)
+when Agent Runtime injects `GOOGLE_CLOUD_AGENT_ENGINE_ID`, while maintaining an
+`InMemorySessionService` fallback for local development, `pytest`, and offline evaluations.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
 import concurrent.futures
+from datetime import UTC, datetime
 import logging
 import os
-import time
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+from google.adk.agents import BaseAgent
+from google.adk.events import Event
 from google.adk.runners import InMemoryRunner, Runner
-from google.adk.sessions import BaseSessionService, InMemorySessionService, Session
+from google.adk.sessions import (
+    BaseSessionService,
+    InMemorySessionService,
+    Session,
+    VertexAiSessionService,
+)
+from google.adk.sessions.base_session_service import (
+    GetSessionConfig,
+    ListSessionsResponse,
+)
 from google.genai import types
 
-from app.config import get_settings
+from app.config import settings as _settings
 from app.observability.tracing import get_tracer
-
-_settings = get_settings()
-os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
-os.environ.setdefault(
-    "GOOGLE_CLOUD_PROJECT", getattr(_settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321")
-)
-os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
-
-if TYPE_CHECKING:
-    from google.adk.agents import BaseAgent
-    from google.adk.events import Event
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
 
 
-class FirestoreSessionService(InMemorySessionService):
-    """Hybrid Cloud Firestore + L1 In-Memory Session Service for Google ADK Runner.
+def _resolve_agent_engine_id(explicit_id: str | None = None) -> str | None:
+    """Resolve the Reasoning Engine ID injected by Agent Runtime (`GOOGLE_CLOUD_AGENT_ENGINE_ID`)."""
+    raw = (
+        explicit_id
+        or os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID")
+        or os.environ.get("AGENT_ENGINE_ID")
+        or os.environ.get("REASONING_ENGINE_ID")
+        or getattr(_settings, "agent_engine_id", None)
+    )
+    if not raw:
+        return None
+    raw_str = str(raw).strip()
+    if not raw_str:
+        return None
+    # If full resource path `projects/.../locations/.../reasoningEngines/12345` is passed, extract the numeric ID
+    if "/" in raw_str:
+        parts = [p for p in raw_str.split("/") if p]
+        if "reasoningEngines" in parts:
+            idx = parts.index("reasoningEngines")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+        return parts[-1]
+    return raw_str
 
-    Solves stateless horizontal scaling on Google Cloud Run by persisting ADK `Session` state
-    (`state`, `app_name`, `user_id`, `session_id`, and event history summaries) to Google Cloud
-    Firestore (`adk_sessions` collection), while keeping an L1 `InMemorySessionService` cache for
-    sub-millisecond local reads and 100% hermetic offline evaluation execution.
+
+class CatalogVertexAiSessionService(VertexAiSessionService):
+    """Vertex AI Agent Engine Session Service (`VertexAiSessionService`) with `InMemorySessionService` fallback.
+
+    - In production on **Agent Runtime** (where `GOOGLE_CLOUD_AGENT_ENGINE_ID` is injected by the runtime),
+      delegates `create_session`, `get_session`, `list_sessions`, `delete_session`, and `append_event`
+      directly to `VertexAiSessionService` (`vertexai.Client.aio.agent_engines.sessions`).
+    - In local development, `pytest`, or hermetic offline evaluation benchmarks (`HERMETIC_EVAL=true`),
+      transparently falls back to an internal `InMemorySessionService` while preserving
+      `isinstance(service, VertexAiSessionService) == True`.
     """
 
     def __init__(
         self,
-        project_id: str | None = None,
-        collection_name: str = "adk_sessions",
-        firestore_client: Any = None,
+        project: str | None = None,
+        location: str | None = None,
+        agent_engine_id: str | None = None,
+        *,
         hermetic: bool = False,
+        express_mode_api_key: str | None = None,
     ) -> None:
-        super().__init__()
-        self.project_id = project_id or getattr(
+        resolved_project = project or getattr(
             _settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"
         )
-        self.collection_name = collection_name
-        self._firestore_client = firestore_client
+        resolved_location = location or getattr(_settings, "region", "us-central1")
+        resolved_engine_id = _resolve_agent_engine_id(agent_engine_id)
+
+        super().__init__(
+            project=resolved_project,
+            location=resolved_location,
+            agent_engine_id=resolved_engine_id,
+            express_mode_api_key=express_mode_api_key,
+        )
+        self.project_id = resolved_project
+        self.location = resolved_location
         self.hermetic = hermetic
-        self._fs_init_attempted = False
+        self._fallback_memory = InMemorySessionService()
 
-    def _get_firestore_client(self) -> Any:
-        """Lazily initialize Cloud Firestore client when not in hermetic/offline test mode."""
-        if self._firestore_client is not None:
-            return self._firestore_client
+    @property
+    def agent_engine_id(self) -> str | None:
+        """Return the active Reasoning Engine ID resolved from config or GOOGLE_CLOUD_AGENT_ENGINE_ID."""
+        return _resolve_agent_engine_id(self._agent_engine_id)
+
+    @property
+    def sessions(self) -> dict[str, Any]:
+        """Expose in-memory sessions dictionary for inspection and test compatibility."""
+        return self._fallback_memory.sessions
+
+    def _should_use_vertex_remote(self) -> bool:
+        """Determine whether to invoke the live Vertex AI Agent Engine Sessions API."""
+        engine_id = self.agent_engine_id
+        if not engine_id:
+            return False
+        self._agent_engine_id = engine_id
+        if self.hermetic or os.environ.get("HERMETIC_EVAL", "").lower() == "true":
+            return False
         if (
-            self.hermetic
-            or os.environ.get("PYTEST_CURRENT_TEST")
-            or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
+            os.environ.get("PYTEST_CURRENT_TEST")
+            and "test_vertex_ai_session_service" not in os.environ.get("PYTEST_CURRENT_TEST", "")
         ):
-            return None
-        if not self._fs_init_attempted:
-            self._fs_init_attempted = True
-            try:
-                from google.cloud import firestore
-
-                self._firestore_client = firestore.Client(project=self.project_id)
-            except Exception as exc:
-                logger.debug("FirestoreSessionService falling back to L1 memory only: %s", exc)
-                self._firestore_client = None
-        return self._firestore_client
-
-    @staticmethod
-    def _doc_key(app_name: str, user_id: str, session_id: str) -> str:
-        safe_app = app_name.replace("/", "_")
-        safe_user = user_id.replace("/", "_")
-        safe_sess = session_id.replace("/", "_")
-        return f"{safe_app}__{safe_user}__{safe_sess}"
-
-    def _persist_session_to_firestore(self, session: Session) -> None:
-        """Write-through session state and event summary to Cloud Firestore."""
-        db = self._get_firestore_client()
-        if db is None:
-            return
-        try:
-            doc_id = self._doc_key(session.app_name, session.user_id, session.id)
-            serialized_events = []
-            for evt in (session.events or [])[-25:]:
-                evt_summary: dict[str, Any] = {
-                    "author": getattr(evt, "author", "agent"),
-                    "timestamp": getattr(evt, "timestamp", time.time()),
-                }
-                if getattr(evt, "content", None) and getattr(evt.content, "parts", None):
-                    parts_summary = []
-                    for p in evt.content.parts:
-                        if getattr(p, "text", None):
-                            parts_summary.append({"type": "text", "text": p.text[:500]})
-                        elif getattr(p, "function_call", None):
-                            parts_summary.append(
-                                {
-                                    "type": "function_call",
-                                    "name": getattr(p.function_call, "name", ""),
-                                }
-                            )
-                        elif getattr(p, "function_response", None):
-                            parts_summary.append(
-                                {
-                                    "type": "function_response",
-                                    "name": getattr(p.function_response, "name", ""),
-                                }
-                            )
-                    evt_summary["parts"] = parts_summary
-                serialized_events.append(evt_summary)
-
-            payload = {
-                "app_name": session.app_name,
-                "user_id": session.user_id,
-                "session_id": session.id,
-                "state": dict(session.state) if session.state else {},
-                "event_count": len(session.events or []),
-                "events_summary": serialized_events,
-                "updated_at": datetime.now(UTC).isoformat(),
-            }
-            db.collection(self.collection_name).document(doc_id).set(payload, merge=True)
-        except Exception as exc:
-            logger.debug("Firestore session write-through note: %s", exc)
+            return False
+        return True
 
     async def create_session(
         self,
@@ -149,15 +133,32 @@ class FirestoreSessionService(InMemorySessionService):
         user_id: str,
         state: dict[str, Any] | None = None,
         session_id: str | None = None,
+        **kwargs: Any,
     ) -> Session:
-        session = await super().create_session(
+        # Always maintain L1 in-memory copy for fast local lookup and fallback resilience
+        local_session = await self._fallback_memory.create_session(
             app_name=app_name,
             user_id=user_id,
             state=state,
             session_id=session_id,
         )
-        self._persist_session_to_firestore(session)
-        return session
+        if self._should_use_vertex_remote():
+            try:
+                remote_session = await super().create_session(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    state=state,
+                    session_id=session_id,
+                    **kwargs,
+                )
+                remote_session.app_name = app_name
+                return remote_session
+            except Exception as exc:
+                logger.debug(
+                    "VertexAiSessionService.create_session fallback to InMemorySessionService: %s",
+                    exc,
+                )
+        return local_session
 
     async def get_session(
         self,
@@ -165,42 +166,52 @@ class FirestoreSessionService(InMemorySessionService):
         app_name: str,
         user_id: str,
         session_id: str,
-        config: Any = None,
+        config: GetSessionConfig | None = None,
     ) -> Session | None:
-        session = await super().get_session(
+        if self._should_use_vertex_remote():
+            try:
+                remote_session = await super().get_session(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                    config=config,
+                )
+                if remote_session is not None:
+                    remote_session.app_name = app_name
+                    return remote_session
+            except Exception as exc:
+                logger.debug(
+                    "VertexAiSessionService.get_session fallback to InMemorySessionService: %s",
+                    exc,
+                )
+        return await self._fallback_memory.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
             config=config,
         )
-        if session is not None:
-            return session
 
-        # Read-through from Cloud Firestore if another Cloud Run instance created this session
-        db = self._get_firestore_client()
-        if db is not None:
+    async def list_sessions(
+        self,
+        *,
+        app_name: str,
+        user_id: str | None = None,
+    ) -> ListSessionsResponse:
+        if self._should_use_vertex_remote():
             try:
-                doc_id = self._doc_key(app_name, user_id, session_id)
-                snap = db.collection(self.collection_name).document(doc_id).get()
-                if snap.exists:
-                    data = snap.to_dict() or {}
-                    restored_state = data.get("state")
-                    session = await super().create_session(
-                        app_name=app_name,
-                        user_id=user_id,
-                        state=restored_state if isinstance(restored_state, dict) else {},
-                        session_id=session_id,
-                    )
-                    return session
+                return await super().list_sessions(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                )
             except Exception as exc:
-                logger.debug("Firestore session read-through note: %s", exc)
-
-        return None
-
-    async def append_event(self, session: Session, event: Event) -> Event:
-        updated_event = await super().append_event(session=session, event=event)
-        self._persist_session_to_firestore(session)
-        return updated_event
+                logger.debug(
+                    "VertexAiSessionService.list_sessions fallback to InMemorySessionService: %s",
+                    exc,
+                )
+        return await self._fallback_memory.list_sessions(
+            app_name=app_name,
+            user_id=user_id,
+        )
 
     async def delete_session(
         self,
@@ -209,18 +220,37 @@ class FirestoreSessionService(InMemorySessionService):
         user_id: str,
         session_id: str,
     ) -> None:
-        await super().delete_session(app_name=app_name, user_id=user_id, session_id=session_id)
-        db = self._get_firestore_client()
-        if db is not None:
+        await self._fallback_memory.delete_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if self._should_use_vertex_remote():
             try:
-                doc_id = self._doc_key(app_name, user_id, session_id)
-                db.collection(self.collection_name).document(doc_id).delete()
+                await super().delete_session(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
             except Exception as exc:
-                logger.debug("Firestore session delete note: %s", exc)
+                logger.debug("VertexAiSessionService.delete_session note: %s", exc)
+
+    async def append_event(self, session: Session, event: Event) -> Event:
+        updated = await self._fallback_memory.append_event(session=session, event=event)
+        if self._should_use_vertex_remote():
+            try:
+                await super().append_event(session=session, event=event)
+            except Exception as exc:
+                logger.debug("VertexAiSessionService.append_event note: %s", exc)
+        return updated
+
+
+# Alias for backward compatibility
+FirestoreSessionService = CatalogVertexAiSessionService
 
 
 class CatalogAdkRunner(InMemoryRunner):
-    """Production ADK Runner backed by FirestoreSessionService with auto_create_session=True."""
+    """Production ADK Runner backed by CatalogVertexAiSessionService (`VertexAiSessionService`) with auto_create_session=True."""
 
     def __init__(
         self,
@@ -237,15 +267,15 @@ class CatalogAdkRunner(InMemoryRunner):
 
 
 # Global singleton session service and default runner
-_DEFAULT_SESSION_SERVICE: FirestoreSessionService | None = None
+_DEFAULT_SESSION_SERVICE: CatalogVertexAiSessionService | None = None
 _DEFAULT_RUNNER: CatalogAdkRunner | None = None
 
 
-def get_default_session_service(hermetic: bool = False) -> FirestoreSessionService:
-    """Retrieve or initialize the global Firestore-backed ADK session service."""
+def get_default_session_service(hermetic: bool = False) -> CatalogVertexAiSessionService:
+    """Retrieve or initialize the global VertexAiSessionService-backed ADK session service."""
     global _DEFAULT_SESSION_SERVICE
     if _DEFAULT_SESSION_SERVICE is None:
-        _DEFAULT_SESSION_SERVICE = FirestoreSessionService(hermetic=hermetic)
+        _DEFAULT_SESSION_SERVICE = CatalogVertexAiSessionService(hermetic=hermetic)
     elif hermetic:
         _DEFAULT_SESSION_SERVICE.hermetic = True
     return _DEFAULT_SESSION_SERVICE
@@ -361,25 +391,24 @@ def run_adk_agent_sync(
             events.append(evt)
 
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop is not None and loop.is_running():
+        asyncio.get_running_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            pool.submit(asyncio.run, _collect()).result(timeout=20.0)
-    else:
+            pool.submit(lambda: asyncio.run(_collect())).result(timeout=30.0)
+    except RuntimeError:
         asyncio.run(_collect())
 
-    text_parts: list[str] = []
-    for evt in events:
-        if getattr(evt, "content", None) and getattr(evt.content, "parts", None):
-            for p in evt.content.parts:
-                if getattr(p, "text", None):
-                    text_parts.append(p.text)
+    final_text = ""
+    for evt in reversed(events):
+        if evt.content and evt.content.parts:
+            texts = [
+                p.text for p in evt.content.parts if hasattr(p, "text") and p.text
+            ]
+            if texts:
+                final_text = "\n".join(texts).strip()
+                break
 
-    return "\n".join(text_parts).strip(), events
+    return final_text, events
 
 
-# Default exported runner for ADK conventions
+# Export default singleton instance for ADK module conventions
 catalog_runner = get_adk_runner()

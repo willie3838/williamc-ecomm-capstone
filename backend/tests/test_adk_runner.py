@@ -6,12 +6,12 @@ from unittest.mock import patch
 import pytest
 from google.adk.agents import Agent
 from google.adk.runners import InMemoryRunner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.agent.runner import (
     CatalogAdkRunner,
-    FirestoreSessionService,
+    CatalogVertexAiSessionService,
     create_catalog_runner,
     get_adk_runner,
     run_adk_agent,
@@ -20,18 +20,18 @@ from app.models.responses import CompareResponse
 
 
 class TestADKRunnerIntegration:
-    """Verify ADK Runner lifecycle, session management, and integration."""
+    """Verify ADK Runner lifecycle, VertexAiSessionService management, and integration."""
 
     def test_get_adk_runner_defaults(self):
-        """Verify get_adk_runner initializes a CatalogAdkRunner with FirestoreSessionService."""
+        """Verify get_adk_runner initializes a CatalogAdkRunner with VertexAiSessionService."""
         runner = get_adk_runner()
         assert isinstance(runner, InMemoryRunner)
         assert isinstance(runner, CatalogAdkRunner)
         assert runner.agent is not None
         assert runner.agent.name == "catalog_comparison_orchestrator"
         assert runner.app_name == "app"
-        assert isinstance(runner.session_service, InMemorySessionService)
-        assert isinstance(runner.session_service, FirestoreSessionService)
+        assert isinstance(runner.session_service, VertexAiSessionService)
+        assert isinstance(runner.session_service, CatalogVertexAiSessionService)
 
     def test_create_catalog_runner_custom_agent(self):
         """Verify creating a runner with custom agent or session service."""
@@ -64,44 +64,46 @@ class TestADKRunnerIntegration:
         assert has_tool_call, "Expected ADK Runner to emit FunctionCall(query_catalog) event"
 
     @pytest.mark.asyncio
-    async def test_firestore_session_service_write_through_and_read_through(self):
-        """Verify FirestoreSessionService persists sessions to Cloud Firestore and hydrates on L1 cache miss."""
-        from unittest.mock import MagicMock
+    async def test_vertex_ai_session_service_with_agent_engine_id(self, monkeypatch):
+        """Verify CatalogVertexAiSessionService resolves GOOGLE_CLOUD_AGENT_ENGINE_ID and delegates to VertexAiSessionService."""
+        from unittest.mock import AsyncMock, MagicMock
 
-        mock_fs_client = MagicMock()
-        mock_doc_ref = MagicMock()
-        mock_doc_snapshot = MagicMock()
-        mock_doc_snapshot.exists = True
-        mock_doc_snapshot.to_dict.return_value = {
-            "session_id": "cloud_run_sess_42",
-            "app_name": "app",
-            "user_id": "enterprise_user",
-            "state": {"category": "Laptops"},
-            "last_update_time": 1700000000.0,
-        }
-        mock_doc_ref.get.return_value = mock_doc_snapshot
-        mock_fs_client.collection.return_value.document.return_value = mock_doc_ref
-
-        service = FirestoreSessionService(firestore_client=mock_fs_client)
-        created = await service.create_session(
-            app_name="app",
-            user_id="enterprise_user",
-            state={"category": "Laptops"},
-            session_id="cloud_run_sess_42",
+        monkeypatch.setenv(
+            "GOOGLE_CLOUD_AGENT_ENGINE_ID",
+            "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/reasoningEngines/9876543210",
         )
-        assert created.id == "cloud_run_sess_42"
-        mock_doc_ref.set.assert_called_once()
+        service = CatalogVertexAiSessionService()
+        assert isinstance(service, VertexAiSessionService)
+        assert service.agent_engine_id == "9876543210"
+        assert service._should_use_vertex_remote() is True
 
-        # Simulate stateless Cloud Run instance restart by clearing L1 RAM cache
-        service.sessions.clear()
-        hydrated = await service.get_session(
-            app_name="app",
-            user_id="enterprise_user",
-            session_id="cloud_run_sess_42",
+        mock_api_client = MagicMock()
+        mock_create_resp = MagicMock()
+        mock_create_resp.response.name = (
+            "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/"
+            "reasoningEngines/9876543210/sessions/agent_runtime_sess_1"
         )
-        assert hydrated is not None
-        assert hydrated.id == "cloud_run_sess_42"
-        assert hydrated.state.get("category") == "Laptops"
+        mock_create_resp.response.session_state = {"category": "Laptops"}
+        mock_api_client.agent_engines.sessions.create = AsyncMock(return_value=mock_create_resp)
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_api_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(service, "_get_api_client", return_value=mock_cm):
+            created = await service.create_session(
+                app_name="app",
+                user_id="enterprise_user",
+                state={"category": "Laptops"},
+                session_id="agent_runtime_sess_1",
+            )
+            assert created.id == "agent_runtime_sess_1"
+            assert created.state.get("category") == "Laptops"
+            mock_api_client.agent_engines.sessions.create.assert_awaited_once_with(
+                name="reasoningEngines/9876543210",
+                user_id="enterprise_user",
+                config={"session_state": {"category": "Laptops"}, "session_id": "agent_runtime_sess_1"},
+            )
 
     def test_orchestrator_execute_with_adk_runner(self):
         """Verify ComparisonOrchestrator can execute queries via ADK runner path."""
