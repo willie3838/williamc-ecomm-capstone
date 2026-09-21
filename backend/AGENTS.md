@@ -113,9 +113,9 @@ backend/
     - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) and abstract device models ("Model Alpha", "Model Beta") to prevent data leakage and benchmark memorization.
     - Category classification leverages semantic Gemini structured classification (`QueryIntentAnalysis`) while supporting fast-path taxonomy aliases across all primary consumer electronics categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`).
     - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
-7. **Google ADK Runner & Persistent Session Integration (`app.agent.runner`, `app.agent.hermetic_adapter`)**:
-    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`) and `FirestoreSessionService` (`InMemorySessionService` / `BaseSessionService`).
-    - `FirestoreSessionService` combines a zero-latency L1 in-memory cache with L2 write-through and read-through persistence to Google Cloud Firestore (`adk_sessions` collection) across stateless Cloud Run container instances.
+7. **Google ADK Runner & `VertexAiSessionService` Integration (`app.agent.runner`, `app.agent.hermetic_adapter`)**:
+    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`) and `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`).
+    - `CatalogVertexAiSessionService` automatically resolves `GOOGLE_CLOUD_AGENT_ENGINE_ID` injected at runtime by Agent Runtime (Vertex AI Agent Engine) to persist sessions via `vertexai.Client.aio.agent_engines.sessions`, while transparently falling back to `InMemorySessionService` during local development, `pytest`, and offline evaluations.
     - `CatalogAdkLlm(BaseLlm)` is registered in `LLMRegistry` for `gemini-*` models, unifying live Vertex AI Gemini execution (with Model Armor & safety settings) and offline hermetic execution (`HermeticModelAdapter`), including multi-turn ADK `FunctionCall(query_catalog)` -> `FunctionResponse` -> `ComparisonSynthesis` trajectories.
     - `MultiAgentCoordinator` specialists (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) and `ComparisonOrchestrator.execute_with_adk_runner` execute through `CatalogAdkRunner`.
 

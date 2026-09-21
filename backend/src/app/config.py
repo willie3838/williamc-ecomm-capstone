@@ -108,6 +108,18 @@ class Settings(BaseSettings):
         alias="ENABLE_VERTEX_PROMPT_REGISTRY",
         description="Fetch versioned prompts from Google Cloud Vertex AI Prompt Management",
     )
+    agent_engine_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "GOOGLE_CLOUD_AGENT_ENGINE_ID",
+            "AGENT_ENGINE_ID",
+            "REASONING_ENGINE_ID",
+            "APP_AGENT_ENGINE_ID",
+            "agent_engine_id",
+        ),
+        alias="GOOGLE_CLOUD_AGENT_ENGINE_ID",
+        description="Vertex AI Agent Engine (ReasoningEngine) resource ID injected by Agent Runtime",
+    )
     model_version: str = Field(
         default="gemini-2.5-pro@001",
         alias="MODEL_VERSION",

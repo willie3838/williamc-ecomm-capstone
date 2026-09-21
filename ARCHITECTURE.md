@@ -68,7 +68,7 @@ graph TB
         
         subgraph ADKAgent ["4. Agentic Reasoning Core (Google ADK)"]
             ROUTER["Comparison Orchestrator Agent (ADK Engine)"]
-            RUNNER["CatalogAdkRunner (FirestoreSessionService & L1 In-Memory Cache)"]
+            RUNNER["CatalogAdkRunner (VertexAiSessionService via GOOGLE_CLOUD_AGENT_ENGINE_ID & InMemoryFallback)"]
             PROMPT["System Grounding Prompt (Pinned by AgentVersionSpec)"]
             TOOL["query_catalog BigQuery Tool (Parameterized SQL)"]
             PARSER["Pydantic Response Envelope & Matrix Formatter"]
