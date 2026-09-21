@@ -18,10 +18,15 @@ resource "google_artifact_registry_repository" "catalog_repo" {
 
 # Cloud Run v2 Service
 resource "google_cloud_run_v2_service" "catalog_comparison_service" {
-  name     = var.service_name
-  location = var.region
-  project  = var.project_id
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name         = var.service_name
+  location     = var.region
+  project      = var.project_id
+  ingress      = "INGRESS_TRAFFIC_ALL"
+  launch_stage = "BETA"
+
+  annotations = {
+    "run.googleapis.com/iap-enabled" = "true"
+  }
 
   template {
     service_account                  = google_service_account.catalog_agent_sa.email

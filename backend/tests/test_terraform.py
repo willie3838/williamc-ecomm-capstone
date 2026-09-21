@@ -479,6 +479,13 @@ def test_cloud_deploy_terraform():
     main_content = main_file.read_text()
     assert '"clouddeploy.googleapis.com"' in main_content
 
+    # Verify IAP annotation is preserved in both Cloud Deploy service.yaml and Terraform cloudrun.tf
+    cloudrun_tf = (TERRAFORM_DIR / "cloudrun.tf").read_text()
+    assert "run.googleapis.com/iap-enabled" in cloudrun_tf
+    service_yaml = (TERRAFORM_DIR.parent / "clouddeploy" / "service.yaml").read_text()
+    assert "run.googleapis.com/iap-enabled: 'true'" in service_yaml
+    assert "run.googleapis.com/launch-stage: BETA" in service_yaml
+
 
 def test_agent_registry_terraform():
     """Verify Google Cloud Agent Registry API and service registration configuration."""

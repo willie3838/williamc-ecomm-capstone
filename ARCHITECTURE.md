@@ -489,7 +489,7 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 ### 8.1 Cloud Build CI, CD & GitOps Infrastructure Architecture
 Automated via three Google Cloud Build GitHub App triggers (`enable_cloudbuild_triggers = true`) using Bring-Your-Own-Service-Account (`BYOSA`: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`) on [`willie3838/williamc-ecomm-capstone`](https://github.com/willie3838/williamc-ecomm-capstone):
 - **`pr-quality-gate`** (`deployment/cloudbuild-pr.yaml`): Triggered automatically on every Pull Request targeting `main`.
-- **`main-deploy-pipeline`** (`deployment/cloudbuild.yaml`): Triggered automatically on push to `main` for application code changes; builds Docker image, executes Cloud Deploy progressive canary rollout, and synchronizes Google Cloud Agent Registry & Vertex AI Prompt Management.
+- **`main-deploy-pipeline`** (`deployment/cloudbuild.yaml`): Triggered automatically on push to `main` for application code changes; builds Docker image, executes Cloud Deploy progressive canary rollout (`deployment/clouddeploy/service.yaml` with `run.googleapis.com/iap-enabled: 'true'` and `gcloud beta run services update --iap`), and synchronizes Google Cloud Agent Registry & Vertex AI Prompt Management.
 - **`infra-deploy-pipeline`** (`deployment/cloudbuild-tf.yaml`): Safe path-filtered GitOps infrastructure pipeline triggered **only** when files in `deployment/terraform/**` change, preventing application code pushes from incurring unnecessary infrastructure mutation.
 
 ```mermaid

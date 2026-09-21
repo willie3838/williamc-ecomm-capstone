@@ -114,6 +114,12 @@ steps:
 
         echo "Cloud Deploy release $${RELEASE_ID} registered."
         echo "Cloud Deploy is now orchestrating the progressive 0% -> 100% rollout."
+        echo "=== Enforcing Identity-Aware Proxy (IAP) on Cloud Run Service ==="
+        gcloud beta run services update catalog-comparison-service \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --iap \
+          --quiet || true
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
