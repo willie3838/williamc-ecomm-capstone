@@ -1,4 +1,4 @@
-# System Architecture: Best Buy Catalog Comparison Agent
+# System Architecture: TechBuy Retailers Catalog Comparison Agent
 
 > **Last Updated**: 2026-09-18 18:54:18 UTC  
 > **Specification**: [SPEC.md](SPEC.md)  
@@ -22,7 +22,7 @@
 ### 1.1 Commercial Challenge & Retail Persona
 TechBuy Retailers is a leading national consumer electronics retailer facing online shopper friction. When evaluating high-consideration electronics (Laptops, Tablets, Smartphones, Smart Home, Headphones), customers encounter dense technical specifications (clock speed, RAM architectures, thermal envelopes, battery watt-hours) spread across disparate product pages. This leads to **decision paralysis**, high shopping cart abandonment, and elevated return rates.
 
-The **Best Buy Catalog Comparison Agent** directly solves this by providing a conversational, side-by-side comparison engine that extracts customer intent, deterministically queries the catalog, and generates grounded, feature-level comparison matrices in real time.
+The **TechBuy Retailers Catalog Comparison Agent** directly solves this by providing a conversational, side-by-side comparison engine that extracts customer intent, deterministically queries the catalog, and generates grounded, feature-level comparison matrices in real time.
 
 ### 1.2 Core Business Key Performance Indicators (KPIs)
 The system architecture directly moves three business KPIs:
@@ -228,7 +228,7 @@ The catalog is stored in BigQuery in dataset `catalog`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS `fde-bestbuy-sandbox-dev-508321.catalog.products` (
-    sku STRING NOT NULL OPTIONS(description="Unique Best Buy SKU identifier (Primary Key, e.g., '6534606')"),
+    sku STRING NOT NULL OPTIONS(description="Unique TechBuy Retailers SKU identifier (Primary Key, e.g., '6534606')"),
     name STRING NOT NULL OPTIONS(description="Full commercial product title"),
     brand STRING NOT NULL OPTIONS(description="Manufacturer name (e.g., 'Apple', 'Dell', 'Sony')"),
     category STRING NOT NULL OPTIONS(description="Product taxonomy (e.g., 'Laptops', 'Tablets', 'Headphones')"),
@@ -238,7 +238,7 @@ CREATE TABLE IF NOT EXISTS `fde-bestbuy-sandbox-dev-508321.catalog.products` (
     rating FLOAT64 OPTIONS(description="Average customer review rating (1.0 to 5.0)"),
     review_count INT64 OPTIONS(description="Total count of customer reviews"),
     specifications JSON NOT NULL OPTIONS(description="Semi-structured key-value technical specifications"),
-    url STRING OPTIONS(description="Direct URL link to Best Buy product listing"),
+    url STRING OPTIONS(description="Direct URL link to TechBuy Retailers product listing"),
     image_url STRING OPTIONS(description="CDN URL for high-resolution product photography"),
     in_stock BOOL NOT NULL OPTIONS(description="Current retail inventory availability"),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
@@ -642,6 +642,67 @@ flowchart TD
 4. **Universal Hermetic Catalog Query Mock (`evals/runner.py`)**:
    - Replaced fixed brand whitelist filters with dynamic token-overlap matching against candidate catalog titles and brand metadata.
    - Evaluates unseen products and holdout test sets hermetically in CI without missing mock matches.
+
+---
+
+## 11. Per-Stage ADK Specialist Agent Architecture & Weekly Benchmark Automation (ADR-004)
+
+### 11.1 Specialist Agent Pipeline Decomposition
+Under ADR-004, the single monolithic LLM orchestrator is decomposed into three specialized cooperative agents, each matched to the optimal foundation model profile:
+
+```mermaid
+flowchart LR
+    subgraph S1["Stage 1: Intent & Routing"]
+        A1["QueryIntentSpecialist<br/>(gemini-2.5-flash)"]
+        M1["Intent: COMPARISON<br/>Keywords: ['M3', 'XPS 13']"]
+    end
+
+    subgraph BQ["Catalog Retrieval"]
+        DB[("Google Cloud BigQuery<br/>catalog.products")]
+        R1["Parameterized SQL<br/>P95: 120ms"]
+    end
+
+    subgraph S2["Stage 2: Relevance Reranking"]
+        A2["RelevanceDetectorSpecialist<br/>(gemini-2.5-flash)"]
+        M2["Top-2 Balanced SKUs<br/>[6534606, 6575132]"]
+    end
+
+    subgraph S3["Stage 3: Grounded Synthesis"]
+        A3["SpecComparisonSpecialist<br/>(gemini-2.5-pro)"]
+        M3["MatrixRow Table + Winner Badges<br/>Strict [SKU: ...] Citations"]
+    end
+
+    Q["User Query"] --> A1
+    A1 --> M1
+    M1 --> DB
+    DB --> R1
+    R1 --> A2
+    A2 --> M2
+    M2 --> A3
+    A3 --> RESP["ComparisonResponse"]
+```
+
+### 11.2 End-to-End Latency Breakdown & SLA Compliance
+Arbitrary per-stage latency cutoffs are eliminated. Compliance is strictly enforced on the **sum** of the winning specialist stage latencies:
+
+$$\text{P95}_{\text{Total}} = \text{P95}_{\text{Stage 1 (Flash)}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2 (Flash)}} + \text{P95}_{\text{Stage 3 (Pro)}} \le 3000\text{ ms}$$
+
+| Pipeline Component | Active Model / Engine | P50 Latency (ms) | P95 Latency (ms) | Cost / 1k Queries | Rationale |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Stage 1: Intent Extraction** | `gemini-2.5-flash` | $180.0\text{ ms}$ | $320.0\text{ ms}$ | $\$0.08$ | Sub-second semantic intent parsing & keyword extraction. |
+| **Catalog Retrieval** | BigQuery Parameterized SQL | $45.0\text{ ms}$ | $120.0\text{ ms}$ | $\$0.00$ | Free tier / in-memory cache hit; bounded scan. |
+| **Stage 2: Relevance Reranking**| `gemini-2.5-flash` | $220.0\text{ ms}$ | $380.0\text{ ms}$ | $\$0.12$ | Fast candidate filtering & brand balancing. |
+| **Stage 3: Grounded Synthesis** | `gemini-2.5-pro` | $650.0\text{ ms}$ | $900.0\text{ ms}$ | $\$1.49$ | Complex multi-spec trade-off reasoning and strict citation formatting. |
+| **Total End-to-End (`tiered-hybrid`)** | **Multi-Agent Pipeline** | **$1095.0\text{ ms}$** | **$1720.0\text{ ms}$** | **$\$1.69$** | **SLA Passed ($\le 3000\text{ ms}$ with $1280\text{ ms}$ headroom).** |
+
+### 11.3 Weekly Automated Benchmark Job & Cloud Scheduler
+To continuously track model drift, latency degradation, and new Gemini foundation model releases:
+- **Cloud Run Job** (`google_cloud_run_v2_job.model_benchmark_job` in `deployment/terraform/eval_job.tf`):
+  Runs `python -m evals.benchmark_models --live --limit 15 --concurrency 4` inside the production container.
+- **Cloud Scheduler Trigger** (`google_cloud_scheduler_job.weekly_model_benchmark`):
+  Scheduled every Sunday at 03:00 UTC (`0 3 * * 0`) with 30-minute timeout (`attempt_deadline = "1800s"`).
+- **Vertex AI Experiments Registry**:
+  Automatically records 12 per-stage runs (`run-stage1-intent-...`, `run-stage2-rerank-...`, `run-stage3-synthesis-...`) and 5 end-to-end runs into Vertex AI Experiment `bestbuy-catalog-model-selection-benchmark` in `fde-bestbuy-sandbox-dev-508321`.
 
 
 

@@ -30,10 +30,10 @@ describe('App Integration', () => {
     vi.clearAllMocks();
   });
 
-  it('renders Best Buy branding, hero text, and sample comparisons by default', () => {
+  it('renders TechBuy Retailers branding, hero text, and sample comparisons by default', () => {
     renderWithClient(<App />);
 
-    expect(screen.getByText('BEST BUY')).toBeInTheDocument();
+    expect(screen.getByText('TECHBUY RETAILERS')).toBeInTheDocument();
     expect(
       screen.getByText('Compare Consumer Electronics Side-by-Side')
     ).toBeInTheDocument();

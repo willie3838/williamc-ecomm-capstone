@@ -37,7 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     setup_observability(current_settings)
 
     application = FastAPI(
-        title="Best Buy Catalog Comparison Agent API",
+        title="TechBuy Retailers Catalog Comparison Agent API",
         description="Agentic product comparison service grounded in Google Cloud BigQuery",
         version=current_settings.api_version,
         docs_url="/docs",

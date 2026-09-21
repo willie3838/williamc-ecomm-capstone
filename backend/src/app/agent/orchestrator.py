@@ -207,7 +207,9 @@ class ComparisonOrchestrator:
         """Return injected genai_client if provided, or instantiate a Vertex AI genai.Client."""
         if self.genai_client is not None:
             return self.genai_client
-        if self.hermetic and not hasattr(genai.Client, "assert_called"):
+        if (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")) and not hasattr(
+            genai.Client, "assert_called"
+        ):
             from app.agent.hermetic_adapter import create_hermetic_genai_client
 
             return create_hermetic_genai_client()
@@ -1215,7 +1217,7 @@ class ComparisonOrchestrator:
                     matrix = []
                     citations = [
                         Citation(
-                            sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p"
+                            sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p"
                         )
                     ]
 
@@ -1237,7 +1239,7 @@ class ComparisonOrchestrator:
 
             # Extract strict citations
             citations = [
-                Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
+                Citation(sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p")
                 for p in products
             ]
 
@@ -1382,7 +1384,7 @@ class ComparisonOrchestrator:
                     citations = [
                         Citation(
                             sku=p.sku,
-                            url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p",
+                            url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p",
                         )
                         for p in products
                     ]

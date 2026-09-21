@@ -31,7 +31,7 @@ def sample_product_dict() -> dict:
             "battery_life_hours": 18.0,
             "weight_lbs": 2.7,
         },
-        "url": "https://www.bestbuy.com/site/sku/6534606.p",
+        "url": "https://www.techbuy.com/site/sku/6534606.p",
         "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg",
         "in_stock": True,
     }
@@ -87,7 +87,7 @@ def test_product_record_csv_parsing() -> None:
         "rating": "4.5",
         "review_count": "430",
         "specifications": '{"processor": "Intel Core Ultra 7 155H", "ram_gb": 16, "storage_gb": 512}',
-        "url": "https://www.bestbuy.com/site/sku/6575132.p",
+        "url": "https://www.techbuy.com/site/sku/6575132.p",
         "image_url": "",
         "in_stock": "True",
     }

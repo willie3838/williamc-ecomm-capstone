@@ -122,3 +122,122 @@ resource "google_cloud_scheduler_job" "nightly_eval" {
     google_cloud_run_v2_job_iam_member.scheduler_job_invoker
   ]
 }
+
+# Weekly Foundation Model Benchmark Cloud Run Job & Scheduler Trigger (Sunday 03:00 UTC)
+resource "google_cloud_run_v2_job" "model_benchmark_job" {
+  name     = "${var.service_name}-weekly-model-benchmark"
+  location = var.region
+  project  = var.project_id
+
+  template {
+    task_count = 1
+
+    template {
+      max_retries     = 1
+      timeout         = "1800s"
+      service_account = google_service_account.catalog_agent_sa.email
+
+      containers {
+        image = var.container_image
+
+        args = [
+          "python",
+          "-m",
+          "evals.benchmark_models",
+          "--live",
+          "--limit",
+          "15",
+          "--concurrency",
+          "4"
+        ]
+
+        resources {
+          limits = {
+            cpu    = "2000m"
+            memory = "4Gi"
+          }
+        }
+
+        env {
+          name  = "GCP_PROJECT_ID"
+          value = var.project_id
+        }
+
+        env {
+          name  = "BIGQUERY_DATASET"
+          value = var.catalog_dataset_id
+        }
+
+        env {
+          name  = "BIGQUERY_CATALOG_TABLE"
+          value = var.catalog_table_id
+        }
+
+        env {
+          name  = "BIGQUERY_TELEMETRY_DATASET"
+          value = var.telemetry_dataset_id
+        }
+
+        env {
+          name  = "SERVICE_REGION"
+          value = var.region
+        }
+
+        env {
+          name  = "ENVIRONMENT"
+          value = var.environment
+        }
+
+        env {
+          name  = "GOOGLE_API_USE_CLIENT_CERTIFICATE"
+          value = "false"
+        }
+      }
+    }
+  }
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+    purpose     = "model-benchmark"
+  }
+
+  depends_on = [
+    google_project_service.required_apis
+  ]
+}
+
+resource "google_cloud_run_v2_job_iam_member" "scheduler_model_benchmark_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.model_benchmark_job.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
+# Cloud Scheduler: Triggers model benchmark weekly on Sunday at 03:00 UTC
+resource "google_cloud_scheduler_job" "weekly_model_benchmark" {
+  name             = "${var.service_name}-weekly-benchmark-scheduler"
+  project          = var.project_id
+  region           = var.region
+  description      = "Weekly trigger for TechBuy Retailers foundation model selection benchmark and Vertex AI sweep"
+  schedule         = "0 3 * * 0"
+  time_zone        = "Etc/UTC"
+  attempt_deadline = "1800s"
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://${var.region}-run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.model_benchmark_job.name}:run"
+
+    oauth_token {
+      service_account_email = google_service_account.catalog_agent_sa.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [
+    google_project_service.required_apis,
+    google_cloud_run_v2_job.model_benchmark_job,
+    google_cloud_run_v2_job_iam_member.scheduler_model_benchmark_invoker
+  ]
+}

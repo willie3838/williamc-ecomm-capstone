@@ -93,7 +93,7 @@ export const App: React.FC = () => {
             {/* Logo & Tagline */}
             <div className="flex items-center gap-3">
               <div className="bg-bb-yellow text-bb-slate font-black text-xl px-2.5 py-1 rounded shadow-xs tracking-tighter">
-                BEST BUY
+                TECHBUY RETAILERS
               </div>
               <div className="hidden sm:block border-l border-blue-400/50 pl-3">
                 <span className="text-sm font-bold tracking-tight block">
@@ -354,7 +354,7 @@ export const App: React.FC = () => {
                 </div>
                 <h4 className="text-sm font-bold text-gray-900">Verified SKU Citations</h4>
                 <p className="text-xs text-gray-500">
-                  Interactive badges link directly to official BestBuy.com catalog product listings.
+                  Interactive badges link directly to official TechBuy.com catalog product listings.
                 </p>
               </div>
             </div>
@@ -362,11 +362,11 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Best Buy Footer */}
+      {/* TechBuy Retailers Footer */}
       <footer className="bg-bb-slate text-gray-400 py-8 px-4 sm:px-6 lg:px-8 border-t border-gray-800 mt-auto text-xs">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="font-bold text-white tracking-tight">Best Buy Catalog Comparison Agent</span>
+            <span className="font-bold text-white tracking-tight">TechBuy Retailers Catalog Comparison Agent</span>
             <span>•</span>
             <span>GCP Project: <code className="text-blue-300">fde-bestbuy-sandbox-dev-508321</code></span>
           </div>

@@ -85,8 +85,8 @@ def test_compute_citation_faithfulness():
         products=[p1, p2],
         comparison_matrix=[],
         citations=[
-            Citation(sku="6534606", url="https://bestbuy.com/6534606"),
-            Citation(sku="6575132", url="https://bestbuy.com/6575132"),
+            Citation(sku="6534606", url="https://techbuy.com/6534606"),
+            Citation(sku="6575132", url="https://techbuy.com/6575132"),
         ],
         recommendations="Choose Prod A [SKU: 6534606] for best value.",
     )

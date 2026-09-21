@@ -1,8 +1,8 @@
-# Best Buy Catalog Comparison Agent
+# TechBuy Retailers Catalog Comparison Agent
 ## Executive & Customer Technical Architecture Presentation
 **Speaker**: William Chan (Forward Deployed Engineer)  
 **Target Duration**: 10 Minutes (Strict Delivery Pacing)  
-**Target Audience**: Best Buy Digital Product Executives, Cloud Architecture Team, and Engineering Leadership  
+**Target Audience**: TechBuy Retailers Digital Product Executives, Cloud Architecture Team, and Engineering Leadership  
 
 ---
 
@@ -36,8 +36,8 @@ Deliver an enterprise-grade, conversational comparison assistant that produces:
 3. **P95 Latency under 3.0 seconds** to preserve conversion velocity.
 
 > **Speaker Notes [0:00 - 1:15]**:  
-> *"Good morning everyone. Every month, millions of customers visit Best Buy looking for laptops, headphones, or smart home gear. But when choosing between a Dell XPS 13 and a MacBook Air M3, they hit 'spec fatigue'. They don't know whether 16GB unified memory is equivalent to 16GB DDR5, or whether the display has the ports they need. They open ten tabs, get overwhelmed, and leave.*  
-> *Generic AI bots made this worse by inventing specs. Today, I am presenting the Best Buy Catalog Comparison Agent—an agentic architecture built on Google Cloud that solves spec confusion with verifiable, zero-hallucination accuracy in under three seconds."*
+> *"Good morning everyone. Every month, millions of customers visit TechBuy Retailers looking for laptops, headphones, or smart home gear. But when choosing between a Dell XPS 13 and a MacBook Air M3, they hit 'spec fatigue'. They don't know whether 16GB unified memory is equivalent to 16GB DDR5, or whether the display has the ports they need. They open ten tabs, get overwhelmed, and leave.*  
+> *Generic AI bots made this worse by inventing specs. Today, I am presenting the TechBuy Retailers Catalog Comparison Agent—an agentic architecture built on Google Cloud that solves spec confusion with verifiable, zero-hallucination accuracy in under three seconds."*
 
 ---
 
@@ -68,7 +68,7 @@ Deliver an enterprise-grade, conversational comparison assistant that produces:
 > **Speaker Notes [1:15 - 2:45]**:  
 > *"Here is how the customer interacts with the agent. A customer types in natural language: 'Compare MacBook Air M3 and Dell XPS 13 on battery and RAM'.*  
 > *Rather than a wall of generic text, our agent returns an interactive, side-by-side matrix with green winner badges on objective advantages like battery endurance or display resolution.*  
-> *Crucially, every single claim has a verifiable SKU citation link. If a customer clicks [SKU: 6534606], it maps directly to Best Buy's product database. Our agent never guesses or interpolates hardware specs."*
+> *Crucially, every single claim has a verifiable SKU citation link. If a customer clicks [SKU: 6534606], it maps directly to TechBuy Retailers' product database. Our agent never guesses or interpolates hardware specs."*
 
 ---
 
@@ -142,7 +142,7 @@ flowchart LR
 - **ROI**: Converting just **2 additional laptop purchases per month** fully funds the entire cloud infrastructure.
 
 > **Speaker Notes [4:30 - 6:00]**:  
-> *"As an engineer, one of my core responsibilities is technical stewardship of Best Buy's capital. Many teams default to a Kubernetes cluster with a dedicated vector database, costing nearly $1,900 a month before serving a single customer.*  
+> *"As an engineer, one of my core responsibilities is technical stewardship of TechBuy Retailers' capital. Many teams default to a Kubernetes cluster with a dedicated vector database, costing nearly $1,900 a month before serving a single customer.*  
 > *By adopting serverless Cloud Run, BigQuery on-demand with a 50 MB query guard and TTL cache, Cloud Firestore (`$0.30/mo` for 2 reads + 1 write per comparison), and Vertex AI Gemini Flash, our entire production infrastructure costs just $20.90 per month for 100,000 comparisons ($0.209 per 1,000 queries)—and scales linearly to $229/month under a 10x Black Friday traffic burst."*
 
 ---
@@ -241,7 +241,7 @@ Commit / PR -> [1. Ruff Lint] -> [2. Pytest Coverage >=80%] -> [3. Evals Flywhee
   - **Global Cloud CDN + Multi-Region Cloud Run (`us-central1` + `us-east1`)**: Sub-100ms edge caching for top 500 SKU pairs (`65%+` cache hit ratio) and personalized trade-in valuation.
 
 ### Summary & Call to Action
-The Best Buy Catalog Comparison Agent delivers verifiable, grounded intelligence at enterprise scale and negligible cost. Thank you, and I welcome any questions.
+The TechBuy Retailers Catalog Comparison Agent delivers verifiable, grounded intelligence at enterprise scale and negligible cost. Thank you, and I welcome any questions.
 
 > **Speaker Notes [8:45 - 10:00]**:  
 > *"To wrap up: by combining Google Cloud's serverless infrastructure, Vertex AI Gemini 2.5 Flash, and rigorous agentic evaluation, we have transformed a confusing multi-tab shopping process into an instantaneous, trusted comparison experience.*  

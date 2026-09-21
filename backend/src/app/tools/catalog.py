@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import random
 import re
 import threading
@@ -419,7 +420,7 @@ def query_catalog(
 
             url = row_dict.get("url")
             if not url and sku:
-                url = f"https://www.bestbuy.com/site/sku/{sku}.p"
+                url = f"https://www.techbuy.com/site/sku/{sku}.p"
 
             try:
                 raw_price = row_dict.get("price")

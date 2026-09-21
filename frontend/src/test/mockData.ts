@@ -16,7 +16,7 @@ export const mockMacBook: ProductSpec = {
     'Battery Life': '18 hours',
     Weight: '2.7 pounds',
   },
-  url: 'https://www.bestbuy.com/site/sku/6534606.p',
+  url: 'https://www.techbuy.com/site/sku/6534606.p',
   image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg',
   in_stock: true,
 };
@@ -37,7 +37,7 @@ export const mockDellXPS: ProductSpec = {
     'Battery Life': '13 hours',
     Weight: '2.6 pounds',
   },
-  url: 'https://www.bestbuy.com/site/sku/6573822.p',
+  url: 'https://www.techbuy.com/site/sku/6573822.p',
   image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6573/6573822_sd.jpg',
   in_stock: true,
 };
@@ -91,12 +91,12 @@ export const mockComparisonResponse: ComparisonResponse = {
   citations: [
     {
       sku: '6534606',
-      url: 'https://www.bestbuy.com/site/sku/6534606.p',
+      url: 'https://www.techbuy.com/site/sku/6534606.p',
       description: 'Grounded in BigQuery catalog: Apple MacBook Air M3',
     },
     {
       sku: '6573822',
-      url: 'https://www.bestbuy.com/site/sku/6573822.p',
+      url: 'https://www.techbuy.com/site/sku/6573822.p',
       description: 'Grounded in BigQuery catalog: Dell XPS 13 OLED',
     },
   ],

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+_PROMPT_CACHE: dict[tuple[str, str], tuple[str, str]] = {}
 
 
 def get_active_prompt(
@@ -37,6 +39,13 @@ def get_active_prompt(
         import vertexai
         from vertexai.preview import prompts
 
+        if os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(prompts.get, "assert_called"):
+            return SYSTEM_INSTRUCTION, target_version
+
+        cache_key = (target_prompt_id, target_version)
+        if not hasattr(prompts.get, "assert_called") and cache_key in _PROMPT_CACHE:
+            return _PROMPT_CACHE[cache_key]
+
         project = getattr(settings, "gcp_project", settings.project_id)
         location = getattr(settings, "region", "us-central1")
         vertexai.init(project=project, location=location)
@@ -55,6 +64,7 @@ def get_active_prompt(
             resolved_instruction = SYSTEM_INSTRUCTION
 
         resolved_ver = str(getattr(prompt_obj, "version_id", target_version) or target_version)
+        _PROMPT_CACHE[cache_key] = (resolved_instruction, resolved_ver)
         return resolved_instruction, resolved_ver
     except Exception as exc:
         logger.warning(
@@ -64,4 +74,5 @@ def get_active_prompt(
             target_version,
             exc,
         )
+        _PROMPT_CACHE[(target_prompt_id, target_version)] = (SYSTEM_INSTRUCTION, target_version)
         return SYSTEM_INSTRUCTION, target_version

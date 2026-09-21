@@ -89,7 +89,7 @@ def build_catalog_from_evalset(benchmark_data: list[dict]) -> MagicMock:
                     "rating": 4.5,
                     "review_count": 500,
                     "specifications": json.dumps(spec_data),
-                    "url": f"https://www.bestbuy.com/site/sku/{sku}.p",
+                    "url": f"https://www.techbuy.com/site/sku/{sku}.p",
                     "image_url": f"https://pisces.bbystatic.com/image2/BestBuy_US/images/products/{sku[:4]}/{sku}_sd.jpg",
                     "in_stock": True,
                 }

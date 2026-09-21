@@ -60,6 +60,12 @@ deployment/
 4. **State Management**:
    - In production, Terraform state is stored in a GCS bucket (`gs://fde-bestbuy-sandbox-dev-508321-tfstate/`).
 
+### 3.5 Evaluation & Model Benchmark Cloud Run Jobs (`eval_job.tf`)
+1. **Nightly Quality Evaluation Job**:
+   - `google_cloud_run_v2_job.catalog_eval_job`: Executes the full 80-pair benchmark nightly at 02:00 UTC (`0 2 * * *`) via `google_cloud_scheduler_job.nightly_eval`.
+2. **Weekly Foundation Model Benchmark Job**:
+   - `google_cloud_run_v2_job.model_benchmark_job`: Executes the 4-candidate foundation model benchmark and per-stage ADK agent sweep (`python -m evals.benchmark_models --live`) weekly on Sunday at 03:00 UTC (`0 3 * * 0`) via `google_cloud_scheduler_job.weekly_model_benchmark`.
+
 ---
 
 ## 4. Cloud Build CI & Cloud Deploy CD Protocol (Rubric 6.1 Compliance)

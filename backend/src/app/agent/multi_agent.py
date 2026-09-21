@@ -312,7 +312,7 @@ class SpecComparisonAgent:
                     recommendations = None
                     citations = [
                         Citation(
-                            sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p"
+                            sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p"
                         )
                     ]
                 else:
@@ -364,7 +364,7 @@ class SpecComparisonAgent:
                 model=active_synthesis,
             )
             citations = [
-                Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
+                Citation(sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p")
                 for p in state.ranked_products
             ]
 

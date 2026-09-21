@@ -41,7 +41,7 @@ def mock_two_laptops_bq_client():
                     "operating_system": "macOS Sonoma",
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6534606.p",
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg",
             "in_stock": True,
         },
@@ -66,7 +66,7 @@ def mock_two_laptops_bq_client():
                     "operating_system": "Windows 11 Home",
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6575132.p",
+            "url": "https://www.techbuy.com/site/sku/6575132.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6575/6575132_sd.jpg",
             "in_stock": True,
         },

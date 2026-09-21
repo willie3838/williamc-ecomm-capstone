@@ -30,7 +30,7 @@ def test_compare_endpoint_valid_request(mock_bq_client: MagicMock) -> None:
                     "battery_life_hours": 18.0,
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6534606.p",
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg",
             "in_stock": True,
         },
@@ -50,7 +50,7 @@ def test_compare_endpoint_valid_request(mock_bq_client: MagicMock) -> None:
                     "battery_life_hours": 14.0,
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6575132.p",
+            "url": "https://www.techbuy.com/site/sku/6575132.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6575/6575132_sd.jpg",
             "in_stock": True,
         },
@@ -191,7 +191,7 @@ def test_openapi_schema_endpoint() -> None:
     assert response.status_code == 200
     schema = response.json()
 
-    assert schema["info"]["title"] == "Best Buy Catalog Comparison Agent API"
+    assert "Catalog Comparison Agent API" in schema["info"]["title"]
     paths = schema["paths"]
     assert "/health" in paths
     assert "/health/ready" in paths

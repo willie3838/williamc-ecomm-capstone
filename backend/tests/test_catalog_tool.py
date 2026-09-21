@@ -55,7 +55,7 @@ def test_query_catalog_success(mock_bq_client):
                     "battery_life_hours": 18.0,
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6534606.p",
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg",
             "in_stock": True,
         },
@@ -115,12 +115,12 @@ def test_query_catalog_success(mock_bq_client):
     assert first["price"] == 1099.0
     assert isinstance(first["specifications"], dict)
     assert first["specifications"]["ram_gb"] == 16
-    assert first["url"] == "https://www.bestbuy.com/site/sku/6534606.p"
+    assert first["url"] == "https://www.techbuy.com/site/sku/6534606.p"
 
     second = results[1]
     assert second["sku"] == "6575132"
     assert second["brand"] == "Dell"
-    assert second["url"] == "https://www.bestbuy.com/site/sku/6575132.p"  # Fallback generated
+    assert second["url"] == "https://www.techbuy.com/site/sku/6575132.p"  # Fallback generated
 
 
 def test_query_catalog_handles_exceptions(mock_bq_client):

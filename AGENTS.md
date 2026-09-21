@@ -1,6 +1,6 @@
-# Root Agent Guide: Best Buy Catalog Comparison Agent
+# Root Agent Guide: TechBuy Retailers Catalog Comparison Agent
 
-Welcome to the **Best Buy Catalog Comparison Agent** codebase. This repository contains the complete production-grade source code, test suites, evaluation flywheel, infrastructure-as-code, and deployment automation for the FDE Capstone project.
+Welcome to the **TechBuy Retailers Catalog Comparison Agent** codebase. This repository contains the complete production-grade source code, test suites, evaluation flywheel, infrastructure-as-code, and deployment automation for the FDE Capstone project.
 
 ---
 

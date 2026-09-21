@@ -498,3 +498,20 @@ def test_agent_registry_terraform():
     assert 'resource "terraform_data" "gcp_agent_registry_registration"' in content
     assert "/.well-known/agent-card.json" in content
     assert "var.project_id" in content
+
+
+def test_weekly_model_benchmark_terraform():
+    """Verify weekly foundation model benchmark Cloud Run Job and Cloud Scheduler trigger."""
+    eval_tf = TERRAFORM_DIR / "eval_job.tf"
+    assert eval_tf.exists(), "eval_job.tf missing"
+    content = eval_tf.read_text()
+
+    assert 'resource "google_cloud_run_v2_job" "model_benchmark_job"' in content
+    assert "evals.benchmark_models" in content
+    assert 'resource "google_cloud_scheduler_job" "weekly_model_benchmark"' in content
+    assert 'schedule         = "0 3 * * 0"' in content
+    assert 'time_zone        = "Etc/UTC"' in content
+    assert (
+        'resource "google_cloud_run_v2_job_iam_member" "scheduler_model_benchmark_invoker"'
+        in content
+    )

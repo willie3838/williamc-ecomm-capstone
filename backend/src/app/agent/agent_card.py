@@ -25,14 +25,14 @@ def build_a2a_agent_card(
     prompt_version = "2026.03-v2" if is_flash else settings.prompt_version
 
     return {
-        "name": "bestbuy-catalog-comparison-agent",
+        "name": "techbuy-catalog-comparison-agent",
         "description": (
-            "Best Buy Catalog Comparison Agent powered by Google ADK, Gemini 2.5, "
+            "TechBuy Retailers Catalog Comparison Agent powered by Google ADK, Gemini 2.5, "
             "Vertex AI Prompt Management, and BigQuery grounding."
         ),
         "version": resolved_version,
         "provider": {
-            "organization": "Best Buy FDE Capstone",
+            "organization": "TechBuy Retailers FDE Capstone",
             "url": clean_url,
         },
         "supportedInterfaces": [
