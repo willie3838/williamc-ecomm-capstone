@@ -10,11 +10,11 @@ when Agent Runtime injects `GOOGLE_CLOUD_AGENT_ENGINE_ID`, while maintaining an
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
 import concurrent.futures
-from datetime import UTC, datetime
 import logging
 import os
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Any
 
 from google.adk.agents import BaseAgent
@@ -119,10 +119,9 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         self._agent_engine_id = engine_id
         if self.hermetic or os.environ.get("HERMETIC_EVAL", "").lower() == "true":
             return False
-        if (
-            os.environ.get("PYTEST_CURRENT_TEST")
-            and "test_vertex_ai_session_service" not in os.environ.get("PYTEST_CURRENT_TEST", "")
-        ):
+        if os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        ) and "test_vertex_ai_session_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
             return False
         return True
 
@@ -400,9 +399,7 @@ def run_adk_agent_sync(
     final_text = ""
     for evt in reversed(events):
         if evt.content and evt.content.parts:
-            texts = [
-                p.text for p in evt.content.parts if hasattr(p, "text") and p.text
-            ]
+            texts = [p.text for p in evt.content.parts if hasattr(p, "text") and p.text]
             if texts:
                 final_text = "\n".join(texts).strip()
                 break

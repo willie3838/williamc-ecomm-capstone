@@ -17,12 +17,14 @@ def load_dataset(dataset_path: Path) -> list[dict]:
     if isinstance(data, dict) and "eval_cases" in data:
         normalized = []
         for c in data["eval_cases"]:
-            normalized.append({
-                "id": c.get("id") or c.get("eval_id"),
-                "category": c.get("category"),
-                "expected_skus": c.get("expected_skus", []),
-                "ground_truth_specs": c.get("ground_truth_specs", {}),
-            })
+            normalized.append(
+                {
+                    "id": c.get("id") or c.get("eval_id"),
+                    "category": c.get("category"),
+                    "expected_skus": c.get("expected_skus", []),
+                    "ground_truth_specs": c.get("ground_truth_specs", {}),
+                }
+            )
         return normalized
     elif isinstance(data, list):
         return data
@@ -51,13 +53,15 @@ def run_evaluation(dataset: list[dict]) -> dict:
         total_accuracy_score += accuracy
         total_citation_score += citation_fidelity
 
-        results.append({
-            "id": case_id,
-            "category": case.get("category"),
-            "data_accuracy": accuracy,
-            "citation_faithfulness": citation_fidelity,
-            "status": "PASS" if accuracy >= 0.95 else "FAIL",
-        })
+        results.append(
+            {
+                "id": case_id,
+                "category": case.get("category"),
+                "data_accuracy": accuracy,
+                "citation_faithfulness": citation_fidelity,
+                "status": "PASS" if accuracy >= 0.95 else "FAIL",
+            }
+        )
 
     avg_accuracy = total_accuracy_score / max(1, total_cases)
     avg_citation = total_citation_score / max(1, total_cases)
@@ -76,12 +80,8 @@ def run_evaluation(dataset: list[dict]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Eval Benchmark Runner")
-    parser.add_argument(
-        "--dataset", required=True, type=Path, help="Path to benchmark JSON"
-    )
-    parser.add_argument(
-        "--output", type=Path, default=None, help="Path to save report"
-    )
+    parser.add_argument("--dataset", required=True, type=Path, help="Path to benchmark JSON")
+    parser.add_argument("--output", type=Path, default=None, help="Path to save report")
 
     args = parser.parse_args()
     dataset = load_dataset(args.dataset)

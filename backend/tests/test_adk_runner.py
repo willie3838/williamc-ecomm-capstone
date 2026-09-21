@@ -102,7 +102,10 @@ class TestADKRunnerIntegration:
             mock_api_client.agent_engines.sessions.create.assert_awaited_once_with(
                 name="reasoningEngines/9876543210",
                 user_id="enterprise_user",
-                config={"session_state": {"category": "Laptops"}, "session_id": "agent_runtime_sess_1"},
+                config={
+                    "session_state": {"category": "Laptops"},
+                    "session_id": "agent_runtime_sess_1",
+                },
             )
 
     def test_orchestrator_execute_with_adk_runner(self):

@@ -1,0 +1,60 @@
+{
+  "skill_name": "rubric-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reject-out-of-bounds-line-range",
+      "prompt": "Grade an s2_01 audit claim citing backend/src/app/main.py:9999-10050",
+      "expected_output": "Downgrades score from 3 to 1 because lines 9999-10050 exceed the file line count",
+      "files": ["scripts/audit_rubric.py"],
+      "expectations": [
+        "Verifies cited line numbers against actual line count of the file on disk",
+        "Automatically downgrades score when line range is out of bounds"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "reject-paper-architecture-markdown-only",
+      "prompt": "Grade an s2_01 engineering audit claim citing only ARCHITECTURE.md:10-40",
+      "expected_output": "Downgrades score from 3 to 1 due to Paper Architecture Disqualifier",
+      "files": ["scripts/audit_rubric.py"],
+      "expectations": [
+        "Requires executable code/IaC/test file extensions for Section 2 competencies",
+        "Caps markdown-only Section 2 citations at Score 1"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reject-sycophantic-zero-gap-claims",
+      "prompt": "Grade a Score 3 claim whose failures_and_gaps is 'None' or 'No issues'",
+      "expected_output": "Downgrades score from 3 to 2 due to Sycophancy Disqualifier",
+      "files": ["scripts/audit_rubric.py"],
+      "expectations": [
+        "Rejects sycophantic gap strings ('None', 'No issues', 'N/A')",
+        "Requires explicit operational trade-off or failure-mode documentation for Score 3"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "enforce-programmatic-circuit-breaker-hotpath-check",
+      "prompt": "Verify s2_21 circuit breaker is actively enforced via allow_request() in catalog.py",
+      "expected_output": "Downgrades s2_21 to Score 2 if catalog_circuit_breaker.allow_request() is not checked in query_catalog",
+      "files": ["scripts/audit_rubric.py"],
+      "expectations": [
+        "Scans catalog.py for catalog_circuit_breaker.allow_request() enforcement",
+        "Detects dead-path circuit breakers that record state without blocking requests when OPEN"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "enforce-post-generation-sku-citation-scrubber-and-no-regex-json",
+      "prompt": "Verify s2_02 post-generation SKU citation verification and s2_03 schema-constrained JSON parsing in orchestrator.py",
+      "expected_output": "Downgrades s2_02/s2_03 if verify_and_scrub_sku_citations is missing or regex JSON extraction is used",
+      "files": ["scripts/audit_rubric.py"],
+      "expectations": [
+        "Verifies verify_and_scrub_sku_citations is called on LLM synthesis output",
+        "Verifies _rerank_with_llm does not use fragile regex JSON array parsing"
+      ]
+    }
+  ]
+}

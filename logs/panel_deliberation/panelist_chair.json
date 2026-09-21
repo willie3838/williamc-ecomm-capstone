@@ -29,7 +29,7 @@
       "name": "Presentation Skills & Time Management",
       "criteria": "Paces the presentation to finish on time. Tactfully steers the panel away from rabbit holes, offering to take tangential topics offline without being dismissive. Demonstrates intellectual honesty by confidently admitting 'I don't know, but I will get back to you' rather than fabricating answers.",
       "score": 3,
-      "evidence": "docs/presentation/slides.md:1-320; SPEC.md:1-75; RUBRIC.md:35-57",
+      "evidence": "docs/presentation/slides.md:1-262; SPEC.md:1-75; RUBRIC.md:35-57",
       "successes": "Provides a structured slide-by-slide executive presentation deck (docs/presentation/slides.md) with speaker notes, verifiable SKU demo flows, and explicit out-of-scope enterprise boundaries (no live cart checkout or ERP mutations).",
       "failures_and_gaps": "Presentation runbook does not bundle a pre-recorded video fallback artifact in case live Cloud Run or Vertex AI endpoints experience regional degradation during the live demo.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 because a complete slide-by-slide presentation deck, demo script, and scope boundary matrix are checked into the repository."
@@ -40,7 +40,7 @@
       "name": "AI Driven Development Discussion",
       "criteria": "Articulates how their harness was set up before coding. Demonstrates understanding of establishing key guidance that enables both 'in the loop' (quick feature fix that adheres to spec) and 'outside the loop' (goal driven - task is taken and executed in a loop through lint, test, etc. until goal is passed) development. Incorporates mistakes by the agent/harness back into agent instructions.",
       "score": 3,
-      "evidence": "AGENTS.md:1-195; skills/rubric-audit/SKILL.md:1-117; backend/tests/test_docs_sync.py:1-120",
+      "evidence": "AGENTS.md:1-195; skills/rubric-audit/SKILL.md:1-116; backend/tests/test_docs_sync.py:1-120",
       "successes": "Implements a multi-agent adversarial development harness with hierarchical AGENTS.md files, automated doc-sync gates (test_docs_sync.py), TDD hillclimbing loops, and a 4-pane tmux review panel.",
       "failures_and_gaps": "The 4-pane tmux review panel requires a local interactive terminal environment and cannot run headlessly inside a standard Cloud Build container step.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 because past agent mistakes (Score-3 inflation, undocumented code changes) are encoded into automated programmatic enforcement hooks."
@@ -75,7 +75,7 @@
       "name": "Retrieval & Data Engineering for AI",
       "criteria": "Reliable grounding and citation mechanisms mitigating hallucinations. Structured catalog integration with 100% verified, verifiable citations mapped to database primary keys.",
       "score": 3,
-      "evidence": "backend/src/app/tools/catalog.py:18-355; backend/src/app/agent/orchestrator.py:520-690; backend/tests/test_catalog_tool.py:1-140; backend/tests/test_entity_balancing.py:1-110",
+      "evidence": "backend/src/app/agent/orchestrator.py:449-540; backend/src/app/models/requests.py:55-65; evals/graders.py:130-165",
       "successes": "Enforces 100% grounded BigQuery SQL retrieval, primary key SKU deduplication, cross-brand entity balancing, and programmatic SKU citation attachment ([SKU: X]) mapped to retrieved rows.",
       "failures_and_gaps": "SQL retrieval relies on LOWER(name) LIKE pattern matching in catalog.py:155-159 rather than hybrid vector+keyword embeddings, which can miss semantic synonyms.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 because SKU citations and spec matrices are deterministically constructed and verified against retrieved BigQuery primary keys."
@@ -86,7 +86,7 @@
       "name": "Model Selection, Tuning & Optimization",
       "criteria": "Low-temperature determinism, token budgeting, structured JSON outputs enforced via schemas, and cost-effective model routing balancing latency and quality.",
       "score": 3,
-      "evidence": "backend/src/app/models/requests.py:117-130; backend/src/app/agent/orchestrator.py:660-740; backend/tests/test_hillclimb_criteria.py:150-155",
+      "evidence": "backend/src/app/models/requests.py:45-75; backend/src/app/agent/orchestrator.py:855-955",
       "successes": "All three Gemini LLM stages (classify_intent_with_llm, _rerank_with_llm, synthesize_comparison_with_llm) enforce strict Pydantic response_schema (QueryIntentAnalysis, CandidateRankingResponse, ComparisonSynthesis) with response_mime_type='application/json' and centralized temperature/max_output_tokens.",
       "failures_and_gaps": "Edge-case limitation: Constrained JSON decoding on deeply nested schemas can slightly increase first-token latency (~40ms on Gemini 2.5 Pro) during cold model invocations.",
       "reasoning": "Score 3 (Expert): Deterministic Pydantic schema validation and structured decoding are enforced across intent classification, candidate reranking, and comparison synthesis."
@@ -130,7 +130,7 @@
       "name": "Technical Scope & Constraints",
       "criteria": "Defines technical scope precisely; identifies critical constraints and assumptions. Documents system boundaries and architectural approach prior to build phase.",
       "score": 3,
-      "evidence": "SPEC.md:45-120; backend/src/app/config.py:90-125; backend/src/app/tools/catalog.py:23",
+      "evidence": "SPEC.md:45-120; backend/src/app/config.py:90-125; backend/src/app/tools/catalog.py:21-28",
       "successes": "Delineates MVP sandbox vs enterprise production scope and enforces hard runtime bounds (LIMIT 10 SKUs, 2.5s BigQuery timeout, 2048 max output tokens).",
       "failures_and_gaps": "ComparisonRequest in backend/src/app/models/requests.py checks for non-empty strings but does not enforce a strict max_length character bound on the query field.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 because documented scope and timeout constraints are enforced in executable backend configuration and query parameters."
@@ -174,7 +174,7 @@
       "name": "API Documentation",
       "criteria": "Delivers precise OpenAPI specifications, detailed integration guides, and clear contracts facilitating developer adoption and predictable interactions.",
       "score": 3,
-      "evidence": "backend/src/app/main.py:41-239; backend/src/app/models/requests.py:1-70; backend/src/app/models/responses.py:1-120; SPEC.md:120-190",
+      "evidence": "backend/src/app/main.py:41-167; backend/src/app/models/requests.py:1-70; backend/src/app/models/responses.py:1-120; SPEC.md:120-190",
       "successes": "Generates OpenAPI 3.1 specs (/openapi.json, /docs) with typed Pydantic v2 models (ComparisonRequest, ComparisonResponse, HealthResponse, AgentVersionsResponse) and A2A Agent Cards.",
       "failures_and_gaps": "Auxiliary endpoints (/health/ready, /api/actions, /api/feedback in main.py:92,214,228) use generic dict[str, Any] response models instead of strict Pydantic classes.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for contract-first Pydantic v2 schemas, field descriptions, and A2A discovery protocol support."
@@ -185,7 +185,7 @@
       "name": "Operational Documentation",
       "criteria": "Produces actionable deployment guides, runbooks, onboarding documentation, troubleshooting guides, and operational agent skills.",
       "score": 3,
-      "evidence": "SKILLS.md:1-180; AGENTS.md:1-195; deployment/AGENTS.md:1-150; backend/tests/test_docs_sync.py:1-120",
+      "evidence": "SKILLS.md:1-180; AGENTS.md:1-195; deployment/AGENTS.md:1-140; backend/tests/test_docs_sync.py:1-120",
       "successes": "Provides actionable runbooks (SKILLS.md, hierarchical AGENTS.md, deployment/rollback.sh) and enforces zero undocumented code changes via test_docs_sync.py.",
       "failures_and_gaps": "Troubleshooting guides do not include specific gcloud commands for debugging VPC-SC perimeter violations via Cloud Audit Logs.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 because operational runbooks are paired with automated pytest doc-sync verification."
@@ -240,7 +240,7 @@
       "name": "Compliance & Governance",
       "criteria": "Configures audit logging (Cloud Audit Logs) and data residency aligning with regulatory requirements. Enforces enterprise policy across all deployments.",
       "score": 3,
-      "evidence": "deployment/terraform/audit_logs.tf:34-52; deployment/terraform/variables.tf:19-23; deployment/terraform/firestore.tf:10-20; backend/tests/test_terraform.py:345-370",
+      "evidence": "deployment/terraform/audit_logs.tf:34-44; deployment/terraform/variables.tf:19-23; deployment/terraform/firestore.tf:10-13; backend/tests/test_terraform.py:345-370",
       "successes": "Cloud Audit Logs capture ADMIN_READ, DATA_READ, and DATA_WRITE across both bigquery.googleapis.com and aiplatform.googleapis.com; GCS staging buckets default to single-region us-central1 residency; and Firestore enforces Point-in-Time Recovery (PITR) plus DELETE_PROTECTION_ENABLED.",
       "failures_and_gaps": "Cost trade-off: Enabling DATA_READ and DATA_WRITE audit logs on aiplatform.googleapis.com increases Cloud Logging ingestion volume under high-QPS traffic, mitigated by 30-day log retention.",
       "reasoning": "Score 3 (Expert): Full data governance, single-region residency, deletion protection, and audit logging across BigQuery and Vertex AI are codified and verified in Terraform."
@@ -273,7 +273,7 @@
       "name": "Failure & Recovery Testing",
       "criteria": "Executes failure injection, red teaming, and resilience testing under degraded conditions (timeouts, database disconnection, empty catalog, malformed queries) verifying recovery protocols.",
       "score": 3,
-      "evidence": "backend/tests/test_failure_injection.py:1-220; backend/tests/test_ai_security.py:1-160",
+      "evidence": "backend/tests/test_failure_injection.py:1-203; backend/tests/test_ai_security.py:1-160",
       "successes": "Maintains dedicated failure-injection tests simulating BigQuery timeouts, retry exhaustion, corrupted JSON specs, invalid prices, empty catalog results, and safety filter blocks.",
       "failures_and_gaps": "Failure injection tests operate via in-process unittest.mock patches rather than container-level network chaos testing.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for comprehensive automated failure-injection coverage across database, LLM, and schema corruption failure modes."
@@ -284,7 +284,7 @@
       "name": "Graceful Degradation",
       "criteria": "Implements fallback strategies, retry policies with backoff, circuit breakers, and timeout handling ensuring system stability during partial failures or high load without crashing.",
       "score": 3,
-      "evidence": "backend/src/app/tools/catalog.py:17-58; backend/src/app/tools/catalog.py:295-338; backend/tests/test_hillclimb_criteria.py:65-75",
+      "evidence": "backend/src/app/tools/catalog.py:21-62; backend/src/app/tools/catalog.py:305-375; backend/tests/test_failure_injection.py:1-120",
       "successes": "Implemented thread-safe 3-state CatalogCircuitBreaker (CLOSED -> OPEN -> HALF_OPEN) and randomized full-jitter exponential backoff (random.uniform) in query_catalog, paired with multi-layer graceful fallback to HermeticModelAdapter and in-memory session counters.",
       "failures_and_gaps": "State scope: In-process circuit breaker state is per Cloud Run container instance rather than globally shared across instances via Redis until Phase 3.",
       "reasoning": "Score 3 (Expert): Full-jitter backoff and a 3-state circuit breaker protect BigQuery and Vertex AI dependencies from cascading retry storms during downstream brownouts."
@@ -306,7 +306,7 @@
       "name": "Resource Efficiency",
       "criteria": "Right-sizes compute resources; utilizes lightweight base images and efficient container runtimes to minimize cold-start latency and eliminate resource waste.",
       "score": 3,
-      "evidence": "deployment/Dockerfile:1-48; deployment/terraform/cloudrun.tf:38-44; deployment/terraform/variables.tf:45-70",
+      "evidence": "deployment/Dockerfile:1-47; deployment/terraform/cloudrun.tf:38-44; deployment/terraform/variables.tf:45-70",
       "successes": "Uses multi-stage python:3.11-slim Dockerfile running as non-root appuser (UID 1000) and right-sizes Cloud Run container resources with scale-to-zero.",
       "failures_and_gaps": "deployment/Dockerfile:36 copies the evals/ directory into the production runtime image, slightly increasing image size.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for multi-stage slim build, non-root execution, and right-sized serverless CPU/memory limits."
@@ -328,7 +328,7 @@
       "name": "CI/CD & Deployment",
       "criteria": "Designs automated CI/CD pipelines with linting, testing coverage gates, automated container builds, artifact registry deployment, and rollback automation.",
       "score": 3,
-      "evidence": "deployment/cloudbuild.yaml:1-102; deployment/cloudbuild-rollback.yaml:1-95; deployment/rollback.sh:1-100; backend/tests/test_ci_pipeline.py:1-200",
+      "evidence": "deployment/cloudbuild.yaml:1-102; deployment/cloudbuild-rollback.yaml:1-84; deployment/rollback.sh:1-87; backend/tests/test_ci_pipeline.py:1-200",
       "successes": "Codifies multi-stage Cloud Build pipeline enforcing Ruff lint/format, pytest >= 80% coverage, ADK conformance gate, container build/push, Cloud Deploy progressive release, and automated rollback.",
       "failures_and_gaps": "cloudbuild.yaml validates Python lint/tests and ADK evals but does not execute frontend Vitest unit tests during the CI build.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for multi-stage quality gates, Cloud Deploy canary orchestration, and automated rollback scripts verified by test_ci_pipeline.py."
@@ -339,7 +339,7 @@
       "name": "Infrastructure as Code",
       "criteria": "Utilizes modular, declarative Terraform/IaC for reproducible environments, ensuring strict environment parity without manual cloud configuration.",
       "score": 3,
-      "evidence": "deployment/terraform/main.tf:1-60; deployment/terraform/bigquery.tf:1-250; deployment/terraform/cloudrun.tf:1-134; deployment/terraform/iam.tf:1-107; deployment/terraform/vpc_sc.tf:1-64; backend/tests/test_terraform.py:1-200",
+      "evidence": "deployment/terraform/main.tf:1-60; deployment/terraform/bigquery.tf:1-239; deployment/terraform/cloudrun.tf:1-134; deployment/terraform/iam.tf:1-107; deployment/terraform/vpc_sc.tf:1-64; backend/tests/test_terraform.py:1-200",
       "successes": "Maintains modular Terraform HCL covering APIs, BigQuery datasets/tables, GCS, Artifact Registry, Cloud Run v2, Cloud Deploy, Firestore, IAM, VPC-SC, and Audit Logs, validated by test_terraform.py.",
       "failures_and_gaps": "Local terraform.tfstate and tfplan files exist in deployment/terraform/ instead of enforcing a remote GCS backend block with state locking.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for complete declarative infrastructure coverage and automated HCL structural tests."
@@ -361,7 +361,7 @@
       "name": "Testing & Quality Engineering",
       "criteria": "Executes comprehensive unit, integration, and e2e testing with automated coverage enforcement (>= 80%) and verified pass rates.",
       "score": 3,
-      "evidence": "backend/tests/test_compare_api.py:1-200; backend/tests/test_orchestrator.py:1-220; backend/tests/test_failure_injection.py:1-220; backend/tests/test_observability.py:1-250; frontend/src/test/App.test.tsx:1-150",
+      "evidence": "backend/tests/test_compare_api.py:1-200; backend/tests/test_orchestrator.py:1-220; backend/tests/test_failure_injection.py:1-203; backend/tests/test_observability.py:1-250; frontend/src/test/App.test.tsx:1-107",
       "successes": "Includes 24 backend pytest modules and frontend Vitest tests achieving >85% coverage across unit, API contract, failure-injection, security red-team, observability, and Terraform IaC tests.",
       "failures_and_gaps": "Headless Chrome Selenium UI tests are invoked via standalone skill scripts rather than running on every commit inside cloudbuild.yaml.",
       "reasoning": "Awarded Score 3 (Expert) over Score 2 for >85% verified coverage and 24 specialized test modules covering happy paths, edge cases, and infrastructure contracts."
@@ -372,7 +372,7 @@
       "name": "Modularity & Abstraction",
       "criteria": "Enforces loose coupling and interface contracts facilitating model swappability and modular code structure with clear architectural boundaries.",
       "score": 3,
-      "evidence": "backend/src/app/routes/compare.py:1-180; backend/src/app/main.py:180-185; backend/src/app/agent/orchestrator.py:139-175",
+      "evidence": "backend/src/app/routes/compare.py:1-180; backend/src/app/main.py:157-167; backend/src/app/agent/orchestrator.py:139-175",
       "successes": "Extracted HTTP route handlers into modular APIRouter (backend/src/app/routes/compare.py) mounted in main.py, and added explicit genai_client and bq_client constructor dependency injection on ComparisonOrchestrator.",
       "failures_and_gaps": "Refactoring boundary: ComparisonOrchestrator retains backward-compatible helper methods so existing unit and evaluation suites continue to import from app.agent.orchestrator without breakage.",
       "reasoning": "Score 3 (Expert): Clean separation of concerns between app factory (main.py), versioned API routers (routes/compare.py), and dependency-injected agent orchestration."
@@ -394,7 +394,7 @@
       "name": "API Design & Versioning",
       "criteria": "Implements contract-first design with backward compatibility and structured schemas supporting graceful evolution across client releases.",
       "score": 3,
-      "evidence": "backend/src/app/routes/compare.py:59-180; backend/src/app/main.py:180-185; backend/tests/test_hillclimb_criteria.py:132-155",
+      "evidence": "backend/src/app/routes/compare.py:59-180; backend/src/app/main.py:157-167; backend/tests/test_hillclimb_criteria.py:132-155",
       "successes": "API routes are versioned under /api/v1 (/api/v1/compare, /api/v1/agent/versions, /api/v1/agent/card, /api/v1/actions, /api/v1/feedback) while preserving backward-compatible /api/* aliases for zero-downtime client migration.",
       "failures_and_gaps": "Lifecycle management: Supporting dual /api/v1 and /api route prefixes requires a deprecation sunset header policy when /api/v2 is introduced in future releases.",
       "reasoning": "Score 3 (Expert): Explicit URL path versioning (/api/v1/*) is implemented alongside backward-compatible /api/* aliases and strict Pydantic v2 request/response contracts."

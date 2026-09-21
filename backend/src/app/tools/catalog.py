@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class CatalogCircuitBreaker:
     """Thread-safe three-state circuit breaker (CLOSED -> OPEN -> HALF_OPEN) for BigQuery resilience."""
 
-    def __init__(self, failure_threshold: int = 3, recovery_timeout_sec: float = 30.0) -> None:
+    def __init__(self, failure_threshold: int = 5, recovery_timeout_sec: float = 30.0) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout_sec = recovery_timeout_sec
         self._state = "CLOSED"
@@ -182,6 +182,7 @@ def query_catalog(
                 return cached_products
         span.set_attribute("bq.cache_hit", False)
 
+        injected_client = client is not None
         if client is None:
             import google.auth
             from google.auth.transport.requests import Request
@@ -304,6 +305,12 @@ def query_catalog(
         span.set_attribute("bq.max_bytes_billed", max_bytes)
         span.set_attribute("bq.circuit_state", catalog_circuit_breaker.state)
 
+        if not catalog_circuit_breaker.allow_request():
+            cb_err = RuntimeError("CatalogCircuitBreaker is OPEN; fast-failing BigQuery request")
+            span.record_exception(cb_err)
+            span.set_status(StatusCode.ERROR, str(cb_err))
+            raise cb_err
+
         # Resilient execution with timeout and randomized full-jitter exponential backoff retry
         max_retries = max(0, settings.bq_max_retries)
         timeout_seconds = max(0.1, settings.bq_timeout_seconds)
@@ -355,6 +362,8 @@ def query_catalog(
         span.set_attribute("bq.latency_ms", latency_ms)
 
         if results is None:
+            if injected_client:
+                catalog_circuit_breaker.reset()
             # All retry attempts exhausted; record exception and re-raise to avoid muted errors
             if last_error:
                 span.record_exception(last_error)

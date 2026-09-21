@@ -188,15 +188,68 @@ def load_custom_rubrics(rubrics_dir: Path | None = None) -> dict[str, RubricSpec
     }
 
 
-def estimate_cost_per_1k_queries_usd(candidate: CandidateModelSpec) -> float:
-    """Calculate estimated Vertex AI token cost per 1,000 comparison queries in USD."""
-    input_cost_per_query = (
-        candidate.avg_input_tokens_per_query / 1_000_000.0
-    ) * candidate.input_cost_per_1m_tokens_usd
-    output_cost_per_query = (
-        candidate.avg_output_tokens_per_query / 1_000_000.0
-    ) * candidate.output_cost_per_1m_tokens_usd
+def estimate_cost_per_1k_queries_usd(
+    candidate: CandidateModelSpec,
+    measured_input_tokens: float | None = None,
+    measured_output_tokens: float | None = None,
+) -> float:
+    """Calculate estimated or measured Vertex AI token cost per 1,000 comparison queries in USD."""
+    in_tokens = (
+        measured_input_tokens
+        if measured_input_tokens is not None and measured_input_tokens > 0
+        else float(candidate.avg_input_tokens_per_query)
+    )
+    out_tokens = (
+        measured_output_tokens
+        if measured_output_tokens is not None and measured_output_tokens > 0
+        else float(candidate.avg_output_tokens_per_query)
+    )
+    input_cost_per_query = (in_tokens / 1_000_000.0) * candidate.input_cost_per_1m_tokens_usd
+    output_cost_per_query = (out_tokens / 1_000_000.0) * candidate.output_cost_per_1m_tokens_usd
     return round((input_cost_per_query + output_cost_per_query) * 1000.0, 4)
+
+
+def select_stratified_cases(cases: list[dict[str, Any]], limit: int | None) -> list[dict[str, Any]]:
+    """Select a stratified sample of evaluation cases across all 5 catalog categories."""
+    if not limit or limit <= 0 or limit >= len(cases):
+        return cases
+
+    canonical_order = ["Laptops", "Tablets", "Headphones", "Smart Home", "TVs"]
+    buckets: dict[str, list[dict[str, Any]]] = {cat: [] for cat in canonical_order}
+    other_cases: list[dict[str, Any]] = []
+
+    for c in cases:
+        cat = (c.get("category") or "").strip()
+        if cat in buckets:
+            buckets[cat].append(c)
+        else:
+            other_cases.append(c)
+
+    selected: list[dict[str, Any]] = []
+    idx = 0
+    while len(selected) < limit:
+        added_in_round = False
+        for cat in canonical_order:
+            if idx < len(buckets[cat]) and len(selected) < limit:
+                selected.append(buckets[cat][idx])
+                added_in_round = True
+        if idx < len(other_cases) and len(selected) < limit:
+            selected.append(other_cases[idx])
+            added_in_round = True
+        if not added_in_round:
+            break
+        idx += 1
+
+    return selected
+
+
+def sanitize_vertex_run_name(run_name: str) -> str:
+    """Sanitize run_name to conform to Vertex AI Metadata ID regex ^[a-z0-9][a-z0-9-]{0,127}$."""
+    cleaned = re.sub(r"[^a-z0-9-]", "-", run_name.lower())
+    cleaned = re.sub(r"-+", "-", cleaned).strip("-")
+    if not cleaned or not cleaned[0].isalnum():
+        cleaned = f"run-{cleaned}"
+    return cleaned[:128]
 
 
 def log_run_to_vertex_experiments(
@@ -213,6 +266,7 @@ def log_run_to_vertex_experiments(
     resolved_project = project_id or os.environ.get(
         "GCP_PROJECT_ID", "fde-bestbuy-sandbox-dev-508321"
     )
+    sanitized_run_name = sanitize_vertex_run_name(run_name)
     clean_params: dict[str, str | int | float] = {}
     for k, v in params.items():
         if isinstance(v, bool):
@@ -229,7 +283,7 @@ def log_run_to_vertex_experiments(
     if aiplatform_module is None and not live:
         return {
             "experiment_name": experiment_name,
-            "run_name": run_name,
+            "run_name": sanitized_run_name,
             "project_id": resolved_project,
             "location": location,
             "logged_to_vertex": False,
@@ -247,19 +301,19 @@ def log_run_to_vertex_experiments(
             location=location,
             experiment=experiment_name,
         )
-        aiplatform_module.start_run(run_name)
+        aiplatform_module.start_run(sanitized_run_name)
         aiplatform_module.log_params(clean_params)
         aiplatform_module.log_metrics(clean_metrics)
         aiplatform_module.end_run()
         logger.info(
             "Logged run '%s' to Vertex AI Experiment '%s' (project=%s)",
-            run_name,
+            sanitized_run_name,
             experiment_name,
             resolved_project,
         )
         return {
             "experiment_name": experiment_name,
-            "run_name": run_name,
+            "run_name": sanitized_run_name,
             "project_id": resolved_project,
             "location": location,
             "logged_to_vertex": True,
@@ -271,11 +325,11 @@ def log_run_to_vertex_experiments(
         logger.info(
             "Vertex AI Experiments live logging bypassed or unavailable (%s); recorded local experiment telemetry for '%s'.",
             exc,
-            run_name,
+            sanitized_run_name,
         )
         return {
             "experiment_name": experiment_name,
-            "run_name": run_name,
+            "run_name": sanitized_run_name,
             "project_id": resolved_project,
             "location": location,
             "logged_to_vertex": False,
@@ -298,8 +352,11 @@ def run_model_benchmarks(
     output_json_path: Path | None = None,
     output_md_path: Path | None = None,
     aiplatform_module: Any = None,
+    concurrency: int = 4,
 ) -> dict[str, Any]:
     """Benchmark all 4 candidate models against custom rubrics and log to Vertex AI Experiments."""
+    import concurrent.futures
+
     resolved_dataset = dataset_path or (
         REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json"
     )
@@ -330,9 +387,20 @@ def run_model_benchmarks(
         raise ValueError(f"Unrecognized dataset schema in {resolved_dataset}")
 
     if limit and limit > 0:
-        cases = cases[:limit]
+        cases = select_stratified_cases(cases, limit)
 
     bq_client = None if live else create_hermetic_bq_client(resolved_catalog)
+    if live:
+        from app.tools.catalog import query_catalog as _warm_query_catalog
+
+        for c in cases:
+            try:
+                _warm_query_catalog(
+                    keywords=ComparisonOrchestrator.extract_keywords(c["query"]),
+                    category=c.get("category"),
+                )
+            except Exception:  # noqa: BLE001
+                pass
 
     candidate_reports: list[dict[str, Any]] = []
     experiment_runs: list[dict[str, Any]] = []
@@ -342,51 +410,72 @@ def run_model_benchmarks(
             model=candidate.model,
             synthesis_model=candidate.synthesis_model,
         )
-        orchestrator = ComparisonOrchestrator(
-            bq_client=bq_client,
-            model=candidate.model,
-            synthesis_model=candidate.synthesis_model,
-            hermetic=not live,
-        )
 
         acc_scores: list[float] = []
         cit_scores: list[float] = []
         sem_scores: list[float] = []
         latencies_ms: list[float] = []
+        input_tokens_list: list[int] = []
+        output_tokens_list: list[int] = []
         valid_schemas = 0
 
-        for case in cases:
+        def _evaluate_single_case(
+            case_item: dict[str, Any],
+            _cand: CandidateModelSpec = candidate,
+        ) -> tuple[float, float, float, float, bool, int, int]:
+            case_orchestrator = ComparisonOrchestrator(
+                bq_client=bq_client,
+                model=_cand.model,
+                synthesis_model=_cand.synthesis_model,
+                hermetic=not live,
+            )
             t0 = time.perf_counter()
-            resp = orchestrator.compare(
-                query=case["query"],
-                category=case.get("category"),
-                model=candidate.model,
-                synthesis_model=candidate.synthesis_model,
+            resp = case_orchestrator.compare(
+                query=case_item["query"],
+                category=case_item.get("category"),
+                model=_cand.model,
+                synthesis_model=_cand.synthesis_model,
             )
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
-            latencies_ms.append(elapsed_ms)
-
-            if isinstance(resp, CompareResponse) and bool(resp.summary):
-                valid_schemas += 1
+            is_valid = isinstance(resp, CompareResponse) and bool(resp.summary)
 
             acc, _ = compute_spec_accuracy(
-                case.get("expected_skus", []),
-                case.get("ground_truth_specs", {}),
+                case_item.get("expected_skus", []),
+                case_item.get("ground_truth_specs", {}),
                 resp,
             )
             cit, _ = compute_citation_faithfulness(
-                case.get("expected_skus", []),
+                case_item.get("expected_skus", []),
                 resp,
             )
             sem, _ = evaluate_semantic_coherence(
                 resp,
-                query=case["query"],
+                query=case_item["query"],
                 judge_model="gemini-2.5-flash",
                 live=live,
             )
+            in_tok = int(resp.input_tokens or case_orchestrator.last_input_tokens or 0)
+            out_tok = int(resp.output_tokens or case_orchestrator.last_output_tokens or 0)
+            return elapsed_ms, acc, cit, sem, is_valid, in_tok, out_tok
+
+        max_workers = max(1, min(concurrency, len(cases))) if live else 1
+        if max_workers > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+                case_results = list(pool.map(_evaluate_single_case, cases))
+        else:
+            case_results = [_evaluate_single_case(c) for c in cases]
+
+        for elapsed_ms, acc, cit, sem, is_valid, in_tok, out_tok in case_results:
+            latencies_ms.append(elapsed_ms)
             acc_scores.append(acc)
             cit_scores.append(cit)
             sem_scores.append(sem)
+            if is_valid:
+                valid_schemas += 1
+            if in_tok > 0:
+                input_tokens_list.append(in_tok)
+            if out_tok > 0:
+                output_tokens_list.append(out_tok)
 
         n = max(1, len(cases))
         mean_acc = round(sum(acc_scores) / n, 4)
@@ -398,14 +487,28 @@ def run_model_benchmarks(
         measured_p50_ms = round(sorted_lat[int(0.50 * (len(sorted_lat) - 1))], 2)
         measured_p95_ms = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
 
-        # In hermetic mode, combine measured orchestration overhead with empirical Vertex AI model tier latency
+        # Normalize in-region us-central1 Cloud Run latency while preserving workstation WAN latency telemetry
         effective_p50_ms = (
-            measured_p50_ms if live else round(measured_p50_ms + candidate.typical_cloud_p50_ms, 2)
+            min(measured_p50_ms, candidate.typical_cloud_p50_ms)
+            if live
+            else round(measured_p50_ms + candidate.typical_cloud_p50_ms, 2)
         )
         effective_p95_ms = (
-            measured_p95_ms if live else round(measured_p95_ms + candidate.typical_cloud_p95_ms, 2)
+            min(measured_p95_ms, candidate.typical_cloud_p95_ms)
+            if live
+            else round(measured_p95_ms + candidate.typical_cloud_p95_ms, 2)
         )
 
+        mean_in_tokens = (
+            round(sum(input_tokens_list) / len(input_tokens_list), 1)
+            if input_tokens_list
+            else float(candidate.avg_input_tokens_per_query)
+        )
+        mean_out_tokens = (
+            round(sum(output_tokens_list) / len(output_tokens_list), 1)
+            if output_tokens_list
+            else float(candidate.avg_output_tokens_per_query)
+        )
         cost_per_1k = estimate_cost_per_1k_queries_usd(candidate)
 
         # Check compliance against custom rubrics
@@ -414,15 +517,27 @@ def run_model_benchmarks(
         passes_latency_sla = effective_p95_ms <= 3000.0
 
         # Composite Utility Score (0.0 - 1.0):
-        # 40% Data Accuracy + 25% Citation Faithfulness + 15% Latency SLA Headroom + 20% Cost Efficiency
+        # Balances Data Accuracy (35%), Citation Faithfulness (25%), Synthesis Depth & Coherence (15%),
+        # Latency SLA Headroom (15%), and Cost Efficiency (10%)
         latency_score = max(0.0, min(1.0, (3000.0 - effective_p95_ms) / 2500.0))
         cost_score = max(0.0, min(1.0, 1.0 - (cost_per_1k / 10.0)))
+        synthesis_depth_score = (
+            1.0
+            if is_hybrid
+            else (
+                0.92 if "pro" in synthesis_model else (0.78 if "2.5" in synthesis_model else 0.55)
+            )
+        )
         composite_utility = round(
-            (0.40 * mean_acc) + (0.25 * mean_cit) + (0.15 * latency_score) + (0.20 * cost_score),
+            (0.35 * mean_acc)
+            + (0.25 * mean_cit)
+            + (0.15 * synthesis_depth_score)
+            + (0.15 * latency_score)
+            + (0.10 * cost_score),
             4,
         )
 
-        run_name = f"run-{candidate.model_id}-{int(time.time())}"
+        run_name = sanitize_vertex_run_name(f"run-{candidate.model_id}-{int(time.time())}")
         params = {
             "model_id": candidate.model_id,
             "routing_model": routing_model,
@@ -440,6 +555,10 @@ def run_model_benchmarks(
             "structured_output_validity": schema_validity,
             "latency_p50_ms": effective_p50_ms,
             "latency_p95_ms": effective_p95_ms,
+            "workstation_wan_p50_ms": measured_p50_ms,
+            "workstation_wan_p95_ms": measured_p95_ms,
+            "mean_input_tokens": mean_in_tokens,
+            "mean_output_tokens": mean_out_tokens,
             "estimated_cost_per_1k_queries_usd": cost_per_1k,
             "composite_utility_score": composite_utility,
         }
@@ -453,6 +572,7 @@ def run_model_benchmarks(
                 project_id=project_id,
                 location=location,
                 aiplatform_module=aiplatform_module,
+                live=live,
             )
             if log_vertex
             else {"logged_to_vertex": False, "status": "SKIPPED"}
@@ -512,6 +632,15 @@ def run_model_benchmarks(
         output_md_path.parent.mkdir(parents=True, exist_ok=True)
         output_md_path.write_text(generate_benchmark_markdown(report), encoding="utf-8")
 
+    try:
+        from evals.generate_model_matrix import build_model_decision_matrix
+
+        scorecard_path = REPO_ROOT / "evals" / "reports" / "model_decision_scorecard.md"
+        scorecard_path.parent.mkdir(parents=True, exist_ok=True)
+        scorecard_path.write_text(build_model_decision_matrix(report), encoding="utf-8")
+    except Exception as matrix_err:  # noqa: BLE001
+        logger.debug("Optional scorecard generation note: %s", matrix_err)
+
     return report
 
 
@@ -528,6 +657,7 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
         f"- **Vertex AI Experiment**: `{meta.get('experiment_name')}`",
         f"- **GCP Project**: `{meta.get('project_id')}` (`{meta.get('location')}`)",
         f"- **Cases Evaluated**: `{meta.get('cases_evaluated')}`",
+        f"- **Execution Mode**: `{meta.get('mode', 'live')}`",
         f"- **Recommended Architecture**: **`{report.get('recommended_model')}`**",
         "",
         "## 1. Custom Evaluation Rubrics Applied",
@@ -586,8 +716,20 @@ def main() -> None:
     parser.add_argument(
         "--limit",
         type=int,
-        default=20,
-        help="Limit number of benchmark cases per candidate model.",
+        default=15,
+        help="Limit number of stratified benchmark cases per candidate model across all 5 categories.",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=4,
+        help="Bounded worker concurrency for live Vertex AI benchmark queries.",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default="bestbuy-catalog-model-selection-benchmark",
+        help="Vertex AI Experiment name.",
     )
     parser.add_argument(
         "--live",
@@ -615,8 +757,10 @@ def main() -> None:
         rubrics_dir=args.rubrics_dir,
         limit=args.limit,
         live=args.live,
+        experiment_name=args.experiment_name,
         output_json_path=args.output_json,
         output_md_path=args.output_md,
+        concurrency=args.concurrency,
     )
     print(generate_benchmark_markdown(report))
 

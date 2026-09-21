@@ -104,13 +104,18 @@ python3 -m evals.runner \
 `create_hermetic_bq_client` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
 
 ### G. Candidate Foundation Model Benchmarking & Vertex AI Experiments (`evals/benchmark_models.py`)
-Benchmark candidate foundation models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`) and log experiment runs to Google Cloud Vertex AI Experiments:
+Benchmark candidate foundation models (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`, `tiered-hybrid`) using custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`), stratified 5-category sampling (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`), and sanitized Vertex AI Metadata run IDs (`run-gemini-2-5-flash-<ts>`):
 ```bash
-python3 -m evals.benchmark_models \
-  --dataset evals/dataset/benchmark_catalog.evalset.json \
+# Execute live Vertex AI Experiments sweep and log to GCP project fde-bestbuy-sandbox-dev-508321:
+python3 evals/benchmark_models.py \
+  --live \
+  --limit 15 \
+  --concurrency 4 \
+  --experiment-name bestbuy-catalog-model-selection-benchmark \
   --output-json evals/reports/model_benchmark_results.json \
   --output-md evals/reports/model_benchmark_summary.md
 ```
+This single command also automatically regenerates `evals/reports/model_decision_scorecard.md`.
 
 ### H. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
 Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:

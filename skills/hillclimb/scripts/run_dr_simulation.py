@@ -50,9 +50,13 @@ def main() -> None:
     mock_client.query.side_effect = None
     mock_client.query.return_value = mock_job
     resp2 = orch.compare("Compare MacBook and Dell XPS")
-    assert len(resp2.products) == 2, "Service must fully recover after database connectivity is restored"
+    assert len(resp2.products) == 2, (
+        "Service must fully recover after database connectivity is restored"
+    )
     assert len(resp2.comparison_matrix) > 0, "Matrix must be generated upon recovery"
-    print("  -> Automated Disaster Recovery Cycle successfully verified: 0 state corruption, 100% recovery.")
+    print(
+        "  -> Automated Disaster Recovery Cycle successfully verified: 0 state corruption, 100% recovery."
+    )
 
 
 if __name__ == "__main__":

@@ -158,3 +158,10 @@ def test_api_v1_routes_and_readiness_dependencies() -> None:
 
     ranking_resp = CandidateRankingResponse(rankings=[CandidateRankItem(sku="SKU-1", score=9.5)])
     assert len(ranking_resp.rankings) == 1
+
+    scrubbed = ComparisonOrchestrator.verify_and_scrub_sku_citations(
+        "MacBook Air [SKU: SKU-1] beats Ghost Laptop [SKU: FAKE-999].",
+        {"SKU-1"},
+    )
+    assert "[SKU: SKU-1]" in (scrubbed or "")
+    assert "FAKE-999" not in (scrubbed or "")

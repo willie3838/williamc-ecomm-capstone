@@ -475,9 +475,8 @@ class CatalogAdkLlm(BaseLlm):
             return True
         if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
             return False
-        if (
-            os.environ.get("PYTEST_CURRENT_TEST")
-            and "test_adk_runner_live" not in os.environ.get("PYTEST_CURRENT_TEST", "")
+        if os.environ.get("PYTEST_CURRENT_TEST") and "test_adk_runner_live" not in os.environ.get(
+            "PYTEST_CURRENT_TEST", ""
         ):
             return True
         return False

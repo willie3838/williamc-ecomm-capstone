@@ -114,3 +114,17 @@ python3 skills/rubric-audit/scripts/audit_rubric.py --detailed
 # 6. Verify baseline FDE readiness (Avg >= 2.0, zero 0s) or custom target score
 python3 skills/rubric-audit/scripts/audit_rubric.py --verify --target-score 2.0
 ```
+
+---
+
+## 5. Programmatic Code Probes & Skill-Creator Evaluation (`evals/evals.json`)
+
+To guarantee that `rubric-audit` cannot be gamed by prose-only evidence or stale line numbers, `apply_strict_expert_calibration()` executes two deterministic verification passes in addition to regex disqualifier checks:
+
+1. **Line-Range & Non-Empty Snippet Verification (`verify_evidence_line_ranges`)**:
+   - Parses every `path:start-end` token in `evidence`, reads the referenced file from disk, and verifies `1 <= start <= end <= len(lines)` and that the slice `lines[start-1:end]` contains non-whitespace content. Out-of-bounds or blank-line citations immediately trigger a `Line Range Disqualifier` / `Empty Snippet Disqualifier`.
+2. **Programmatic Code Disqualifier Probes (`run_programmatic_code_probes`)**:
+   - Directly inspects `backend/src/app/agent/orchestrator.py` and `backend/src/app/tools/catalog.py` to enforce live wiring of `verify_and_scrub_sku_citations` (`s2_02`), absence of regex JSON extraction (`s2_03`), live `catalog_circuit_breaker.allow_request()` enforcement (`s2_21`), and `CatalogResponseCache` (`s2_24`).
+3. **Anthropic `skill-creator` Honey-Pot Benchmark (`evals/evals.json`)**:
+   - Run `python3 skills/skill-creator/scripts/evaluate_skill.py skills/rubric-audit` to validate `SKILL.md` progressive disclosure (`<500` lines) and run all 5 adversarial honey-pot test cases.
+

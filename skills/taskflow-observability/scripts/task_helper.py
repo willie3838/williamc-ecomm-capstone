@@ -23,11 +23,17 @@ def run_command(cmd: list[str]) -> str:
 def list_iteration_items() -> None:
     """List active tickets in current sprint iteration."""
     print(f"Fetching active items in Iteration {ITERATION_ID} (Workspace {WORKSPACE_ID})...")
-    output = run_command([
-        "taskflow", "iterations", "view-items",
-        "--iteration", ITERATION_ID,
-        "--workspace", WORKSPACE_ID
-    ])
+    output = run_command(
+        [
+            "taskflow",
+            "iterations",
+            "view-items",
+            "--iteration",
+            ITERATION_ID,
+            "--workspace",
+            WORKSPACE_ID,
+        ]
+    )
     print(output)
 
 
@@ -83,4 +89,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

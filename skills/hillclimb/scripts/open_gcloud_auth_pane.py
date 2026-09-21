@@ -20,19 +20,37 @@ def run_cmd(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProc
 def check_auth_valid() -> bool:
     """Check if gcloud token and ADC are valid."""
     res_gcloud = run_cmd(["gcloud", "auth", "print-access-token"])
-    if res_gcloud.returncode != 0 or not res_gcloud.stdout.strip() or "ERROR" in res_gcloud.stdout or "Reauthentication" in res_gcloud.stdout:
+    if (
+        res_gcloud.returncode != 0
+        or not res_gcloud.stdout.strip()
+        or "ERROR" in res_gcloud.stdout
+        or "Reauthentication" in res_gcloud.stdout
+    ):
         return False
     res_adc = run_cmd(["gcloud", "auth", "application-default", "print-access-token"])
-    if res_adc.returncode != 0 or not res_adc.stdout.strip() or "ERROR" in res_adc.stdout or "Reauthentication" in res_adc.stdout:
+    if (
+        res_adc.returncode != 0
+        or not res_adc.stdout.strip()
+        or "ERROR" in res_adc.stdout
+        or "Reauthentication" in res_adc.stdout
+    ):
         return False
     return True
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Spawn interactive tmux pane for gcloud auth")
-    parser.add_argument("--project", default="fde-bestbuy-sandbox-dev-508321", help="Target GCP Project ID")
-    parser.add_argument("--timeout", type=int, default=300, help="Seconds to wait for authentication")
-    parser.add_argument("--no-wait", action="store_true", help="Do not wait for auth completion, exit immediately after spawning pane")
+    parser.add_argument(
+        "--project", default="fde-bestbuy-sandbox-dev-508321", help="Target GCP Project ID"
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=300, help="Seconds to wait for authentication"
+    )
+    parser.add_argument(
+        "--no-wait",
+        action="store_true",
+        help="Do not wait for auth completion, exit immediately after spawning pane",
+    )
     args = parser.parse_args()
 
     # If already authenticated, exit clean
@@ -43,18 +61,23 @@ def main() -> None:
     # Check tmux session
     res_win = run_cmd(["tmux", "display-message", "-p", "#{session_name}:#{window_index}"])
     if res_win.returncode != 0 or not res_win.stdout.strip():
-        print("[ERROR] Tmux session not found. Please run manual auth in your terminal:", file=sys.stderr)
-        print(f"  gcloud auth login && gcloud auth application-default login && gcloud config set project {args.project}", file=sys.stderr)
+        print(
+            "[ERROR] Tmux session not found. Please run manual auth in your terminal:",
+            file=sys.stderr,
+        )
+        print(
+            f"  gcloud auth login && gcloud auth application-default login && gcloud config set project {args.project}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     current_window = res_win.stdout.strip()
     print(f"[INFO] Spawning interactive authentication pane in tmux window '{current_window}'...")
 
     # Split horizontally to create a 35% right pane for authentication
-    res_split = run_cmd([
-        "tmux", "split-window", "-h", "-p", "35", "-t", current_window,
-        "-P", "-F", "#{pane_id}"
-    ])
+    res_split = run_cmd(
+        ["tmux", "split-window", "-h", "-p", "35", "-t", current_window, "-P", "-F", "#{pane_id}"]
+    )
     if res_split.returncode != 0:
         print(f"[ERROR] Could not split tmux pane: {res_split.stderr}", file=sys.stderr)
         sys.exit(1)
@@ -77,7 +100,7 @@ def main() -> None:
         "echo ''",
         "echo '[SUCCESS] Authentication complete! You can close this pane or let the orchestrator close it.'",
     ]
-    
+
     script_str = " && ".join(commands)
     run_cmd(["tmux", "send-keys", "-t", auth_pane_id, script_str, "C-m"])
 
@@ -104,7 +127,9 @@ def main() -> None:
         print(f"[INFO] Closed authentication pane '{auth_pane_id}'.")
         sys.exit(0)
     else:
-        print(f"[WARN] Authentication timed out after {args.timeout}s. Authentication pane '{auth_pane_id}' remains open.")
+        print(
+            f"[WARN] Authentication timed out after {args.timeout}s. Authentication pane '{auth_pane_id}' remains open."
+        )
         sys.exit(1)
 
 

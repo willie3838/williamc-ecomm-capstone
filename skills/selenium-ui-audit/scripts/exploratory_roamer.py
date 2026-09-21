@@ -167,7 +167,10 @@ class ExploratoryRoamer:
             try:
                 search_input = wait.until(
                     EC.presence_of_element_located(
-                        (By.XPATH, "//input[@aria-label='Natural language product comparison query']")
+                        (
+                            By.XPATH,
+                            "//input[@aria-label='Natural language product comparison query']",
+                        )
                     )
                 )
                 search_input.click()
@@ -222,20 +225,32 @@ class ExploratoryRoamer:
                 )
 
                 rendered_card_elements = self.driver.find_elements(
-                    By.XPATH, "//div[contains(text(), 'Compared Products')]/following-sibling::div//h3"
+                    By.XPATH,
+                    "//div[contains(text(), 'Compared Products')]/following-sibling::div//h3",
                 )
                 if not rendered_card_elements:
                     rendered_card_elements = [
                         el
-                        for el in self.driver.find_elements(By.XPATH, "//h3[contains(@class, 'font-semibold')]")
-                        if not any(header in el.text for header in ["Matrix", "Matching", "Recommendation", "Summary"])
+                        for el in self.driver.find_elements(
+                            By.XPATH, "//h3[contains(@class, 'font-semibold')]"
+                        )
+                        if not any(
+                            header in el.text
+                            for header in ["Matrix", "Matching", "Recommendation", "Summary"]
+                        )
                     ]
-                rendered_titles = [el.text.strip() for el in rendered_card_elements if el.text.strip()]
+                rendered_titles = [
+                    el.text.strip() for el in rendered_card_elements if el.text.strip()
+                ]
 
                 sku_elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'SKU:')]")
-                rendered_skus = list({el.text.strip() for el in sku_elements if el.text.strip()})[:15]
+                rendered_skus = list({el.text.strip() for el in sku_elements if el.text.strip()})[
+                    :15
+                ]
 
-                rec_elements = self.driver.find_elements(By.XPATH, "//div[contains(text(), 'AI Comparison Summary')]/..")
+                rec_elements = self.driver.find_elements(
+                    By.XPATH, "//div[contains(text(), 'AI Comparison Summary')]/.."
+                )
                 ai_summary_text = rec_elements[0].text.strip() if rec_elements else ""
                 has_unrendered_markdown = ("\n- " in ai_summary_text) or ("**" in ai_summary_text)
 
@@ -243,7 +258,9 @@ class ExploratoryRoamer:
                     "scenario": scenario,
                     "latency_ms": latency_ms,
                     "dom_mechanics": {
-                        "has_horizontal_overflow": bool(layout_metrics.get("has_horizontal_overflow")),
+                        "has_horizontal_overflow": bool(
+                            layout_metrics.get("has_horizontal_overflow")
+                        ),
                         "severe_console_errors": severe_console_errors,
                         "has_unrendered_markdown_tokens": has_unrendered_markdown,
                         "has_products_section": has_products_section,
@@ -272,12 +289,14 @@ class ExploratoryRoamer:
 
             except Exception as e:
                 self.log(f"Scenario failed with exception: {e}")
-                self.observations.append({
-                    "scenario": scenario,
-                    "error": str(e),
-                    "dom_mechanics": {"exception": True},
-                    "rendered_dom_content": {},
-                })
+                self.observations.append(
+                    {
+                        "scenario": scenario,
+                        "error": str(e),
+                        "dom_mechanics": {"exception": True},
+                        "rendered_dom_content": {},
+                    }
+                )
 
     def export_dom_evidence(self) -> Path:
         evidence_file = self.output_dir / "exploratory_dom_evidence.json"
@@ -354,11 +373,12 @@ def main():
         roamer.setup_driver()
         roamer.run_scenarios()
         evidence_path = roamer.export_dom_evidence()
-        roamer.log(f"DOM extraction complete! Argon agent can inspect rendered DOM state in: {evidence_path}")
+        roamer.log(
+            f"DOM extraction complete! Argon agent can inspect rendered DOM state in: {evidence_path}"
+        )
     finally:
         roamer.cleanup()
 
 
 if __name__ == "__main__":
     main()
-

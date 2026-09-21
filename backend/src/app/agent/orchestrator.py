@@ -446,6 +446,21 @@ class ComparisonOrchestrator:
             "Return a valid JSON object matching the requested schema."
         )
 
+    @staticmethod
+    def verify_and_scrub_sku_citations(text: str | None, valid_skus: set[str]) -> str | None:
+        """Post-generation grounding check: scrub any hallucinated [SKU: <id>] citation not in valid_skus."""
+        if not text:
+            return text
+
+        def _check_sku(match: re.Match[str]) -> str:
+            cited_sku = match.group(1).strip()
+            if cited_sku in valid_skus:
+                return match.group(0)
+            return ""
+
+        scrubbed = re.sub(r"\[SKU:\s*([^\]]+)\]", _check_sku, text)
+        return re.sub(r"  +", " ", scrubbed).strip()
+
     def synthesize_comparison_with_llm(
         self,
         products: list[ProductSpec],
@@ -465,6 +480,7 @@ class ComparisonOrchestrator:
                 None,
             )
 
+        valid_skus = {p.sku for p in products if p.sku}
         active_model = model or self.synthesis_model
         self.last_synthesis_model = active_model
 
@@ -493,11 +509,18 @@ class ComparisonOrchestrator:
                 self.last_output_tokens += adk_llm.last_output_tokens
                 if resp_text:
                     synth = ComparisonSynthesis.model_validate_json(resp_text)
-                    summary_out = synth.summary
+                    summary_out = (
+                        self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
+                    )
+                    recs_out = self.verify_and_scrub_sku_citations(
+                        synth.recommendations, valid_skus
+                    )
                     for p in products:
                         if f"[SKU: {p.sku}]" not in summary_out:
-                            summary_out = f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
-                    return summary_out, synth.recommendations
+                            summary_out = (
+                                f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
+                            )
+                    return summary_out, recs_out
             except Exception as adk_synth_err:
                 logger.debug("ADK synthesis fallback note: %s", adk_synth_err)
 
@@ -524,20 +547,24 @@ class ComparisonOrchestrator:
 
             if response.text:
                 synth = ComparisonSynthesis.model_validate_json(response.text)
-                summary_out = synth.summary
+                summary_out = self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
+                recs_out = self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus)
                 if "2.5" in active_model:
                     for p in products:
                         if f"[SKU: {p.sku}]" not in summary_out:
                             summary_out = (
                                 f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
                             )
-                return summary_out, synth.recommendations
+                return summary_out, recs_out
         except Exception as err:
             logger.warning("LLM synthesis failed (%s); using hermetic model adapter.", err)
 
         resp_json = HermeticModelAdapter.synthesis_response(prompt)
         synth = ComparisonSynthesis.model_validate_json(resp_json)
-        return synth.summary, synth.recommendations
+        return (
+            self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or synth.summary,
+            self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus),
+        )
 
     def synthesize_summary(
         self,
@@ -920,11 +947,16 @@ class ComparisonOrchestrator:
                 parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
                 ranked_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
             except Exception:
-                json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
-                if json_match:
-                    parsed_list = json.loads(json_match.group(0))
-                    if isinstance(parsed_list, list):
-                        ranked_items = parsed_list
+                try:
+                    parsed_raw = json.loads(raw_text)
+                    if isinstance(parsed_raw, list):
+                        ranked_items = [
+                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                            for item in parsed_raw
+                            if isinstance(item, dict)
+                        ]
+                except Exception:
+                    ranked_items = None
 
             if ranked_items is None:
                 return None

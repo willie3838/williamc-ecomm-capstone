@@ -248,3 +248,27 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
     assert "tiered-hybrid" in md_text
     assert "data_accuracy.md" in md_text
     assert "citation_faithfulness.md" in md_text
+
+
+def test_vertex_run_name_sanitization_and_stratified_sampling() -> None:
+    """Verify Vertex AI Experiment run IDs sanitize periods and stratified sampling covers all 5 categories."""
+    from evals.benchmark_models import sanitize_vertex_run_name, select_stratified_cases
+
+    assert (
+        sanitize_vertex_run_name("run-gemini-2.5-flash-1750000000")
+        == "run-gemini-2-5-flash-1750000000"
+    )
+    assert (
+        sanitize_vertex_run_name("run-gemini-1.5-flash-1750000000")
+        == "run-gemini-1-5-flash-1750000000"
+    )
+
+    sample_cases = [
+        {"id": f"c_{cat}_{i}", "category": cat, "query": f"Compare {cat} {i}"}
+        for cat in ["Laptops", "Tablets", "Headphones", "Smart Home", "TVs"]
+        for i in range(4)
+    ]
+    stratified = select_stratified_cases(sample_cases, limit=10)
+    assert len(stratified) == 10
+    categories_selected = {c["category"] for c in stratified}
+    assert categories_selected == {"Laptops", "Tablets", "Headphones", "Smart Home", "TVs"}

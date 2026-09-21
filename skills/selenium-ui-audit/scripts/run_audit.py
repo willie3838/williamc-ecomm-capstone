@@ -33,7 +33,14 @@ def find_free_port(starting_port: int = 8085) -> int:
 
 
 class UIAuditRunner:
-    def __init__(self, port: int, repo_dir: Path, output_dir: Path, visible: bool = False, skip_server: bool = False):
+    def __init__(
+        self,
+        port: int,
+        repo_dir: Path,
+        output_dir: Path,
+        visible: bool = False,
+        skip_server: bool = False,
+    ):
         self.port = port
         self.repo_dir = repo_dir
         self.output_dir = output_dir
@@ -67,8 +74,10 @@ class UIAuditRunner:
             "run",
             "uvicorn",
             "app.main:app",
-            "--host", "127.0.0.1",
-            "--port", str(self.port)
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.port),
         ]
         self.server_proc = subprocess.Popen(
             cmd,
@@ -76,7 +85,7 @@ class UIAuditRunner:
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
         )
 
         # Wait for health check
@@ -112,7 +121,9 @@ class UIAuditRunner:
     def scroll_into_view_and_capture(self, element, name: str) -> Path:
         """Scrolls the target element directly into viewport center and captures proof."""
         try:
-            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", element)
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", element
+            )
             time.sleep(0.5)
         except Exception:
             pass
@@ -164,14 +175,16 @@ class UIAuditRunner:
             laptop_chip.click()
             time.sleep(0.4)
             self.scroll_into_view_and_capture(laptop_chip, "02_laptop_category_selected")
-            
+
             aria_pressed = laptop_chip.get_attribute("aria-pressed")
             if aria_pressed == "true":
                 self.test_results["Category Chip Active State"] = "PASS"
             else:
                 self.add_finding("warning", "Laptop category chip aria-pressed not true")
 
-            all_cat_chip = self.driver.find_element(By.XPATH, "//button[contains(., 'All Categories')]")
+            all_cat_chip = self.driver.find_element(
+                By.XPATH, "//button[contains(., 'All Categories')]"
+            )
             all_cat_chip.click()
             time.sleep(0.4)
         except Exception as e:
@@ -181,7 +194,9 @@ class UIAuditRunner:
         # 3. Popular Comparison Suggestion Card Click
         self.log("3. Testing popular comparison card click...")
         try:
-            sample_card = self.driver.find_element(By.XPATH, "//h3[contains(text(), 'MacBook Air M3 vs Dell XPS 13')]")
+            sample_card = self.driver.find_element(
+                By.XPATH, "//h3[contains(text(), 'MacBook Air M3 vs Dell XPS 13')]"
+            )
             sample_card.click()
             time.sleep(0.3)
             self.capture_screenshot("03_sample_card_clicked_loading")
@@ -194,7 +209,9 @@ class UIAuditRunner:
         self.log("Waiting for comparison matrix generation (calling BigQuery & Gemini)...")
         try:
             wait.until(
-                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]"))
+                EC.presence_of_element_located(
+                    (By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]")
+                )
             )
             time.sleep(0.8)
             self.test_results["BigQuery & Gemini Live Execution"] = "PASS"
@@ -210,10 +227,14 @@ class UIAuditRunner:
         if self.test_results.get("BigQuery & Gemini Live Execution") == "PASS":
             self.log("4. Inspecting rendered Compared Product cards...")
             try:
-                prod_cards_heading = self.driver.find_element(By.XPATH, "//h2[contains(text(), 'Compared Products')]")
+                prod_cards_heading = self.driver.find_element(
+                    By.XPATH, "//h2[contains(text(), 'Compared Products')]"
+                )
                 self.scroll_into_view_and_capture(prod_cards_heading, "04_compared_product_cards")
-                
-                product_cards = self.driver.find_elements(By.XPATH, "//h4[contains(@class, 'font-bold')]")
+
+                product_cards = self.driver.find_elements(
+                    By.XPATH, "//h4[contains(@class, 'font-bold')]"
+                )
                 if len(product_cards) >= 2:
                     self.test_results["Product Spec Cards"] = "PASS"
                 else:
@@ -224,10 +245,16 @@ class UIAuditRunner:
             # 5. Target Screenshot: Comparison Matrix Table & Winner Badges
             self.log("5. Inspecting Side-by-Side Comparison Matrix & Winner Badges...")
             try:
-                matrix_table = self.driver.find_element(By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]")
-                self.scroll_into_view_and_capture(matrix_table, "05_comparison_matrix_and_winner_badges")
+                matrix_table = self.driver.find_element(
+                    By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]"
+                )
+                self.scroll_into_view_and_capture(
+                    matrix_table, "05_comparison_matrix_and_winner_badges"
+                )
 
-                winner_badges = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'Winner')]")
+                winner_badges = self.driver.find_elements(
+                    By.XPATH, "//*[contains(text(), 'Winner')]"
+                )
                 self.log(f"Found {len(winner_badges)} winner highlight badges.")
                 if len(winner_badges) > 0:
                     self.test_results["Winner Spec Badges"] = "PASS"
@@ -239,7 +266,9 @@ class UIAuditRunner:
             # 6. Target Screenshot: Grounded SKU Citations
             self.log("6. Inspecting Grounded SKU Citation Links...")
             try:
-                citations_header = self.driver.find_element(By.XPATH, "//*[contains(text(), 'Verified SKU Grounding & Citations')]")
+                citations_header = self.driver.find_element(
+                    By.XPATH, "//*[contains(text(), 'Verified SKU Grounding & Citations')]"
+                )
                 self.scroll_into_view_and_capture(citations_header, "06_grounded_sku_citations")
 
                 citation_links = self.driver.find_elements(By.XPATH, "//a[contains(., 'SKU:')]")
@@ -269,26 +298,42 @@ class UIAuditRunner:
                 # Deterministic DOM check: ensure no raw unrendered markdown syntax is exposed
                 has_raw_markdown = "\n- " in card_text or "**" in card_text
                 if has_raw_markdown:
-                    self.add_finding("warning", "AI Recommendation contains unrendered markdown syntax")
+                    self.add_finding(
+                        "warning", "AI Recommendation contains unrendered markdown syntax"
+                    )
 
-                if len(list_items) >= 2 and not has_raw_markdown or "AI Comparison Summary" in card_text:
+                if (
+                    len(list_items) >= 2
+                    and not has_raw_markdown
+                    or "AI Comparison Summary" in card_text
+                ):
                     self.test_results["AI Recommendation DOM Structure"] = "PASS"
                 else:
-                    self.add_finding("warning", "AI Recommendation DOM container missing expected list items")
+                    self.add_finding(
+                        "warning", "AI Recommendation DOM container missing expected list items"
+                    )
 
                 # Store live rendered DOM content for direct semantic evaluation by the Argon LLM agent
                 self.extracted_ai_summary = card_text
-                self.log(f"Extracted Rendered AI Summary DOM Text ({len(card_text)} chars) for Argon evaluation.")
+                self.log(
+                    f"Extracted Rendered AI Summary DOM Text ({len(card_text)} chars) for Argon evaluation."
+                )
             except Exception as e:
                 self.extracted_ai_summary = ""
-                self.add_finding("error", "Failed inspecting AI Recommendation DOM container", str(e))
+                self.add_finding(
+                    "error", "Failed inspecting AI Recommendation DOM container", str(e)
+                )
 
         # 7. Custom Natural Language Search Submission (Headphones)
         self.log("7. Testing custom natural language query submission...")
         try:
             # Scroll back to search bar
-            search_input = self.driver.find_element(By.XPATH, "//input[@aria-label='Natural language product comparison query']")
-            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", search_input)
+            search_input = self.driver.find_element(
+                By.XPATH, "//input[@aria-label='Natural language product comparison query']"
+            )
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({behavior: 'instant', block: 'center'});", search_input
+            )
             time.sleep(0.3)
             search_input.click()
             search_input.send_keys(Keys.CONTROL + "a")
@@ -296,19 +341,25 @@ class UIAuditRunner:
             custom_query = "Compare Sony WH-1000XM5 and Bose QC Ultra on price and battery life"
             search_input.send_keys(custom_query)
             time.sleep(0.3)
-            
+
             submit_button = self.driver.find_element(By.XPATH, "//button[@type='submit']")
             submit_button.click()
             self.log(f"Submitted query: '{custom_query}'")
-            
+
             wait.until(
-                EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Sony') or contains(text(), 'Bose')]"))
+                EC.presence_of_element_located(
+                    (By.XPATH, "//*[contains(text(), 'Sony') or contains(text(), 'Bose')]")
+                )
             )
             time.sleep(1.0)
-            
+
             # Target screenshot of headphone matrix table
-            headphone_matrix = self.driver.find_element(By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]")
-            self.scroll_into_view_and_capture(headphone_matrix, "07_custom_search_headphones_matrix")
+            headphone_matrix = self.driver.find_element(
+                By.XPATH, "//*[contains(text(), 'Side-by-Side Specification Matrix')]"
+            )
+            self.scroll_into_view_and_capture(
+                headphone_matrix, "07_custom_search_headphones_matrix"
+            )
             self.test_results["Custom Query Search"] = "PASS"
         except Exception as e:
             self.capture_screenshot("07_custom_search_failure")
@@ -322,10 +373,10 @@ class UIAuditRunner:
         history_path = self.repo_dir / "logs" / "ui_audit_history.md"
         history_path.parent.mkdir(parents=True, exist_ok=True)
         self.log(f"Generating audit report at {report_path}...")
-        
+
         errors = [f for f in self.findings if f["severity"] == "error"]
         warnings = [f for f in self.findings if f["severity"] == "warning"]
-        timestamp = time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
         status_str = "PASSED" if len(errors) == 0 else "FAILED"
 
         lines = [
@@ -345,16 +396,20 @@ class UIAuditRunner:
             badge = "✅ PASS" if status == "PASS" else "❌ FAIL"
             lines.append(f"| {test_name} | {badge} | - |")
 
-        lines.extend([
-            "",
-            "## 2. Issues & Findings",
-            f"- **Errors**: `{len(errors)}`",
-            f"- **Warnings**: `{len(warnings)}`",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 2. Issues & Findings",
+                f"- **Errors**: `{len(errors)}`",
+                f"- **Warnings**: `{len(warnings)}`",
+                "",
+            ]
+        )
 
         if not self.findings:
-            lines.append("🎉 **Zero UI errors or warnings detected! The frontend is responsive, polished, and fully functional.**")
+            lines.append(
+                "🎉 **Zero UI errors or warnings detected! The frontend is responsive, polished, and fully functional.**"
+            )
         else:
             for item in self.findings:
                 sev_icon = "🔴" if item["severity"] == "error" else "🟡"
@@ -363,22 +418,24 @@ class UIAuditRunner:
                     lines.append(f"```\n{item['details']}\n```")
                 lines.append("")
 
-        lines.extend([
-            "## 3. Targeted Visual UI Snapshots Captured",
-            "",
-            "Every screenshot is scrolled directly to the asserted DOM elements to visually prove functionality:",
-            "",
-            "| Step | Screenshot Filename | Targeted Viewport Description |",
-            "|---|---|---|",
-            "| 01 | `01_initial_landing_page.png` | Hero landing view, branding, and search bar |",
-            "| 02 | `02_laptop_category_selected.png` | Scrolled to category chip bar asserting active state |",
-            "| 03 | `03_sample_card_clicked_loading.png` | Animated skeleton loader transition state |",
-            "| 04 | `04_compared_product_cards.png` | Scrolled to side-by-side compared product cards & pricing |",
-            "| 05 | `05_comparison_matrix_and_winner_badges.png` | Scrolled into matrix table showing attributes & Winner badges |",
-            "| 06 | `06_grounded_sku_citations.png` | Scrolled to verified SKU citation badges and canonical links |",
-            "| 07 | `07_custom_search_headphones_matrix.png` | Custom query matrix for Sony vs. Bose noise canceling |",
-            ""
-        ])
+        lines.extend(
+            [
+                "## 3. Targeted Visual UI Snapshots Captured",
+                "",
+                "Every screenshot is scrolled directly to the asserted DOM elements to visually prove functionality:",
+                "",
+                "| Step | Screenshot Filename | Targeted Viewport Description |",
+                "|---|---|---|",
+                "| 01 | `01_initial_landing_page.png` | Hero landing view, branding, and search bar |",
+                "| 02 | `02_laptop_category_selected.png` | Scrolled to category chip bar asserting active state |",
+                "| 03 | `03_sample_card_clicked_loading.png` | Animated skeleton loader transition state |",
+                "| 04 | `04_compared_product_cards.png` | Scrolled to side-by-side compared product cards & pricing |",
+                "| 05 | `05_comparison_matrix_and_winner_badges.png` | Scrolled into matrix table showing attributes & Winner badges |",
+                "| 06 | `06_grounded_sku_citations.png` | Scrolled to verified SKU citation badges and canonical links |",
+                "| 07 | `07_custom_search_headphones_matrix.png` | Custom query matrix for Sony vs. Bose noise canceling |",
+                "",
+            ]
+        )
 
         report_path.write_text("\n".join(lines))
 
@@ -427,13 +484,15 @@ class UIAuditRunner:
 def main():
     parser = argparse.ArgumentParser(description="Selenium UI/UX Audit for Best Buy App")
     parser.add_argument("--port", type=int, default=None, help="Port to run/test on")
-    parser.add_argument("--skip-server", action="store_true", help="Skip starting local uvicorn server")
+    parser.add_argument(
+        "--skip-server", action="store_true", help="Skip starting local uvicorn server"
+    )
     parser.add_argument("--visible", action="store_true", help="Run Chrome visibly")
     parser.add_argument("--output-dir", type=str, default=None, help="Output directory")
 
     args = parser.parse_args()
     repo_dir = Path("/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone")
-    
+
     port = args.port or (8080 if not is_port_open("127.0.0.1", 8080) else find_free_port(8081))
     output_dir = Path(args.output_dir) if args.output_dir else repo_dir / "reports" / "ui-audit"
 
@@ -442,7 +501,7 @@ def main():
         repo_dir=repo_dir,
         output_dir=output_dir,
         visible=args.visible,
-        skip_server=args.skip_server
+        skip_server=args.skip_server,
     )
 
     try:

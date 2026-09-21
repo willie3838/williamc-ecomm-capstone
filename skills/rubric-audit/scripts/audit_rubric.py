@@ -103,23 +103,103 @@ def extract_evidence_paths(evidence_str: str) -> list[str]:
     return paths
 
 
+def verify_evidence_line_ranges(evidence_str: str, repo_root: Path) -> list[str]:
+    """Verify that any cited file:start-end line numbers are within bounds and non-empty."""
+    errors: list[str] = []
+    raw_tokens = re.split(r"[;,\s]+", evidence_str.strip())
+    for token in raw_tokens:
+        cleaned = token.strip("`()[]'\"")
+        match = re.match(r"^(.+?):(\d+)(?:-(\d+))?$", cleaned)
+        if not match:
+            continue
+        rel_path, start_s, end_s = match.group(1), match.group(2), match.group(3)
+        file_path = repo_root / rel_path
+        if not file_path.exists() or not file_path.is_file():
+            continue
+        start_line = int(start_s)
+        end_line = int(end_s) if end_s else start_line
+        try:
+            lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            total_lines = len(lines)
+            if start_line < 1 or end_line < start_line or end_line > total_lines:
+                errors.append(
+                    f"Line Range Disqualifier: {rel_path}:{start_line}-{end_line} out of bounds (file has {total_lines} lines)"
+                )
+            else:
+                snippet = "\n".join(lines[start_line - 1 : end_line]).strip()
+                if not snippet:
+                    errors.append(
+                        f"Empty Snippet Disqualifier: {rel_path}:{start_line}-{end_line} contains only whitespace"
+                    )
+        except OSError:
+            pass
+    return errors
+
+
+def run_programmatic_code_probes(repo_root: Path) -> dict[str, str]:
+    """Deterministically inspect live source code for Score 3 disqualifiers and missing hot-path enforcement."""
+    violations: dict[str, str] = {}
+
+    orch_path = repo_root / "backend" / "src" / "app" / "agent" / "orchestrator.py"
+    if orch_path.exists():
+        orch_code = orch_path.read_text(encoding="utf-8", errors="replace")
+        # s2_02: Must programmatically verify and scrub SKU citations post-generation
+        if (
+            "def verify_and_scrub_sku_citations(" not in orch_code
+            or "verify_and_scrub_sku_citations(" not in orch_code
+        ):
+            violations["s2_02"] = (
+                "Programmatic Code Probe Failed (s2_02): Missing post-generation verify_and_scrub_sku_citations() enforcement in orchestrator.py"
+            )
+        # s2_03: Must not parse JSON arrays via fragile regex re.search(r"\[.*\]") in _rerank_with_llm
+        if 're.search(r"\\[.*\\]"' in orch_code:
+            violations["s2_03"] = (
+                "Programmatic Code Probe Failed (s2_03): Disqualified by regex JSON array parsing re.search(r'\\[.*\\]') in orchestrator.py"
+            )
+
+    cat_path = repo_root / "backend" / "src" / "app" / "tools" / "catalog.py"
+    if cat_path.exists():
+        cat_code = cat_path.read_text(encoding="utf-8", errors="replace")
+        # s2_13: No os.popen gcloud shell-out
+        if "os.popen(" in cat_code or "gcloud auth print-access-token" in cat_code:
+            violations["s2_13"] = (
+                "Programmatic Code Probe Failed (s2_13): Subprocess CLI token shell-out found in catalog.py"
+            )
+        # s2_21: Circuit breaker allow_request() must be actively checked on the query_catalog hot path
+        if "if not catalog_circuit_breaker.allow_request():" not in cat_code:
+            violations["s2_21"] = (
+                "Programmatic Code Probe Failed (s2_21): Dead-path CatalogCircuitBreaker; allow_request() is never checked before executing BigQuery queries in catalog.py"
+            )
+        # s2_24: maximum_bytes_billed and catalog_cache must be active
+        if "maximum_bytes_billed" not in cat_code or "catalog_cache.get(" not in cat_code:
+            violations["s2_24"] = (
+                "Programmatic Code Probe Failed (s2_24): Missing maximum_bytes_billed or catalog_cache lookup in catalog.py"
+            )
+
+    return violations
+
+
 def apply_strict_expert_calibration(
     payload: dict[str, Any], repo_root: Path
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Enforce harsh Staff/Principal FDE calibration so Score 3 requires true expert mastery.
 
     Rules enforced:
-    1. Verified Evidence Existence: Cited files in `evidence` must exist in `repo_root`.
-       If no cited file exists on disk, score is capped at 1.
+    1. Verified Evidence Existence & Line-Range Bounds: Cited files and `:start-end` line ranges
+       in `evidence` must exist in `repo_root` and fall within the file's actual line count.
     2. Paper Architecture Disqualifier (Section 2): Any Engineering Excellence (`s2_*`)
        competency whose existing evidence files are ONLY `.md` prose without executable
        code/IaC/test files is capped at Score 1.
-    3. Mandatory Failure/Gap Analysis for Score 3: If an item is scored 3, `failures_and_gaps`
+    3. Programmatic AST/Code Disqualifier Probes: Scans the live repository for Score 3
+       disqualifiers (e.g., dead-path circuit breakers, regex JSON parsing, missing post-generation
+       SKU citation scrubbers) and automatically downgrades Score 3 -> 2 if violated.
+    4. Mandatory Failure/Gap Analysis for Score 3: If an item is scored 3, `failures_and_gaps`
        (when present) cannot be empty or sycophantic ("None", "No issues"), and `reasoning`
        must be substantive (>= 25 chars). Otherwise downgraded to 2.
     """
     calibrated = copy.deepcopy(payload)
     downgrades: list[dict[str, Any]] = []
+    probe_violations = run_programmatic_code_probes(repo_root)
 
     for section_key in (
         "section_1_presentation_and_advisory",
@@ -137,6 +217,7 @@ def apply_strict_expert_calibration(
             evidence_str = str(item.get("evidence", ""))
             candidate_paths = extract_evidence_paths(evidence_str)
             existing_paths = [p for p in candidate_paths if (repo_root / p).exists()]
+            line_range_errors = verify_evidence_line_ranges(evidence_str, repo_root)
 
             doc_only_allowed_ids = {"s2_06", "s2_07", "s2_08", "s2_09", "s2_10", "s2_12"}
             requires_executable_code = is_engineering and (cid not in doc_only_allowed_ids)
@@ -147,6 +228,10 @@ def apply_strict_expert_calibration(
                     reasons.append(
                         f"Evidence path(s) {candidate_paths or [evidence_str]} not found in repository"
                     )
+            elif line_range_errors:
+                if new_score > 1:
+                    new_score = 1
+                    reasons.extend(line_range_errors)
             elif requires_executable_code:
                 has_code_or_iac = any(
                     Path(p).suffix.lower() in EXECUTABLE_EXTENSIONS or Path(p).name == "Dockerfile"
@@ -159,6 +244,10 @@ def apply_strict_expert_calibration(
                     )
 
             if new_score == 3:
+                if cid in probe_violations:
+                    new_score = 2
+                    reasons.append(probe_violations[cid])
+
                 reasoning_str = str(item.get("reasoning", "")).strip()
                 if len(reasoning_str) < 25:
                     new_score = 2
@@ -944,7 +1033,10 @@ def main() -> int:
         )
         print(msg)
         if args.check_fresh_commit:
-            print("[ERROR] --check-fresh-commit failed: cached audit does not match HEAD.", file=sys.stderr)
+            print(
+                "[ERROR] --check-fresh-commit failed: cached audit does not match HEAD.",
+                file=sys.stderr,
+            )
             return 1
 
     avg_s1, avg_s2, passed, s1_scores, s2_scores = calculate_scores(checklist)
@@ -972,7 +1064,6 @@ def main() -> int:
         print(f"Report saved to {args.output}")
 
     return 0 if success else 1
-
 
 
 if __name__ == "__main__":

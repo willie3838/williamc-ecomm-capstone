@@ -157,9 +157,7 @@ def evaluate_ratchet(
     cur_lat = current.get("latency_p95_seconds", 0.0)
     hwm_lat = high_water.get("latency_p95_seconds", 0.0)
     if cur_lat > 0:
-        updated_hwm["latency_p95_seconds"] = (
-            min(cur_lat, hwm_lat) if hwm_lat > 0 else cur_lat
-        )
+        updated_hwm["latency_p95_seconds"] = min(cur_lat, hwm_lat) if hwm_lat > 0 else cur_lat
 
     return len(regressions) == 0, regressions, updated_hwm
 
@@ -247,7 +245,7 @@ def main() -> int:
         "recommended_remediation": (
             None
             if passed
-            else 'python3 skills/hillclimb/scripts/dispatch_hillclimb_swarm.py --from-report logs/hillclimb_latest_report.json'
+            else "python3 skills/hillclimb/scripts/dispatch_hillclimb_swarm.py --from-report logs/hillclimb_latest_report.json"
         ),
     }
 
@@ -282,7 +280,9 @@ def main() -> int:
         }
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         STATE_FILE.write_text(json.dumps(new_state, indent=2), encoding="utf-8")
-        print("[PASS] Monotonic Ratchet Gate PASSED! High-water mark updated in logs/hillclimb_state.json.")
+        print(
+            "[PASS] Monotonic Ratchet Gate PASSED! High-water mark updated in logs/hillclimb_state.json."
+        )
         print("=" * 76)
         return 0
 
@@ -290,7 +290,9 @@ def main() -> int:
     for reg in regressions:
         print(f"  ❌ {reg}")
     print("\n👉 Remediation Protocol (Swarm Reviewer + Developer Pair):")
-    print("   python3 skills/hillclimb/scripts/dispatch_hillclimb_swarm.py --from-report logs/hillclimb_latest_report.json")
+    print(
+        "   python3 skills/hillclimb/scripts/dispatch_hillclimb_swarm.py --from-report logs/hillclimb_latest_report.json"
+    )
     print("=" * 76)
     return 1
 

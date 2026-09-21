@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 MOCK_PRODUCTS = [
     {
         "sku": "6534606",
-        "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+        "name": 'Apple MacBook Air 13.6" Laptop - M3 chip - 16GB Memory - 512GB SSD',
         "brand": "Apple",
         "category": "Laptops",
         "price": 1099.0,
@@ -23,7 +23,7 @@ MOCK_PRODUCTS = [
     },
     {
         "sku": "6575132",
-        "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+        "name": 'Dell XPS 13" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD',
         "brand": "Dell",
         "category": "Laptops",
         "price": 1199.0,
