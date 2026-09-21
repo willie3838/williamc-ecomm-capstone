@@ -55,3 +55,35 @@ jobs:
             --current reports/ci_eval.json \
             --baseline evals/reports/baseline_results.json \
             --fail-on-regression
+
+  deploy-cloudbuild:
+    name: Continuous Deployment (Google Cloud Build)
+    needs: quality-gate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: gcp-auth
+        uses: google-github-actions/auth@v2
+        continue-on-error: true
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        if: steps.gcp-auth.outcome == 'success'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit Cloud Build Pipeline
+        if: steps.gcp-auth.outcome == 'success'
+        run: |
+          echo "=== Submitting build to Google Cloud Build ==="
+          gcloud builds submit --config=deployment/cloudbuild.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }},SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7),_PROJECT_ID=fde-bestbuy-sandbox-dev-508321,_REGION=us-central1,_PROJECT_NUMBER=499572810092 \
+            --project=fde-bestbuy-sandbox-dev-508321
+

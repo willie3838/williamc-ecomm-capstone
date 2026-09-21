@@ -1,6 +1,6 @@
 # Empirical Foundation Model Decision Scorecard (ADR-004)
 
-- **Generated At**: `2026-09-21T17:48:13.781373+00:00`
+- **Generated At**: `2026-09-21T21:06:53.351477+00:00`
 - **Benchmark Corpus**: `80` Golden Comparison Queries (Laptops, Tablets, Headphones, Smart Home, TVs)
 - **Selected Production Architecture**: **`tiered-hybrid`** (`AgentVersionSpec 1.0.0`)
 - **Registered High-QPS Canary**: **`gemini-2.5-flash`** (`AgentVersionSpec 1.1.0-flash`)

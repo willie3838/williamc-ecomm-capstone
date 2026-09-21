@@ -28,7 +28,9 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     import app.main as app_main
 
     # Default to tiered-hybrid for production v1.0.0 if not explicitly specified
-    effective_model = request.model or "tiered-hybrid"
+    effective_model = request.model
+    if effective_model is None and (not request.agent_version or request.agent_version == "1.0.0"):
+        effective_model = "tiered-hybrid"
     effective_synthesis = request.synthesis_model
 
     # Honor unit test patches on app.main.ComparisonOrchestrator if present

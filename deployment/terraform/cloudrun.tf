@@ -24,9 +24,9 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
   ingress      = "INGRESS_TRAFFIC_ALL"
   launch_stage = "BETA"
 
-  annotations = {
-    "run.googleapis.com/iap-enabled" = "true"
-  }
+  # Native Identity-Aware Proxy (IAP) is enforced on Cloud Run via deployment/clouddeploy/service.yaml
+  # and gcloud run services update --iap (run.googleapis.com/iap-enabled)
+
 
   template {
     service_account                  = google_service_account.catalog_agent_sa.email

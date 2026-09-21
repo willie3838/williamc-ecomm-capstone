@@ -7,6 +7,7 @@ import logging
 import os
 import re
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -742,6 +743,122 @@ class CatalogAdkLlm(BaseLlm):
                 exc,
             )
             yield self._generate_hermetic_llm_response(llm_request)
+
+
+def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMock:
+    """Create a hermetic mock BigQuery client populated with catalog seed data."""
+    if catalog_path is None:
+        catalog_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
+    else:
+        catalog_path = Path(catalog_path)
+
+    if not catalog_path.exists():
+        raise FileNotFoundError(f"Catalog seed file not found: {catalog_path}")
+
+    with open(catalog_path, encoding="utf-8") as f:
+        catalog_items = json.load(f)
+
+    client = MagicMock()
+
+    def mock_query(sql: str, job_config: Any = None) -> MagicMock:
+        patterns: list[str] = []
+        category: str | None = None
+        min_price: float | None = None
+        max_price: float | None = None
+
+        if job_config and hasattr(job_config, "query_parameters"):
+            for p in job_config.query_parameters:
+                if p.name == "product_patterns":
+                    patterns = [pat.replace("%", "").lower() for pat in p.values]
+                elif p.name == "category":
+                    category = p.value.lower() if p.value else None
+                elif p.name == "min_price":
+                    min_price = float(p.value)
+                elif p.name == "max_price":
+                    max_price = float(p.value)
+
+        matches = []
+        for item in catalog_items:
+            if category and item.get("category", "").lower() != category:
+                continue
+            if min_price is not None and item.get("price", 0) < min_price:
+                continue
+            if max_price is not None and item.get("price", 0) > max_price:
+                continue
+
+            item_text = (
+                f"{item.get('name', '')} {item.get('brand', '')} {item.get('category', '')} "
+                f"{json.dumps(item.get('specifications', {}))}"
+            ).lower()
+
+            if patterns:
+                matched_item = False
+                stopwords = {
+                    "with",
+                    "and",
+                    "the",
+                    "for",
+                    "versus",
+                    "compare",
+                    "between",
+                    "which",
+                    "better",
+                    "cheaper",
+                    "lighter",
+                    "longer",
+                    "worth",
+                    "price",
+                    "specs",
+                    "difference",
+                    "differences",
+                    "summary",
+                    "breakdown",
+                    "detailed",
+                    "comprehensive",
+                    "vs",
+                    "inch",
+                }
+                for pat in patterns:
+                    pat_tokens = [
+                        t
+                        for t in re.findall(r"[a-z0-9-]+", pat.lower())
+                        if len(t) >= 2 and t not in stopwords
+                    ]
+                    if not pat_tokens:
+                        continue
+                    m_count = sum(1 for t in pat_tokens if t in item_text)
+                    brand = item.get("brand", "").lower()
+                    name = item.get("name", "").lower()
+                    if (
+                        (len(pat_tokens) == 1 and m_count == 1)
+                        or (m_count >= 2 and (m_count / len(pat_tokens)) >= 0.3)
+                        or (
+                            m_count >= 1
+                            and (
+                                (brand and any(b in pat_tokens for b in brand.split()))
+                                or any(t in name for t in pat_tokens if len(t) >= 3)
+                            )
+                        )
+                    ):
+                        matched_item = True
+                        break
+                if matched_item:
+                    row = dict(item)
+                    if isinstance(row.get("specifications"), dict):
+                        row["specifications"] = json.dumps(row["specifications"])
+                    matches.append(row)
+            else:
+                row = dict(item)
+                if isinstance(row.get("specifications"), dict):
+                    row["specifications"] = json.dumps(row["specifications"])
+                matches.append(row)
+
+        mock_job = MagicMock()
+        mock_job.result.return_value = matches
+        return mock_job
+
+    client.query.side_effect = mock_query
+    return client
 
 
 def create_hermetic_genai_client() -> MagicMock:

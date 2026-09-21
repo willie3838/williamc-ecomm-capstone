@@ -161,6 +161,10 @@ pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py 
 ```
 
 ### Mocking Guidelines
-Never initiate network connections to Google Cloud services during unit tests. Always mock `google.cloud.bigquery.Client` in tests or use the `mock_bq_client` fixture in `conftest.py`.
+Never initiate network connections to Google Cloud services during unit tests. Always mock `google.cloud.bigquery.Client` in tests or use the `mock_bq_client` fixture in `conftest.py`. For offline integration testing and evaluators, utilize `create_hermetic_bq_client()` from `app.agent.hermetic_adapter` which reads deterministic product data from `backend/src/app/data/catalog_seed.json`.
+
+6. **Hermetic Testing & Canary Model Routing**:
+   - `create_hermetic_bq_client` is exported by `app.agent.hermetic_adapter` and `evals.runner` to provide consistent BigQuery simulation across offline evals and automated unit test environments.
+   - `_execute_comparison_sync` in `app.routes.compare` defaults `effective_model` to `tiered-hybrid` only when no model is explicitly passed and `agent_version` is `1.0.0` or omitted, preserving specialized canary variant configurations (`1.1.0-flash`).
 
 

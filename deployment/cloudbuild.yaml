@@ -115,11 +115,17 @@ steps:
         echo "Cloud Deploy release $${RELEASE_ID} registered."
         echo "Cloud Deploy is now orchestrating the progressive 0% -> 100% rollout."
         echo "=== Enforcing Identity-Aware Proxy (IAP) on Cloud Run Service ==="
+        gcloud run services add-iam-policy-binding catalog-comparison-service \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --member="serviceAccount:service-${_PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" \
+          --role="roles/run.invoker" \
+          --quiet || true
         gcloud beta run services update catalog-comparison-service \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --iap \
-          --quiet || true
+          --quiet
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -137,6 +143,7 @@ steps:
 substitutions:
   _REGION: 'us-central1'
   _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
+  _PROJECT_NUMBER: '499572810092'
 
 images:
   - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
