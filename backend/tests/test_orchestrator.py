@@ -34,7 +34,7 @@ def test_orchestrator_grounding_and_citations(mock_bq_client):
                 "battery_life_hours": 18.0,
                 "weight_lbs": 2.7,
             },
-            "url": "https://www.bestbuy.com/site/sku/6534606.p",
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534606_sd.jpg",
             "in_stock": True,
         },
@@ -53,7 +53,7 @@ def test_orchestrator_grounding_and_citations(mock_bq_client):
                 "battery_life_hours": 14.0,
                 "weight_lbs": 2.6,
             },
-            "url": "https://www.bestbuy.com/site/sku/6575132.p",
+            "url": "https://www.techbuy.com/site/sku/6575132.p",
             "image_url": "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6575/6575132_sd.jpg",
             "in_stock": True,
         },
@@ -82,7 +82,7 @@ def test_orchestrator_grounding_and_citations(mock_bq_client):
     assert "6534606" in citation_skus
     assert "6575132" in citation_skus
     for citation in response.citations:
-        assert citation.url.startswith("https://www.bestbuy.com/site/sku/")
+        assert citation.url.startswith("https://www.techbuy.com/site/sku/")
 
     # 3. Comparison Matrix: features compared across both products
     assert len(response.comparison_matrix) > 0

@@ -1,6 +1,6 @@
 # Backend Agent Guide: FastAPI & Google ADK Service
 
-Welcome to the backend service of the **Best Buy Catalog Comparison Agent**. This service runs on Google Cloud Run in `fde-bestbuy-sandbox-dev-508321` and implements the agentic comparison core using FastAPI and the Google Agent Development Kit (ADK).
+Welcome to the backend service of the **TechBuy Retailers Catalog Comparison Agent**. This service runs on Google Cloud Run in `fde-bestbuy-sandbox-dev-508321` and implements the agentic comparison core using FastAPI and the Google Agent Development Kit (ADK).
 
 ---
 

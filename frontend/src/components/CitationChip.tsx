@@ -11,7 +11,7 @@ export interface CitationChipProps {
 
 /**
  * Interactive SKU citation chip badge verifying catalog grounding.
- * Links directly to BestBuy.com product listing.
+ * Links directly to TechBuy.com product listing.
  */
 export const CitationChip: React.FC<CitationChipProps> = ({
   sku,
@@ -20,15 +20,15 @@ export const CitationChip: React.FC<CitationChipProps> = ({
   className = '',
   showIcon = true,
 }) => {
-  const canonicalUrl = url || `https://www.bestbuy.com/site/sku/${sku}.p`;
+  const canonicalUrl = url || `https://www.techbuy.com/site/sku/${sku}.p`;
 
   return (
     <a
       href={canonicalUrl}
       target="_blank"
       rel="noopener noreferrer"
-      title={description || `Verified Best Buy SKU ${sku} in BigQuery catalog`}
-      aria-label={`View product details for SKU ${sku} on BestBuy.com`}
+      title={description || `Verified TechBuy Retailers SKU ${sku} in BigQuery catalog`}
+      aria-label={`View product details for SKU ${sku} on TechBuy.com`}
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium 
         bg-blue-50 text-blue-800 border border-blue-200 
         hover:bg-blue-100 hover:text-blue-900 transition-colors 

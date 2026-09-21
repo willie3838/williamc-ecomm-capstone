@@ -94,7 +94,7 @@ class Citation(BaseModel):
     """Verifiable SKU citation pointing to catalog product."""
 
     sku: str = Field(..., description="Referenced product SKU")
-    url: str = Field(..., description="Canonical Best Buy product URL")
+    url: str = Field(..., description="Canonical TechBuy Retailers product URL")
     description: str | None = Field(
         default=None,
         description="Contextual note or spec citation rationale",

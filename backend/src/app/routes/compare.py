@@ -27,6 +27,10 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
     import app.main as app_main
 
+    # Default to tiered-hybrid for production v1.0.0 if not explicitly specified
+    effective_model = request.model or "tiered-hybrid"
+    effective_synthesis = request.synthesis_model
+
     # Honor unit test patches on app.main.ComparisonOrchestrator if present
     orch_cls = getattr(app_main, "ComparisonOrchestrator", None)
     if orch_cls is not None and hasattr(orch_cls, "assert_called"):
@@ -44,16 +48,16 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
         )
 
     coordinator = MultiAgentCoordinator(
-        model=request.model,
-        synthesis_model=request.synthesis_model,
+        model=effective_model,
+        synthesis_model=effective_synthesis,
     )
     return coordinator.execute(
         raw_query=request.query,
         category=request.category,
         session_id=request.session_id,
         agent_version=request.agent_version,
-        model=request.model,
-        synthesis_model=request.synthesis_model,
+        model=effective_model,
+        synthesis_model=effective_synthesis,
     )
 
 

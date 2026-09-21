@@ -68,7 +68,7 @@ def test_get_active_prompt_vertex_ai_exception_fallback(
 def test_build_a2a_agent_card_default() -> None:
     """Verify stateless A2A Agent Card generation for Google Cloud Agent Registry."""
     card = build_a2a_agent_card(base_url="https://catalog-comparison-service.a.run.app")
-    assert card["name"] == "bestbuy-catalog-comparison-agent"
+    assert card["name"] == "techbuy-catalog-comparison-agent"
     assert card["version"] == "1.0.0"
     assert card["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
     assert (
@@ -97,7 +97,7 @@ def test_api_well_known_agent_card_endpoint(client: TestClient) -> None:
     resp = client.get("/.well-known/agent-card.json")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["name"] == "bestbuy-catalog-comparison-agent"
+    assert data["name"] == "techbuy-catalog-comparison-agent"
     assert "supportedInterfaces" in data
     assert "skills" in data
     assert "metadata" in data

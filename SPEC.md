@@ -1,4 +1,4 @@
-# E-Commerce Best Buy Catalog Comparison Agent: Full Specification
+# E-Commerce TechBuy Retailers Catalog Comparison Agent: Full Specification
 
 ---
 
@@ -9,7 +9,7 @@
 ### Cloud AI FDE Team
 
 #### Project Name
-Best Buy Catalog Comparison Agent
+TechBuy Retailers Catalog Comparison Agent
 
 #### Engagement Type
 Onboarding Project 5 (eCommerce Domain)
@@ -36,7 +36,7 @@ TechBuy Retailers is a major consumer electronics retailer looking to modernize 
 
 ## Project Overview
 
-### Best Buy Catalog Comparison Agent (AI Sandbox Initiative)
+#### TechBuy Retailers Catalog Comparison Agent (AI Sandbox Initiative)
 
 Lay the underlying foundation for e-commerce agentic capabilities by developing a secure, self-contained AI Catalog Operations Sandbox.
 
@@ -49,7 +49,7 @@ This engagement focuses on establishing a secure, scalable "AI Sandbox" inside t
 | Scope / Deliverable | Responsible Party |
 | :--- | :--- |
 | **Design of the Agentic Architecture**: ADK agent utilizing structured tool-calling to fetch and compare product attributes. | Google FDE (Noogler) |
-| **Data Engineering & Storage**: Ingestion of Best Buy product catalog JSON/CSV dataset into Google BigQuery. | Google FDE (Noogler) |
+| **Data Engineering & Storage**: Ingestion of TechBuy Retailers product catalog JSON/CSV dataset into Google BigQuery. | Google FDE (Noogler) |
 | **Infrastructure as Code (IaC)**: Provisioning of all GCP resources (Cloud Run, BigQuery, GCS, IAM, Service Accounts) via Terraform. | Google FDE (Noogler) |
 | **CI/CD Pipeline**: Configuration of Google Cloud Build to execute formatting checks, run tests, build containers, and deploy to Cloud Run. | Google FDE (Noogler) |
 | **Observability Setup**: OpenTelemetry and Cloud Trace integration to profile query processing latency. | Google FDE (Noogler) |
@@ -94,7 +94,7 @@ This engagement focuses on establishing a secure, scalable "AI Sandbox" inside t
 | Sprint | Phase | User Stories | Tasks & Owners |
 | :--- | :--- | :--- | :--- |
 | **Sprint 1** | **Tactical (Discovery)** | As a developer, I want to initialize my git repo, define my Terraform files, and prepare the BigQuery schema. | Initialize Repo, write baseline Terraform files, define BQ schema. (FDE Noogler) |
-| **Sprint 2** | **Tactical (Data Ingestion)** | As an engineer, I want to build the data ingestion pipeline to load Best Buy JSON/CSV catalog files into BigQuery. | Write python ingestion scripts, execute initial BigQuery load. (FDE Noogler) |
+| **Sprint 2** | **Tactical (Data Ingestion)** | As an engineer, I want to build the data ingestion pipeline to load TechBuy Retailers JSON/CSV catalog files into BigQuery. | Write python ingestion scripts, execute initial BigQuery load. (FDE Noogler) |
 | **Sprint 3** | **Strategic (Orchestration)** | As a developer, I want to build the ADK Catalog agent, configure BigQuery tool-calling, and design the React matrix UI. | Develop ADK agent, build SQL query tools, construct React UI. (FDE Noogler) |
 | **Sprint 4** | **Strategic (CI/CD & Evals)** | As a developer, I want to write the Cloud Build configuration, configure OpenTelemetry, and write the pytest suite. | Write cloudbuild.yaml, configure OTEL, and write pytests. (FDE Noogler) |
 | **Sprint 5** | **Strategic (Deployment & IaC)** | As an engineer, I want to execute the Terraform plan to provision sandbox resources and run the initial deploy. | Execute Terraform apply, verify deployment on Cloud Run. (FDE Noogler) |
@@ -110,7 +110,7 @@ This engagement focuses on establishing a secure, scalable "AI Sandbox" inside t
 - Development completed using JetSki / AGY 2.0 with Gemini 3.5 Flash assistance.
 
 ### Data Sources
-- **Primary Corpus**: Best Buy Product Catalog (curated JSON/CSV).
+- **Primary Corpus**: TechBuy Retailers Product Catalog (curated JSON/CSV).
 - **Storage**: Loaded into Google BigQuery tables.
 - **Data Policy**: Public catalog data only. No customer data or PII.
 
@@ -182,7 +182,7 @@ This project follows **Model A: In-Environment Development**.
 
 ## FDE Technical Design Document
 
-### Project Name: Best Buy Catalog Comparison Agent
+### Project Name: TechBuy Retailers Catalog Comparison Agent
 
 - **FDE Lead(s):** Google Cloud FDE Team (buddy/manager review)
 - **Last Updated:** June 13, 2026
@@ -194,7 +194,7 @@ This project follows **Model A: In-Environment Development**.
 
 TechBuy Retailers requires a natural language product comparison agent to help customers analyze electronics specifications and prices. The agent must pull data directly from a BigQuery catalog via structured tool-calling to ensure accuracy, and the entire deployment must be automated using Terraform and Google Cloud Build.
 
-This Technical Design Document outlines the architecture for the **Best Buy Catalog Comparison Agent**, an agentic system that:
+This Technical Design Document outlines the architecture for the **TechBuy Retailers Catalog Comparison Agent**, an agentic system that:
 1. **Uses Structured Tool-Calling against BigQuery**: Prevents product specification hallucinations by querying a structured BigQuery catalog.
 2. **Codifies Infrastructure (IaC)**: Provisions all GCP sandbox resources (BigQuery, Cloud Run, GCS, IAM perimeters) via Terraform.
 3. **Automates CI/CD**: Automatically builds, tests, and deploys the application using Google Cloud Build.

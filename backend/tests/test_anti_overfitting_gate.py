@@ -187,7 +187,7 @@ def test_evaluate_negative_chatter_robustness():
     proper_response = CompareResponse(
         products=[],
         citations=[],
-        summary="I am a comparison assistant for consumer electronics. For customer service or return policies, please visit bestbuy.com/support.",
+        summary="I am a comparison assistant for consumer electronics. For customer service or return policies, please visit techbuy.com/support.",
     )
     score, errs = evaluate_negative_chatter_robustness(proper_response)
     assert score == 1.0

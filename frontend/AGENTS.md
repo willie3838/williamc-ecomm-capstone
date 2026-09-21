@@ -1,6 +1,6 @@
 # Frontend Agent Guide: React & TypeScript UI
 
-Welcome to the frontend application of the **Best Buy Catalog Comparison Agent**. This client interface provides a fast, responsive, and grounded product comparison experience for Best Buy customers.
+Welcome to the frontend application of the **TechBuy Retailers Catalog Comparison Agent**. This client interface provides a fast, responsive, and grounded product comparison experience for TechBuy Retailers customers.
 
 ---
 
@@ -8,7 +8,7 @@ Welcome to the frontend application of the **Best Buy Catalog Comparison Agent**
 
 - **Framework**: React 18+ (Vite)
 - **Language**: TypeScript (strict mode enabled)
-- **Styling**: Tailwind CSS (Best Buy blue `#0046be` and yellow `#fff000` color palette)
+- **Styling**: Tailwind CSS (TechBuy blue `#0046be` and yellow `#fff000` color palette)
 - **State Management**: React Query / TanStack Query for server state caching and optimistic updates
 - **Component Design**: Atomic design principles with accessible ARIA standards
 

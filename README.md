@@ -1,4 +1,4 @@
-# Best Buy Catalog Comparison Agent 🛒⚡
+# TechBuy Retailers Catalog Comparison Agent 🛒⚡
 
 [![GitHub Repo](https://img.shields.io/badge/GitHub-willie3838%2Fwilliamc--ecomm--capstone-blue?logo=github)](https://github.com/willie3838/williamc-ecomm-capstone)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-blue?logo=python)](https://www.python.org/)
@@ -7,7 +7,7 @@
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Vertex%20AI%20%7C%20BigQuery-4285F4?logo=googlecloud)](https://cloud.google.com/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-An enterprise-grade, agentic e-commerce product comparison application designed to deliver deterministic, hallucination-free specification matrices and purchasing advice grounded strictly in Google Cloud BigQuery and powered by Gemini on Vertex AI.
+An enterprise-grade, agentic e-commerce product comparison application designed for TechBuy Retailers to deliver deterministic, hallucination-free specification matrices and purchasing advice grounded strictly in Google Cloud BigQuery and powered by Gemini on Vertex AI.
 
 ---
 

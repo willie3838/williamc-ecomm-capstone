@@ -38,7 +38,7 @@ def _build_mock_bq_client_with_two_laptops() -> MagicMock:
                     "weight_lbs": 2.7,
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6534606.p",
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
             "in_stock": True,
         },
         {
@@ -58,7 +58,7 @@ def _build_mock_bq_client_with_two_laptops() -> MagicMock:
                     "weight_lbs": 2.6,
                 }
             ),
-            "url": "https://www.bestbuy.com/site/sku/6575132.p",
+            "url": "https://www.techbuy.com/site/sku/6575132.p",
             "in_stock": True,
         },
     ]
@@ -236,8 +236,9 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
         aiplatform_module=mock_aiplatform,
     )
 
-    assert len(report["candidates"]) == 4
+    assert len(report["candidates"]) == len(CANDIDATE_MODELS)
     assert "recommended_model" in report
+    assert "per_stage_benchmarks" in report
     assert output_json.exists()
     assert output_md.exists()
 

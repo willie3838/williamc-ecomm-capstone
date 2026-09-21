@@ -36,7 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         ) : (
           <div className="flex flex-col items-center justify-center text-gray-400">
             <Package className="w-12 h-12 stroke-[1.5]" aria-hidden="true" />
-            <span className="text-xs mt-1 font-medium">Best Buy Catalog</span>
+            <span className="text-xs mt-1 font-medium">TechBuy Retailers Catalog</span>
           </div>
         )}
 
@@ -96,12 +96,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </span>
           </div>
           <a
-            href={product.url || `https://www.bestbuy.com/site/sku/${product.sku}.p`}
+            href={product.url || `https://www.techbuy.com/site/sku/${product.sku}.p`}
             target="_blank"
             rel="noopener noreferrer"
             className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs"
           >
-            View at Best Buy
+            View at TechBuy
           </a>
         </div>
       </div>
