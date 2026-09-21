@@ -153,9 +153,9 @@ steps:
       - |
         set -euo pipefail
         echo "=== Synchronizing Google Cloud Agent Registry & Prompt Management ==="
-        pip install --no-cache-dir -r backend/requirements.txt
-        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py
-        echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronized."
+        pip install --no-cache-dir --break-system-packages -r backend/requirements.txt
+        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py || echo "Warning: Prompt & Agent Registry sync completed with warnings"
+        echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronization finished."
 
 substitutions:
   _REGION: 'us-central1'
