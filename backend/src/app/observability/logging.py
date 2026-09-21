@@ -3,12 +3,34 @@
 import datetime
 import json
 import logging
+import re
 import sys
 from typing import Any
 
 from app.observability.tracing import (
     get_current_trace_context,
 )
+
+_PII_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[REDACTED_SSN]"),
+    (re.compile(r"\b(?:\d{4}[ -]?){3}\d{4}\b"), "[REDACTED_CC]"),
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"), "[REDACTED_EMAIL]"),
+    (
+        re.compile(r"(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)"),
+        "[REDACTED_PHONE]",
+    ),
+]
+
+
+def scrub_pii(text: str) -> str:
+    """Deterministic DLP scrubber redacting SSN, credit cards, email addresses, and phone numbers."""
+    if not text:
+        return ""
+    scrubbed = str(text)
+    for pattern, token in _PII_PATTERNS:
+        scrubbed = pattern.sub(token, scrubbed)
+    return scrubbed
+
 
 # Map Python logging levels to Google Cloud Logging severity levels
 LOG_LEVEL_TO_SEVERITY: dict[int, str] = {
@@ -60,8 +82,8 @@ class CloudLoggingJsonFormatter(logging.Formatter):
         self.version = version
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format the specified record as a serialized JSON string."""
-        message = record.getMessage()
+        """Format the specified record as a serialized JSON string with automatic PII scrubbing."""
+        message = scrub_pii(record.getMessage())
 
         payload: dict[str, Any] = {
             "message": message,

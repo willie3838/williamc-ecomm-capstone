@@ -26,3 +26,19 @@ resource "google_project_iam_audit_config" "cloud_run_audit" {
     log_type = "DATA_WRITE"
   }
 }
+
+resource "google_project_iam_audit_config" "vertex_ai_audit" {
+  project = var.project_id
+  service = "aiplatform.googleapis.com"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
+}
+

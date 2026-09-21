@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,11 +19,15 @@ class Settings(BaseSettings):
 
     project_id: str = Field(
         default="fde-bestbuy-sandbox-dev-508321",
+        validation_alias=AliasChoices(
+            "GCP_PROJECT", "GCP_PROJECT_ID", "APP_PROJECT_ID", "project_id"
+        ),
         alias="GCP_PROJECT",
         description="Target Google Cloud project ID",
     )
     region: str = Field(
         default="us-central1",
+        validation_alias=AliasChoices("GCP_REGION", "SERVICE_REGION", "APP_REGION", "region"),
         alias="GCP_REGION",
         description="Primary Google Cloud region",
     )
@@ -33,6 +37,7 @@ class Settings(BaseSettings):
     )
     environment: str = Field(
         default="development",
+        validation_alias=AliasChoices("ENVIRONMENT", "APP_ENVIRONMENT", "environment"),
         description="Deployment environment (development, staging, production)",
     )
     port: int = Field(
@@ -40,8 +45,13 @@ class Settings(BaseSettings):
         description="Listening port for the application server",
     )
     cors_origins: list[str] = Field(
-        default=["*"],
-        description="Allowed CORS origin patterns",
+        default=[
+            "https://catalog-comparison-service-ocj5dik5ra-uc.a.run.app",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8080",
+        ],
+        description="Allowed CORS origin patterns (explicit allowlist in production)",
     )
     api_version: str = Field(
         default="0.1.0",
@@ -49,13 +59,29 @@ class Settings(BaseSettings):
     )
     bq_dataset: str = Field(
         default="catalog",
+        validation_alias=AliasChoices(
+            "BQ_DATASET", "BIGQUERY_DATASET", "APP_BQ_DATASET", "bq_dataset"
+        ),
         alias="BQ_DATASET",
         description="BigQuery dataset name",
     )
     bq_table: str = Field(
         default="products",
+        validation_alias=AliasChoices(
+            "BQ_TABLE", "BIGQUERY_CATALOG_TABLE", "APP_BQ_TABLE", "bq_table"
+        ),
         alias="BQ_TABLE",
         description="BigQuery catalog products table name",
+    )
+    bq_max_bytes_billed: int = Field(
+        default=50 * 1024 * 1024,
+        alias="BQ_MAX_BYTES_BILLED",
+        description="Maximum bytes billed per BigQuery query (50 MB safety guardrail)",
+    )
+    cache_ttl_seconds: int = Field(
+        default=300,
+        alias="CACHE_TTL_SECONDS",
+        description="TTL in seconds for in-memory LRU catalog/comparison response cache",
     )
     gemini_model: str = Field(
         default="gemini-2.5-pro",

@@ -1,9 +1,12 @@
-"""BigQuery product catalog query tool with parameterized SQL, distributed tracing, and retry circuit breaker."""
+"""BigQuery product catalog query tool with parameterized SQL, distributed tracing, TTL cache, and circuit breaker."""
 
 import json
 import logging
+import random
 import re
+import threading
 import time
+from collections import OrderedDict
 from typing import Any
 
 from google.cloud import bigquery
@@ -15,6 +18,89 @@ from app.observability.tracing import get_tracer
 logger = logging.getLogger(__name__)
 
 
+class CatalogCircuitBreaker:
+    """Thread-safe three-state circuit breaker (CLOSED -> OPEN -> HALF_OPEN) for BigQuery resilience."""
+
+    def __init__(self, failure_threshold: int = 3, recovery_timeout_sec: float = 30.0) -> None:
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout_sec = recovery_timeout_sec
+        self._state = "CLOSED"
+        self._failure_count = 0
+        self._last_failure_time = 0.0
+        self._lock = threading.Lock()
+
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if (
+                self._state == "OPEN"
+                and (time.monotonic() - self._last_failure_time) >= self.recovery_timeout_sec
+            ):
+                self._state = "HALF_OPEN"
+            return self._state
+
+    def allow_request(self) -> bool:
+        return self.state in ("CLOSED", "HALF_OPEN")
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._failure_count = 0
+            self._state = "CLOSED"
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.monotonic()
+            if self._failure_count >= self.failure_threshold:
+                self._state = "OPEN"
+
+    def reset(self) -> None:
+        with self._lock:
+            self._failure_count = 0
+            self._state = "CLOSED"
+            self._last_failure_time = 0.0
+
+
+class CatalogResponseCache:
+    """Thread-safe TTL + LRU response cache for deterministic catalog queries."""
+
+    def __init__(self, max_size: int = 256, ttl_seconds: int = 300) -> None:
+        self.max_size = max_size
+        self.ttl_seconds = ttl_seconds
+        self._store: OrderedDict[str, tuple[float, list[dict[str, Any]]]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> list[dict[str, Any]] | None:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            expires_at, data = entry
+            if time.monotonic() > expires_at:
+                self._store.pop(key, None)
+                return None
+            self._store.move_to_end(key)
+            return [dict(item) for item in data]
+
+    def set(self, key: str, value: list[dict[str, Any]]) -> None:
+        with self._lock:
+            self._store[key] = (
+                time.monotonic() + self.ttl_seconds,
+                [dict(item) for item in value],
+            )
+            self._store.move_to_end(key)
+            while len(self._store) > self.max_size:
+                self._store.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()
+
+
+catalog_circuit_breaker = CatalogCircuitBreaker()
+catalog_cache = CatalogResponseCache(ttl_seconds=getattr(settings, "cache_ttl_seconds", 300))
+
+
 def query_catalog(
     keywords: list[str],
     category: str | None = None,
@@ -22,11 +108,13 @@ def query_catalog(
     max_price: float | None = None,
     limit: int = 10,
     client: Any = None,
+    use_cache: bool | None = None,
 ) -> list[dict[str, Any]]:
     """Query the Best Buy BigQuery product catalog using parameterized SQL.
 
     Wrapped with OpenTelemetry distributed tracing, a 2.5-second timeout,
-    and exponential backoff retry for high availability and graceful degradation.
+    TTL/LRU caching, circuit-breaker state management, and randomized full-jitter
+    exponential backoff retry for high availability and graceful degradation.
 
     Args:
         keywords: List of search keywords or product model names.
@@ -35,6 +123,7 @@ def query_catalog(
         max_price: Optional maximum price filter in USD.
         limit: Maximum number of products to return (default 10).
         client: Optional pre-configured BigQuery client (for dependency injection).
+        use_cache: Optional flag to enable/disable TTL caching (defaults to True when client is None).
 
     Returns:
         List of product dictionaries containing specifications and metadata.
@@ -72,33 +161,36 @@ def query_catalog(
             span.set_status(StatusCode.OK)
             return []
 
-        if client is None:
-            import os
-            import shutil
+        should_cache = (client is None) if use_cache is None else use_cache
+        cache_key = json.dumps(
+            {
+                "kw": sorted(k.lower() for k in clean_keywords),
+                "cat": (category or "").lower(),
+                "min": min_price,
+                "max": max_price,
+                "lim": limit,
+            },
+            sort_keys=True,
+        )
+        if should_cache:
+            cached_products = catalog_cache.get(cache_key)
+            if cached_products is not None:
+                span.set_attribute("bq.cache_hit", True)
+                span.set_attribute("bq.result_count", len(cached_products))
+                span.set_attribute("bq.bytes_billed", 0)
+                span.set_status(StatusCode.OK)
+                return cached_products
+        span.set_attribute("bq.cache_hit", False)
 
+        if client is None:
             import google.auth
             from google.auth.transport.requests import Request
-            from google.oauth2 import credentials as oauth2_credentials
 
             try:
                 creds, _ = google.auth.default()
                 creds.refresh(Request())
                 client = bigquery.Client(project=settings.gcp_project, credentials=creds)
             except Exception:
-                client = None
-
-            if client is None and shutil.which("gcloud"):
-                try:
-                    token = os.popen("gcloud auth print-access-token 2>/dev/null").read().strip()
-                    if token and token.startswith("ya29."):
-                        gcloud_creds = oauth2_credentials.Credentials(token)
-                        client = bigquery.Client(
-                            project=settings.gcp_project, credentials=gcloud_creds
-                        )
-                except Exception:
-                    pass
-
-            if client is None:
                 client = bigquery.Client(project=settings.gcp_project)
 
         patterns = [f"%{k}%" for k in clean_keywords]
@@ -204,9 +296,15 @@ def query_catalog(
         """.strip()
 
         query_params.append(bigquery.ScalarQueryParameter("limit", "INT64", int(limit)))
-        job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+        max_bytes = int(getattr(settings, "bq_max_bytes_billed", 50 * 1024 * 1024))
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=query_params,
+            maximum_bytes_billed=max_bytes,
+        )
+        span.set_attribute("bq.max_bytes_billed", max_bytes)
+        span.set_attribute("bq.circuit_state", catalog_circuit_breaker.state)
 
-        # Resilient execution with timeout and exponential backoff retry
+        # Resilient execution with timeout and randomized full-jitter exponential backoff retry
         max_retries = max(0, settings.bq_max_retries)
         timeout_seconds = max(0.1, settings.bq_timeout_seconds)
         total_attempts = max_retries + 1
@@ -238,16 +336,19 @@ def query_catalog(
                 query_job = client.query(query_sql, job_config=job_config)
                 # Enforce query result timeout
                 results = query_job.result(timeout=timeout_seconds)
+                catalog_circuit_breaker.record_success()
                 break
             except Exception as err:
                 last_error = err
+                catalog_circuit_breaker.record_failure()
                 logger.warning(
                     "BigQuery catalog query attempt %d failed: %s",
                     attempt,
                     err,
                 )
                 if attempt < total_attempts:
-                    backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
+                    max_backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
+                    backoff = random.uniform(0.005, max_backoff)
                     time.sleep(backoff)
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -369,4 +470,6 @@ def query_catalog(
                 "latency_ms": latency_ms,
             },
         )
+        if should_cache:
+            catalog_cache.set(cache_key, products)
         return products

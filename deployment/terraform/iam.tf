@@ -66,32 +66,40 @@ resource "google_project_iam_member" "sa_datastore_user" {
   member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
 
+# Dedicated CI/CD Pipeline Service Account (Separation of Duties from Runtime SA)
+resource "google_service_account" "catalog_cicd_sa" {
+  account_id   = "catalog-cicd-sa"
+  display_name = "Best Buy Catalog CI/CD Pipeline Service Account"
+  project      = var.project_id
+  description  = "Dedicated least-privilege CI/CD identity for Cloud Build and Cloud Deploy"
+}
+
 # Cloud Deploy Access: Job Runner for executing progressive delivery rollouts
 resource "google_project_iam_member" "sa_clouddeploy_runner" {
   project = var.project_id
   role    = "roles/clouddeploy.jobRunner"
-  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
 # Cloud Deploy Access: Releaser for creating releases from Cloud Build / pipeline
 resource "google_project_iam_member" "sa_clouddeploy_releaser" {
   project = var.project_id
   role    = "roles/clouddeploy.releaser"
-  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
 # Artifact Registry Access: Writer for BYOSA Cloud Build triggers pushing Docker images
 resource "google_project_iam_member" "sa_artifactregistry_writer" {
   project = var.project_id
   role    = "roles/artifactregistry.writer"
-  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
-# Service Account User: Allow BYOSA Cloud Build trigger identity to act as runtime SA
+# Service Account User: Allow CI/CD SA to deploy Cloud Run revisions running as runtime SA
 resource "google_service_account_iam_member" "sa_act_as_self" {
   service_account_id = google_service_account.catalog_agent_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+  member             = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
@@ -114,7 +122,8 @@ resource "google_cloud_run_v2_service_iam_member" "iap_service_agent_invoker" {
 resource "google_iap_web_iam_member" "user_access" {
   project = var.project_id
   role    = "roles/iap.httpsResourceAccessor"
-  member  = "user:admin@williamwlchan.altostrat.com"
+  member  = var.iap_authorized_user
 }
+
 
 

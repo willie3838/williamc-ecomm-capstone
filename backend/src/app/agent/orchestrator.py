@@ -13,13 +13,47 @@ from google.genai import types
 from app.agent.hermetic_adapter import HermeticModelAdapter
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.prompts_service import get_active_prompt
+from app.agent.registry import default_registry
 from app.config import settings
-from app.models.requests import ComparisonSynthesis, QueryIntentAnalysis
+from app.models.requests import (
+    CandidateRankingResponse,
+    ComparisonSynthesis,
+    QueryIntentAnalysis,
+)
 from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
 from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
+
+# Declarative domain specification registry covering all 5 catalog categories:
+# Laptops, Tablets, Headphones, Smart Home, TVs (s2_05, s2_32).
+# Polarity: "higher" (larger numeric value wins), "lower" (smaller numeric value wins), "none" (qualitative).
+CATEGORY_SPEC_REGISTRY: dict[str, dict[str, Any]] = {
+    "processor": {"label": "Processor / CPU", "polarity": "none", "unit": ""},
+    "ram_gb": {"label": "Memory (RAM)", "polarity": "higher", "unit": " GB"},
+    "storage_gb": {"label": "Storage (SSD)", "polarity": "higher", "unit": " GB"},
+    "battery_life_hours": {"label": "Battery Life", "polarity": "higher", "unit": " hours"},
+    "battery_life_months": {
+        "label": "Battery Life (Months)",
+        "polarity": "higher",
+        "unit": " months",
+    },
+    "display_size_in": {"label": "Display Size", "polarity": "higher", "unit": '"'},
+    "screen_size_in": {"label": "Screen Size", "polarity": "higher", "unit": '"'},
+    "display_resolution": {"label": "Display Resolution", "polarity": "none", "unit": ""},
+    "refresh_rate_hz": {"label": "Refresh Rate", "polarity": "higher", "unit": " Hz"},
+    "weight_lbs": {"label": "Weight", "polarity": "lower", "unit": " lbs"},
+    "ports": {"label": "Ports & Connectivity", "polarity": "none", "unit": ""},
+    "driver_size_mm": {"label": "Driver Size", "polarity": "higher", "unit": " mm"},
+    "noise_canceling": {"label": "Active Noise Canceling", "polarity": "higher", "unit": ""},
+    "sensor_range_ft": {"label": "Sensor Detection Range", "polarity": "higher", "unit": " ft"},
+    "response_time_ms": {"label": "Response Time", "polarity": "lower", "unit": " ms"},
+    "panel_type": {"label": "Display Panel Type", "polarity": "none", "unit": ""},
+    "hdr_support": {"label": "HDR Format Support", "polarity": "none", "unit": ""},
+    "smart_platform": {"label": "Smart Platform / Ecosystem", "polarity": "none", "unit": ""},
+    "connectivity": {"label": "Wireless Connectivity", "polarity": "none", "unit": ""},
+}
 
 
 def sanitize_user_prompt(prompt: str) -> str:
@@ -119,13 +153,14 @@ def create_adk_agent(
     model: str | None = None,
     synthesis_model: str | None = None,
     name: str = "catalog_comparison_orchestrator",
+    instruction: str = SYSTEM_INSTRUCTION,
 ) -> Agent:
     """Factory to instantiate a Google ADK Agent with dynamic model swappability."""
     _, resolved_synthesis, _ = resolve_model_pair(model=model, synthesis_model=synthesis_model)
     return Agent(
         name=name,
         model=resolved_synthesis,
-        instruction=SYSTEM_INSTRUCTION,
+        instruction=instruction,
         tools=[query_catalog],
     )
 
@@ -143,11 +178,13 @@ class ComparisonOrchestrator:
     def __init__(
         self,
         bq_client: bigquery.Client | None = None,
+        genai_client: Any = None,
         model: str | None = None,
         synthesis_model: str | None = None,
         hermetic: bool = False,
     ) -> None:
         self.bq_client = bq_client
+        self.genai_client = genai_client
         self.hermetic = hermetic
         self._injected_model = model
         self._injected_synthesis_model = synthesis_model
@@ -156,13 +193,26 @@ class ComparisonOrchestrator:
             model=model,
             synthesis_model=synthesis_model,
         )
+        self.active_system_instruction: str = SYSTEM_INSTRUCTION
         self.adk_agent = create_adk_agent(
             model=model,
             synthesis_model=synthesis_model,
+            instruction=self.active_system_instruction,
         )
         self.last_input_tokens: int = 0
         self.last_output_tokens: int = 0
         self.last_synthesis_model: str = self.synthesis_model
+
+    def _get_genai_client(self) -> Any:
+        """Return injected genai_client if provided, or instantiate a Vertex AI genai.Client."""
+        if self.genai_client is not None:
+            return self.genai_client
+        os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+        return genai.Client(
+            vertexai=True,
+            project=settings.gcp_project,
+            location="us-central1",
+        )
 
     def extract_keywords(self, query: str) -> list[str]:
         """Parse natural language query into target candidate keywords using brand-agnostic syntactic extraction."""
@@ -176,13 +226,17 @@ class ComparisonOrchestrator:
             strong_markers = r"\b(?:vs\.?|versus|compared to|against)\b"
             has_prefix_strong = bool(re.search(strong_markers, prefix, re.IGNORECASE))
             has_after_strong = bool(re.search(strong_markers, after, re.IGNORECASE))
-            prefix_is_question = bool(re.match(r"^\s*(?:which|what|how|is|are|can|tell|why)\b", prefix, re.IGNORECASE))
+            prefix_is_question = bool(
+                re.match(r"^\s*(?:which|what|how|is|are|can|tell|why)\b", prefix, re.IGNORECASE)
+            )
 
             if has_prefix_strong and not has_after_strong:
                 cleaned = prefix.strip()
             elif has_after_strong and not has_prefix_strong:
                 cleaned = after.strip()
-            elif prefix_is_question and not bool(re.match(r"^\s*(?:which|what|how|is|are)\b", after, re.IGNORECASE)):
+            elif prefix_is_question and not bool(
+                re.match(r"^\s*(?:which|what|how|is|are)\b", after, re.IGNORECASE)
+            ):
                 cleaned = after.strip()
             else:
                 attr_words = r"\b(?:battery|price|weight|specs?|specifications?|display|screen|performance|features?|breakdown|differences?|comparison|chip|cheaper|better|faster|longer|lighter)\b"
@@ -246,11 +300,25 @@ class ComparisonOrchestrator:
         return keywords
 
     def build_comparison_matrix(self, products: list[ProductSpec]) -> list[MatrixRow]:
-        """Align product specifications side-by-side and determine winners."""
+        """Align product specifications side-by-side across all 5 categories and determine winners."""
         if not products:
             return []
 
         rows: list[MatrixRow] = []
+
+        # Detect cross-category mismatch (e.g. comparing Laptops vs Headphones)
+        distinct_categories = {
+            (p.category or "").strip().lower() for p in products if (p.category or "").strip()
+        }
+        is_cross_category = len(distinct_categories) > 1
+        if is_cross_category:
+            rows.append(
+                MatrixRow(
+                    feature="Category",
+                    values={p.sku: (p.category or "General") for p in products},
+                    winner_sku=None,
+                )
+            )
 
         # 1. Price comparison (lower is better)
         price_values = {p.sku: f"${p.price:,.2f}" for p in products}
@@ -284,26 +352,25 @@ class ComparisonOrchestrator:
             )
         )
 
-        # 3. Dynamic technical specifications alignment
+        # 3. Dynamic technical specifications alignment driven by CATEGORY_SPEC_REGISTRY
         all_spec_keys: list[str] = []
         for p in products:
             for k in p.specifications.keys():
                 if k not in all_spec_keys:
                     all_spec_keys.append(k)
 
-        feature_labels = {
-            "processor": "Processor / CPU",
-            "ram_gb": "Memory (RAM)",
-            "storage_gb": "Storage (SSD)",
-            "battery_life_hours": "Battery Life",
-            "display_size_in": "Display Size",
-            "display_resolution": "Display Resolution",
-            "weight_lbs": "Weight",
-            "ports": "Ports & Connectivity",
-        }
-
         for spec_key in all_spec_keys:
-            label = feature_labels.get(spec_key, spec_key.replace("_", " ").title())
+            spec_meta = CATEGORY_SPEC_REGISTRY.get(
+                spec_key,
+                {
+                    "label": spec_key.replace("_", " ").title(),
+                    "polarity": "none",
+                    "unit": "",
+                },
+            )
+            label = spec_meta["label"]
+            polarity = spec_meta["polarity"]
+            unit = spec_meta["unit"]
             val_map: dict[str, Any] = {}
             numeric_vals: list[tuple[str, float]] = []
 
@@ -311,24 +378,21 @@ class ComparisonOrchestrator:
                 raw_val = p.specifications.get(spec_key)
                 if raw_val is None:
                     val_map[p.sku] = "Not specified"
-                elif spec_key == "ram_gb":
-                    val_map[p.sku] = f"{raw_val} GB"
-                    if isinstance(raw_val, (int, float)):
-                        numeric_vals.append((p.sku, float(raw_val)))
-                elif spec_key == "storage_gb":
+                elif spec_key == "storage_gb" and isinstance(raw_val, (int, float)):
                     val_map[p.sku] = f"{raw_val} GB" if raw_val < 1000 else f"{raw_val / 1000:g} TB"
-                    if isinstance(raw_val, (int, float)):
-                        numeric_vals.append((p.sku, float(raw_val)))
-                elif spec_key == "battery_life_hours":
+                    numeric_vals.append((p.sku, float(raw_val)))
+                elif spec_key == "battery_life_hours" and isinstance(raw_val, (int, float)):
                     val_map[p.sku] = f"Up to {raw_val} hours"
-                    if isinstance(raw_val, (int, float)):
+                    numeric_vals.append((p.sku, float(raw_val)))
+                elif isinstance(raw_val, bool):
+                    val_map[p.sku] = "Yes" if raw_val else "No"
+                    if polarity == "higher":
+                        numeric_vals.append((p.sku, 1.0 if raw_val else 0.0))
+                elif isinstance(raw_val, (int, float)):
+                    val_map[p.sku] = f"{raw_val}{unit}" if unit else str(raw_val)
+                    if polarity == "higher":
                         numeric_vals.append((p.sku, float(raw_val)))
-                elif spec_key == "display_size_in":
-                    val_map[p.sku] = f'{raw_val}"'
-                elif spec_key == "weight_lbs":
-                    val_map[p.sku] = f"{raw_val} lbs"
-                    if isinstance(raw_val, (int, float)):
-                        # For weight, lower is better
+                    elif polarity == "lower":
                         numeric_vals.append((p.sku, -float(raw_val)))
                 elif isinstance(raw_val, list):
                     val_map[p.sku] = ", ".join(str(item) for item in raw_val)
@@ -336,7 +400,8 @@ class ComparisonOrchestrator:
                     val_map[p.sku] = str(raw_val)
 
             winner_sku = None
-            if len(numeric_vals) == len(products):
+            # Only crown a spec winner when all products share the spec and are comparable
+            if not is_cross_category and len(numeric_vals) == len(products):
                 best_val = max(nv[1] for nv in numeric_vals)
                 best_skus = [nv[0] for nv in numeric_vals if nv[1] == best_val]
                 if len(best_skus) == 1:
@@ -401,24 +466,23 @@ class ComparisonOrchestrator:
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
 
         if self.hermetic or (
-            os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(genai.Client, "assert_called")
+            os.environ.get("PYTEST_CURRENT_TEST")
+            and self.genai_client is None
+            and not hasattr(genai.Client, "assert_called")
         ):
             resp_json = HermeticModelAdapter.synthesis_response(prompt)
             synth = ComparisonSynthesis.model_validate_json(resp_json)
             return synth.summary, synth.recommendations
 
         try:
-            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            client = genai.Client(
-                vertexai=True,
-                project=settings.gcp_project,
-                location="us-central1",
-            )
+            client = self._get_genai_client()
             config = types.GenerateContentConfig(
+                system_instruction=self.active_system_instruction,
                 response_mime_type="application/json",
                 response_schema=ComparisonSynthesis,
                 safety_settings=get_default_safety_settings(),
-                temperature=0.0,
+                temperature=float(getattr(settings, "temperature", 0.1)),
+                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             )
             response = client.models.generate_content(
                 model=active_model,
@@ -457,9 +521,10 @@ class ComparisonOrchestrator:
         products: list[ProductSpec],
         synthesis_model: str | None = None,
     ) -> str | None:
-        """Formulate tailored recommendations based on verified catalog specs."""
+        """Formulate tailored recommendations grounded in the verified comparison matrix."""
+        matrix = self.build_comparison_matrix(products)
         _, recs = self.synthesize_comparison_with_llm(
-            products, [], query="", model=synthesis_model
+            products, matrix, query="", model=synthesis_model
         )
         return recs
 
@@ -475,19 +540,16 @@ class ComparisonOrchestrator:
             )
 
         if self.hermetic or (
-            os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(genai.Client, "assert_called")
+            os.environ.get("PYTEST_CURRENT_TEST")
+            and self.genai_client is None
+            and not hasattr(genai.Client, "assert_called")
         ):
             return HermeticModelAdapter.classify_intent_response(query)
 
         sanitized_query = sanitize_user_prompt(query)
 
         try:
-            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            client = genai.Client(
-                vertexai=True,
-                project=settings.gcp_project,
-                location="us-central1",
-            )
+            client = self._get_genai_client()
 
             prompt = (
                 "You are an expert Query Intent Specialist for an electronics catalog comparison assistant.\n"
@@ -502,18 +564,40 @@ class ComparisonOrchestrator:
                 "Return a valid JSON object matching the requested schema."
             )
 
+            armor_cfg = get_model_armor_config()
             config = types.GenerateContentConfig(
+                system_instruction=self.active_system_instruction,
                 response_mime_type="application/json",
                 response_schema=QueryIntentAnalysis,
-                safety_settings=get_default_safety_settings(),
-                temperature=0.0,
+                model_armor_config=armor_cfg if armor_cfg is not None else None,
+                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
+                temperature=float(getattr(settings, "temperature", 0.1)),
+                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             )
 
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
-            )
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+            except Exception as call_err:
+                if armor_cfg is not None:
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction=self.active_system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=QueryIntentAnalysis,
+                        safety_settings=get_default_safety_settings(),
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                    )
+                    response = client.models.generate_content(
+                        model=model,
+                        contents=prompt,
+                        config=fallback_config,
+                    )
+                else:
+                    raise call_err
 
             if response.text:
                 return QueryIntentAnalysis.model_validate_json(response.text)
@@ -536,7 +620,6 @@ class ComparisonOrchestrator:
         """Backward-compatible helper to detect subjective opinions, complaints, or rants."""
         analysis = HermeticModelAdapter.classify_intent_response(query)
         return analysis.intent_type == "OPINION_OR_CHATTER"
-
 
     def _balance_entities(
         self, candidates: list[ProductSpec], keywords: list[str]
@@ -614,7 +697,9 @@ class ComparisonOrchestrator:
         if (
             self.hermetic
             or (
-                os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(genai.Client, "assert_called")
+                os.environ.get("PYTEST_CURRENT_TEST")
+                and self.genai_client is None
+                and not hasattr(genai.Client, "assert_called")
             )
             or not query.strip()
             or len(products) <= 1
@@ -624,13 +709,7 @@ class ComparisonOrchestrator:
         sanitized_query = sanitize_user_prompt(query)
 
         try:
-            # Disable client cert lookup on dev environment
-            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            client = genai.Client(
-                vertexai=True,
-                project=settings.gcp_project,
-                location="us-central1",
-            )
+            client = self._get_genai_client()
 
             candidates_desc = "\n".join(
                 f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
@@ -646,16 +725,20 @@ class ComparisonOrchestrator:
                 "If the query is a complaint, subjective opinion, rant, or does not ask to search/compare products, give all products score 0.\n"
                 "Rate relevance from 0 to 10 (10 = exact model/brand match, 0 = irrelevant cross-category noise or non-search query).\n"
                 f"Candidates:\n{candidates_desc}\n\n"
-                "Return valid JSON array of objects sorted by relevance score descending:\n"
-                '[{"sku": "...", "score": 10}]\n'
+                "Return valid JSON matching CandidateRankingResponse or an array of objects sorted by relevance score descending:\n"
+                '{"rankings": [{"sku": "...", "score": 10}]}\n'
                 "Only include products with score >= 6."
             )
 
             armor_cfg = get_model_armor_config()
             config = types.GenerateContentConfig(
+                system_instruction=self.active_system_instruction,
+                response_mime_type="application/json",
+                response_schema=CandidateRankingResponse,
                 model_armor_config=armor_cfg if armor_cfg is not None else None,
                 safety_settings=get_default_safety_settings() if armor_cfg is None else None,
-                temperature=0.0,
+                temperature=float(getattr(settings, "temperature", 0.1)),
+                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             )
 
             try:
@@ -671,8 +754,12 @@ class ComparisonOrchestrator:
                         call_err,
                     )
                     fallback_config = types.GenerateContentConfig(
+                        system_instruction=self.active_system_instruction,
+                        response_mime_type="application/json",
+                        response_schema=CandidateRankingResponse,
                         safety_settings=get_default_safety_settings(),
-                        temperature=0.0,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
                     )
                     response = client.models.generate_content(
                         model=model,
@@ -704,21 +791,26 @@ class ComparisonOrchestrator:
                 self.last_input_tokens += int(getattr(usage, "prompt_token_count", 0) or 0)
                 self.last_output_tokens += int(getattr(usage, "candidates_token_count", 0) or 0)
 
-            raw_text = response.text or ""
-            # Extract JSON from code fences if present
-            json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
-            if not json_match:
-                return None
+            raw_text = (response.text or "").strip()
+            ranked_items: list[dict[str, Any]] | None = None
+            try:
+                parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
+                ranked_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
+            except Exception:
+                json_match = re.search(r"\[.*\]", raw_text, re.DOTALL)
+                if json_match:
+                    parsed_list = json.loads(json_match.group(0))
+                    if isinstance(parsed_list, list):
+                        ranked_items = parsed_list
 
-            ranked_data = json.loads(json_match.group(0))
-            if not isinstance(ranked_data, list):
+            if ranked_items is None:
                 return None
 
             sku_to_product = {p.sku: p for p in products}
             ordered_products: list[ProductSpec] = []
             seen_ordered_skus: set[str] = set()
 
-            for item in ranked_data:
+            for item in ranked_items:
                 sku = str(item.get("sku", ""))
                 score = float(item.get("score", 0))
                 if sku in sku_to_product and score >= 6.0 and sku not in seen_ordered_skus:
@@ -731,13 +823,13 @@ class ComparisonOrchestrator:
                     "LLM Reranker successfully ranked %d/%d products for query: %s",
                     len(ordered_products),
                     len(products),
-                    query,
+                    sanitized_query,
                 )
                 return ordered_products
 
             # When the LLM successfully parses candidates and finds NO products with score >= 6.0,
             # this is an intentional verdict of irrelevance.
-            logger.info("LLM Reranker judged 0 products relevant for query: %s", query)
+            logger.info("LLM Reranker judged 0 products relevant for query: %s", sanitized_query)
             return []
 
         except Exception as e:
@@ -811,9 +903,18 @@ class ComparisonOrchestrator:
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
         resolved_agent_ver = agent_version or settings.agent_version
+        version_spec = default_registry.get_version(resolved_agent_ver)
         is_flash = "flash" in resolved_agent_ver.lower()
-        target_prompt_ver = "2026.03-v2" if is_flash else settings.prompt_version
-        _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+        target_prompt_ver = (
+            version_spec.prompt_version
+            if version_spec
+            else ("2026.03-v2" if is_flash else settings.prompt_version)
+        )
+        prompt_text, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+        self.active_system_instruction = (
+            version_spec.system_instruction if version_spec else prompt_text
+        )
+
         base_model = (
             "gemini-2.5-flash" if is_flash else (self._injected_model or settings.gemini_model)
         )
@@ -837,10 +938,11 @@ class ComparisonOrchestrator:
         else:
             effective_model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
 
+        safe_query = sanitize_user_prompt(query)
         tracer = get_tracer("app.agent")
 
         with tracer.start_as_current_span("catalog_comparison.orchestrate") as span:
-            span.set_attribute("query", query)
+            span.set_attribute("query", safe_query)
             span.set_attribute("category", category or "")
             if session_id:
                 span.set_attribute("session_id", session_id)
@@ -858,7 +960,7 @@ class ComparisonOrchestrator:
             if intent.intent_type == "OPINION_OR_CHATTER":
                 span.set_attribute("comparison_matrix_suppressed", True)
                 summary = (
-                    f"No product comparison matrix was generated for '{query}'. "
+                    f"No product comparison matrix was generated for '{safe_query}'. "
                     "The query appears to be an opinion or general comment rather than a product comparison request. "
                     "To compare products side-by-side, please specify two or more models or brands "
                     "(e.g., 'Compare Model A and Model B')."
@@ -884,7 +986,7 @@ class ComparisonOrchestrator:
                     else self.extract_keywords(query)
                 )
                 span.set_attribute("keywords", str(keywords))
-                logger.info("Parsed keywords %s from query: %s", keywords, query)
+                logger.info("Parsed keywords %s from query: %s", keywords, safe_query)
 
             try:
                 catalog_rows = query_catalog(
@@ -900,7 +1002,7 @@ class ComparisonOrchestrator:
                 span.set_attribute("product_count", 0)
                 span.set_attribute("target_skus", "")
                 return CompareResponse(
-                    summary=f"No matching products found in the catalog for query: '{query}'. Please check your search terms.",
+                    summary=f"No matching products found in the catalog for query: '{safe_query}'. Please check your search terms.",
                     products=[],
                     comparison_matrix=[],
                     citations=[],
@@ -931,7 +1033,7 @@ class ComparisonOrchestrator:
                 span.set_attribute("comparison_matrix_suppressed", True)
                 if intent.intent_type == "OPINION_OR_CHATTER" or len(products) == 0:
                     summary = (
-                        f"No product comparison matrix was generated for '{query}'. "
+                        f"No product comparison matrix was generated for '{safe_query}'. "
                         "The query appears to be an opinion or general comment rather than a product comparison request. "
                         "To compare products side-by-side, please specify two or more models or brands "
                         "(e.g., 'Compare Model A and Model B')."
@@ -1091,7 +1193,9 @@ class ComparisonOrchestrator:
                     prompt_version=settings.prompt_version,
                 )
         except Exception as adk_err:
-            logger.warning("ADK runner execution failed; falling back to direct compare: %s", adk_err)
+            logger.warning(
+                "ADK runner execution failed; falling back to direct compare: %s", adk_err
+            )
 
         return self.compare(
             query=query,

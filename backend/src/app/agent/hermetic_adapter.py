@@ -185,7 +185,9 @@ class HermeticModelAdapter:
                 f"- Price: {name2} [SKU: {sku2}] is ${diff:,.2f} more affordable at ${price2:,.2f} versus ${price1:,.2f} for {name1} [SKU: {sku1}]."
             )
         else:
-            summary_lines.append(f"- Price: Both products are priced identically at ${price1:,.2f}.")
+            summary_lines.append(
+                f"- Price: Both products are priced identically at ${price1:,.2f}."
+            )
 
         b1 = specs1.get("battery_life_hours")
         b2 = specs2.get("battery_life_hours")
@@ -235,8 +237,12 @@ class HermeticModelAdapter:
                     f"- Storage: {name2} [SKU: {sku2}] offers more storage at {s2}GB versus {s1}GB for {name1} [SKU: {sku1}]."
                 )
 
-        disp1 = specs1.get("display_resolution") or (f"{specs1['display_size_in']}\"" if specs1.get("display_size_in") else None)
-        disp2 = specs2.get("display_resolution") or (f"{specs2['display_size_in']}\"" if specs2.get("display_size_in") else None)
+        disp1 = specs1.get("display_resolution") or (
+            f'{specs1["display_size_in"]}"' if specs1.get("display_size_in") else None
+        )
+        disp2 = specs2.get("display_resolution") or (
+            f'{specs2["display_size_in"]}"' if specs2.get("display_size_in") else None
+        )
         if disp1 or disp2:
             summary_lines.append(
                 f"- Display: {name1} [SKU: {sku1}] features {disp1 or 'standard display'}; "
@@ -280,7 +286,9 @@ def create_hermetic_genai_client() -> MagicMock:
     """Factory to construct a mock google.genai.Client responding via HermeticModelAdapter."""
     client = MagicMock()
 
-    def mock_generate_content(model: str = "", contents: Any = "", config: Any = None, **kwargs: Any) -> MagicMock:
+    def mock_generate_content(
+        model: str = "", contents: Any = "", config: Any = None, **kwargs: Any
+    ) -> MagicMock:
         prompt = str(contents)
         response = MagicMock()
 

@@ -96,8 +96,8 @@ variable "evaluation_table_id" {
 
 variable "gcs_bucket_location" {
   type        = string
-  description = "Location for Cloud Storage buckets"
-  default     = "US"
+  description = "Location for Cloud Storage buckets (single-region data residency)"
+  default     = "us-central1"
 }
 
 variable "allow_unauthenticated" {
@@ -166,4 +166,11 @@ variable "github_app_installation_id" {
   description = "Numeric GitHub App Installation ID for Google Cloud Build"
   default     = 0
 }
+
+variable "iap_authorized_user" {
+  type        = string
+  description = "IAM principal member granted IAP HTTPS resource access"
+  default     = "user:admin@williamwlchan.altostrat.com"
+}
+
 

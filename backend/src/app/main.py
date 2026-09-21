@@ -1,16 +1,14 @@
 """FastAPI Application entrypoint for the Best Buy Catalog Comparison Agent."""
 
-import time
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.agent.agent_card import build_a2a_agent_card
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.config import Settings, get_settings
-from app.data.analytics import analytics_service
 from app.models import (
     AgentVersionsResponse,
     AgentVersionSummary,
@@ -19,14 +17,14 @@ from app.models import (
     CompareResponse,
     ComparisonRequest,
     ComparisonResponse,
-    FeedbackRequest,
     HealthResponse,
     MatrixRow,
     ProductItem,
     ProductSpec,
-    UserActionRequest,
 )
 from app.observability import ObservabilityMiddleware, setup_observability
+from app.routes import compare_router
+from app.tools.catalog import catalog_circuit_breaker
 
 PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
 
@@ -55,7 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=current_settings.cors_origins,
-        allow_credentials=True,
+        allow_credentials=("*" not in current_settings.cors_origins),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -96,79 +94,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def readiness(
         app_settings: Annotated[Settings, Depends(get_settings)],
     ) -> dict[str, Any]:
-        """Readiness check endpoint verifying backend and configuration readiness."""
+        """Readiness check endpoint verifying BigQuery, Vertex AI, and circuit breaker readiness."""
+        circuit_state = catalog_circuit_breaker.state
+        bq_ready = bool(
+            app_settings.gcp_project and app_settings.bq_dataset and circuit_state != "OPEN"
+        )
+        vertex_ready = bool(app_settings.gemini_model and app_settings.gcp_project)
         return {
-            "status": "ready",
+            "status": "ready" if (bq_ready and vertex_ready) else "degraded",
             "service": app_settings.service_name,
             "project": app_settings.project_id,
+            "api_version": "v1",
+            "dependencies": {
+                "bigquery": "ready" if bq_ready else "degraded",
+                "vertex_ai": "ready" if vertex_ready else "degraded",
+                "circuit_breaker": circuit_state,
+            },
         }
-
-    @application.post(
-        "/api/compare",
-        response_model=ComparisonResponse,
-        tags=["Comparison"],
-        summary="Compare Products by Natural Language Query",
-    )
-    async def compare(
-        request: ComparisonRequest,
-        _app_settings: Annotated[Settings, Depends(get_settings)],
-    ) -> ComparisonResponse:
-        """Compare products based on natural language query grounded in BigQuery catalog."""
-        start_time = time.perf_counter()
-
-        if not request.query.strip():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Query string must not be empty.",
-            )
-
-        orchestrator = ComparisonOrchestrator(
-            model=request.model,
-            synthesis_model=request.synthesis_model,
-        )
-        result = orchestrator.compare(
-            query=request.query,
-            category=request.category,
-            session_id=request.session_id,
-            agent_version=request.agent_version,
-            model=request.model,
-            synthesis_model=request.synthesis_model,
-        )
-        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        result.latency_ms = latency_ms
-
-        # Track session comparison count in Firestore if session_id provided
-        session_count = 1
-        if request.session_id:
-            session_count = analytics_service.increment_session_comparisons(request.session_id)
-            result.session_comparison_count = session_count
-
-            # Log comparison action to Firestore user_actions
-            analytics_service.record_user_action(
-                UserActionRequest(
-                    action_type="compare_request",
-                    session_id=request.session_id,
-                    query=request.query,
-                    category=request.category,
-                    target_skus=[p.sku for p in result.products],
-                )
-            )
-
-        # Stream operational telemetry and cost analytics to BigQuery
-        analytics_service.record_query_telemetry(
-            query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
-            session_id=request.session_id,
-            query_text=request.query,
-            category=request.category,
-            latency_ms=latency_ms,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            bq_bytes_billed=result.bq_bytes_billed,
-            retrieved_skus=[p.sku for p in result.products],
-            status="SUCCESS" if result.products else "DEGRADED",
-        )
-
-        return result
 
     @application.get(
         "/.well-known/agent-card.json",
@@ -181,89 +123,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         card = build_a2a_agent_card(base_url=base_url)
         return JSONResponse(content=card)
 
-    @application.get(
-        "/api/agent/card",
-        tags=["Agent Registry"],
-        summary="A2A Agent Card Query Endpoint",
-    )
-    async def get_agent_card(
-        request: Request,
-        version: str | None = None,
-    ) -> JSONResponse:
-        """Retrieve A2A Agent Card for a specific version or the active default."""
-        base_url = str(request.base_url).rstrip("/")
-        card = build_a2a_agent_card(base_url=base_url, version=version)
-        return JSONResponse(content=card)
-
-    @application.get(
-        "/api/agent/versions",
-        response_model=AgentVersionsResponse,
-        tags=["Agent Registry"],
-        summary="List Registered Agent Versions",
-    )
-    async def list_agent_versions(
-        app_settings: Annotated[Settings, Depends(get_settings)],
-    ) -> AgentVersionsResponse:
-        """List available agent versions backed by Vertex AI Prompt Management & Cloud Run."""
-        versions = [
-            AgentVersionSummary(
-                version=app_settings.agent_version,
-                display_name="Best Buy Catalog Comparison Agent (Baseline Pro)",
-                description="Grounded comparison orchestrator using Gemini 2.5 Pro",
-                model=app_settings.gemini_model,
-                model_version=app_settings.model_version,
-                prompt_version=app_settings.prompt_version,
-                is_default=True,
-                skills_count=2,
-                created_at="2026-03-01T00:00:00Z",
-                changelog="Production baseline managed via Vertex AI Prompt Management",
-            ),
-            AgentVersionSummary(
-                version="1.1.0-flash",
-                display_name="Best Buy Catalog Comparison Agent (Flash Canary)",
-                description="High-throughput canary variant powered by Gemini 2.5 Flash",
-                model="gemini-2.5-flash",
-                model_version="gemini-2.5-flash@001",
-                prompt_version="2026.03-v2",
-                is_default=False,
-                skills_count=2,
-                created_at="2026-03-15T00:00:00Z",
-                changelog="Canary model variant managed via Vertex AI Prompt Management",
-            ),
-        ]
-        return AgentVersionsResponse(
-            active_default=app_settings.agent_version,
-            total_versions=len(versions),
-            versions=versions,
-        )
-
-    @application.post(
-        "/api/actions",
-        response_model=dict[str, Any],
-        tags=["Analytics"],
-        summary="Log User Behavior and Engagement Action",
-    )
-    async def log_action(
-        action: UserActionRequest,
-        _app_settings: Annotated[Settings, Depends(get_settings)],
-    ) -> dict[str, Any]:
-        """Log user behavior events such as copy markdown or sku click to Firestore."""
-        doc_id = analytics_service.record_user_action(action)
-        return {"status": "recorded", "action_id": doc_id}
-
-    @application.post(
-        "/api/feedback",
-        response_model=dict[str, Any],
-        tags=["Analytics"],
-        summary="Submit Thumbs-Up / Thumbs-Down Quality Feedback",
-    )
-    async def submit_feedback(
-        feedback: FeedbackRequest,
-        _app_settings: Annotated[Settings, Depends(get_settings)],
-    ) -> dict[str, Any]:
-        """Record thumbs-up / thumbs-down user evaluation feedback to Firestore."""
-        doc_id = analytics_service.record_feedback(feedback)
-        return {"status": "recorded", "feedback_id": doc_id}
+    # Mount versioned API router (/api/v1) and backward-compatible alias (/api)
+    application.include_router(compare_router, prefix="/api/v1")
+    application.include_router(compare_router, prefix="/api")
 
     # Mount static React frontend SPA if bundled
     import os
@@ -293,6 +155,7 @@ __all__ = [
     "Citation",
     "CompareRequest",
     "CompareResponse",
+    "ComparisonOrchestrator",
     "ComparisonRequest",
     "ComparisonResponse",
     "HealthResponse",

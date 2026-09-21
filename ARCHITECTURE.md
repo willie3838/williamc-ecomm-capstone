@@ -31,15 +31,17 @@ The system architecture directly moves three business KPIs:
 3. **Strict Latency SLA**: End-to-end P95 response time $\le 3.0$ seconds to maintain conversational engagement and prevent checkout bounce.
 
 ### 1.3 Total Cost of Ownership (TCO) & Unit Economics
-The architectural selection prioritizes a lean, serverless footprint optimized for Argolis sandbox validation and regional enterprise replication:
+The architectural selection prioritizes a lean, serverless footprint optimized for Argolis sandbox validation and regional enterprise replication. Costs are modeled identically across `ARCHITECTURE.md` and `docs/presentation/slides.md` for **100,000 monthly comparisons** (`$20.90/mo` on the default `gemini-2.5-flash` tier; `$102.90/mo` on the uncached `tiered-hybrid` Flash + Pro tier) and **10x Black Friday Burst (1,000,000 monthly comparisons)**:
 
-| Cost Component | Architecture Choice | Monthly Baseline (Dev / Sandbox) | Unit Economics (per 1,000 Queries) | Rationale & Commercial Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Compute / Runtime** | Cloud Run (Serverless, min instances = 0) | ~$10.00 – $15.00 | ~$0.24 (2 vCPU, 2 GiB RAM, ~1.2s execution) | 90% cheaper than GKE baseline ($250+/mo); zero cost during idle periods. |
-| **Catalog Storage & Queries** | BigQuery (Partitioned & Clustered Table) | ~$2.00 (under 10 GB catalog) | ~$0.05 (clustered scans scan <5 MB per query) | Queries use BigQuery BI Engine / query cache; avoids dedicated database license fees. |
-| **Foundation Model Inference** | Gemini 2.5 Pro / Gemini 3.5 Flash | Pay-per-token usage | ~$0.85 (turn 1 + turn 2 synthesis, ~1.2k prompt tokens, ~600 output tokens) | Tiered model routing: fast intent extraction via 3.5 Flash, grounded comparative reasoning via 2.5 Pro. |
-| **Logging & Tracing** | Cloud Logging & Cloud Trace | Free tier eligible | ~$0.02 (sampled OTEL traces, structured JSON) | Integrated Google Cloud Operations Suite with zero third-party SaaS egress costs. |
-| **Estimated Total TCO** | **Serverless GCP Stack** | **~$20.00 / month** | **~$1.16 / 1,000 Comparisons** | **Superior fiscal efficiency and effortless sandbox teardown.** |
+| Cost Component | Architecture Choice | 100k Comparisons/Mo (Flash Default) | Unit Economics (per 1,000 Queries) | 10x Burst Sensitivity (1M Queries/Mo) | Rationale & Commercial Advantage |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Compute / Runtime** | Cloud Run (`min_instances=0`, `max_instances=10`, 2 vCPU, 2 GiB) | **$14.40 / mo** | **$0.144** | **$144.00 / mo** | 94% cheaper than GKE 3-node cluster ($248.20/mo); zero idle cost. |
+| **Catalog Storage & SQL** | BigQuery Partitioned/Clustered (`maximum_bytes_billed=50MB` + TTL Cache) | **$1.20 / mo** | **$0.012** | **$12.00 / mo** | Clustered scans + in-memory `CatalogResponseCache` avoid Pinecone ($70/mo) fees. |
+| **Operational Telemetry** | Cloud Firestore Native (`2 reads + 1 write` per comparison) | **$0.30 / mo** | **$0.003** | **$3.00 / mo** | Sub-cent document persistence for session counters and user action audit trails. |
+| **Foundation Model Inference** | Vertex AI `gemini-2.5-flash` (Default) / `tiered-hybrid` (Flash + Pro) | **$5.00 / mo** *(or $87.00/mo Pro)* | **$0.050** *(or $0.870 Pro)* | **$50.00 / mo** *(or $870.00/mo Pro)* | 99% cheaper than self-hosted A100 GPUs ($1,440/mo); dynamic tiering balances cost vs depth. |
+| **Logging & Tracing** | Cloud Logging & Cloud Trace (OpenTelemetry) | **$0.00 / mo** (Free Tier) | **$0.000** ($0.020 above free tier) | **$20.00 / mo** | Integrated Google Cloud Operations Suite with zero third-party APM egress costs. |
+| **Total Unified TCO** | **Serverless GCP Stack** | **$20.90 / month** *($102.90/mo Pro)* | **$0.209 / 1,000** *($1.029/1k Pro)* | **$229.00 / month** | **98.8% savings vs GKE + Vector DB ($1,823.20/mo) with linear 10x burst scaling.** |
+
 
 ---
 

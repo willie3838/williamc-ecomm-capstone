@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-09-21T14:16:47.830073+00:00",
+  "commit": "436bce3",
+  "status": "PASS",
+  "current_metrics": {
+    "pytest_coverage_pct": 93.14,
+    "data_accuracy": 1.0,
+    "citation_faithfulness": 1.0,
+    "schema_conformance": 1.0,
+    "latency_p95_seconds": 0.057,
+    "rubric_s1_avg": 3.0,
+    "rubric_s2_avg": 3.0
+  },
+  "high_water_mark": {
+    "pytest_coverage_pct": 93.14,
+    "data_accuracy": 1.0,
+    "citation_faithfulness": 1.0,
+    "schema_conformance": 1.0,
+    "rubric_s1_avg": 3.0,
+    "rubric_s2_avg": 3.0,
+    "latency_p95_seconds": 0.0116
+  },
+  "regressions": [],
+  "recommended_remediation": null
+}

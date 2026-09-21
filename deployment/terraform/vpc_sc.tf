@@ -1,10 +1,11 @@
 # VPC Service Controls (VPC-SC) - Catalog & Telemetry Data Exfiltration Prevention
 
 locals {
-  # Strictly target data storage services to prevent BigQuery catalog & telemetry exfiltration
+  # Strictly target data storage and Vertex AI foundation model services to prevent exfiltration
   vpc_sc_restricted_services = [
     "bigquery.googleapis.com",
     "storage.googleapis.com",
+    "aiplatform.googleapis.com",
   ]
 }
 

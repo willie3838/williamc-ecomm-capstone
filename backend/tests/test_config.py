@@ -12,7 +12,8 @@ def test_default_settings() -> None:
     assert settings.service_name == "catalog-backend"
     assert settings.environment == "development"
     assert settings.port == 8080
-    assert settings.cors_origins == ["*"]
+    assert "*" not in settings.cors_origins
+    assert "http://localhost:3000" in settings.cors_origins
     assert settings.api_version == "0.1.0"
 
 

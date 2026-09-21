@@ -125,23 +125,25 @@ flowchart LR
 ## Slide 4: Total Cost of Ownership (TCO) & Unit Economics
 **Time**: `[4:30 - 6:00]` (90 seconds)
 
-### Enterprise Cost Comparison (Monthly Baseline at 100,000 Comparisons)
+### Enterprise Cost Comparison (Monthly Baseline at 100,000 Comparisons & 10x Burst Sensitivity)
 
-| Component | Traditional GKE + Vector DB Architecture | Our Serverless GCP Architecture | Monthly Savings |
-| :--- | :--- | :--- | :--- |
-| **Compute** | GKE 3-node e2-standard-4 cluster ($248.20/mo) | Cloud Run on-demand (2 vCPU, 2GB) ($14.40/mo) | **-$233.80 (-94%)** |
-| **Database** | Pinecone / Managed Vector DB ($70.00/mo) | BigQuery on-demand ($5/TB, $<1GB scanned) ($1.20/mo) | **-$68.80 (-98%)** |
-| **LLM Inference** | Self-hosted Llama-3 on A100 GPU ($1,440.00/mo) | Vertex AI Gemini 2.5 Flash ($0.075/1M tokens) ($5.00/mo) | **-$1,435.00 (-99%)** |
-| **Observability** | Third-party Datadog APM ($65.00/mo) | Native Cloud Trace + Cloud Logging ($0.00 free tier) | **-$65.00 (-100%)** |
-| **Total Monthly Cost**| **$1,823.20 / month** | **$20.60 / month** | **98.8% Net Savings** |
+| Component | Traditional GKE + Vector DB | Our Serverless GCP Architecture (100k/mo) | Unit Cost (per 1,000) | 10x Peak Burst (1M/mo) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Compute** | GKE 3-node e2-standard-4 ($248.20/mo) | Cloud Run (`min_instances=0`, 2 vCPU, 2GiB) (**$14.40/mo**) | **$0.144** | **$144.00/mo** |
+| **Catalog SQL** | Pinecone / Managed Vector DB ($70.00/mo) | BigQuery (`maximum_bytes_billed=50MB` + Cache) (**$1.20/mo**) | **$0.012** | **$12.00/mo** |
+| **Telemetry DB**| Self-managed Redis/Postgres ($35.00/mo) | Cloud Firestore Native (`2 reads + 1 write`/req) (**$0.30/mo**) | **$0.003** | **$3.00/mo** |
+| **LLM Inference**| Self-hosted Llama-3 on A100 ($1,440.00/mo)| Vertex AI `gemini-2.5-flash` (**$5.00/mo**) *(or $87.00/mo Pro)* | **$0.050** *($0.870 Pro)* | **$50.00/mo** *($870/mo Pro)*|
+| **Observability**| Third-party Datadog APM ($65.00/mo) | Native Cloud Trace + Cloud Logging (**$0.00/mo** Free Tier) | **$0.000** | **$20.00/mo** |
+| **Total TCO** | **$1,858.20 / month** | **$20.90 / month** *($102.90/mo Tiered Pro)* | **$0.209 / 1,000** | **$229.00 / month** |
 
-### Unit Economics
-- **Cost Per Comparison**: **$0.000206 (1/50th of a cent)** per query.
-- **ROI**: At Best Buy's scale, converting just **2 additional laptop purchases per month** fully pays for the entire cloud infrastructure.
+### Unit Economics & Sensitivity
+- **Cost Per Comparison**: **$0.000209 ($0.209 per 1,000 queries)** on Gemini 2.5 Flash (**$1.029 per 1,000** on Tiered-Hybrid Flash + Pro).
+- **10x Black Friday Burst Sensitivity**: At **1,000,000 comparisons/month**, cost scales strictly linearly to **$229.00/month** (`max_instances=10`, `container_concurrency=80`, `maximum_bytes_billed=50MB`).
+- **ROI**: Converting just **2 additional laptop purchases per month** fully funds the entire cloud infrastructure.
 
 > **Speaker Notes [4:30 - 6:00]**:  
-> *"As an engineer, one of my core responsibilities is technical stewardship of Best Buy's capital. Many teams default to a Kubernetes cluster with a dedicated vector database, costing nearly $2,000 a month before serving a single customer.*  
-> *By adopting serverless Cloud Run, BigQuery on-demand, and Vertex AI Gemini Flash, our entire production infrastructure costs just $20.60 per month for 100,000 comparisons. That's one-fiftieth of a single cent per comparison. The ROI is immediate and undeniable."*
+> *"As an engineer, one of my core responsibilities is technical stewardship of Best Buy's capital. Many teams default to a Kubernetes cluster with a dedicated vector database, costing nearly $1,900 a month before serving a single customer.*  
+> *By adopting serverless Cloud Run, BigQuery on-demand with a 50 MB query guard and TTL cache, Cloud Firestore (`$0.30/mo` for 2 reads + 1 write per comparison), and Vertex AI Gemini Flash, our entire production infrastructure costs just $20.90 per month for 100,000 comparisons ($0.209 per 1,000 queries)—and scales linearly to $229/month under a 10x Black Friday traffic burst."*
 
 ---
 
@@ -230,12 +232,13 @@ Commit / PR -> [1. Ruff Lint] -> [2. Pytest Coverage >=80%] -> [3. Evals Flywhee
 2. **Product Returns Reduction**: Estimated **12% decrease in electronics returns** caused by mismatched spec expectations.
 3. **P95 Latency**: **2.4 seconds** end-to-end.
 
-### Enterprise Roadmap
-- **Sprint 6 (Current)**: Full 37-competency Capstone Rubric Score 3 verification, CI/CD automated gates, and Cloud Deploy canary.
-- **Phase 2 Expansion**:
-  - Integration with **Vertex AI Search & Conversation** for unstructured customer reviews analysis.
-  - Real-time Best Buy store-level inventory check via BigQuery geo-partitioning.
-  - Personalized trade-in valuation comparison for older customer devices.
+### Enterprise Roadmap & Quantified Phase 2/3 Cost Evolution
+- **Phase 1 (Current Production — `$20.90/mo` at 100k queries)**: Full 37-competency Capstone Rubric Score 3 verification, parameterized BigQuery SQL (`maximum_bytes_billed=50MB`), Cloud Run scale-to-zero, and Cloud Deploy canary.
+- **Phase 2 Expansion (Unstructured Reviews & Store Inventory — `~$165.90/mo` at 100k queries)**:
+  - **Vertex AI Search Hybrid Retrieval (`+$140.00/mo` fixed index replica)**: Triggered when unstructured customer review Q&A volume exceeds 15% of queries.
+  - **Real-Time Store-Level Inventory (`+$5.00/mo` BigQuery Storage Write API)**: Geo-partitioned `store_id` inventory tables with Pub/Sub streaming upserts.
+- **Phase 3 Global Multi-Region & Personalization (`~$490.00/mo` at 1M queries)**:
+  - **Global Cloud CDN + Multi-Region Cloud Run (`us-central1` + `us-east1`)**: Sub-100ms edge caching for top 500 SKU pairs (`65%+` cache hit ratio) and personalized trade-in valuation.
 
 ### Summary & Call to Action
 The Best Buy Catalog Comparison Agent delivers verifiable, grounded intelligence at enterprise scale and negligible cost. Thank you, and I welcome any questions.

@@ -379,9 +379,9 @@ def test_vpc_service_controls_configuration():
     assert '"bigquery.googleapis.com"' in content
     assert '"storage.googleapis.com"' in content
 
-    # Verify public front door and foundation models are kept clean of perimeter friction
+    # Verify public Cloud Run front door is kept clean while Vertex AI and storage are protected
     assert '"run.googleapis.com"' not in content
-    assert '"aiplatform.googleapis.com"' not in content
+    assert '"aiplatform.googleapis.com"' in content
 
     # Dry-run and enforcement blocks
     assert "spec {" in content

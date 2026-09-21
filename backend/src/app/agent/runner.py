@@ -24,7 +24,9 @@ from app.observability.tracing import get_tracer
 
 _settings = get_settings()
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
-os.environ.setdefault("GOOGLE_CLOUD_PROJECT", getattr(_settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"))
+os.environ.setdefault(
+    "GOOGLE_CLOUD_PROJECT", getattr(_settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321")
+)
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 if TYPE_CHECKING:

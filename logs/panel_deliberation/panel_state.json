@@ -1,0 +1,32 @@
+{
+  "target_window": "daily:2",
+  "repo_root": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone",
+  "model": "argon",
+  "discussion_board": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/discussion_board.md",
+  "panel_chair": {
+    "role_id": "panel_chair",
+    "pane_id": "%64",
+    "pane_title": "Panel-Chair-Principal-FDE",
+    "prompt_file": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/prompts/panel_chair_prompt.md"
+  },
+  "panelists": [
+    {
+      "role_id": "panelist_ai_ml",
+      "pane_id": "%65",
+      "pane_title": "Panelist-1-AI-ML-Arch",
+      "prompt_file": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/prompts/panelist_ai_ml_prompt.md"
+    },
+    {
+      "role_id": "panelist_sec_infra",
+      "pane_id": "%66",
+      "pane_title": "Panelist-2-Sec-Infra",
+      "prompt_file": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/prompts/panelist_sec_infra_prompt.md"
+    },
+    {
+      "role_id": "panelist_sre_cto",
+      "pane_id": "%67",
+      "pane_title": "Panelist-3-SRE-CTO-CFO",
+      "prompt_file": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/logs/panel_deliberation/prompts/panelist_sre_cto_prompt.md"
+    }
+  ]
+}

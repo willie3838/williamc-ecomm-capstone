@@ -94,7 +94,6 @@ class QueryIntentAgent:
                 else orchestrator.extract_keywords(state.sanitized_query)
             )
 
-
             state.step_history.append(
                 {
                     "agent": "QueryIntentAgent",
@@ -278,11 +277,12 @@ class SpecComparisonAgent:
                 state.ranked_products = ranked[:2] if len(ranked) >= 2 else ranked
 
             # Check gate: If not eligible for comparison or fewer than 2 relevant products
+            safe_query = state.sanitized_query or sanitize_user_prompt(state.raw_query)
             if not state.is_comparison_eligible or len(state.ranked_products) < 2:
                 span.set_attribute("agent.matrix_suppressed", True)
                 if state.intent_type == "OPINION_OR_CHATTER":
                     summary = (
-                        f"No product comparison matrix was generated for '{state.raw_query}'. "
+                        f"No product comparison matrix was generated for '{safe_query}'. "
                         "The query appears to be an opinion or general comment rather than a product comparison request. "
                         "To compare products side-by-side, please specify two or more models or brands "
                         "(e.g., 'Compare Model A and Model B')."
@@ -303,7 +303,7 @@ class SpecComparisonAgent:
                     ]
                 else:
                     summary = (
-                        f"No matching products found in the catalog for query: '{state.raw_query}'. "
+                        f"No matching products found in the catalog for query: '{safe_query}'. "
                         "Please check your search terms."
                     )
                     recommendations = "Try searching for broader model names, brands, or specify a valid product category."
@@ -317,7 +317,10 @@ class SpecComparisonAgent:
                     recommendations=recommendations,
                     session_id=state.session_id,
                     trace_id=state.trace_id,
+                    agent_version=state.metadata.get("agent_version", "1.0.0"),
+                    model_version=state.metadata.get("model_version", f"{active_routing}@001"),
                     synthesis_model=active_synthesis,
+                    prompt_version=state.metadata.get("prompt_version", "2026.03-v1"),
                     input_tokens=self.orchestrator.last_input_tokens
                     if self.orchestrator.last_input_tokens > 0
                     else None,
@@ -341,14 +344,13 @@ class SpecComparisonAgent:
             summary, recommendations = self.orchestrator.synthesize_comparison_with_llm(
                 state.ranked_products,
                 matrix,
-                query=state.sanitized_query,
+                query=safe_query,
                 model=active_synthesis,
             )
             citations = [
                 Citation(sku=p.sku, url=p.url or f"https://www.bestbuy.com/site/sku/{p.sku}.p")
                 for p in state.ranked_products
             ]
-
 
             state.comparison_response = CompareResponse(
                 summary=summary,
@@ -358,7 +360,10 @@ class SpecComparisonAgent:
                 recommendations=recommendations,
                 session_id=state.session_id,
                 trace_id=state.trace_id,
+                agent_version=state.metadata.get("agent_version", "1.0.0"),
+                model_version=state.metadata.get("model_version", f"{active_routing}@001"),
                 synthesis_model=active_synthesis,
+                prompt_version=state.metadata.get("prompt_version", "2026.03-v1"),
                 input_tokens=self.orchestrator.last_input_tokens
                 if self.orchestrator.last_input_tokens > 0
                 else None,
@@ -407,21 +412,50 @@ class MultiAgentCoordinator:
         raw_query: str,
         category: str | None = None,
         session_id: str | None = None,
+        agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline."""
-        active_routing, active_synthesis, is_hybrid = resolve_model_pair(
-            model=model or self.model,
-            synthesis_model=synthesis_model or self.synthesis_model,
+        from app.agent.prompts_service import get_active_prompt
+        from app.agent.registry import default_registry
+        from app.config import settings
+
+        resolved_agent_ver = agent_version or settings.agent_version
+        version_spec = default_registry.get_version(resolved_agent_ver)
+        is_flash = "flash" in resolved_agent_ver.lower()
+        target_prompt_ver = (
+            version_spec.prompt_version
+            if version_spec
+            else ("2026.03-v2" if is_flash else settings.prompt_version)
         )
+        _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+
+        base_model = "gemini-2.5-flash" if is_flash else (model or self.model)
+        base_synthesis = synthesis_model or self.synthesis_model or base_model
+        active_routing, active_synthesis, is_hybrid = resolve_model_pair(
+            model=base_model,
+            synthesis_model=base_synthesis,
+            default_model=settings.gemini_model,
+        )
+
+        if (model and model.lower() == "tiered-hybrid") or is_hybrid:
+            effective_model_version = f"tiered-hybrid({active_routing}+{active_synthesis})@001"
+        elif model:
+            effective_model_version = f"{active_routing}@001"
+        else:
+            effective_model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
+
         with tracer.start_as_current_span("agent.multi_agent_pipeline") as span:
             trace_id = get_current_trace_id()
             span.set_attribute("pipeline.architecture", "multi_node_cooperative")
-            span.set_attribute("query", raw_query)
+            span.set_attribute("query", sanitize_user_prompt(raw_query))
+            span.set_attribute("ai.agent.version", resolved_agent_ver)
             span.set_attribute("ai.model.name", active_routing)
             span.set_attribute("ai.synthesis_model.name", active_synthesis)
             span.set_attribute("ai.model.tiered_hybrid", is_hybrid)
+            span.set_attribute("ai.model.version", effective_model_version)
+            span.set_attribute("ai.prompt.version", resolved_prompt_ver)
             if category:
                 span.set_attribute("category", category)
             if session_id:
@@ -434,10 +468,17 @@ class MultiAgentCoordinator:
                 trace_id=trace_id,
                 model=active_routing,
                 synthesis_model=active_synthesis,
+                metadata={
+                    "agent_version": resolved_agent_ver,
+                    "model_version": effective_model_version,
+                    "prompt_version": resolved_prompt_ver,
+                },
             )
 
             # Node 1: Query Intent Extraction & Security Sanitization
             state = self.intent_agent.process(state)
+            if category:
+                state.detected_category = category
 
             # Node 2: Grounded Catalog Retrieval
             state = self.retrieval_agent.process(state)
@@ -455,7 +496,10 @@ class MultiAgentCoordinator:
                     comparison_matrix=[],
                     session_id=session_id,
                     trace_id=trace_id,
+                    agent_version=resolved_agent_ver,
+                    model_version=effective_model_version,
                     synthesis_model=active_synthesis,
+                    prompt_version=resolved_prompt_ver,
                 )
 
             return state.comparison_response

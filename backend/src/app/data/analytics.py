@@ -7,6 +7,7 @@ from google.cloud import bigquery, firestore
 
 from app.config import settings
 from app.models.analytics import FeedbackRequest, UserActionRequest
+from app.observability.logging import scrub_pii
 
 logger = logging.getLogger("app.analytics")
 
@@ -60,12 +61,13 @@ class AnalyticsService:
             return None
 
     def record_user_action(self, action: UserActionRequest) -> str | None:
-        """Log user action to Firestore collection 'user_actions'."""
+        """Log user action to Firestore collection 'user_actions' with PII redaction."""
         client = self.get_firestore_client()
+        scrubbed_query = scrub_pii(action.query) if action.query else action.query
         doc_data = {
             "action_type": action.action_type,
             "session_id": action.session_id,
-            "query": action.query,
+            "query": scrubbed_query,
             "category": action.category,
             "target_skus": action.target_skus,
             "metadata": action.metadata,
@@ -97,15 +99,17 @@ class AnalyticsService:
         return None
 
     def record_feedback(self, feedback: FeedbackRequest) -> str | None:
-        """Log thumbs-up/thumbs-down evaluation feedback to Firestore collection 'feedback'."""
+        """Log thumbs-up/thumbs-down evaluation feedback to Firestore collection 'feedback' with PII redaction."""
         client = self.get_firestore_client()
+        scrubbed_query = scrub_pii(feedback.query) if feedback.query else feedback.query
+        scrubbed_comment = scrub_pii(feedback.comment) if feedback.comment else feedback.comment
         doc_data = {
             "rating": feedback.rating,
             "session_id": feedback.session_id,
-            "query": feedback.query,
+            "query": scrubbed_query,
             "target_skus": feedback.target_skus,
             "trace_id": feedback.trace_id,
-            "comment": feedback.comment,
+            "comment": scrubbed_comment,
             "timestamp": feedback.timestamp.isoformat(),
         }
 
@@ -187,17 +191,18 @@ class AnalyticsService:
         status: str = "SUCCESS",
         error_message: str | None = None,
     ) -> bool:
-        """Stream query operational and cost telemetry to BigQuery table."""
+        """Stream query operational and cost telemetry to BigQuery table with PII redaction."""
         client = self.get_bq_client()
         table_ref = (
             f"{settings.gcp_project}.{settings.telemetry_dataset}.{settings.telemetry_table}"
         )
+        scrubbed_query_text = scrub_pii(query_text) if query_text else query_text
 
         row = {
             "query_id": query_id,
             "timestamp": datetime.now(UTC).isoformat(),
             "session_id": session_id,
-            "query_text": query_text,
+            "query_text": scrubbed_query_text,
             "category": category,
             "latency_ms": float(latency_ms),
             "input_tokens": input_tokens,

@@ -6,7 +6,7 @@ resource "google_firestore_database" "analytics_db" {
   location_id = var.region
   type        = "FIRESTORE_NATIVE"
 
-  delete_protection_state = "DELETE_PROTECTION_DISABLED"
+  delete_protection_state = "DELETE_PROTECTION_ENABLED"
   deletion_policy         = "DELETE"
 
   depends_on = [google_project_service.required_apis]

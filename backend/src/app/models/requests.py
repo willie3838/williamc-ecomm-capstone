@@ -113,3 +113,18 @@ class ComparisonSynthesis(BaseModel):
         description="Optional tailored buying guidance explaining which product to choose based on user persona or priority use cases, strictly citing [SKU: <sku>].",
     )
 
+
+class CandidateRankItem(BaseModel):
+    """Individual SKU relevance score from the LLM reranker."""
+
+    sku: str = Field(..., description="Product SKU identifier")
+    score: float = Field(..., ge=0.0, le=10.0, description="Relevance score from 0.0 to 10.0")
+
+
+class CandidateRankingResponse(BaseModel):
+    """Structured response schema for LLM candidate product reranking."""
+
+    rankings: list[CandidateRankItem] = Field(
+        default_factory=list,
+        description="Candidate products scored and sorted by relevance descending",
+    )

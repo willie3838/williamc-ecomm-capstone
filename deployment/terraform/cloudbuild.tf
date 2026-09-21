@@ -79,7 +79,7 @@ resource "google_cloudbuild_trigger" "pr_trigger" {
   description     = "Pre-merge PR validation gate running unit tests, coverage, benchmark runner, and ADK evaluator"
   project         = var.project_id
   location        = var.region
-  service_account = google_service_account.catalog_agent_sa.id
+  service_account = google_service_account.catalog_cicd_sa.id
   filename        = "deployment/cloudbuild-pr.yaml"
 
   repository_event_config {
@@ -96,7 +96,7 @@ resource "google_cloudbuild_trigger" "pr_trigger" {
 
   depends_on = [
     google_project_service.required_apis,
-    google_service_account.catalog_agent_sa
+    google_service_account.catalog_cicd_sa
   ]
 }
 
@@ -107,7 +107,7 @@ resource "google_cloudbuild_trigger" "main_deploy_trigger" {
   description     = "Continuous deployment pipeline triggered on push to main with canary release and zero downtime promotion"
   project         = var.project_id
   location        = var.region
-  service_account = google_service_account.catalog_agent_sa.id
+  service_account = google_service_account.catalog_cicd_sa.id
   filename        = "deployment/cloudbuild.yaml"
 
   repository_event_config {
@@ -124,7 +124,7 @@ resource "google_cloudbuild_trigger" "main_deploy_trigger" {
 
   depends_on = [
     google_project_service.required_apis,
-    google_service_account.catalog_agent_sa
+    google_service_account.catalog_cicd_sa
   ]
 }
 
@@ -135,7 +135,7 @@ resource "google_cloudbuild_trigger" "infra_deploy_trigger" {
   description     = "GitOps infrastructure pipeline triggered on push to main when deployment/terraform/** changes"
   project         = var.project_id
   location        = var.region
-  service_account = google_service_account.catalog_agent_sa.id
+  service_account = google_service_account.catalog_cicd_sa.id
   filename        = "deployment/cloudbuild-tf.yaml"
 
   included_files = ["deployment/terraform/**"]
@@ -154,7 +154,7 @@ resource "google_cloudbuild_trigger" "infra_deploy_trigger" {
 
   depends_on = [
     google_project_service.required_apis,
-    google_service_account.catalog_agent_sa
+    google_service_account.catalog_cicd_sa
   ]
 }
 

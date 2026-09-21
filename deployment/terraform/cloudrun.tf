@@ -57,12 +57,27 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
       }
 
       env {
+        name  = "GCP_PROJECT"
+        value = var.project_id
+      }
+
+      env {
         name  = "BIGQUERY_DATASET"
         value = var.catalog_dataset_id
       }
 
       env {
+        name  = "BQ_DATASET"
+        value = var.catalog_dataset_id
+      }
+
+      env {
         name  = "BIGQUERY_CATALOG_TABLE"
+        value = var.catalog_table_id
+      }
+
+      env {
+        name  = "BQ_TABLE"
         value = var.catalog_table_id
       }
 

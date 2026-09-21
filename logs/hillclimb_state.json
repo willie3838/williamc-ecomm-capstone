@@ -1,0 +1,67 @@
+{
+  "updated_at": "2026-09-21T14:16:47.830073+00:00",
+  "last_commit": "436bce3",
+  "high_water_mark": {
+    "pytest_coverage_pct": 93.14,
+    "data_accuracy": 1.0,
+    "citation_faithfulness": 1.0,
+    "schema_conformance": 1.0,
+    "rubric_s1_avg": 3.0,
+    "rubric_s2_avg": 3.0,
+    "latency_p95_seconds": 0.0116
+  },
+  "history": [
+    {
+      "timestamp": "2026-09-18T18:17:06.891258+00:00",
+      "commit": "a499bcb",
+      "metrics": {
+        "pytest_coverage_pct": 93.14,
+        "data_accuracy": 1.0,
+        "citation_faithfulness": 0.9937,
+        "schema_conformance": 1.0,
+        "latency_p95_seconds": 0.0116,
+        "rubric_s1_avg": 0.0,
+        "rubric_s2_avg": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-09-18T18:17:55.265872+00:00",
+      "commit": "a499bcb",
+      "metrics": {
+        "pytest_coverage_pct": 93.14,
+        "data_accuracy": 1.0,
+        "citation_faithfulness": 0.9937,
+        "schema_conformance": 1.0,
+        "latency_p95_seconds": 0.0116,
+        "rubric_s1_avg": 3.0,
+        "rubric_s2_avg": 3.0
+      }
+    },
+    {
+      "timestamp": "2026-09-21T14:15:52.962490+00:00",
+      "commit": "ddd0683",
+      "metrics": {
+        "pytest_coverage_pct": 93.14,
+        "data_accuracy": 1.0,
+        "citation_faithfulness": 1.0,
+        "schema_conformance": 1.0,
+        "latency_p95_seconds": 0.057,
+        "rubric_s1_avg": 3.0,
+        "rubric_s2_avg": 3.0
+      }
+    },
+    {
+      "timestamp": "2026-09-21T14:16:47.830073+00:00",
+      "commit": "436bce3",
+      "metrics": {
+        "pytest_coverage_pct": 93.14,
+        "data_accuracy": 1.0,
+        "citation_faithfulness": 1.0,
+        "schema_conformance": 1.0,
+        "latency_p95_seconds": 0.057,
+        "rubric_s1_avg": 3.0,
+        "rubric_s2_avg": 3.0
+      }
+    }
+  ]
+}
