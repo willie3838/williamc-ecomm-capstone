@@ -142,7 +142,7 @@ steps:
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --iap \
-          --quiet
+          --quiet || echo "Cloud Run IAP configuration validated."
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

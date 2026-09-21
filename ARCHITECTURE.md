@@ -704,5 +704,12 @@ To continuously track model drift, latency degradation, and new Gemini foundatio
 - **Vertex AI Experiments Registry**:
   Automatically records 12 per-stage runs (`run-stage1-intent-...`, `run-stage2-rerank-...`, `run-stage3-synthesis-...`) and 5 end-to-end runs into Vertex AI Experiment `bestbuy-catalog-model-selection-benchmark` in `fde-bestbuy-sandbox-dev-508321`.
 
+### 11.4 Continuous Delivery Pipeline with Cloud Deploy & IAP Protection
+- **Skaffold Verification Probes**:
+  `deployment/clouddeploy/skaffold.yaml` candidate post-deploy health verification probes validate both HTTP 200 (direct) and HTTP 302 (OAuth redirect via Google Cloud Identity-Aware Proxy) to guarantee health without failing IAP security perimeter enforcement.
+- **Resilient Startup Probes**:
+  `deployment/clouddeploy/service.yaml` defines a 120-second startup probe envelope (`initialDelaySeconds: 5`, `periodSeconds: 5`, `failureThreshold: 24`) ensuring deterministic cold starts under multi-stage Python initialization.
+
+
 
 
