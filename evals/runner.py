@@ -407,15 +407,14 @@ def run_benchmark(
         logger.info("Running in LIVE mode with Google Cloud BigQuery client")
         orchestrator = ComparisonOrchestrator()
     else:
-        logger.info("Running in HERMETIC mode with mock BigQuery client from %s", catalog_path)
-        from unittest.mock import patch
+        import os
 
-        from app.agent.hermetic_adapter import create_hermetic_genai_client
-
-        genai_patcher = patch("google.genai.Client", return_value=create_hermetic_genai_client())
-        genai_patcher.start()
+        os.environ["HERMETIC_EVAL"] = "true"
+        logger.info(
+            "Running in HERMETIC ADK Runner mode with mock BigQuery client from %s", catalog_path
+        )
         bq_client = create_hermetic_bq_client(catalog_path)
-        orchestrator = ComparisonOrchestrator(bq_client=bq_client)
+        orchestrator = ComparisonOrchestrator(bq_client=bq_client, hermetic=True)
 
     results: list[dict[str, Any]] = []
     latencies: list[float] = []
@@ -459,26 +458,10 @@ def run_benchmark(
 
         try:
             with TrajectoryRecorder() as recorder:
-                if live:
-                    if use_adk_runner:
-                        response = orchestrator.execute_with_adk_runner(
-                            query=query, category=case_cat
-                        )
-                    else:
-                        response = orchestrator.compare(query=query, category=case_cat)
+                if use_adk_runner:
+                    response = orchestrator.execute_with_adk_runner(query=query, category=case_cat)
                 else:
-                    from unittest.mock import patch
-
-                    with patch(
-                        "google.genai.Client",
-                        side_effect=RuntimeError("Hermetic offline mode"),
-                    ):
-                        if use_adk_runner:
-                            response = orchestrator.execute_with_adk_runner(
-                                query=query, category=case_cat
-                            )
-                        else:
-                            response = orchestrator.compare(query=query, category=case_cat)
+                    response = orchestrator.compare(query=query, category=case_cat)
             latency = time.perf_counter() - start_time
             latencies.append(latency)
 

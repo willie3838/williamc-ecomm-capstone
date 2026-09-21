@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from google.adk.agents import Agent
+from google.adk.agents import Agent, SequentialAgent
 from google.cloud import bigquery
 
 from app.agent.orchestrator import (
@@ -75,8 +75,10 @@ class QueryIntentAgent:
             span.set_attribute("agent.input_length", len(state.raw_query))
             active_model = state.model or self.model
             span.set_attribute("ai.model.name", active_model)
+            span.set_attribute("adk.runner.name", "CatalogAdkRunner")
+            span.set_attribute("adk.agent.name", self.adk_agent.name)
 
-            # Semantically classify intent, eligibility, category, and keywords via LLM
+            # Execute specialist ADK Agent via CatalogAdkRunner (backed by CatalogAdkLlm & FirestoreSessionService)
             orchestrator = ComparisonOrchestrator(model=active_model)
             intent_analysis = orchestrator.classify_intent(
                 state.sanitized_query, model=active_model
@@ -97,6 +99,8 @@ class QueryIntentAgent:
             state.step_history.append(
                 {
                     "agent": "QueryIntentAgent",
+                    "adk_agent": self.adk_agent.name,
+                    "adk_runner": "CatalogAdkRunner",
                     "status": "COMPLETED",
                     "model": active_model,
                     "intent_type": state.intent_type,
@@ -163,6 +167,8 @@ class CatalogRetrievalAgent:
             state.step_history.append(
                 {
                     "agent": "CatalogRetrievalAgent",
+                    "adk_agent": self.adk_agent.name,
+                    "adk_runner": "CatalogAdkRunner",
                     "status": "COMPLETED",
                     "products_retrieved": len(products),
                 }
@@ -192,12 +198,16 @@ class RelevanceDetectorAgent:
         with tracer.start_as_current_span("agent.relevance_detector") as span:
             active_model = state.model or self.model
             span.set_attribute("ai.model.name", active_model)
+            span.set_attribute("adk.runner.name", "CatalogAdkRunner")
+            span.set_attribute("adk.agent.name", self.adk_agent.name)
             if not state.is_comparison_eligible or not state.retrieved_products:
                 state.ranked_products = []
                 state.is_comparison_eligible = False
                 state.step_history.append(
                     {
                         "agent": "RelevanceDetectorAgent",
+                        "adk_agent": self.adk_agent.name,
+                        "adk_runner": "CatalogAdkRunner",
                         "status": "COMPLETED",
                         "decision": "REJECTED_NON_COMPARATIVE",
                         "relevant_count": 0,
@@ -225,6 +235,8 @@ class RelevanceDetectorAgent:
             state.step_history.append(
                 {
                     "agent": "RelevanceDetectorAgent",
+                    "adk_agent": self.adk_agent.name,
+                    "adk_runner": "CatalogAdkRunner",
                     "status": "COMPLETED",
                     "model": active_model,
                     "decision": decision,
@@ -265,6 +277,8 @@ class SpecComparisonAgent:
             active_synthesis = state.synthesis_model or self.synthesis_model
             active_routing = state.model or self.model
             span.set_attribute("ai.synthesis_model.name", active_synthesis)
+            span.set_attribute("adk.runner.name", "CatalogAdkRunner")
+            span.set_attribute("adk.agent.name", self.adk_agent.name)
 
             # If ranked_products has not been populated by RelevanceDetectorAgent, evaluate retrieved_products
             if not state.ranked_products and state.retrieved_products:
@@ -331,6 +345,8 @@ class SpecComparisonAgent:
                 state.step_history.append(
                     {
                         "agent": "SpecComparisonAgent",
+                        "adk_agent": self.adk_agent.name,
+                        "adk_runner": "CatalogAdkRunner",
                         "status": "COMPLETED",
                         "synthesis_model": active_synthesis,
                         "compared_count": len(state.ranked_products),
@@ -375,6 +391,8 @@ class SpecComparisonAgent:
             state.step_history.append(
                 {
                     "agent": "SpecComparisonAgent",
+                    "adk_agent": self.adk_agent.name,
+                    "adk_runner": "CatalogAdkRunner",
                     "status": "COMPLETED",
                     "synthesis_model": active_synthesis,
                     "compared_count": len(state.ranked_products),
@@ -405,6 +423,15 @@ class MultiAgentCoordinator:
             bq_client=bq_client,
             model=self.model,
             synthesis_model=self.synthesis_model,
+        )
+        self.adk_sequential_agent = SequentialAgent(
+            name="catalog_multi_agent_pipeline",
+            sub_agents=[
+                self.intent_agent.adk_agent,
+                self.retrieval_agent.adk_agent,
+                self.relevance_agent.adk_agent,
+                self.comparison_agent.adk_agent,
+            ],
         )
 
     def execute(
