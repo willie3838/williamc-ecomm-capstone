@@ -2,5 +2,10 @@
   "display_name": "techbuy-catalog-comparison-agent",
   "description": "TechBuy Retailers Multi-Agent Catalog Comparison Engine (Google ADK Agent Engine)",
   "service_account": "catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com",
-  "extra_packages": ["../../app"]
+  "extra_packages": ["../../app"],
+  "env_vars": {
+    "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "true",
+    "OTEL_SEMCONV_STABILITY_OPT_IN": "gen_ai_latest_experimental",
+    "ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS": "false"
+  }
 }

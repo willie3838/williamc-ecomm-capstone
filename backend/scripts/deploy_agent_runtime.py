@@ -101,7 +101,25 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
                     print(f"  [✓] Successfully deleted {res_name}")
                     cleaned += 1
                 except Exception as del_err:
-                    print(f"  [!] Failed to delete {res_name}: {del_err}")
+                    # If deletion failed due to child resources (e.g. sessions), delete via REST API with force=true
+                    print(f"  [!] SDK delete failed ({del_err}); attempting REST force delete...")
+                    try:
+                        import google.auth
+                        from google.auth.transport.requests import Request
+                        import requests
+
+                        creds, _ = google.auth.default()
+                        creds.refresh(Request())
+                        headers = {"Authorization": f"Bearer {creds.token}"}
+                        del_url = f"https://{region}-aiplatform.googleapis.com/v1/{res_name}?force=true"
+                        resp = requests.delete(del_url, headers=headers)
+                        if resp.status_code in (200, 204):
+                            print(f"  [✓] Successfully force-deleted {res_name}")
+                            cleaned += 1
+                        else:
+                            print(f"  [!] Force delete failed with status {resp.status_code}: {resp.text}")
+                    except Exception as rest_err:
+                        print(f"  [!] REST delete failed for {res_name}: {rest_err}")
 
         print(f"[+] Cleanup complete. {cleaned} stale engine(s) removed.")
         return 0

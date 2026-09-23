@@ -187,11 +187,23 @@ steps:
           pip install --no-cache-dir --break-system-packages -r backend/requirements.txt google-adk
           cd backend
 
-          # Deploy / update agent engine
+          # Detect existing engine ID to update in-place and avoid duplicate instances
+          ENGINE_FLAG=""
+          if [ -f "deployment_metadata.json" ]; then
+            EXISTING_ID=$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); raw=data.get('remote_agent_runtime_id', ''); print(raw.split('/')[-1] if raw else '')")
+            if [ -n "$$EXISTING_ID" ]; then
+              ENGINE_FLAG="--agent_engine_id=$${EXISTING_ID}"
+              echo "[+] Found existing engine ID to update in-place: $${EXISTING_ID}"
+            fi
+          fi
+
+          # Deploy / update agent engine in-place with OpenTelemetry Cloud Tracing
           adk deploy agent_engine \
             --project="${_PROJECT_ID}" \
             --region="${_REGION}" \
             --display_name="techbuy-catalog-comparison-agent" \
+            --otel_to_cloud \
+            $${ENGINE_FLAG} \
             src/app/agent || echo "Warning: ADK deploy finished with warnings"
 
           # Clean up any superseded / stale reasoning engines
