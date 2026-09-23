@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-09-21T19:37:46.043307+00:00",
+    "timestamp": "2026-09-23T19:41:43.053139+00:00",
     "dataset": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/evals/dataset/benchmark_catalog.evalset.json",
     "judge_model": "gemini-3.5-flash",
     "mode": "hermetic",
@@ -11,15 +11,15 @@
   "summary": {
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "mean_retrieval_precision": 0.8604,
+    "mean_retrieval_precision": 0.8479,
     "mean_retrieval_recall": 1.0,
     "mean_semantic_score": 1.0,
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 0.0367,
-    "latency_p90_seconds": 0.0472,
-    "latency_p95_seconds": 0.0497,
+    "latency_p50_seconds": 0.0311,
+    "latency_p90_seconds": 0.0408,
+    "latency_p95_seconds": 0.0432,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -37,7 +37,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.1572
+      "mean_latency_seconds": 0.1312
     },
     "Tablets": {
       "total": 16,
@@ -46,7 +46,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0386
+      "mean_latency_seconds": 0.0359
     },
     "Headphones": {
       "total": 16,
@@ -55,7 +55,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0365
+      "mean_latency_seconds": 0.0298
     },
     "Smart Home": {
       "total": 16,
@@ -64,7 +64,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0384
+      "mean_latency_seconds": 0.0337
     },
     "TVs": {
       "total": 16,
@@ -73,7 +73,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0368
+      "mean_latency_seconds": 0.0317
     }
   },
   "details": [
@@ -103,7 +103,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.9235,
+      "latency_seconds": 1.6458,
       "status": "PASS",
       "errors": []
     },
@@ -133,7 +133,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0519,
+      "latency_seconds": 0.0276,
       "status": "PASS",
       "errors": []
     },
@@ -161,7 +161,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.034,
+      "latency_seconds": 0.026,
       "status": "PASS",
       "errors": []
     },
@@ -190,7 +190,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0363,
+      "latency_seconds": 0.0332,
       "status": "PASS",
       "errors": []
     },
@@ -220,7 +220,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0432,
+      "latency_seconds": 0.031,
       "status": "PASS",
       "errors": []
     },
@@ -249,7 +249,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0388,
+      "latency_seconds": 0.0281,
       "status": "PASS",
       "errors": []
     },
@@ -278,7 +278,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0401,
+      "latency_seconds": 0.0347,
       "status": "PASS",
       "errors": []
     },
@@ -308,7 +308,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0463,
+      "latency_seconds": 0.0291,
       "status": "PASS",
       "errors": []
     },
@@ -322,9 +322,11 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6575132"
+        "6575132",
+        "6534606",
+        "6534640"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.5,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -336,7 +338,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.037,
+      "latency_seconds": 0.0282,
       "status": "PASS",
       "errors": []
     },
@@ -365,7 +367,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0353,
+      "latency_seconds": 0.0335,
       "status": "PASS",
       "errors": []
     },
@@ -395,7 +397,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0434,
+      "latency_seconds": 0.0274,
       "status": "PASS",
       "errors": []
     },
@@ -424,7 +426,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0334,
+      "latency_seconds": 0.0288,
       "status": "PASS",
       "errors": []
     },
@@ -454,7 +456,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0323,
+      "latency_seconds": 0.0339,
       "status": "PASS",
       "errors": []
     },
@@ -484,7 +486,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0492,
+      "latency_seconds": 0.034,
       "status": "PASS",
       "errors": []
     },
@@ -498,9 +500,11 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6579840"
+        "6579840",
+        "6534606",
+        "6534640"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.5,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -512,7 +516,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.039,
+      "latency_seconds": 0.0268,
       "status": "PASS",
       "errors": []
     },
@@ -541,7 +545,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0321,
+      "latency_seconds": 0.0315,
       "status": "PASS",
       "errors": []
     },
@@ -570,7 +574,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0405,
+      "latency_seconds": 0.0257,
       "status": "PASS",
       "errors": []
     },
@@ -599,7 +603,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0393,
+      "latency_seconds": 0.0293,
       "status": "PASS",
       "errors": []
     },
@@ -628,7 +632,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0346,
+      "latency_seconds": 0.0362,
       "status": "PASS",
       "errors": []
     },
@@ -657,7 +661,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.037,
+      "latency_seconds": 0.0301,
       "status": "PASS",
       "errors": []
     },
@@ -686,7 +690,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0343,
+      "latency_seconds": 0.0413,
       "status": "PASS",
       "errors": []
     },
@@ -715,7 +719,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0338,
+      "latency_seconds": 0.0542,
       "status": "PASS",
       "errors": []
     },
@@ -744,7 +748,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0438,
+      "latency_seconds": 0.0334,
       "status": "PASS",
       "errors": []
     },
@@ -773,7 +777,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0378,
+      "latency_seconds": 0.0325,
       "status": "PASS",
       "errors": []
     },
@@ -802,7 +806,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0335,
+      "latency_seconds": 0.0468,
       "status": "PASS",
       "errors": []
     },
@@ -831,7 +835,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0467,
+      "latency_seconds": 0.0341,
       "status": "PASS",
       "errors": []
     },
@@ -860,7 +864,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0401,
+      "latency_seconds": 0.0311,
       "status": "PASS",
       "errors": []
     },
@@ -889,7 +893,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0349,
+      "latency_seconds": 0.0323,
       "status": "PASS",
       "errors": []
     },
@@ -918,7 +922,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0436,
+      "latency_seconds": 0.0432,
       "status": "PASS",
       "errors": []
     },
@@ -947,7 +951,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0353,
+      "latency_seconds": 0.0409,
       "status": "PASS",
       "errors": []
     },
@@ -976,7 +980,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0347,
+      "latency_seconds": 0.0349,
       "status": "PASS",
       "errors": []
     },
@@ -1005,7 +1009,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0477,
+      "latency_seconds": 0.0282,
       "status": "PASS",
       "errors": []
     },
@@ -1033,7 +1037,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0328,
+      "latency_seconds": 0.0254,
       "status": "PASS",
       "errors": []
     },
@@ -1061,7 +1065,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0385,
+      "latency_seconds": 0.0353,
       "status": "PASS",
       "errors": []
     },
@@ -1089,7 +1093,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0497,
+      "latency_seconds": 0.0254,
       "status": "PASS",
       "errors": []
     },
@@ -1117,7 +1121,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0403,
+      "latency_seconds": 0.0259,
       "status": "PASS",
       "errors": []
     },
@@ -1145,7 +1149,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0322,
+      "latency_seconds": 0.0368,
       "status": "PASS",
       "errors": []
     },
@@ -1173,7 +1177,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0472,
+      "latency_seconds": 0.0272,
       "status": "PASS",
       "errors": []
     },
@@ -1201,7 +1205,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.028,
+      "latency_seconds": 0.0266,
       "status": "PASS",
       "errors": []
     },
@@ -1229,7 +1233,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0299,
+      "latency_seconds": 0.0319,
       "status": "PASS",
       "errors": []
     },
@@ -1257,7 +1261,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0367,
+      "latency_seconds": 0.0281,
       "status": "PASS",
       "errors": []
     },
@@ -1285,7 +1289,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0338,
+      "latency_seconds": 0.0298,
       "status": "PASS",
       "errors": []
     },
@@ -1313,7 +1317,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0392,
+      "latency_seconds": 0.0381,
       "status": "PASS",
       "errors": []
     },
@@ -1341,7 +1345,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0412,
+      "latency_seconds": 0.0277,
       "status": "PASS",
       "errors": []
     },
@@ -1370,7 +1374,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0292,
+      "latency_seconds": 0.0289,
       "status": "PASS",
       "errors": []
     },
@@ -1398,7 +1402,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.031,
+      "latency_seconds": 0.0344,
       "status": "PASS",
       "errors": []
     },
@@ -1426,7 +1430,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0447,
+      "latency_seconds": 0.0289,
       "status": "PASS",
       "errors": []
     },
@@ -1454,7 +1458,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0294,
+      "latency_seconds": 0.027,
       "status": "PASS",
       "errors": []
     },
@@ -1482,7 +1486,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0298,
+      "latency_seconds": 0.0466,
       "status": "PASS",
       "errors": []
     },
@@ -1510,7 +1514,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0398,
+      "latency_seconds": 0.0283,
       "status": "PASS",
       "errors": []
     },
@@ -1538,7 +1542,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0346,
+      "latency_seconds": 0.0291,
       "status": "PASS",
       "errors": []
     },
@@ -1566,7 +1570,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0334,
+      "latency_seconds": 0.0392,
       "status": "PASS",
       "errors": []
     },
@@ -1594,7 +1598,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0405,
+      "latency_seconds": 0.035,
       "status": "PASS",
       "errors": []
     },
@@ -1622,7 +1626,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0388,
+      "latency_seconds": 0.0284,
       "status": "PASS",
       "errors": []
     },
@@ -1650,7 +1654,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0317,
+      "latency_seconds": 0.0375,
       "status": "PASS",
       "errors": []
     },
@@ -1678,7 +1682,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0419,
+      "latency_seconds": 0.0325,
       "status": "PASS",
       "errors": []
     },
@@ -1706,7 +1710,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0324,
+      "latency_seconds": 0.028,
       "status": "PASS",
       "errors": []
     },
@@ -1734,7 +1738,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0406,
+      "latency_seconds": 0.0329,
       "status": "PASS",
       "errors": []
     },
@@ -1762,7 +1766,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0477,
+      "latency_seconds": 0.0284,
       "status": "PASS",
       "errors": []
     },
@@ -1790,7 +1794,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0317,
+      "latency_seconds": 0.0274,
       "status": "PASS",
       "errors": []
     },
@@ -1818,7 +1822,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0394,
+      "latency_seconds": 0.0387,
       "status": "PASS",
       "errors": []
     },
@@ -1846,7 +1850,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0696,
+      "latency_seconds": 0.0327,
       "status": "PASS",
       "errors": []
     },
@@ -1874,7 +1878,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0322,
+      "latency_seconds": 0.0336,
       "status": "PASS",
       "errors": []
     },
@@ -1902,7 +1906,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0309,
+      "latency_seconds": 0.0408,
       "status": "PASS",
       "errors": []
     },
@@ -1930,7 +1934,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0413,
+      "latency_seconds": 0.0334,
       "status": "PASS",
       "errors": []
     },
@@ -1958,7 +1962,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0353,
+      "latency_seconds": 0.0301,
       "status": "PASS",
       "errors": []
     },
@@ -1986,7 +1990,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0366,
+      "latency_seconds": 0.0361,
       "status": "PASS",
       "errors": []
     },
@@ -2014,7 +2018,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0397,
+      "latency_seconds": 0.0299,
       "status": "PASS",
       "errors": []
     },
@@ -2042,7 +2046,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.03,
+      "latency_seconds": 0.029,
       "status": "PASS",
       "errors": []
     },
@@ -2070,7 +2074,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0331,
+      "latency_seconds": 0.0366,
       "status": "PASS",
       "errors": []
     },
@@ -2098,7 +2102,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0454,
+      "latency_seconds": 0.0271,
       "status": "PASS",
       "errors": []
     },
@@ -2126,7 +2130,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0345,
+      "latency_seconds": 0.027,
       "status": "PASS",
       "errors": []
     },
@@ -2154,7 +2158,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0331,
+      "latency_seconds": 0.0411,
       "status": "PASS",
       "errors": []
     },
@@ -2182,7 +2186,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0385,
+      "latency_seconds": 0.0312,
       "status": "PASS",
       "errors": []
     },
@@ -2210,7 +2214,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0313,
+      "latency_seconds": 0.0289,
       "status": "PASS",
       "errors": []
     },
@@ -2238,7 +2242,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0348,
+      "latency_seconds": 0.034,
       "status": "PASS",
       "errors": []
     },
@@ -2266,7 +2270,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0371,
+      "latency_seconds": 0.0272,
       "status": "PASS",
       "errors": []
     },
@@ -2294,7 +2298,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0312,
+      "latency_seconds": 0.0271,
       "status": "PASS",
       "errors": []
     },
@@ -2322,7 +2326,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0346,
+      "latency_seconds": 0.0367,
       "status": "PASS",
       "errors": []
     },
@@ -2350,7 +2354,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0525,
+      "latency_seconds": 0.0311,
       "status": "PASS",
       "errors": []
     }

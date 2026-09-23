@@ -1,0 +1,9 @@
+google-adk[a2a]>=2.9.1
+google-cloud-aiplatform[adk,agent_engines]>=1.80.0
+google-genai>=1.0.0
+google-cloud-bigquery>=3.25.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+opentelemetry-api>=1.22.0
+opentelemetry-sdk>=1.22.0
+opentelemetry-exporter-gcp-trace>=1.6.0

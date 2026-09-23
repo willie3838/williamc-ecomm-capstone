@@ -1,0 +1,7 @@
+{
+  "remote_agent_runtime_id": "projects/499572810092/locations/us-central1/reasoningEngines/3985768683350786048",
+  "deployment_target": "agent_runtime",
+  "display_name": "techbuy-catalog-comparison-agent",
+  "project_id": "fde-bestbuy-sandbox-dev-508321",
+  "region": "us-central1"
+}

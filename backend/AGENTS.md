@@ -22,6 +22,8 @@ backend/
 │       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation, AgentCard schemas
 │       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
 │       │   ├── __init__.py
+│       │   ├── agent.py       # Google ADK CLI / Playground entrypoint (exposes root_agent)
+│       │   ├── reasoning_engine.py # Vertex AI Agent Runtime wrapper (ReasoningEngine contract)
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent, precomputed_intent deduplication & LLM reranker
 │       │   ├── hermetic_adapter.py # CatalogAdkLlm BaseLlm with automatic structured Pydantic schema inference
@@ -32,6 +34,10 @@ backend/
 │       └── tools/             # Agent tools
 │           ├── __init__.py
 │           └── catalog.py     # query_catalog BigQuery parameterized tool
+├── scripts/                   # CLI diagnostics and developer tools
+│   ├── analyze_spans.py       # OpenTelemetry local waterfall profiler & Cloud Trace inspector
+│   ├── deploy_agent_runtime.py # Vertex AI Agent Runtime deployment, status inspection & query CLI
+│   └── run_adk_playground.sh  # Google ADK Web UI launcher for visual debugging
 └── tests/
     ├── __init__.py
     ├── conftest.py            # Pytest fixtures and mocks
@@ -39,7 +45,8 @@ backend/
     ├── test_catalog_tool.py   # query_catalog tool unit tests (mocked BQ)
     ├── test_multi_agent.py    # Multi-node agent unit tests
     ├── test_agent_registry.py # Vertex AI Prompt Management & A2A Agent Card unit tests
-    └── test_compare_api.py    # End-to-end API route tests
+    ├── test_compare_api.py    # End-to-end API route tests
+    └── test_reasoning_engine.py # Vertex AI Reasoning Engine contract & delegation tests
 ```
 
 ---
@@ -139,6 +146,12 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
 5. **Google ADK Runner Execution & Robust Keyword Extraction**:
    - `app.agent.runner` provisions an `InMemoryRunner` with `InMemorySessionService` bound to `catalog_agent`. `ComparisonOrchestrator.execute_with_adk_runner` executes queries through ADK's native runner lifecycle, collecting tool calls (`query_catalog`) and synthesized grounded narrative responses.
    - `ComparisonOrchestrator.extract_keywords` implements robust brand-agnostic entity parsing that accurately isolates product models from question-colon lead-ins (`Which ... is better: Model A or Model B?`), chip comparison prefixes (`Chip X vs Chip Y: Model A vs Model B`), and trailing spec/attribute comparison phrases without discarding target products.
+6. **Vertex AI Agent Runtime (Reasoning Engine Contract) & Decoupled Architecture (`app.agent.reasoning_engine`)**:
+   - The agent core conforms to Google Cloud's Vertex AI Reasoning Engine contract (`set_up()`, `query()`, `stream_query()`) in `CatalogComparisonReasoningEngine`.
+   - When deployed to Vertex AI Agent Runtime (`projects/{project}/locations/{location}/reasoningEngines/{id}` via `deployment/terraform/agent_runtime.tf` or `scripts/deploy_agent_runtime.py`), the agent appears directly in the Google Cloud Console under **Vertex AI -> Agent Runtime**.
+   - Cloud Run hosts the public React 18 UI and serves as the secure API Gateway behind IAP. When `AGENT_RUNTIME_RESOURCE_NAME` is configured, `/api/compare` transparently delegates comparison queries to the Vertex AI Reasoning Engine with automated fallback to in-process execution during offline testing.
+   - **Automated Cloud Build GitOps (`cloudbuild.yaml` Step 7)**: On pull request merges to `main`, Cloud Build runs a merge-aware diff (`FIRST_PARENT..HEAD`) against agent directories (`app/agent/`, `models/`, `tools/`, `requirements.txt`). When changes are present, it deploys via `adk deploy agent_engine` and executes `scripts/deploy_agent_runtime.py --clean-stale` to delete superseded reasoning engine instances and keep resource footprint minimal.
+   - **Google Cloud Console Playground**: Native ADK Agent Engine registration (`adk deploy agent_engine`) enables the interactive conversational **Playground** chat tab under **Vertex AI -> Agents -> Agent Engines** (`console.cloud.google.com/vertex-ai/agents/agent-engines`).
 
 ---
 

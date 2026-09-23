@@ -35,6 +35,10 @@ spec:
               value: catalog_agent_telemetry
             - name: BIGQUERY_TELEMETRY_TABLE
               value: query_telemetry
+            - name: EXPORT_TRACES_TO_CLOUD
+              value: "true"
+            - name: AGENT_RUNTIME_RESOURCE_NAME
+              value: "projects/499572810092/locations/us-central1/reasoningEngines/3985768683350786048"
           ports:
             - containerPort: 8080
           startupProbe:

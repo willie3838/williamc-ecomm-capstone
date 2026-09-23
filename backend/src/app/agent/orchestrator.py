@@ -25,6 +25,7 @@ from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
+tracer = get_tracer(__name__)
 
 # Declarative domain specification registry covering all 5 catalog categories:
 # Laptops, Tablets, Headphones, Smart Home, TVs (s2_05, s2_32).
@@ -537,15 +538,22 @@ class ComparisonOrchestrator:
                 max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
-            response = client.models.generate_content(
-                model=active_model,
-                contents=prompt,
-                config=config,
-            )
-            usage = getattr(response, "usage_metadata", None)
-            if usage:
-                self.last_input_tokens += int(getattr(usage, "prompt_token_count", 0) or 0)
-                self.last_output_tokens += int(getattr(usage, "candidates_token_count", 0) or 0)
+            with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
+                llm_span.set_attribute("gen_ai.system", "vertexai")
+                llm_span.set_attribute("gen_ai.request.model", active_model)
+                response = client.models.generate_content(
+                    model=active_model,
+                    contents=prompt,
+                    config=config,
+                )
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                    self.last_input_tokens += in_toks
+                    self.last_output_tokens += out_toks
+                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
             if response.text:
                 synth = ComparisonSynthesis.model_validate_json(response.text)
@@ -664,37 +672,44 @@ class ComparisonOrchestrator:
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
 
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=config,
-                )
-            except Exception as call_err:
-                if armor_cfg is not None:
-                    fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=QueryIntentAnalysis,
-                        safety_settings=get_default_safety_settings(),
-                        temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                    )
+            with tracer.start_as_current_span("gemini.classify_intent") as llm_span:
+                llm_span.set_attribute("gen_ai.system", "vertexai")
+                llm_span.set_attribute("gen_ai.request.model", model)
+                try:
                     response = client.models.generate_content(
                         model=model,
                         contents=prompt,
-                        config=fallback_config,
+                        config=config,
                     )
-                else:
-                    raise call_err
+                except Exception as call_err:
+                    if armor_cfg is not None:
+                        fallback_config = types.GenerateContentConfig(
+                            system_instruction=self.active_system_instruction,
+                            response_mime_type="application/json",
+                            response_schema=QueryIntentAnalysis,
+                            safety_settings=get_default_safety_settings(),
+                            temperature=float(getattr(settings, "temperature", 0.1)),
+                            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        )
+                        response = client.models.generate_content(
+                            model=model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    else:
+                        raise call_err
 
-            usage = getattr(response, "usage_metadata", None)
-            if usage:
-                self.last_input_tokens += int(getattr(usage, "prompt_token_count", 0) or 0)
-                self.last_output_tokens += int(getattr(usage, "candidates_token_count", 0) or 0)
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                    self.last_input_tokens += in_toks
+                    self.last_output_tokens += out_toks
+                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-            if response.text:
-                return QueryIntentAnalysis.model_validate_json(response.text)
+                if response.text:
+                    return QueryIntentAnalysis.model_validate_json(response.text)
         except Exception as e:
             logger.warning(
                 "LLM intent classification failed (%s); using hermetic model adapter.",
@@ -893,55 +908,63 @@ class ComparisonOrchestrator:
                 max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             )
 
-            try:
-                response = client.models.generate_content(
-                    model=model,
-                    contents=prompt,
-                    config=config,
-                )
-            except Exception as call_err:
-                if armor_cfg is not None:
-                    logger.warning(
-                        "LLM reranking with Model Armor failed (%s); retrying with standard safety settings.",
-                        call_err,
-                    )
-                    fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=CandidateRankingResponse,
-                        safety_settings=get_default_safety_settings(),
-                        temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                    )
+            with tracer.start_as_current_span("gemini.rank_and_select") as llm_span:
+                llm_span.set_attribute("gen_ai.system", "vertexai")
+                llm_span.set_attribute("gen_ai.request.model", model)
+                llm_span.set_attribute("candidates.candidate_count", len(products))
+                try:
                     response = client.models.generate_content(
                         model=model,
                         contents=prompt,
-                        config=fallback_config,
+                        config=config,
                     )
-                else:
-                    raise call_err
+                except Exception as call_err:
+                    if armor_cfg is not None:
+                        logger.warning(
+                            "LLM reranking with Model Armor failed (%s); retrying with standard safety settings.",
+                            call_err,
+                        )
+                        fallback_config = types.GenerateContentConfig(
+                            system_instruction=self.active_system_instruction,
+                            response_mime_type="application/json",
+                            response_schema=CandidateRankingResponse,
+                            safety_settings=get_default_safety_settings(),
+                            temperature=float(getattr(settings, "temperature", 0.1)),
+                            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        )
+                        response = client.models.generate_content(
+                            model=model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    else:
+                        raise call_err
 
-            # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
-            if response.candidates:
-                finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
-                if finish_reason in {
-                    "SAFETY",
-                    "MODEL_ARMOR",
-                    "BLOCKLIST",
-                    "PROHIBITED_CONTENT",
-                    "SPII",
-                }:
-                    logger.warning(
-                        "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
-                        finish_reason,
-                        sanitized_query,
-                    )
-                    return None
-            # Track token consumption metrics
-            usage = getattr(response, "usage_metadata", None)
-            if usage:
-                self.last_input_tokens += int(getattr(usage, "prompt_token_count", 0) or 0)
-                self.last_output_tokens += int(getattr(usage, "candidates_token_count", 0) or 0)
+                # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
+                if response.candidates:
+                    finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
+                    if finish_reason in {
+                        "SAFETY",
+                        "MODEL_ARMOR",
+                        "BLOCKLIST",
+                        "PROHIBITED_CONTENT",
+                        "SPII",
+                    }:
+                        logger.warning(
+                            "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
+                            finish_reason,
+                            sanitized_query,
+                        )
+                        return None
+                # Track token consumption metrics
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                    self.last_input_tokens += in_toks
+                    self.last_output_tokens += out_toks
+                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
             raw_text = (response.text or "").strip()
             ranked_items: list[dict[str, Any]] | None = None
