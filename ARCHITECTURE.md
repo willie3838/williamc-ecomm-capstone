@@ -1,6 +1,6 @@
 # System Architecture: TechBuy Retailers Catalog Comparison Agent
 
-> **Last Updated**: 2026-09-23 20:42:00 UTC  
+> **Last Updated**: 2026-09-23 20:59:30 UTC  
 > **Specification**: [SPEC.md](SPEC.md)  
 > **Rubric**: [RUBRIC.md](RUBRIC.md) (37 Field-Readiness Competencies)  
 > **Project ID**: `fde-bestbuy-sandbox-dev-508321` (`499572810092`)  
@@ -9,7 +9,7 @@
 > **BigQuery Dataset / Table**: `fde-bestbuy-sandbox-dev-508321.catalog.products`  
 > **Agent Registry Service**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/services/bestbuy-catalog-comparison-agent`  
 > **Vertex AI Prompt Resource**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/prompts/6884046974429954048`  
-> **LLM Inference Mode**: 100% Live Uncached Vertex AI (`google-genai` persistent HTTP/2 connection pool + concurrent `QueryIntentAnalysis` & `ComparisonSynthesis` execution achieving $\le 1.35\text{s}$ P95 against the $\le 3.0\text{s}$ SLA)  
+> **LLM Inference Mode**: 100% Live Uncached Vertex AI (`google-genai` persistent HTTP/2 connection pool + LLM-extracted `intent.target_keywords` -> `query_catalog` -> `ComparisonSynthesis` achieving $\sim 1.75\text{s}$–$2.15\text{s}$ P95 against the $\le 3.0\text{s}$ SLA)  
 > **C-Suite Executive Deck**: [Google Slides Readout](https://docs.google.com/presentation/d/1TV1D_mM5YkXxFIp_WaQkZycwd44WtVBXwh4hUBaj6T8/edit) | [docs/presentation/slides.md](docs/presentation/slides.md)  
 > **Status**: MASTER REFERENCE ARCHITECTURE & GAP ANALYSIS (PRODUCTION READY)
 
