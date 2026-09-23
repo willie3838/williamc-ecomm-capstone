@@ -174,7 +174,6 @@ class ComparisonResponse(BaseModel):
     )
 
 
-
 # Backward compatibility alias
 CompareResponse = ComparisonResponse
 

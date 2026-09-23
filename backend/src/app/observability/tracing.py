@@ -46,6 +46,7 @@ def setup_tracing(
 
     if not service_name or not project_id:
         from app.config import settings
+
         service_name = service_name or settings.service_name
         project_id = project_id or settings.gcp_project
 
@@ -293,4 +294,3 @@ def trace_span(
 def get_in_memory_exporter() -> InMemorySpanExporter | None:
     """Return the active InMemorySpanExporter if initialized."""
     return _GLOBAL_IN_MEMORY_EXPORTER
-
