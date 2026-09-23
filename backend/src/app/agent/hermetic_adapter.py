@@ -910,7 +910,9 @@ class CatalogAdkLlm(BaseLlm):
                 location="us-central1",
             )
             config = llm_request.config
-            contents_payload: Any = prompt_text if prompt_text else llm_request.contents
+            contents_payload: Any = (
+                llm_request.contents if llm_request.contents else (prompt_text or "")
+            )
 
             sys_inst = (
                 str(config.system_instruction)
@@ -1021,15 +1023,8 @@ class CatalogAdkLlm(BaseLlm):
                     span.set_attribute("gen_ai.usage.prompt_tokens", prompt_tokens)
                     span.set_attribute("gen_ai.usage.completion_tokens", cand_tokens)
 
-                raw_text = (response.text or "").strip()
-                yield LlmResponse(
-                    content=types.Content(
-                        role="model",
-                        parts=[types.Part.from_text(text=raw_text)],
-                    ),
-                    usage_metadata=usage,
-                    partial=False,
-                )
+                llm_response = LlmResponse.create(response)
+                yield llm_response
         except Exception as exc:
             if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
                 raise
