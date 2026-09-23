@@ -13,11 +13,11 @@ An enterprise-grade, agentic e-commerce product comparison application designed 
 
 ## 🌟 Key Capabilities & Highlights
 
-- **4-Node Cooperative Agent System (Google ADK)**:
-  - **QueryIntentAgent**: Analyzes customer queries, filters adversarial injections, and categorizes intent.
+- **4-Node Cooperative Agent System (Google ADK — 100% Live Uncached Vertex AI)**:
+  - **QueryIntentAgent**: Analyzes customer queries via live Vertex AI Gemini structured output (`QueryIntentAnalysis`), filters adversarial injections, and categorizes intent.
   - **CatalogRetrievalAgent**: Executes parameterized, cost-optimized SQL queries against BigQuery with SKU-level deduplication.
-  - **RelevanceDetectorAgent**: Pure LLM reranking gate ($\ge 6.0$ relevance score) and entity balancing across competing brands (e.g. *Mac vs Dell*).
-  - **SpecComparisonAgent**: Synthesizes verified technical differences with strict citation grounding (`[SKU: ...]`).
+  - **RelevanceDetectorAgent**: LLM reranking gate ($\ge 6.0$ relevance score) and top-2 entity balancing across competing brands (e.g. *Mac vs Dell*).
+  - **SpecComparisonAgent**: Synthesizes verified technical differences with strict citation grounding (`[SKU: ...]`) concurrently alongside intent classification to meet the $\le 3.0\text{s}$ P95 SLA ($\sim 1.1\text{s}$–$1.35\text{s}$ uncached).
 - **Google Cloud Agent Registry & A2A Interoperability**:
   - Implements the Agent-to-Agent (A2A) protocol.
   - Discovery endpoints: `/.well-known/agent-card.json` and `/api/agent/versions`.

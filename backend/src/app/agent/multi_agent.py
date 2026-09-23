@@ -217,11 +217,21 @@ class RelevanceDetectorAgent:
                 span.set_attribute("agent.relevance_decision", "REJECTED_NON_COMPARATIVE")
                 return state
 
+            from app.models.requests import QueryIntentAnalysis
+
+            precomputed = QueryIntentAnalysis(
+                intent_type=state.intent_type,
+                is_comparison_eligible=state.is_comparison_eligible,
+                detected_category=state.detected_category,
+                target_keywords=state.target_keywords,
+                reasoning="Precomputed by QueryIntentAgent",
+            )
             ranked = self.orchestrator.rank_and_select_products(
                 state.retrieved_products,
                 state.target_keywords,
                 original_query=state.sanitized_query,
                 model=active_model,
+                precomputed_intent=precomputed,
             )
 
             if len(ranked) < 2:

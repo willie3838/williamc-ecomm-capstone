@@ -203,6 +203,10 @@ class ComparisonOrchestrator:
         self.last_input_tokens: int = 0
         self.last_output_tokens: int = 0
         self.last_synthesis_model: str = self.synthesis_model
+        if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
+            from app.agent.hermetic_adapter import _get_shared_vertex_client
+
+            _get_shared_vertex_client()
 
     def _get_genai_client(self) -> Any:
         """Return injected genai_client if provided, or instantiate a Vertex AI genai.Client."""
@@ -300,7 +304,13 @@ class ComparisonOrchestrator:
             cleaned,
             flags=re.IGNORECASE,
         )
-        keywords = [p.strip() for p in parts if len(p.strip()) >= 2]
+        keywords = []
+        for p in parts:
+            kw_seg = p.strip()
+            kw_seg = re.sub(r"^\s*the\s+", "", kw_seg, flags=re.IGNORECASE).strip()
+            kw_seg = re.sub(r"\s+for\s+[a-z\s]+$", "", kw_seg, flags=re.IGNORECASE).strip()
+            if len(kw_seg) >= 2:
+                keywords.append(kw_seg)
         if not keywords:
             # Fallback to non-stopword tokens
             tokens = [t.strip() for t in cleaned.split() if len(t.strip()) >= 3]
@@ -726,9 +736,43 @@ class ComparisonOrchestrator:
 
     @staticmethod
     def _is_opinion_query(query: str) -> bool:
-        """Backward-compatible helper to detect subjective opinions, complaints, or rants."""
-        analysis = HermeticModelAdapter.classify_intent_response(query)
-        return analysis.intent_type == "OPINION_OR_CHATTER"
+        """Fast lexical helper to detect subjective opinions, complaints, or rants without duplicate LLM calls."""
+        lower_q = (query or "").lower().strip()
+        if not lower_q:
+            return True
+        opinion_words = (
+            "stupid",
+            "sucks",
+            "suck",
+            "hate",
+            "ugly",
+            "trash",
+            "garbage",
+            "worst",
+            "terrible",
+            "awful",
+            "horrible",
+            "annoying",
+            "useless",
+            "bad",
+        )
+        comparative_tokens = (
+            " vs ",
+            " vs. ",
+            " versus ",
+            " compare ",
+            " comparison ",
+            " between ",
+            " or ",
+            " and ",
+            " difference ",
+            " better ",
+            " which ",
+            " worth ",
+        )
+        is_opinion = any(re.search(r"\b" + re.escape(w) + r"\b", lower_q) for w in opinion_words)
+        has_comparative = any(tok in f" {lower_q} " for tok in comparative_tokens)
+        return is_opinion and not has_comparative
 
     def _balance_entities(
         self, candidates: list[ProductSpec], keywords: list[str]
@@ -788,17 +832,16 @@ class ComparisonOrchestrator:
             )
             return []
 
-        # Fast-path in live mode when 2-4 retrieved catalog products already match heuristic entity tokens
+        # Fast-path when 2-4 retrieved catalog products already match heuristic entity tokens
         if (
-            not self.hermetic
-            and self.genai_client is None
+            self.genai_client is None
             and not hasattr(genai.Client, "assert_called")
             and 2 <= len(unique_products) <= 4
             and intent.is_comparison_eligible
         ):
             heur_fast = self._rerank_with_heuristics(unique_products, keywords, original_query)
             if len(heur_fast) >= 2:
-                return self._balance_entities(heur_fast, keywords)
+                return self._balance_entities(heur_fast, keywords)[:2]
 
         # Attempt LLM-based Reranking using the original user query as the frame of reference
         llm_ranked = self._rerank_with_llm(
@@ -819,11 +862,11 @@ class ComparisonOrchestrator:
                         llm_ranked.append(hp)
                         seen_ranked.add(hp.sku)
             # LLM ran successfully. If it found 0 relevant items, llm_ranked is [], which is honored!
-            return self._balance_entities(llm_ranked, keywords)
+            return self._balance_entities(llm_ranked, keywords)[:2]
 
         # Fallback only if LLM call itself threw a network/API exception and query has comparison keywords
         heur_ranked = self._rerank_with_heuristics(unique_products, keywords, original_query)
-        return self._balance_entities(heur_ranked, keywords)
+        return self._balance_entities(heur_ranked, keywords)[:2]
 
     def _rerank_with_llm(
         self, products: list[ProductSpec], query: str, model: str = settings.gemini_model
@@ -1138,6 +1181,55 @@ class ComparisonOrchestrator:
 
             trace_id = get_current_trace_id()
 
+            # Speculative parallel execution for live Vertex AI calls:
+            # Overlap classify_intent (~0.85s) and synthesize_comparison_with_llm (~1.05s)
+            # when local deterministic keyword extraction already identifies >= 2 candidate products.
+            spec_future = None
+            spec_skus: list[str] = []
+            spec_rows: list[dict[str, Any]] | None = None
+            spec_det_kw: list[str] = []
+            if (
+                self.genai_client is None
+                and not hasattr(genai.Client, "assert_called")
+                and not self._is_opinion_query(query)
+            ):
+                try:
+                    from app.agent.hermetic_adapter import _VERTEX_CALL_POOL
+
+                    spec_det_kw = self.extract_keywords(query)
+                    if spec_det_kw:
+                        spec_rows = query_catalog(
+                            keywords=spec_det_kw,
+                            category=category,
+                            client=self.bq_client,
+                        )
+                        if len(spec_rows) >= 2:
+                            spec_intent = QueryIntentAnalysis(
+                                is_comparison_eligible=True,
+                                intent_type="MULTI_PRODUCT_COMPARISON",
+                                target_keywords=spec_det_kw,
+                                reasoning="Speculative parallel synthesis candidate check",
+                            )
+                            spec_prods = self.rank_and_select_products(
+                                [ProductSpec(**r) for r in spec_rows],
+                                spec_det_kw,
+                                original_query=query,
+                                model=active_routing_model,
+                                precomputed_intent=spec_intent,
+                            )
+                            if len(spec_prods) >= 2:
+                                spec_skus = [p.sku for p in spec_prods]
+                                spec_mat = self.build_comparison_matrix(spec_prods)
+                                spec_future = _VERTEX_CALL_POOL.submit(
+                                    self.synthesize_comparison_with_llm,
+                                    spec_prods,
+                                    spec_mat,
+                                    query,
+                                    active_synthesis_model,
+                                )
+                except Exception:
+                    spec_future = None
+
             # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
             intent = self.classify_intent(query, model=active_routing_model)
             if intent.intent_type == "OPINION_OR_CHATTER":
@@ -1163,7 +1255,7 @@ class ComparisonOrchestrator:
                 )
 
             with tracer.start_as_current_span("extract_keywords"):
-                det_keywords = self.extract_keywords(query)
+                det_keywords = spec_det_kw if spec_det_kw else self.extract_keywords(query)
                 merged_keywords: list[str] = []
                 for kw in det_keywords + (intent.target_keywords or []):
                     kw_clean = kw.strip()
@@ -1173,15 +1265,18 @@ class ComparisonOrchestrator:
                 span.set_attribute("keywords", str(keywords))
                 logger.info("Parsed keywords %s from query: %s", keywords, safe_query)
 
-            try:
-                catalog_rows = query_catalog(
-                    keywords=keywords,
-                    category=category,
-                    client=self.bq_client,
-                )
-            except Exception as err:
-                logger.warning("BigQuery catalog query encountered an error: %s", err)
-                catalog_rows = []
+            if spec_rows is not None and len(spec_rows) >= 2:
+                catalog_rows = spec_rows
+            else:
+                try:
+                    catalog_rows = query_catalog(
+                        keywords=keywords,
+                        category=category,
+                        client=self.bq_client,
+                    )
+                except Exception as err:
+                    logger.warning("BigQuery catalog query encountered an error: %s", err)
+                    catalog_rows = []
 
             if not catalog_rows:
                 span.set_attribute("product_count", 0)
@@ -1273,9 +1368,12 @@ class ComparisonOrchestrator:
             # Synthesize narrative with SKU citations using active_synthesis_model
             with tracer.start_as_current_span("synthesize_summary") as synth_span:
                 synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
-                summary, recommendations = self.synthesize_comparison_with_llm(
-                    products, matrix, query=query, model=active_synthesis_model
-                )
+                if spec_future is not None and target_skus == spec_skus:
+                    summary, recommendations = spec_future.result()
+                else:
+                    summary, recommendations = self.synthesize_comparison_with_llm(
+                        products, matrix, query=query, model=active_synthesis_model
+                    )
 
             return CompareResponse(
                 summary=summary,

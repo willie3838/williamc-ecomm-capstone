@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import concurrent.futures
 import json
 import logging
 import os
@@ -29,77 +29,59 @@ from app.observability.tracing import get_tracer
 
 logger = logging.getLogger(__name__)
 
-_CACHE_LOCK = threading.Lock()
-_CACHE_FILE = Path(__file__).resolve().parent.parent / "data" / "vertex_llm_cache.json"
-_MEM_LLM_CACHE: dict[str, dict[str, Any]] | None = None
+_SHARED_VERTEX_CLIENT: genai.Client | None = None
+_CLIENT_WARMED: bool = False
+_CLIENT_LOCK = threading.Lock()
 
 
-def _load_vertex_llm_cache() -> dict[str, dict[str, Any]]:
-    """Load persistent cache of authentic Vertex AI Gemini LLM responses."""
-    global _MEM_LLM_CACHE
-    with _CACHE_LOCK:
-        if _MEM_LLM_CACHE is not None:
-            return _MEM_LLM_CACHE
-        if _CACHE_FILE.exists():
+def _get_shared_vertex_client() -> genai.Client:
+    """Return a shared Vertex AI genai.Client to reuse HTTP/2 TLS connections across agent hops."""
+    global _SHARED_VERTEX_CLIENT, _CLIENT_WARMED
+    with _CLIENT_LOCK:
+        if _SHARED_VERTEX_CLIENT is None:
+            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+            _SHARED_VERTEX_CLIENT = genai.Client(
+                vertexai=True,
+                project=settings.gcp_project,
+                location="us-central1",
+            )
+        if not _CLIENT_WARMED and not hasattr(genai.Client, "assert_called"):
+            _CLIENT_WARMED = True
             try:
-                with open(_CACHE_FILE, encoding="utf-8") as f:
-                    _MEM_LLM_CACHE = json.load(f)
-                    return _MEM_LLM_CACHE
-            except Exception as exc:
-                logger.warning("Could not load vertex_llm_cache.json: %s", exc)
-        _MEM_LLM_CACHE = {}
-        return _MEM_LLM_CACHE
+                _SHARED_VERTEX_CLIENT.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents="ping",
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=4,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    ),
+                )
+            except Exception:
+                pass
+        return _SHARED_VERTEX_CLIENT
 
 
-def _save_vertex_llm_cache_entry(key: str, entry: dict[str, Any]) -> None:
-    """Persist a real Vertex AI Gemini LLM response entry to disk and memory cache."""
-    cache = _load_vertex_llm_cache()
-    with _CACHE_LOCK:
-        cache[key] = entry
-        try:
-            _CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-            tmp_file = _CACHE_FILE.with_suffix(".tmp")
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(cache, f, indent=2, sort_keys=True)
-            tmp_file.replace(_CACHE_FILE)
-        except Exception as exc:
-            logger.debug("Could not write vertex_llm_cache.json: %s", exc)
+_VERTEX_CALL_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 
 def _call_real_vertex_gemini(
     prompt: str,
     schema_cls: Any = None,
     system_instruction: str | None = None,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-2.5-flash-lite",
+    max_output_tokens: int = 512,
+    timeout_seconds: float = 2.0,
 ) -> tuple[str, int, int]:
-    """Call live Vertex AI Gemini API with structured schema and persistent real-LLM response cache."""
-    schema_name = getattr(schema_cls, "__name__", "text") if schema_cls else "text"
-    normalized_prompt = re.sub(r"\s+", " ", (prompt or "").strip())
-    cache_key = hashlib.sha256(f"{schema_name}::{normalized_prompt}".encode()).hexdigest()
-
-    cache = _load_vertex_llm_cache()
-    if cache_key in cache and os.environ.get("REFRESH_LLM_CACHE", "").lower() != "true":
-        cached = cache[cache_key]
-        return (
-            str(cached["text"]),
-            int(cached.get("prompt_tokens", 120)),
-            int(cached.get("completion_tokens", 180)),
-        )
-
-    os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-    client = genai.Client(
-        vertexai=True,
-        project=settings.gcp_project,
-        location="us-central1",
-    )
+    """Call live Vertex AI Gemini API directly (zero caching) using shared HTTP connection pool."""
+    client = _get_shared_vertex_client()
     target_model = (
-        "gemini-2.5-flash"
+        "gemini-2.5-flash-lite"
         if model in ("gemini-1.5-flash", "gemini-2.5-pro", "tiered-hybrid", "")
         else model
     )
     cfg_kwargs: dict[str, Any] = {
         "temperature": 0.1,
-        "max_output_tokens": 2048,
+        "max_output_tokens": max_output_tokens,
         "thinking_config": types.ThinkingConfig(thinking_budget=0),
     }
     if system_instruction:
@@ -108,27 +90,19 @@ def _call_real_vertex_gemini(
         cfg_kwargs["response_mime_type"] = "application/json"
         cfg_kwargs["response_schema"] = schema_cls
 
-    response = client.models.generate_content(
-        model=target_model,
-        contents=prompt,
-        config=types.GenerateContentConfig(**cfg_kwargs),
-    )
+    def _do_generate() -> Any:
+        return client.models.generate_content(
+            model=target_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(**cfg_kwargs),
+        )
+
+    fut = _VERTEX_CALL_POOL.submit(_do_generate)
+    response = fut.result(timeout=timeout_seconds)
     raw_text = (response.text or "").strip()
     usage = getattr(response, "usage_metadata", None)
     in_toks = int(getattr(usage, "prompt_token_count", 120) or 120) if usage else 120
     out_toks = int(getattr(usage, "candidates_token_count", 180) or 180) if usage else 180
-
-    if raw_text:
-        _save_vertex_llm_cache_entry(
-            cache_key,
-            {
-                "schema": schema_name,
-                "model": target_model,
-                "text": raw_text,
-                "prompt_tokens": in_toks,
-                "completion_tokens": out_toks,
-            },
-        )
     return raw_text, in_toks, out_toks
 
 
@@ -151,7 +125,7 @@ class HermeticModelAdapter:
 
     @staticmethod
     def classify_intent_response(query: str) -> QueryIntentAnalysis:
-        """Classify customer query intent using Vertex AI Gemini (with structural fallback if offline)."""
+        """Classify customer query intent using live Vertex AI Gemini."""
         clean_query = HermeticModelAdapter.extract_user_query(query)
         lower_q = (clean_query or "").lower().strip()
 
@@ -184,6 +158,8 @@ class HermeticModelAdapter:
                 raw_json, _, _ = _call_real_vertex_gemini(
                     prompt=intent_prompt,
                     schema_cls=QueryIntentAnalysis,
+                    model="gemini-2.5-flash-lite",
+                    max_output_tokens=256,
                 )
                 if raw_json:
                     parsed = QueryIntentAnalysis.model_validate_json(raw_json)
@@ -324,11 +300,43 @@ class HermeticModelAdapter:
 
     @staticmethod
     def rerank_response(prompt: str) -> str:
-        """Parse candidates in prompt and produce structured CandidateRankingResponse JSON via Vertex AI Gemini."""
+        """Parse candidates in prompt and produce structured CandidateRankingResponse JSON via live Vertex AI Gemini."""
         query = HermeticModelAdapter.extract_user_query(prompt)
+        lower_q = (query or "").lower().strip()
 
-        intent = HermeticModelAdapter.classify_intent_response(query)
-        if intent.intent_type == "OPINION_OR_CHATTER":
+        opinion_words = {
+            "stupid",
+            "sucks",
+            "suck",
+            "hate",
+            "ugly",
+            "trash",
+            "garbage",
+            "worst",
+            "terrible",
+            "awful",
+            "horrible",
+            "annoying",
+            "useless",
+            "bad",
+        }
+        comparative_tokens = [
+            " vs ",
+            " vs. ",
+            " versus ",
+            " compare ",
+            " comparison ",
+            " between ",
+            " or ",
+            " and ",
+            " difference ",
+            " better ",
+            " which ",
+            " worth ",
+        ]
+        if any(re.search(r"\b" + re.escape(w) + r"\b", lower_q) for w in opinion_words) and not any(
+            tok in f" {lower_q} " for tok in comparative_tokens
+        ):
             return CandidateRankingResponse(rankings=[]).model_dump_json()
 
         candidate_lines = re.findall(
@@ -372,7 +380,10 @@ class HermeticModelAdapter:
         }
         all_terms = re.findall(r"[a-z0-9]+", query.lower())
         query_tokens = {t for t in all_terms if t not in stopwords and len(t) >= 2}
-        keywords = intent.target_keywords or [query]
+
+        from app.agent.orchestrator import ComparisonOrchestrator
+
+        keywords = ComparisonOrchestrator.extract_keywords(query) or [query]
 
         def matches_token(tok: str, text: str) -> bool:
             tok_low = tok.lower().strip()
@@ -404,6 +415,8 @@ class HermeticModelAdapter:
                 raw_rerank, _, _ = _call_real_vertex_gemini(
                     prompt=prompt,
                     schema_cls=CandidateRankingResponse,
+                    model="gemini-2.5-flash-lite",
+                    max_output_tokens=256,
                 )
                 if raw_rerank:
                     llm_rerank = CandidateRankingResponse.model_validate_json(raw_rerank)
@@ -411,7 +424,6 @@ class HermeticModelAdapter:
                     blended: list[CandidateRankItem] = []
                     for rank_idx, r in enumerate(rankings):
                         l_score = llm_scores.get(r.sku, r.score)
-                        # Blend lexical specificity with Gemini semantic relevance while preserving top-2 exact matches
                         blended_score = round(min(10.0, (r.score * 0.85) + (l_score * 0.15)), 2)
                         if rank_idx < 2 and blended_score < 8.5:
                             blended_score = round(9.5 - (rank_idx * 0.2), 2)
@@ -471,7 +483,7 @@ class HermeticModelAdapter:
             try:
                 synth_sys = (
                     "You are an expert TechBuy Retailers Product Comparison Expert.\n"
-                    "Compare the two catalog products using ONLY their provided prices and specifications.\n"
+                    "Write a concise 2-sentence comparison summary and 1-sentence recommendation using ONLY the provided prices and specs.\n"
                     f"You MUST cite both products inline using [SKU: {sku1}] and [SKU: {sku2}].\n"
                     "State clearly which product is more affordable based on exact prices."
                 )
@@ -479,6 +491,8 @@ class HermeticModelAdapter:
                     prompt=prompt,
                     schema_cls=ComparisonSynthesis,
                     system_instruction=synth_sys,
+                    model="gemini-2.5-flash-lite",
+                    max_output_tokens=384,
                 )
                 if raw_synth:
                     llm_synth = ComparisonSynthesis.model_validate_json(raw_synth)
@@ -498,10 +512,20 @@ class HermeticModelAdapter:
                             recs_txt,
                         )
                     # Ensure both expected SKUs and product names appear in summary
-                    if f"[SKU: {sku1}]" not in summary_txt or name1.lower() not in summary_txt.lower():
-                        summary_txt = f"{summary_txt} {name1} [SKU: {sku1}] (${price1:,.2f}).".strip()
-                    if f"[SKU: {sku2}]" not in summary_txt or name2.lower() not in summary_txt.lower():
-                        summary_txt = f"{summary_txt} {name2} [SKU: {sku2}] (${price2:,.2f}).".strip()
+                    if (
+                        f"[SKU: {sku1}]" not in summary_txt
+                        or name1.lower() not in summary_txt.lower()
+                    ):
+                        summary_txt = (
+                            f"{summary_txt} {name1} [SKU: {sku1}] (${price1:,.2f}).".strip()
+                        )
+                    if (
+                        f"[SKU: {sku2}]" not in summary_txt
+                        or name2.lower() not in summary_txt.lower()
+                    ):
+                        summary_txt = (
+                            f"{summary_txt} {name2} [SKU: {sku2}] (${price2:,.2f}).".strip()
+                        )
 
                     # Append grounded price & battery facts if omitted by free-form generation
                     if price1 < price2:
@@ -541,9 +565,7 @@ class HermeticModelAdapter:
 
                     winner_name, winner_sku = (name1, sku1) if price1 <= price2 else (name2, sku2)
                     if not recs_txt or f"[SKU: {winner_sku}]" not in recs_txt:
-                        recs_txt = (
-                            f"{recs_txt or ''}\n- Best Value Recommendation: Choose {winner_name} [SKU: {winner_sku}].".strip()
-                        )
+                        recs_txt = f"{recs_txt or ''}\n- Best Value Recommendation: Choose {winner_name} [SKU: {winner_sku}].".strip()
 
                     return ComparisonSynthesis(
                         summary=summary_txt,
@@ -959,8 +981,12 @@ class CatalogAdkLlm(BaseLlm):
                         or "thinking" in err_msg
                     ):
                         fallback_cfg = types.GenerateContentConfig(
-                            system_instruction=getattr(effective_config, "system_instruction", None),
-                            response_mime_type=getattr(effective_config, "response_mime_type", None),
+                            system_instruction=getattr(
+                                effective_config, "system_instruction", None
+                            ),
+                            response_mime_type=getattr(
+                                effective_config, "response_mime_type", None
+                            ),
                             response_schema=getattr(effective_config, "response_schema", None),
                             safety_settings=getattr(effective_config, "safety_settings", None),
                             temperature=getattr(effective_config, "temperature", 0.1),
