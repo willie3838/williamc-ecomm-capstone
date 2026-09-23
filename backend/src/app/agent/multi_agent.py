@@ -11,6 +11,7 @@ Implements specialized cooperative agents under the Google ADK framework:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -503,18 +504,42 @@ class MultiAgentCoordinator:
             )
 
             # Node 1: Query Intent Extraction & Security Sanitization
+            t0 = time.perf_counter()
             state = self.intent_agent.process(state)
             if category:
                 state.detected_category = category
+            t1 = time.perf_counter()
+            intent_ms = round((t1 - t0) * 1000.0, 2)
 
             # Node 2: Grounded Catalog Retrieval
             state = self.retrieval_agent.process(state)
+            t2 = time.perf_counter()
+            retrieval_ms = round((t2 - t1) * 1000.0, 2)
 
             # Node 3: Relevance Detection & Query Alignment Gate
             state = self.relevance_agent.process(state)
+            t3 = time.perf_counter()
+            relevance_ms = round((t3 - t2) * 1000.0, 2)
 
             # Node 4: Spec Alignment, Trade-off Synthesis, and Badging
             state = self.comparison_agent.process(state)
+            t4 = time.perf_counter()
+            synthesis_ms = round((t4 - t3) * 1000.0, 2)
+            total_ms = round((t4 - t0) * 1000.0, 2)
+
+            timing_breakdown = {
+                "intent_ms": intent_ms,
+                "retrieval_ms": retrieval_ms,
+                "relevance_ms": relevance_ms,
+                "synthesis_ms": synthesis_ms,
+                "total_pipeline_ms": total_ms,
+            }
+
+            span.set_attribute("pipeline.timing.intent_ms", intent_ms)
+            span.set_attribute("pipeline.timing.retrieval_ms", retrieval_ms)
+            span.set_attribute("pipeline.timing.relevance_ms", relevance_ms)
+            span.set_attribute("pipeline.timing.synthesis_ms", synthesis_ms)
+            span.set_attribute("pipeline.timing.total_ms", total_ms)
 
             if state.comparison_response is None:
                 return CompareResponse(
@@ -527,6 +552,8 @@ class MultiAgentCoordinator:
                     model_version=effective_model_version,
                     synthesis_model=active_synthesis,
                     prompt_version=resolved_prompt_ver,
+                    timing_breakdown_ms=timing_breakdown,
                 )
 
+            state.comparison_response.timing_breakdown_ms = timing_breakdown
             return state.comparison_response

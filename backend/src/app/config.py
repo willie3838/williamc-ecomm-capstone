@@ -1,8 +1,8 @@
-"""Configuration management for Best Buy Catalog Comparison Agent."""
-
+import os
 from functools import lru_cache
+from typing import Self
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -186,6 +186,22 @@ class Settings(BaseSettings):
         alias="BIGQUERY_TELEMETRY_TABLE",
         description="BigQuery table name for query operational telemetry",
     )
+    agent_runtime_resource_name: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "AGENT_RUNTIME_RESOURCE_NAME",
+            "REASONING_ENGINE_RESOURCE_NAME",
+            "agent_runtime_resource_name",
+        ),
+        description="Vertex AI Reasoning Engine resource name for remote agent execution",
+    )
+
+    @model_validator(mode="after")
+    def _validate_trace_export(self) -> Self:
+        # In production Cloud Run environment, default trace export to True unless explicitly overridden
+        if self.environment == "production" and "EXPORT_TRACES_TO_CLOUD" not in os.environ:
+            self.export_traces_to_cloud = True
+        return self
 
     @property
     def gcp_project(self) -> str:

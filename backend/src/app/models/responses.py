@@ -168,6 +168,11 @@ class ComparisonResponse(BaseModel):
         description="System prompt template version identifier executed",
         examples=["2026.03-v1"],
     )
+    timing_breakdown_ms: dict[str, float] | None = Field(
+        default=None,
+        description="Per-stage latency breakdown in milliseconds (intent, retrieval, relevance, synthesis)",
+    )
+
 
 
 # Backward compatibility alias

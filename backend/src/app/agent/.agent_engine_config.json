@@ -1,0 +1,5 @@
+{
+  "display_name": "techbuy-catalog-comparison-agent",
+  "description": "TechBuy Retailers Multi-Agent Catalog Comparison Engine (Google ADK Agent Engine)",
+  "service_account": "catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com"
+}

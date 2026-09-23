@@ -4,6 +4,7 @@ import functools
 import inspect
 import logging
 import re
+import sys
 from collections.abc import Callable
 from typing import Any, ParamSpec, TypeVar
 
@@ -27,8 +28,8 @@ _GLOBAL_TRACER_PROVIDER: TracerProvider | None = None
 
 
 def setup_tracing(
-    service_name: str,
-    project_id: str,
+    service_name: str | None = None,
+    project_id: str | None = None,
     export_to_cloud: bool = False,
 ) -> tuple[TracerProvider, InMemorySpanExporter | None]:
     """Initialize OpenTelemetry TracerProvider with Cloud Trace or In-Memory exporter.
@@ -42,6 +43,11 @@ def setup_tracing(
         Tuple of (TracerProvider, optional InMemorySpanExporter).
     """
     global _GLOBAL_IN_MEMORY_EXPORTER, _GLOBAL_TRACER_PROVIDER
+
+    if not service_name or not project_id:
+        from app.config import settings
+        service_name = service_name or settings.service_name
+        project_id = project_id or settings.gcp_project
 
     resource = Resource.create(
         {
@@ -57,13 +63,22 @@ def setup_tracing(
 
     if export_to_cloud:
         try:
-            from opentelemetry.exporter.gcp_trace import CloudTraceSpanExporter
+            if "opentelemetry.exporter.gcp_trace" in sys.modules:
+                from opentelemetry.exporter.gcp_trace import CloudTraceSpanExporter
+            else:
+                try:
+                    from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+                except ImportError:
+                    from opentelemetry.exporter.gcp_trace import CloudTraceSpanExporter
 
             cloud_exporter = CloudTraceSpanExporter(project_id=project_id)
             provider.add_span_processor(BatchSpanProcessor(cloud_exporter))
             logger.info(
                 "Configured OpenTelemetry CloudTraceSpanExporter for project %s", project_id
             )
+            # Maintain in-memory exporter alongside cloud exporter for local diagnostics & analysis
+            memory_exporter = InMemorySpanExporter()
+            provider.add_span_processor(SimpleSpanProcessor(memory_exporter))
         except Exception as e:
             logger.warning("CloudTraceSpanExporter unavailable; using memory exporter: %s", e)
             memory_exporter = InMemorySpanExporter()
@@ -273,3 +288,9 @@ def trace_span(
         return sync_wrapper
 
     return decorator
+
+
+def get_in_memory_exporter() -> InMemorySpanExporter | None:
+    """Return the active InMemorySpanExporter if initialized."""
+    return _GLOBAL_IN_MEMORY_EXPORTER
+

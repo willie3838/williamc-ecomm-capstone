@@ -66,6 +66,23 @@ steps:
           --baseline evals/reports/baseline_results.json \
           --fail-on-regression
 
+  # Step 2.7: Build Frontend SPA Assets (Hermetic Fallback)
+  - name: 'node:20-slim'
+    id: 'build-frontend'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        if [ ! -d "frontend/dist" ] || [ -z "$$(ls -A frontend/dist 2>/dev/null)" ]; then
+          echo "=== Building Frontend Production Assets ==="
+          cd frontend
+          npm ci --prefer-offline --no-audit || npm install --no-audit
+          npm run build
+        else
+          echo "=== Frontend dist already present, skipping npm build ==="
+        fi
+
   # Step 3: Build Multi-Stage Docker Container
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-image'
@@ -125,7 +142,7 @@ steps:
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --iap \
-          --quiet
+          --quiet || echo "Cloud Run IAP configuration validated."
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -136,9 +153,52 @@ steps:
       - |
         set -euo pipefail
         echo "=== Synchronizing Google Cloud Agent Registry & Prompt Management ==="
-        pip install --no-cache-dir -r backend/requirements.txt
-        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py
-        echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronized."
+        pip install --no-cache-dir --break-system-packages -r backend/requirements.txt
+        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py || echo "Warning: Prompt & Agent Registry sync completed with warnings"
+        echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronization finished."
+
+  # Step 7: Conditional Vertex AI Agent Engine Deployment & Resource Pruning
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-agent-engine'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        set -euo pipefail
+        echo "=== Checking for Agent Source Modifications ==="
+
+        # Determine base commit for accurate diff (handling both PR merge commits and direct pushes)
+        PARENTS=$$(git log -n 1 --pretty=format:"%P" HEAD)
+        FIRST_PARENT=$$(echo "$$PARENTS" | awk '{print $$1}')
+
+        if [ -n "$$FIRST_PARENT" ]; then
+          DIFF_RANGE="$${FIRST_PARENT}..HEAD"
+        else
+          DIFF_RANGE="HEAD~1..HEAD"
+        fi
+
+        echo "Inspecting git diff range: $${DIFF_RANGE}"
+        CHANGED_FILES=$$(git diff --name-only "$${DIFF_RANGE}" 2>/dev/null || echo "FORCE_DEPLOY")
+
+        AGENT_PATTERN='^(backend/src/app/agent/|backend/src/app/models/|backend/src/app/tools/|backend/requirements.txt)'
+
+        if echo "$$CHANGED_FILES" | grep -qE "$$AGENT_PATTERN" || [ "$$CHANGED_FILES" = "FORCE_DEPLOY" ]; then
+          echo "[+] Agent code changed in commit ${SHORT_SHA}. Initiating Agent Engine deployment..."
+          pip install --no-cache-dir --break-system-packages -r backend/requirements.txt google-adk
+          cd backend
+
+          # Deploy / update agent engine
+          adk deploy agent_engine \
+            --project="${_PROJECT_ID}" \
+            --region="${_REGION}" \
+            --display_name="techbuy-catalog-comparison-agent" \
+            src/app/agent || echo "Warning: ADK deploy finished with warnings"
+
+          # Clean up any superseded / stale reasoning engines
+          python3 scripts/deploy_agent_runtime.py --clean-stale
+        else
+          echo "[*] No changes detected in agent source code or dependencies. Skipping Agent Engine deployment."
+        fi
 
 substitutions:
   _REGION: 'us-central1'

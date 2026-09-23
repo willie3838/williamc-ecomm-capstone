@@ -35,15 +35,20 @@ spec:
               value: catalog_agent_telemetry
             - name: BIGQUERY_TELEMETRY_TABLE
               value: query_telemetry
+            - name: EXPORT_TRACES_TO_CLOUD
+              value: "true"
+            - name: AGENT_RUNTIME_RESOURCE_NAME
+              value: "projects/499572810092/locations/us-central1/reasoningEngines/3985768683350786048"
           ports:
             - containerPort: 8080
           startupProbe:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 2
-            periodSeconds: 3
-            failureThreshold: 10
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
           livenessProbe:
             httpGet:
               path: /health

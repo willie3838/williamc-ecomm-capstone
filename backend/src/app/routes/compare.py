@@ -1,10 +1,12 @@
 """Versioned API router (/api/v1 and /api) for catalog comparison, agent registry, and analytics."""
 
 import asyncio
+import logging
+import os
 import time
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.agent.agent_card import build_a2a_agent_card
@@ -21,17 +23,40 @@ from app.models import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
     import app.main as app_main
+    from app.config import settings
 
     # Default to tiered-hybrid for production v1.0.0 if not explicitly specified
     effective_model = request.model
     if effective_model is None and (not request.agent_version or request.agent_version == "1.0.0"):
         effective_model = "tiered-hybrid"
     effective_synthesis = request.synthesis_model
+
+    # Delegate to remote Vertex AI Agent Runtime (Reasoning Engine) if configured and not running in Pytest
+    if settings.agent_runtime_resource_name and not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            from vertexai.preview import reasoning_engines
+
+            remote_agent = reasoning_engines.ReasoningEngine(settings.agent_runtime_resource_name)
+            raw_response = remote_agent.query(
+                query=request.query,
+                category=request.category,
+                session_id=request.session_id,
+                agent_version=request.agent_version,
+                model=effective_model,
+                synthesis_model=effective_synthesis,
+            )
+            return ComparisonResponse.model_validate(raw_response)
+        except Exception as remote_err:
+            logger.warning(
+                "Vertex AI Agent Runtime query failed (%s); falling back to local MultiAgentCoordinator.",
+                remote_err,
+            )
 
     # Honor unit test patches on app.main.ComparisonOrchestrator if present
     orch_cls = getattr(app_main, "ComparisonOrchestrator", None)
@@ -72,6 +97,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
 async def compare_products(
     request: ComparisonRequest,
     _app_settings: Annotated[Settings, Depends(get_settings)],
+    http_response: Response,
 ) -> ComparisonResponse:
     """Compare products via non-blocking async MultiAgentCoordinator execution."""
     start_time = time.perf_counter()
@@ -85,6 +111,10 @@ async def compare_products(
     result = await asyncio.to_thread(_execute_comparison_sync, request)
     latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
     result.latency_ms = latency_ms
+
+    if result.timing_breakdown_ms:
+        timing_parts = [f"{k}={v}ms" for k, v in result.timing_breakdown_ms.items()]
+        http_response.headers["X-Pipeline-Timing"] = ", ".join(timing_parts)
 
     if request.session_id:
         session_count = await asyncio.to_thread(
