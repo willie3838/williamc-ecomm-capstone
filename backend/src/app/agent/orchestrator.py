@@ -275,7 +275,7 @@ class ComparisonOrchestrator:
 
         # Strip generic topic/attribute prefixes ONLY if followed by 'of', 'between', 'for'
         cleaned = re.sub(
-            r"^(?:[a-zA-Z0-9\s,&/-]+?\s+(?:breakdown|comparison|differences?)\s+(?:of|between|for)\s+)",
+            r"^(?:[a-zA-Z0-9\s,&/-]+?\s+(?:breakdown|comparison|differences?|compatibility)\s+(?:of|between|for)\s+)",
             "",
             cleaned,
             flags=re.IGNORECASE,
@@ -304,13 +304,7 @@ class ComparisonOrchestrator:
             cleaned,
             flags=re.IGNORECASE,
         )
-        keywords = []
-        for p in parts:
-            kw_seg = p.strip()
-            kw_seg = re.sub(r"^\s*the\s+", "", kw_seg, flags=re.IGNORECASE).strip()
-            kw_seg = re.sub(r"\s+for\s+[a-z\s]+$", "", kw_seg, flags=re.IGNORECASE).strip()
-            if len(kw_seg) >= 2:
-                keywords.append(kw_seg)
+        keywords = [p.strip() for p in parts if len(p.strip()) >= 2]
         if not keywords:
             # Fallback to non-stopword tokens
             tokens = [t.strip() for t in cleaned.split() if len(t.strip()) >= 3]
@@ -1181,55 +1175,6 @@ class ComparisonOrchestrator:
 
             trace_id = get_current_trace_id()
 
-            # Speculative parallel execution for live Vertex AI calls:
-            # Overlap classify_intent (~0.85s) and synthesize_comparison_with_llm (~1.05s)
-            # when local deterministic keyword extraction already identifies >= 2 candidate products.
-            spec_future = None
-            spec_skus: list[str] = []
-            spec_rows: list[dict[str, Any]] | None = None
-            spec_det_kw: list[str] = []
-            if (
-                self.genai_client is None
-                and not hasattr(genai.Client, "assert_called")
-                and not self._is_opinion_query(query)
-            ):
-                try:
-                    from app.agent.hermetic_adapter import _VERTEX_CALL_POOL
-
-                    spec_det_kw = self.extract_keywords(query)
-                    if spec_det_kw:
-                        spec_rows = query_catalog(
-                            keywords=spec_det_kw,
-                            category=category,
-                            client=self.bq_client,
-                        )
-                        if len(spec_rows) >= 2:
-                            spec_intent = QueryIntentAnalysis(
-                                is_comparison_eligible=True,
-                                intent_type="MULTI_PRODUCT_COMPARISON",
-                                target_keywords=spec_det_kw,
-                                reasoning="Speculative parallel synthesis candidate check",
-                            )
-                            spec_prods = self.rank_and_select_products(
-                                [ProductSpec(**r) for r in spec_rows],
-                                spec_det_kw,
-                                original_query=query,
-                                model=active_routing_model,
-                                precomputed_intent=spec_intent,
-                            )
-                            if len(spec_prods) >= 2:
-                                spec_skus = [p.sku for p in spec_prods]
-                                spec_mat = self.build_comparison_matrix(spec_prods)
-                                spec_future = _VERTEX_CALL_POOL.submit(
-                                    self.synthesize_comparison_with_llm,
-                                    spec_prods,
-                                    spec_mat,
-                                    query,
-                                    active_synthesis_model,
-                                )
-                except Exception:
-                    spec_future = None
-
             # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
             intent = self.classify_intent(query, model=active_routing_model)
             if intent.intent_type == "OPINION_OR_CHATTER":
@@ -1255,28 +1200,22 @@ class ComparisonOrchestrator:
                 )
 
             with tracer.start_as_current_span("extract_keywords"):
-                det_keywords = spec_det_kw if spec_det_kw else self.extract_keywords(query)
-                merged_keywords: list[str] = []
-                for kw in det_keywords + (intent.target_keywords or []):
-                    kw_clean = kw.strip()
-                    if kw_clean and kw_clean.lower() not in {k.lower() for k in merged_keywords}:
-                        merged_keywords.append(kw_clean)
-                keywords = merged_keywords if merged_keywords else det_keywords
+                llm_keywords = [
+                    kw.strip() for kw in (intent.target_keywords or []) if kw and kw.strip()
+                ]
+                keywords = llm_keywords if llm_keywords else self.extract_keywords(query)
                 span.set_attribute("keywords", str(keywords))
                 logger.info("Parsed keywords %s from query: %s", keywords, safe_query)
 
-            if spec_rows is not None and len(spec_rows) >= 2:
-                catalog_rows = spec_rows
-            else:
-                try:
-                    catalog_rows = query_catalog(
-                        keywords=keywords,
-                        category=category,
-                        client=self.bq_client,
-                    )
-                except Exception as err:
-                    logger.warning("BigQuery catalog query encountered an error: %s", err)
-                    catalog_rows = []
+            try:
+                catalog_rows = query_catalog(
+                    keywords=keywords,
+                    category=category,
+                    client=self.bq_client,
+                )
+            except Exception as err:
+                logger.warning("BigQuery catalog query encountered an error: %s", err)
+                catalog_rows = []
 
             if not catalog_rows:
                 span.set_attribute("product_count", 0)
@@ -1368,12 +1307,9 @@ class ComparisonOrchestrator:
             # Synthesize narrative with SKU citations using active_synthesis_model
             with tracer.start_as_current_span("synthesize_summary") as synth_span:
                 synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
-                if spec_future is not None and target_skus == spec_skus:
-                    summary, recommendations = spec_future.result()
-                else:
-                    summary, recommendations = self.synthesize_comparison_with_llm(
-                        products, matrix, query=query, model=active_synthesis_model
-                    )
+                summary, recommendations = self.synthesize_comparison_with_llm(
+                    products, matrix, query=query, model=active_synthesis_model
+                )
 
             return CompareResponse(
                 summary=summary,
