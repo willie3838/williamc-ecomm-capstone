@@ -19,10 +19,18 @@ def build_a2a_agent_card(
     """
     clean_url = base_url.rstrip("/")
     resolved_version = version or settings.agent_version
-    is_flash = "flash" in resolved_version.lower()
-    model_name = "gemini-2.5-flash" if is_flash else settings.gemini_model
-    model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
-    prompt_version = "2026.03-v2" if is_flash else settings.prompt_version
+    from app.agent.registry import default_registry
+
+    spec = default_registry.get_version(resolved_version)
+    if spec:
+        model_name = spec.model
+        model_version = spec.model_version
+        prompt_version = spec.prompt_version
+    else:
+        is_flash = "flash" in resolved_version.lower()
+        model_name = "gemini-2.5-flash" if is_flash else settings.gemini_model
+        model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
+        prompt_version = "2026.03-v2" if is_flash else settings.prompt_version
 
     return {
         "name": "techbuy-catalog-comparison-agent",

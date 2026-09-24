@@ -194,3 +194,7 @@ Never initiate network connections to Google Cloud services during unit tests. A
 8. **Code Formatting & Lint Standards**:
    - Backend Python code adheres to PEP 8 standards enforced via `ruff format` and `ruff check`.
    - Ignored lint rules for scripts and test harnesses are centrally configured in `backend/pyproject.toml`.
+
+9. **Agent Version Governance & Tiered Hybrid Routing**:
+   - The default agent version is `1.2.0-tiered`, backed by the hybrid model `tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001`.
+   - `build_a2a_agent_card` dynamically resolves model specifications from `AgentRegistry` to ensure complete fidelity across A2A discovery endpoints and `/api/agent/versions`.

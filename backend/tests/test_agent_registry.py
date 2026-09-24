@@ -69,15 +69,25 @@ def test_build_a2a_agent_card_default() -> None:
     """Verify stateless A2A Agent Card generation for Google Cloud Agent Registry."""
     card = build_a2a_agent_card(base_url="https://catalog-comparison-service.a.run.app")
     assert card["name"] == "techbuy-catalog-comparison-agent"
-    assert card["version"] == "1.0.0"
+    assert card["version"] == "1.2.0-tiered"
     assert card["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
     assert (
         card["supportedInterfaces"][0]["url"]
         == "https://catalog-comparison-service.a.run.app/api/compare"
     )
     assert len(card["skills"]) >= 2
-    assert card["metadata"]["model_version"] == "gemini-2.5-pro@001"
+    assert card["metadata"]["model_version"] == "tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001"
     assert card["metadata"]["gcp_agent_registry"] == "agentregistry.googleapis.com"
+
+
+def test_build_a2a_agent_card_baseline_pro() -> None:
+    """Verify stateless A2A Agent Card generation for baseline pro variant."""
+    card = build_a2a_agent_card(
+        base_url="https://catalog-comparison-service.a.run.app",
+        version="1.0.0",
+    )
+    assert card["version"] == "1.0.0"
+    assert card["metadata"]["model_version"] == "gemini-2.5-pro@001"
 
 
 def test_build_a2a_agent_card_flash_variant() -> None:
@@ -117,23 +127,24 @@ def test_api_agent_versions_list_endpoint(client: TestClient) -> None:
     resp = client.get("/api/agent/versions")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["active_default"] == "1.0.0"
+    assert data["active_default"] == "1.2.0-tiered"
     version_ids = [v["version"] for v in data["versions"]]
     assert "1.0.0" in version_ids
     assert "1.1.0-flash" in version_ids
+    assert "1.2.0-tiered" in version_ids
 
 
 def test_compare_with_default_agent_version(client: TestClient) -> None:
-    """Verify POST /api/compare defaults to agent version 1.0.0."""
+    """Verify POST /api/compare defaults to active agent version 1.2.0-tiered."""
     resp = client.post(
         "/api/compare",
         json={"query": "Apple MacBook Air M3 vs Dell XPS 13"},
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["agent_version"] == "1.0.0"
-    assert "gemini-2.5-pro" in data["model_version"]
-    assert data["prompt_version"] == "2026.03-v1"
+    assert data["agent_version"] == "1.2.0-tiered"
+    assert "tiered-hybrid" in data["model_version"]
+    assert data["prompt_version"] == "2026.03-v2"
 
 
 def test_compare_with_canary_agent_version(client: TestClient) -> None:

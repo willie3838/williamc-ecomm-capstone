@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -138,60 +139,130 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
         return 1
 
 
+def update_cloud_run_service(
+    project_id: str,
+    region: str,
+    resource_name: str,
+    service_name: str = "catalog-comparison-service",
+) -> bool:
+    """Update Cloud Run service with the active AGENT_RUNTIME_RESOURCE_NAME."""
+    print(
+        f"[*] Updating Cloud Run service {service_name} with AGENT_RUNTIME_RESOURCE_NAME={resource_name}..."
+    )
+    try:
+        import google.auth
+        import requests
+        from google.auth.transport.requests import Request
+
+        creds, _ = google.auth.default()
+        creds.refresh(Request())
+        headers = {
+            "Authorization": f"Bearer {creds.token}",
+            "Content-Type": "application/json",
+        }
+        url = f"https://{region}-run.googleapis.com/apis/serving.knative.dev/v1/namespaces/{project_id}/services/{service_name}"
+        resp = requests.get(url, headers=headers)
+        if resp.status_code != 200:
+            print(f"[!] Failed to fetch Cloud Run service: {resp.status_code} {resp.text}")
+            return False
+
+        svc = resp.json()
+        containers = (
+            svc.setdefault("spec", {})
+            .setdefault("template", {})
+            .setdefault("spec", {})
+            .setdefault("containers", [])
+        )
+        if not containers:
+            print("[!] No containers found in Cloud Run service spec.")
+            return False
+
+        env_list = containers[0].setdefault("env", [])
+        updated = False
+        for entry in env_list:
+            if entry.get("name") == "AGENT_RUNTIME_RESOURCE_NAME":
+                entry["value"] = resource_name
+                updated = True
+                break
+        if not updated:
+            env_list.append({"name": "AGENT_RUNTIME_RESOURCE_NAME", "value": resource_name})
+
+        # PUT updated service spec
+        put_resp = requests.put(url, headers=headers, json=svc)
+        if put_resp.status_code in (200, 201):
+            print(
+                f"[✓] Cloud Run service {service_name} updated successfully with AGENT_RUNTIME_RESOURCE_NAME={resource_name}"
+            )
+            return True
+        else:
+            print(f"[!] Cloud Run update failed: {put_resp.status_code} {put_resp.text}")
+            return False
+    except Exception as err:
+        print(f"[!] Error updating Cloud Run service: {err}")
+        return False
+
+
 def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int:
-    """Package and deploy CatalogComparisonReasoningEngine to Vertex AI Agent Runtime."""
-    print(f"[*] Deploying {display_name} to Vertex AI Agent Runtime ({region})...")
+    """Package and deploy ADK Agent Engine to Vertex AI Agent Runtime."""
+    print(f"[*] Deploying {display_name} via ADK to Vertex AI Agent Runtime ({region})...")
     console_url = (
         f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
     )
 
     try:
+        # Prepare clean environment without corporate mTLS overrides
+        env = os.environ.copy()
+        env.pop("GOOGLE_API_CERTIFICATE_CONFIG", None)
+        env.pop("CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH", None)
+        env["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
+        env["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+
+        temp_folder = "/tmp/adk_staging"
+        os.makedirs(temp_folder, exist_ok=True)
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "google.adk.cli",
+            "deploy",
+            "agent_engine",
+            "src/app/agent",
+            f"--project={project_id}",
+            f"--region={region}",
+            f"--display_name={display_name}",
+            "--otel_to_cloud",
+            f"--temp_folder={temp_folder}",
+        ]
+
+        print(f"[*] Executing ADK deploy: {' '.join(cmd)}")
+        result = subprocess.run(
+            cmd, cwd=str(Path(SCRIPT_DIR).parent), env=env, capture_output=True, text=True
+        )
+        print(result.stdout)
+        if result.returncode != 0:
+            print(f"[!] ADK deploy failed with code {result.returncode}: {result.stderr}")
+            return result.returncode
+
+        # Locate newest reasoning engine created with this display name
         import vertexai
         from vertexai.preview import reasoning_engines
 
-        from app.agent.reasoning_engine import CatalogComparisonReasoningEngine
+        vertexai.init(project=project_id, location=region)
+        engines = list(reasoning_engines.ReasoningEngine.list())
+        target_engine = None
+        for eng in sorted(
+            engines, key=lambda e: getattr(e, "create_time", None) or "", reverse=True
+        ):
+            if eng.display_name == display_name:
+                target_engine = eng
+                break
 
-        vertexai.init(
-            project=project_id,
-            location=region,
-            staging_bucket=f"gs://{project_id}-catalog-data",
-        )
-        engine_instance = CatalogComparisonReasoningEngine(
-            project_id=project_id,
-            region=region,
-        )
+        res_name = target_engine.resource_name if target_engine else None
+        if not res_name:
+            print("[!] Could not determine deployed ADK Agent Engine resource name.")
+            return 1
 
-        orig_cwd = os.getcwd()
-        try:
-            os.chdir(SRC_DIR)
-            remote_engine = reasoning_engines.ReasoningEngine.create(
-                engine_instance,
-                display_name=display_name,
-                description="TechBuy Retailers Multi-Agent Catalog Comparison Engine",
-                service_account=f"catalog-agent-sa@{project_id}.iam.gserviceaccount.com",
-                requirements=[
-                    "google-cloud-aiplatform>=1.75.0",
-                    "google-genai>=2.20.0",
-                    "google-adk>=2.9.0",
-                    "google-cloud-bigquery>=3.17.0",
-                    "google-cloud-firestore>=2.15.0",
-                    "google-cloud-logging>=3.9.0",
-                    "google-cloud-trace>=1.11.0",
-                    "pydantic>=2.6.0",
-                    "pydantic-settings>=2.2.0",
-                    "opentelemetry-api>=1.22.0",
-                    "opentelemetry-sdk>=1.22.0",
-                    "opentelemetry-exporter-gcp-trace>=1.6.0",
-                ],
-                extra_packages=[
-                    "app",
-                ],
-            )
-        finally:
-            os.chdir(orig_cwd)
-
-        res_name = remote_engine.resource_name
-        print("[+] Successfully deployed to Vertex AI Agent Runtime!")
+        print("[+] Successfully deployed ADK Agent Engine!")
         print(f"    Resource Name: {res_name}")
         print(f"    View in Console: {console_url}")
 
@@ -206,14 +277,12 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
         }
         metadata_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         print(f"[*] Saved deployment metadata to {metadata_file}")
+
+        # Update Cloud Run service with active runtime ID
+        update_cloud_run_service(project_id, region, res_name)
         return 0
     except Exception as err:
-        err_msg = str(err).lower()
-        if "reauth" in err_msg or "credential" in err_msg:
-            print(f"[!] Authentication required: {err}")
-            print("    Run: gcloud auth application-default login")
-        else:
-            print(f"[!] Deployment failed: {err}")
+        print(f"[!] Deployment failed: {err}")
         return 1
 
 

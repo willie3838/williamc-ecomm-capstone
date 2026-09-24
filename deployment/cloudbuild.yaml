@@ -203,11 +203,23 @@ steps:
             --region="${_REGION}" \
             --display_name="techbuy-catalog-comparison-agent" \
             --otel_to_cloud \
+            --temp_folder=/tmp/adk_staging \
             $${ENGINE_FLAG} \
-            src/app/agent || echo "Warning: ADK deploy finished with warnings"
+            src/app/agent
 
           # Clean up any superseded / stale reasoning engines
           python3 scripts/deploy_agent_runtime.py --clean-stale
+
+          # Synchronize live Cloud Run service with the active Agent Runtime ID
+          NEW_ENGINE_ID=$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); print(data.get('remote_agent_runtime_id', ''))")
+          if [ -n "$$NEW_ENGINE_ID" ]; then
+            echo "[+] Updating Cloud Run catalog-comparison-service with AGENT_RUNTIME_RESOURCE_NAME=$${NEW_ENGINE_ID}"
+            gcloud run services update catalog-comparison-service \
+              --region="${_REGION}" \
+              --project="${_PROJECT_ID}" \
+              --update-env-vars="AGENT_RUNTIME_RESOURCE_NAME=$${NEW_ENGINE_ID}" \
+              --quiet
+          fi
         else
           echo "[*] No changes detected in agent source code or dependencies. Skipping Agent Engine deployment."
         fi
