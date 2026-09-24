@@ -57,7 +57,7 @@ def seed_prompts() -> str:
 def sync_agent_registry() -> None:
     """Register or update the Cloud Run service in Google Cloud Agent Registry."""
     cloud_run_url = "https://catalog-comparison-service-499572810092.us-central1.run.app"
-    card = build_a2a_agent_card(cloud_run_url, include_metadata=False)
+    card = build_a2a_agent_card(cloud_run_url)
     temp_card_path = "/tmp/agent-card.json"
     with open(temp_card_path, "w") as f:
         json.dump(card, f)

@@ -37,6 +37,7 @@ backend/
 ├── scripts/                   # CLI diagnostics and developer tools
 │   ├── analyze_spans.py       # OpenTelemetry local waterfall profiler & Cloud Trace inspector
 │   ├── deploy_agent_runtime.py # Vertex AI Agent Runtime deployment, status inspection & query CLI
+│   ├── seed_gcp_registry_and_prompts.py # Vertex AI Prompt Management & Agent Registry A2A card sync
 │   └── run_adk_playground.sh  # Google ADK Web UI launcher for visual debugging
 └── tests/
     ├── __init__.py

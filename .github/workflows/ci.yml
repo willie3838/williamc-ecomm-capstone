@@ -69,6 +69,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Authenticate to Google Cloud via WIF
         id: gcp-auth
@@ -83,6 +85,7 @@ jobs:
       - name: Submit Cloud Build Pipeline
         run: |
           echo "=== Submitting build to Google Cloud Build via WIF ==="
+          git diff --name-only HEAD~1..HEAD > .changed_files 2>/dev/null || true
           gcloud builds submit --config=deployment/cloudbuild.yaml \
             --service-account="projects/fde-bestbuy-sandbox-dev-508321/serviceAccounts/catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com" \
             --substitutions=COMMIT_SHA=${{ github.sha }},SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7),_PROJECT_ID=fde-bestbuy-sandbox-dev-508321,_REGION=us-central1,_PROJECT_NUMBER=499572810092 \

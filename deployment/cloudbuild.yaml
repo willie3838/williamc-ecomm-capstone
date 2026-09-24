@@ -170,18 +170,23 @@ steps:
         set -euo pipefail
         echo "=== Checking for Agent Source Modifications ==="
 
-        # Determine base commit for accurate diff (handling both PR merge commits and direct pushes)
-        PARENTS=$$(git log -n 1 --pretty=format:"%P" HEAD)
-        FIRST_PARENT=$$(echo "$$PARENTS" | awk '{print $$1}')
-
-        if [ -n "$$FIRST_PARENT" ]; then
-          DIFF_RANGE="$${FIRST_PARENT}..HEAD"
+        # Determine changed files from git history or .changed_files archive artifact
+        if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          PARENTS=$$(git log -n 1 --pretty=format:"%P" HEAD 2>/dev/null || true)
+          FIRST_PARENT=$$(echo "$$PARENTS" | awk '{print $$1}')
+          if [ -n "$$FIRST_PARENT" ]; then
+            DIFF_RANGE="$${FIRST_PARENT}..HEAD"
+          else
+            DIFF_RANGE="HEAD~1..HEAD"
+          fi
+          echo "Inspecting git diff range: $${DIFF_RANGE}"
+          CHANGED_FILES=$$(git diff --name-only "$${DIFF_RANGE}" 2>/dev/null || echo "")
+        elif [ -f ".changed_files" ]; then
+          echo "Reading changed files from .changed_files"
+          CHANGED_FILES=$$(cat .changed_files)
         else
-          DIFF_RANGE="HEAD~1..HEAD"
+          CHANGED_FILES=""
         fi
-
-        echo "Inspecting git diff range: $${DIFF_RANGE}"
-        CHANGED_FILES=$$(git diff --name-only "$${DIFF_RANGE}" 2>/dev/null || echo "FORCE_DEPLOY")
 
         AGENT_PATTERN='^(backend/src/app/agent/|backend/src/app/models/|backend/src/app/tools/|backend/requirements.txt)'
 
