@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-09-23T20:38:30.863395+00:00",
+    "timestamp": "2026-09-23T20:58:11.602207+00:00",
     "dataset": "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/evals/dataset/benchmark_catalog.evalset.json",
     "judge_model": "gemini-3.5-flash",
     "mode": "hermetic",
@@ -17,9 +17,9 @@
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 1.0985,
-    "latency_p90_seconds": 1.3867,
-    "latency_p95_seconds": 1.3867,
+    "latency_p50_seconds": 2.2397,
+    "latency_p90_seconds": 2.9349,
+    "latency_p95_seconds": 2.9349,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -37,7 +37,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 1.3726
+      "mean_latency_seconds": 2.4454
     }
   },
   "details": [
@@ -65,7 +65,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 3.3162,
+      "latency_seconds": 3.8205,
       "status": "PASS",
       "errors": []
     },
@@ -93,7 +93,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.3867,
+      "latency_seconds": 2.2742,
       "status": "PASS",
       "errors": []
     },
@@ -121,7 +121,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.0031,
+      "latency_seconds": 2.5172,
       "status": "PASS",
       "errors": []
     },
@@ -149,7 +149,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.1839,
+      "latency_seconds": 2.2397,
       "status": "PASS",
       "errors": []
     },
@@ -177,7 +177,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.0651,
+      "latency_seconds": 2.9349,
       "status": "PASS",
       "errors": []
     },
@@ -205,7 +205,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.0872,
+      "latency_seconds": 2.1341,
       "status": "PASS",
       "errors": []
     },
@@ -233,7 +233,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.0985,
+      "latency_seconds": 2.086,
       "status": "PASS",
       "errors": []
     },
@@ -261,7 +261,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.2663,
+      "latency_seconds": 1.9778,
       "status": "PASS",
       "errors": []
     },
@@ -289,7 +289,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.9609,
+      "latency_seconds": 2.3155,
       "status": "PASS",
       "errors": []
     },
@@ -317,7 +317,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.3586,
+      "latency_seconds": 2.1543,
       "status": "PASS",
       "errors": []
     }

@@ -84,17 +84,17 @@ class Settings(BaseSettings):
         description="TTL in seconds for in-memory LRU catalog/comparison response cache",
     )
     gemini_model: str = Field(
-        default="gemini-2.5-pro",
+        default="tiered-hybrid",
         alias="GEMINI_MODEL",
         description="Gemini LLM model name for agent synthesis",
     )
     agent_version: str = Field(
-        default="1.0.0",
+        default="1.2.0-tiered",
         alias="AGENT_VERSION",
         description="Semantic version of the comparison agent orchestration logic",
     )
     prompt_version: str = Field(
-        default="2026.03-v1",
+        default="2026.03-v2",
         alias="PROMPT_VERSION",
         description="System prompt template version identifier in Vertex AI Prompt Management",
     )
@@ -121,7 +121,7 @@ class Settings(BaseSettings):
         description="Vertex AI Agent Engine (ReasoningEngine) resource ID injected by Agent Runtime",
     )
     model_version: str = Field(
-        default="gemini-2.5-pro@001",
+        default="tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001",
         alias="MODEL_VERSION",
         description="Pinned Vertex AI model version snapshot",
     )

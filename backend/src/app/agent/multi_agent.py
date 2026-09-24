@@ -71,7 +71,7 @@ class QueryIntentAgent:
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Sanitize query, detect intent type, and extract candidate keywords and category hints."""
-        with tracer.start_as_current_span("agent.query_intent") as span:
+        with tracer.start_as_current_span("agent.stage_1.query_intent") as span:
             state.sanitized_query = sanitize_user_prompt(state.raw_query)
             span.set_attribute("agent.input_length", len(state.raw_query))
             active_model = state.model or self.model
@@ -130,7 +130,7 @@ class CatalogRetrievalAgent:
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Query BigQuery catalog using extracted keywords."""
-        with tracer.start_as_current_span("agent.catalog_retrieval") as span:
+        with tracer.start_as_current_span("agent.stage_2.catalog_retrieval") as span:
             if not state.is_comparison_eligible:
                 # Bypass catalog retrieval for non-comparison opinion rants to save latency & database load
                 state.retrieved_products = []
@@ -196,7 +196,7 @@ class RelevanceDetectorAgent:
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Execute LLM reranker and verify whether selected products genuinely match query intent."""
-        with tracer.start_as_current_span("agent.relevance_detector") as span:
+        with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as span:
             active_model = state.model or self.model
             span.set_attribute("ai.model.name", active_model)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
@@ -284,7 +284,7 @@ class SpecComparisonAgent:
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Build structured comparison matrix and generate recommendations or guidance."""
-        with tracer.start_as_current_span("agent.spec_comparison") as span:
+        with tracer.start_as_current_span("agent.stage_4.spec_synthesis") as span:
             active_synthesis = state.synthesis_model or self.synthesis_model
             active_routing = state.model or self.model
             span.set_attribute("ai.synthesis_model.name", active_synthesis)
