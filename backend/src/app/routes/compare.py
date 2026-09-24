@@ -179,13 +179,13 @@ async def list_agent_versions(
     """List available agent versions backed by Vertex AI Prompt Management & Cloud Run."""
     versions = [
         AgentVersionSummary(
-            version=app_settings.agent_version,
+            version="1.0.0",
             display_name="Best Buy Catalog Comparison Agent (Baseline Pro)",
             description="Grounded comparison orchestrator using Gemini 2.5 Pro",
-            model=app_settings.gemini_model,
-            model_version=app_settings.model_version,
-            prompt_version=app_settings.prompt_version,
-            is_default=True,
+            model="gemini-2.5-pro",
+            model_version="gemini-2.5-pro@001",
+            prompt_version="2026.03-v1",
+            is_default=(app_settings.agent_version == "1.0.0"),
             skills_count=2,
             created_at="2026-03-01T00:00:00Z",
             changelog="Production baseline managed via Vertex AI Prompt Management",
@@ -197,10 +197,22 @@ async def list_agent_versions(
             model="gemini-2.5-flash",
             model_version="gemini-2.5-flash@001",
             prompt_version="2026.03-v2",
-            is_default=False,
+            is_default=(app_settings.agent_version == "1.1.0-flash"),
             skills_count=2,
             created_at="2026-03-15T00:00:00Z",
             changelog="Canary model variant managed via Vertex AI Prompt Management",
+        ),
+        AgentVersionSummary(
+            version="1.2.0-tiered",
+            display_name="Best Buy Catalog Comparison Agent (Tiered Hybrid)",
+            description="Tiered hybrid routing intent/filter to Flash and synthesis to Pro",
+            model="tiered-hybrid",
+            model_version="tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001",
+            prompt_version="2026.03-v2",
+            is_default=(app_settings.agent_version == "1.2.0-tiered"),
+            skills_count=2,
+            created_at="2026-03-24T00:00:00Z",
+            changelog="Optimized tiered hybrid architecture for production latency & cost",
         ),
     ]
     return AgentVersionsResponse(

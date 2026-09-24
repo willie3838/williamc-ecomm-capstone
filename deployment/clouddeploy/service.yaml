@@ -38,7 +38,7 @@ spec:
             - name: EXPORT_TRACES_TO_CLOUD
               value: "true"
             - name: AGENT_RUNTIME_RESOURCE_NAME
-              value: "projects/499572810092/locations/us-central1/reasoningEngines/3985768683350786048"
+              value: "projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928"
           ports:
             - containerPort: 8080
           startupProbe:

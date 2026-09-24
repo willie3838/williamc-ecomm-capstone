@@ -147,14 +147,14 @@ def test_api_v1_routes_and_readiness_dependencies() -> None:
 
     v1_versions = client.get("/api/v1/agent/versions")
     assert v1_versions.status_code == 200
-    assert v1_versions.json()["active_default"] == "1.0.0"
+    assert v1_versions.json()["active_default"] == "1.2.0-tiered"
 
     v1_compare = client.post(
         "/api/v1/compare",
         json={"query": "Compare MacBook Air M3 and Dell XPS 13"},
     )
     assert v1_compare.status_code == 200
-    assert v1_compare.json()["agent_version"] == "1.0.0"
+    assert v1_compare.json()["agent_version"] == "1.2.0-tiered"
 
     ranking_resp = CandidateRankingResponse(rankings=[CandidateRankItem(sku="SKU-1", score=9.5)])
     assert len(ranking_resp.rankings) == 1
