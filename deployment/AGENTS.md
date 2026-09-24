@@ -74,7 +74,7 @@ The automated delivery pipeline cleanly decouples Continuous Integration (Cloud 
 
 ### 4.1 Cloud Build CI Pipeline (`cloudbuild.yaml`)
 1. **Linter & Formatting Check**: Runs `ruff check backend/ evals/` and `ruff format --check backend/ evals/`.
-2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside containerized test harness.
+2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside containerized test harness with `EXPORT_TRACES_TO_CLOUD=false` (keeping OpenTelemetry in-memory span recording enabled while disabling remote Cloud Trace network export during unit tests; production Cloud Run and Agent Engine remain `EXPORT_TRACES_TO_CLOUD=true`).
 3. **ADK Agent Conformance Gate**: Runs `evals/test_eval_adk.py` to assert ADK agent specs.
 4. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`).
 5. **Artifact Push**: Pushes image tags `:${SHORT_SHA}` and `:latest` to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend`.

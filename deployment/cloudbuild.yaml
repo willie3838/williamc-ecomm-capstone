@@ -18,7 +18,7 @@ steps:
     id: 'unit-tests'
     entrypoint: 'bash'
     env:
-      - 'OTEL_SDK_DISABLED=true'
+      - 'EXPORT_TRACES_TO_CLOUD=false'
     args:
       - '-c'
       - |
