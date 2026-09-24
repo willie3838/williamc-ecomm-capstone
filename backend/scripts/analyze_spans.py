@@ -39,6 +39,7 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 from opentelemetry.sdk.trace import ReadableSpan
+
 from app.config import settings
 from app.observability.tracing import get_in_memory_exporter, setup_tracing
 
@@ -104,6 +105,7 @@ def analyze_local_query(
     bq_client = None
     if offline:
         from app.agent.hermetic_adapter import create_hermetic_bq_client
+
         bq_client = create_hermetic_bq_client()
 
     try:
@@ -118,8 +120,11 @@ def analyze_local_query(
     except Exception as exc:
         err_str = str(exc).lower()
         if "reauth" in err_str or "credentials" in err_str or "401" in err_str:
-            print(f"[*] Live GCP credentials unavailable ({exc}). Profiling using hermetic grounded adapter...")
+            print(
+                f"[*] Live GCP credentials unavailable ({exc}). Profiling using hermetic grounded adapter..."
+            )
             from app.agent.hermetic_adapter import create_hermetic_bq_client
+
             exporter.clear()
             coordinator = MultiAgentCoordinator(bq_client=create_hermetic_bq_client(), model=model)
             t_start = time.perf_counter()
@@ -203,8 +208,7 @@ def analyze_local_query(
             k: v
             for k, v in item.attributes.items()
             if any(
-                prefix in k
-                for prefix in ("gen_ai.", "ai.", "pipeline.", "candidates.", "agent.")
+                prefix in k for prefix in ("gen_ai.", "ai.", "pipeline.", "candidates.", "agent.")
             )
         }
         if key_attrs:
@@ -217,20 +221,25 @@ def analyze_local_query(
 
 def analyze_remote_trace(trace_id: str, output_format: str = "text") -> int:
     """Fetch and inspect spans for a given Cloud Trace ID from Google Cloud Trace."""
-    print(f"[*] Fetching trace spans for Trace ID: {trace_id} from GCP project: {settings.gcp_project}...")
+    print(
+        f"[*] Fetching trace spans for Trace ID: {trace_id} from GCP project: {settings.gcp_project}..."
+    )
     try:
         from google.cloud import trace_v2
+
         client = trace_v2.TraceServiceClient()
         project_name = f"projects/{settings.gcp_project}"
         # Cloud Trace trace_id is formatted as 32 hex chars
         trace_name = f"{project_name}/traces/{trace_id}"
-        
+
         # List spans for trace
         spans_pager = client.list_spans(parent=trace_name)
         remote_spans = list(spans_pager)
 
         if not remote_spans:
-            print(f"[!] No spans found in Cloud Trace for {trace_name}. (Spans may take 10-30s to ingest).")
+            print(
+                f"[!] No spans found in Cloud Trace for {trace_name}. (Spans may take 10-30s to ingest)."
+            )
             return 1
 
         print(f"[+] Successfully retrieved {len(remote_spans)} spans from Google Cloud Trace.")
@@ -243,7 +252,9 @@ def analyze_remote_trace(trace_id: str, output_format: str = "text") -> int:
                     "parent_span_id": s.parent_span_id,
                     "start_time": s.start_time.isoformat() if s.start_time else None,
                     "end_time": s.end_time.isoformat() if s.end_time else None,
-                    "attributes": {k: str(v) for k, v in s.attributes.attribute_map.items()} if s.attributes else {},
+                    "attributes": {k: str(v) for k, v in s.attributes.attribute_map.items()}
+                    if s.attributes
+                    else {},
                 }
                 for s in remote_spans
             ]
@@ -260,7 +271,9 @@ def analyze_remote_trace(trace_id: str, output_format: str = "text") -> int:
 
     except Exception as err:
         print(f"[!] Error fetching Cloud Trace: {err}")
-        print("    Note: Ensure Application Default Credentials (ADC) or GOOGLE_APPLICATION_CREDENTIALS are configured.")
+        print(
+            "    Note: Ensure Application Default Credentials (ADC) or GOOGLE_APPLICATION_CREDENTIALS are configured."
+        )
         return 1
 
 
@@ -269,18 +282,45 @@ def main() -> None:
         description="Span Analysis and Distributed Trace Inspection Tool for Catalog Comparison Service.",
     )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--query", "-q", type=str, help="Natural language query to execute locally and profile.")
-    group.add_argument("--trace-id", "-t", type=str, help="Google Cloud Trace ID (32 hex characters) to fetch and inspect.")
+    group.add_argument(
+        "--query", "-q", type=str, help="Natural language query to execute locally and profile."
+    )
+    group.add_argument(
+        "--trace-id",
+        "-t",
+        type=str,
+        help="Google Cloud Trace ID (32 hex characters) to fetch and inspect.",
+    )
 
-    parser.add_argument("--category", "-c", type=str, default=None, help="Optional category filter.")
-    parser.add_argument("--model", "-m", type=str, default=None, help="LLM model to use (e.g. tiered-hybrid, gemini-2.5-flash).")
-    parser.add_argument("--offline", action="store_true", help="Run with hermetic catalog and offline model.")
-    parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="Output format.")
+    parser.add_argument(
+        "--category", "-c", type=str, default=None, help="Optional category filter."
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        type=str,
+        default=None,
+        help="LLM model to use (e.g. tiered-hybrid, gemini-2.5-flash).",
+    )
+    parser.add_argument(
+        "--offline", action="store_true", help="Run with hermetic catalog and offline model."
+    )
+    parser.add_argument(
+        "--format", "-f", choices=["text", "json"], default="text", help="Output format."
+    )
 
     args = parser.parse_args()
 
     if args.query:
-        sys.exit(analyze_local_query(args.query, category=args.category, model=args.model, offline=args.offline, output_format=args.format))
+        sys.exit(
+            analyze_local_query(
+                args.query,
+                category=args.category,
+                model=args.model,
+                offline=args.offline,
+                output_format=args.format,
+            )
+        )
     elif args.trace_id:
         sys.exit(analyze_remote_trace(args.trace_id, output_format=args.format))
 

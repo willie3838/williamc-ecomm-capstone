@@ -31,7 +31,9 @@ from app.config import settings
 def check_status(project_id: str, region: str) -> int:
     """List deployed Reasoning Engines in Vertex AI Agent Runtime."""
     print(f"[*] Querying Vertex AI Agent Runtime in {region} for project: {project_id}...")
-    console_url = f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
+    console_url = (
+        f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
+    )
     print(f"[*] Console URL: {console_url}")
 
     try:
@@ -42,7 +44,7 @@ def check_status(project_id: str, region: str) -> int:
         engines = list(reasoning_engines.ReasoningEngine.list())
         if not engines:
             print("[!] No Reasoning Engines currently found in Vertex AI Agent Runtime.")
-            print(f"    You can deploy one via: python scripts/deploy_agent_runtime.py --deploy")
+            print("    You can deploy one via: python scripts/deploy_agent_runtime.py --deploy")
             return 0
 
         print(f"[+] Found {len(engines)} Reasoning Engine(s):")
@@ -94,7 +96,11 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
                 continue
 
             # Only prune engines matching our service or generic default name
-            if "techbuy" in disp_name.lower() or "catalog" in disp_name.lower() or disp_name.lower() == "agent":
+            if (
+                "techbuy" in disp_name.lower()
+                or "catalog" in disp_name.lower()
+                or disp_name.lower() == "agent"
+            ):
                 print(f"  [-] Deleting stale/superseded engine: {res_name} ({disp_name})...")
                 try:
                     eng.delete()
@@ -105,19 +111,23 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
                     print(f"  [!] SDK delete failed ({del_err}); attempting REST force delete...")
                     try:
                         import google.auth
-                        from google.auth.transport.requests import Request
                         import requests
+                        from google.auth.transport.requests import Request
 
                         creds, _ = google.auth.default()
                         creds.refresh(Request())
                         headers = {"Authorization": f"Bearer {creds.token}"}
-                        del_url = f"https://{region}-aiplatform.googleapis.com/v1/{res_name}?force=true"
+                        del_url = (
+                            f"https://{region}-aiplatform.googleapis.com/v1/{res_name}?force=true"
+                        )
                         resp = requests.delete(del_url, headers=headers)
                         if resp.status_code in (200, 204):
                             print(f"  [✓] Successfully force-deleted {res_name}")
                             cleaned += 1
                         else:
-                            print(f"  [!] Force delete failed with status {resp.status_code}: {resp.text}")
+                            print(
+                                f"  [!] Force delete failed with status {resp.status_code}: {resp.text}"
+                            )
                     except Exception as rest_err:
                         print(f"  [!] REST delete failed for {res_name}: {rest_err}")
 
@@ -131,11 +141,14 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
 def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int:
     """Package and deploy CatalogComparisonReasoningEngine to Vertex AI Agent Runtime."""
     print(f"[*] Deploying {display_name} to Vertex AI Agent Runtime ({region})...")
-    console_url = f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
+    console_url = (
+        f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
+    )
 
     try:
         import vertexai
         from vertexai.preview import reasoning_engines
+
         from app.agent.reasoning_engine import CatalogComparisonReasoningEngine
 
         vertexai.init(
@@ -178,7 +191,7 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
             os.chdir(orig_cwd)
 
         res_name = remote_engine.resource_name
-        print(f"[+] Successfully deployed to Vertex AI Agent Runtime!")
+        print("[+] Successfully deployed to Vertex AI Agent Runtime!")
         print(f"    Resource Name: {res_name}")
         print(f"    View in Console: {console_url}")
 
@@ -209,6 +222,7 @@ def test_query(resource_name: str, query: str) -> int:
     print(f"[*] Querying remote Reasoning Engine: {resource_name}...")
     try:
         from vertexai.preview import reasoning_engines
+
         remote_agent = reasoning_engines.ReasoningEngine(resource_name)
         response = remote_agent.query(query=query)
         print("[+] Query Response Received:")
@@ -220,16 +234,26 @@ def test_query(resource_name: str, query: str) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage Vertex AI Agent Runtime for Catalog Agent.")
+    parser = argparse.ArgumentParser(
+        description="Manage Vertex AI Agent Runtime for Catalog Agent."
+    )
     parser.add_argument("--status", action="store_true", help="Check status of reasoning engines.")
-    parser.add_argument("--clean-stale", action="store_true", help="Delete superseded/stale reasoning engines.")
-    parser.add_argument("--deploy", action="store_true", help="Deploy agent to Vertex AI Agent Runtime.")
+    parser.add_argument(
+        "--clean-stale", action="store_true", help="Delete superseded/stale reasoning engines."
+    )
+    parser.add_argument(
+        "--deploy", action="store_true", help="Deploy agent to Vertex AI Agent Runtime."
+    )
     parser.add_argument("--test", action="store_true", help="Execute test query.")
-    parser.add_argument("--query", "-q", default="MacBook Air vs Dell XPS 13", help="Query string for test.")
+    parser.add_argument(
+        "--query", "-q", default="MacBook Air vs Dell XPS 13", help="Query string for test."
+    )
     parser.add_argument("--project", default=settings.gcp_project, help="Google Cloud project ID.")
     parser.add_argument("--region", default=settings.region, help="GCP Region.")
     parser.add_argument("--name", default="techbuy-catalog-comparison-agent", help="Display name.")
-    parser.add_argument("--resource-name", default=settings.agent_runtime_resource_name, help="Resource name.")
+    parser.add_argument(
+        "--resource-name", default=settings.agent_runtime_resource_name, help="Resource name."
+    )
 
     args = parser.parse_args()
 
@@ -250,7 +274,9 @@ def main() -> None:
                 except Exception:
                     pass
         if not resource_name:
-            print("[!] Please provide --resource-name (e.g. projects/.../locations/.../reasoningEngines/...)")
+            print(
+                "[!] Please provide --resource-name (e.g. projects/.../locations/.../reasoningEngines/...)"
+            )
             sys.exit(1)
         sys.exit(test_query(resource_name, args.query))
     else:

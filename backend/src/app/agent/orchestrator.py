@@ -1180,7 +1180,9 @@ class ComparisonOrchestrator:
                 intent_span.set_attribute("agent.model", active_routing_model)
                 intent = self.classify_intent(query, model=active_routing_model)
                 intent_span.set_attribute("agent.detected_intent", intent.intent_type)
-                intent_span.set_attribute("agent.is_comparison_eligible", intent.is_comparison_eligible)
+                intent_span.set_attribute(
+                    "agent.is_comparison_eligible", intent.is_comparison_eligible
+                )
                 llm_keywords = [
                     kw.strip() for kw in (intent.target_keywords or []) if kw and kw.strip()
                 ]

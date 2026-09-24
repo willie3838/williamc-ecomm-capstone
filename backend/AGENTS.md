@@ -190,3 +190,7 @@ Never initiate network connections to Google Cloud services during unit tests. A
    - `CatalogComparisonReasoningEngine.set_up()` initializes `setup_tracing(export_to_cloud=True)` so that all internal stage spans stream into Google Cloud Trace during remote Vertex AI Agent Runtime execution.
 
 
+
+8. **Code Formatting & Lint Standards**:
+   - Backend Python code adheres to PEP 8 standards enforced via `ruff format` and `ruff check`.
+   - Ignored lint rules for scripts and test harnesses are centrally configured in `backend/pyproject.toml`.

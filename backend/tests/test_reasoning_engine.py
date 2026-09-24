@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 from app.agent.reasoning_engine import CatalogComparisonReasoningEngine
-from app.config import Settings
 from app.models.requests import ComparisonRequest
 from app.models.responses import CompareResponse
 from app.routes.compare import _execute_comparison_sync
@@ -88,7 +86,10 @@ def test_route_delegates_to_agent_runtime_when_configured() -> None:
     test_request = ComparisonRequest(query="MacBook Air vs Dell XPS 13")
 
     with (
-        patch("app.config.settings.agent_runtime_resource_name", "projects/123/locations/us-central1/reasoningEngines/456"),
+        patch(
+            "app.config.settings.agent_runtime_resource_name",
+            "projects/123/locations/us-central1/reasoningEngines/456",
+        ),
         patch.dict("os.environ", {"PYTEST_CURRENT_TEST": ""}),
         patch.dict("sys.modules", {"vertexai.preview.reasoning_engines": mock_re_module}),
     ):
