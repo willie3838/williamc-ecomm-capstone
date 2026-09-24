@@ -97,7 +97,7 @@ steps:
       - '.'
 
   # Step 4: Push Container Image to Artifact Registry
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/cloud-builders/gcloud'
     id: 'push-image'
     entrypoint: 'bash'
     args:
