@@ -23,8 +23,10 @@ steps:
       - '-c'
       - |
         set -euo pipefail
+        python -m venv /builder/home/.cb-venv
+        export PATH="/builder/home/.cb-venv/bin:$$PATH"
         cd backend
-        pip install --no-cache-dir -r requirements.txt
+        pip install --no-cache-dir -r requirements.txt google-adk
         echo "=== Running Pytest with Coverage Gate >= 80% ==="
         pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 
@@ -36,7 +38,7 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        pip install --no-cache-dir -r backend/requirements.txt google-adk
+        export PATH="/builder/home/.cb-venv/bin:$$PATH"
         echo "=== Running ADK Agent Conformance & Simple EvalSet Gate ==="
         PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv --no-cov
         echo "=== Running Simple Fixture Smoke Eval via runner.py ==="
@@ -56,7 +58,7 @@ steps:
       - '-c'
       - |
         set -euo pipefail
-        pip install --no-cache-dir -r backend/requirements.txt
+        export PATH="/builder/home/.cb-venv/bin:$$PATH"
         mkdir -p reports
         echo "=== Running Evaluation Flywheel 80-Pair Benchmark Suite ==="
         PYTHONPATH=backend/src python evals/runner.py \
@@ -146,16 +148,16 @@ steps:
           --quiet || echo "Cloud Run IAP configuration validated."
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'python:3.11-slim'
     id: 'sync-agent-registry'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         set -euo pipefail
+        export PATH="/builder/home/.cb-venv/bin:$$PATH"
         echo "=== Synchronizing Google Cloud Agent Registry & Prompt Management ==="
-        pip install --no-cache-dir --break-system-packages -r backend/requirements.txt
-        PYTHONPATH=backend/src python3 backend/scripts/seed_gcp_registry_and_prompts.py || echo "Warning: Prompt & Agent Registry sync completed with warnings"
+        PYTHONPATH=backend/src python backend/scripts/seed_gcp_registry_and_prompts.py || echo "Warning: Prompt & Agent Registry sync completed with warnings"
         echo "Google Cloud Agent Registry and Vertex AI Prompt Management synchronization finished."
 
   # Step 7: Conditional Vertex AI Agent Engine Deployment & Resource Pruning
@@ -237,6 +239,7 @@ images:
 options:
   logging: CLOUD_LOGGING_ONLY
   substitution_option: 'ALLOW_LOOSE'
+  machineType: 'E2_HIGHCPU_8'
 
-timeout: '1200s'
+timeout: '3600s'
 

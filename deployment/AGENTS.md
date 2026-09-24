@@ -22,7 +22,7 @@ All infrastructure must strictly deploy into:
 ```
 deployment/
 ├── AGENTS.md                  # This file (DevOps & IaC guide)
-├── cloudbuild.yaml            # Continuous Integration & Delivery pipeline (gcr.io/cloud-builders/docker build+push, Cloud Deploy canary, Agent Engine sync)
+├── cloudbuild.yaml            # Continuous Integration & Delivery pipeline (shared /builder/home/.cb-venv, E2_HIGHCPU_8, 3600s timeout, Cloud Deploy canary, Agent Engine sync)
 ├── cloudbuild-rollback.yaml   # Automated Cloud Build emergency rollback pipeline
 ├── Dockerfile                 # Hardened multi-stage container (non-root appuser, healthcheck)
 ├── rollback.sh                # Instant traffic rollback CLI script
