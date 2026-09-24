@@ -560,6 +560,7 @@ def run_benchmark(
     print(f"Mean Data Accuracy              : {mean_acc:.4f} (Target: >= {target_accuracy:.2f})")
     print(f"Mean Citation Faithfulness      : {mean_cit:.4f} (Target: >= {target_citation:.2f})")
     print(f"Mean Tool Trajectory Score      : {mean_traj:.4f} (Target: >= {target_trajectory:.2f})")
+    print(f"P95 Latency                     : {lat_p95:.3f}s (Target: <= {target_latency:.2f}s)")
     print(f"Mean Retrieval Precision / Recall: {mean_prec:.4f} / {mean_rec:.4f}")
     print(f"Structured Output Validity      : {schema_validity:.4f} (Target: 1.0000)")
     print(f"Overall Target Met              : {'✅ PASS' if target_met else '❌ FAIL'}")

@@ -199,6 +199,7 @@ def test_iam_least_privilege_enforcement():
         "roles/cloudbuild.builds.editor",
         "roles/storage.admin",
         "roles/serviceusage.serviceUsageConsumer",
+        "roles/cloudtrace.agent",
     ]
     for cicd_role in required_cicd_roles:
         assert cicd_role in content, (
