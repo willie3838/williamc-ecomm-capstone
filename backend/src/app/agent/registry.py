@@ -33,7 +33,7 @@ class AgentRegistry:
                 model_version="gemini-2.5-pro@001",
                 prompt_version="2026.03-v1",
                 system_instruction=SYSTEM_INSTRUCTION,
-                is_default=True,
+                is_default=False,
             ),
             "1.1.0-flash": AgentVersionSpec(
                 version="1.1.0-flash",
@@ -51,13 +51,13 @@ class AgentRegistry:
                 model_version="tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001",
                 prompt_version="2026.03-v2",
                 system_instruction=SYSTEM_INSTRUCTION,
-                is_default=False,
+                is_default=True,
             ),
         }
 
     def get_version(self, version: str | None = None) -> AgentVersionSpec | None:
         """Look up registered agent version specification and resolve active prompt."""
-        target = version or "1.0.0"
+        target = version or "1.2.0-tiered"
         spec = self._versions.get(target)
         if spec is None:
             return None

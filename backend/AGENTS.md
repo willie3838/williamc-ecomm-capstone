@@ -181,4 +181,12 @@ Never initiate network connections to Google Cloud services during unit tests. A
    - `create_hermetic_bq_client` is exported by `app.agent.hermetic_adapter` and `evals.runner` to provide consistent BigQuery simulation across offline evals and automated unit test environments.
    - `_execute_comparison_sync` in `app.routes.compare` defaults `effective_model` to `tiered-hybrid` only when no model is explicitly passed and `agent_version` is `1.0.0` or omitted, preserving specialized canary variant configurations (`1.1.0-flash`).
 
+7. **Fine-Grained OpenTelemetry Stage Spans & Cloud Trace Integration**:
+   - The pipeline decomposes end-to-end comparison execution into 4 distinct OpenTelemetry child spans:
+     - `agent.stage_1.query_intent`: Intent classification, prompt injection sanitization, and keyword extraction.
+     - `agent.stage_2.catalog_retrieval`: BigQuery SQL execution, cache status, and raw product parsing.
+     - `agent.stage_3.relevance_ranking`: LLM candidate scoring, opinion rejection, and entity pruning.
+     - `agent.stage_4.spec_synthesis`: Side-by-side matrix construction and grounded LLM narrative synthesis with SKU citations.
+   - `CatalogComparisonReasoningEngine.set_up()` initializes `setup_tracing(export_to_cloud=True)` so that all internal stage spans stream into Google Cloud Trace during remote Vertex AI Agent Runtime execution.
+
 

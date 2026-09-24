@@ -1175,8 +1175,20 @@ class ComparisonOrchestrator:
 
             trace_id = get_current_trace_id()
 
+            # Stage 1: Query Intent Extraction, Security Sanitization, and Keyword Parsing
+            with tracer.start_as_current_span("agent.stage_1.query_intent") as intent_span:
+                intent_span.set_attribute("agent.model", active_routing_model)
+                intent = self.classify_intent(query, model=active_routing_model)
+                intent_span.set_attribute("agent.detected_intent", intent.intent_type)
+                intent_span.set_attribute("agent.is_comparison_eligible", intent.is_comparison_eligible)
+                llm_keywords = [
+                    kw.strip() for kw in (intent.target_keywords or []) if kw and kw.strip()
+                ]
+                keywords = llm_keywords if llm_keywords else self.extract_keywords(query)
+                intent_span.set_attribute("agent.keywords", str(keywords))
+                logger.info("Parsed keywords %s from query: %s", keywords, safe_query)
+
             # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
-            intent = self.classify_intent(query, model=active_routing_model)
             if intent.intent_type == "OPINION_OR_CHATTER":
                 span.set_attribute("comparison_matrix_suppressed", True)
                 summary = (
@@ -1199,23 +1211,20 @@ class ComparisonOrchestrator:
                     prompt_version=resolved_prompt_ver,
                 )
 
-            with tracer.start_as_current_span("extract_keywords"):
-                llm_keywords = [
-                    kw.strip() for kw in (intent.target_keywords or []) if kw and kw.strip()
-                ]
-                keywords = llm_keywords if llm_keywords else self.extract_keywords(query)
-                span.set_attribute("keywords", str(keywords))
-                logger.info("Parsed keywords %s from query: %s", keywords, safe_query)
-
-            try:
-                catalog_rows = query_catalog(
-                    keywords=keywords,
-                    category=category,
-                    client=self.bq_client,
-                )
-            except Exception as err:
-                logger.warning("BigQuery catalog query encountered an error: %s", err)
-                catalog_rows = []
+            # Stage 2: Grounded Catalog Retrieval from BigQuery
+            with tracer.start_as_current_span("agent.stage_2.catalog_retrieval") as bq_stage_span:
+                bq_stage_span.set_attribute("agent.search_keywords", str(keywords))
+                bq_stage_span.set_attribute("agent.category_filter", category or "")
+                try:
+                    catalog_rows = query_catalog(
+                        keywords=keywords,
+                        category=category,
+                        client=self.bq_client,
+                    )
+                except Exception as err:
+                    logger.warning("BigQuery catalog query encountered an error: %s", err)
+                    catalog_rows = []
+                bq_stage_span.set_attribute("agent.raw_products_retrieved", len(catalog_rows))
 
             if not catalog_rows:
                 span.set_attribute("product_count", 0)
@@ -1234,16 +1243,21 @@ class ComparisonOrchestrator:
                     prompt_version=resolved_prompt_ver,
                 )
 
-            # Convert to ProductSpec schemas and rank products to match query intent
-            products = [ProductSpec(**row) for row in catalog_rows]
-            products = self.rank_and_select_products(
-                products,
-                keywords,
-                original_query=query,
-                model=active_routing_model,
-                precomputed_intent=intent,
-            )
-            target_skus = [p.sku for p in products]
+            # Stage 3: Relevance Detection & Entity Ranking
+            with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as rank_stage_span:
+                products = [ProductSpec(**row) for row in catalog_rows]
+                products = self.rank_and_select_products(
+                    products,
+                    keywords,
+                    original_query=query,
+                    model=active_routing_model,
+                    precomputed_intent=intent,
+                )
+                target_skus = [p.sku for p in products]
+                rank_stage_span.set_attribute("agent.candidates_in", len(catalog_rows))
+                rank_stage_span.set_attribute("agent.candidates_selected", len(products))
+                rank_stage_span.set_attribute("agent.selected_skus", ",".join(target_skus))
+
             span.set_attribute("product_count", len(products))
             span.set_attribute("target_skus", ",".join(target_skus))
 
@@ -1300,16 +1314,18 @@ class ComparisonOrchestrator:
                 for p in products
             ]
 
-            # Build comparison matrix
-            with tracer.start_as_current_span("build_comparison_matrix"):
-                matrix = self.build_comparison_matrix(products)
+            # Stage 4: Matrix Building & Spec Synthesis
+            with tracer.start_as_current_span("agent.stage_4.spec_synthesis") as synth_stage_span:
+                synth_stage_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
+                with tracer.start_as_current_span("build_comparison_matrix"):
+                    matrix = self.build_comparison_matrix(products)
 
-            # Synthesize narrative with SKU citations using active_synthesis_model
-            with tracer.start_as_current_span("synthesize_summary") as synth_span:
-                synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
-                summary, recommendations = self.synthesize_comparison_with_llm(
-                    products, matrix, query=query, model=active_synthesis_model
-                )
+                with tracer.start_as_current_span("gemini.synthesize_summary") as synth_span:
+                    synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
+                    summary, recommendations = self.synthesize_comparison_with_llm(
+                        products, matrix, query=query, model=active_synthesis_model
+                    )
+                synth_stage_span.set_attribute("agent.matrix_rows_count", len(matrix))
 
             return CompareResponse(
                 summary=summary,
