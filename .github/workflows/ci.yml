@@ -45,6 +45,7 @@ jobs:
           PYTHONPATH=backend/src python evals/runner.py \
             --dataset evals/dataset/fixtures/simple_test.evalset.json \
             --output reports/simple_eval.json \
+            --target-latency 6.0 \
             --fail-on-threshold \
             --trigger-source ci
           echo "=== 3. Full 80-Pair Benchmark & Regression Gate (runner.py + analyze.py) ==="
