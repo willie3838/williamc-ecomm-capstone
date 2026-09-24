@@ -102,6 +102,27 @@ resource "google_service_account_iam_member" "sa_act_as_self" {
   member             = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
+# Cloud Build Editor: Required to submit and manage builds via gcloud builds submit
+resource "google_project_iam_member" "sa_cloudbuild_editor" {
+  project = var.project_id
+  role    = "roles/cloudbuild.builds.editor"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# Storage Admin: Required to stage and upload source archive to gs://${PROJECT_ID}_cloudbuild
+resource "google_project_iam_member" "sa_cloudbuild_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# Service Usage Consumer: Required for Cloud Build to bill and run APIs
+resource "google_project_iam_member" "sa_serviceusage_consumer" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
 resource "google_project_service_identity" "iap_sa" {
   provider = google-beta
