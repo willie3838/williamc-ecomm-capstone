@@ -38,12 +38,18 @@ class CatalogComparisonReasoningEngine:
     def set_up(self) -> None:
         """Initialize MultiAgentCoordinator upon remote deployment in Agent Runtime."""
         try:
+            import os
+
             from app.observability.tracing import setup_tracing
 
+            export_to_cloud = (
+                "PYTEST_CURRENT_TEST" not in os.environ
+                and os.environ.get("EXPORT_TRACES_TO_CLOUD", "true").lower() != "false"
+            )
             setup_tracing(
                 service_name="techbuy-catalog-comparison-agent",
                 project_id=self.project_id,
-                export_to_cloud=True,
+                export_to_cloud=export_to_cloud,
             )
             logger.info("Configured Cloud Trace exporter for Agent Runtime Reasoning Engine.")
         except Exception as trace_err:
