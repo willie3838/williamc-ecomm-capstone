@@ -97,17 +97,16 @@ steps:
       - '.'
 
   # Step 4: Push Container Image to Artifact Registry
-  - name: 'gcr.io/cloud-builders/docker'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'push-image'
+    entrypoint: 'bash'
     args:
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
-
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-latest'
-    args:
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest'
+      - '-c'
+      - |
+        set -euo pipefail
+        gcloud auth configure-docker "${_REGION}-docker.pkg.dev" --quiet
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
+        docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest"
 
   # Step 5: Register Release and Progressive Delivery Rollout in Google Cloud Deploy
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
