@@ -48,7 +48,7 @@ evals/
 | **Generalization Gap ($\Delta$)** | $\le 0.05$ | `evals.anti_overfitting_gate` | Performance drop between benchmark and holdout dataset |
 | **Counterfactual Fidelity** | $\ge 0.95$ | `evals.anti_overfitting_gate` | Factual adherence to perturbed catalog specs over parametric memory |
 | **Negative Query Suppression**| $100.0\%$ | `evals.anti_overfitting_gate` | Asserts 0 hallucinated products/citations on rants/chatter |
-| **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | $> 3.0$s requires optimization |
+| **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | `evals/analyze.py` flags latency regression only when `cur_lat > target_latency_p95` (`3.0`s) and exceeds baseline tolerance |
 | **Structured Output Validity**| $1.00$ | Pydantic `CompareResponse` schema validation | Any validation error is fatal |
 | **Pairwise Synthesis Win Rate**| $\ge 0.85$ | `evals/pairwise_judge.py` (`PairwiseJudgment` schema) | Position-bias-checked head-to-head comparison against baseline models |
 
