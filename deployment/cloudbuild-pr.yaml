@@ -17,6 +17,8 @@ steps:
   - name: 'python:3.11-slim'
     id: 'unit-tests'
     entrypoint: 'bash'
+    env:
+      - 'OTEL_SDK_DISABLED=true'
     args:
       - '-c'
       - |
@@ -40,6 +42,7 @@ steps:
         PYTHONPATH=backend/src python evals/runner.py \
           --dataset evals/dataset/fixtures/simple_test.evalset.json \
           --output reports/simple_eval.json \
+          --target-latency 6.0 \
           --fail-on-threshold \
           --trigger-source ci
         echo "=== Running Evaluation Flywheel 80-Pair Benchmark Suite ==="

@@ -152,6 +152,13 @@ resource "google_project_iam_member" "sa_cicd_vertex_user" {
   member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
+# Cloud Trace Agent: Allow CI/CD SA to emit trace telemetry during build evaluation steps
+resource "google_project_iam_member" "sa_cicd_trace_agent" {
+  project = var.project_id
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
 resource "google_project_service_identity" "iap_sa" {
   provider = google-beta
