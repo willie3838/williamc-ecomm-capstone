@@ -138,6 +138,20 @@ resource "google_project_iam_member" "sa_serviceusage_consumer" {
   member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
+# Cloud Run Admin: Allow CI/CD SA to update environment variables and configure IAP
+resource "google_project_iam_member" "sa_cicd_run_admin" {
+  project = var.project_id
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# Vertex AI User: Allow CI/CD SA to deploy and configure Agent Engine / Reasoning Engines
+resource "google_project_iam_member" "sa_cicd_vertex_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
 resource "google_project_service_identity" "iap_sa" {
   provider = google-beta

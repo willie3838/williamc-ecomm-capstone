@@ -171,7 +171,7 @@ def test_iam_least_privilege_enforcement():
     for role in prohibited_roles:
         assert role not in content, f"Overly permissive role '{role}' found in iam.tf"
 
-    # Required least-privilege roles
+    # Required least-privilege roles for runtime service account
     required_roles = [
         "roles/bigquery.jobUser",
         "roles/bigquery.dataViewer",
@@ -182,6 +182,28 @@ def test_iam_least_privilege_enforcement():
     ]
     for role in required_roles:
         assert role in content, f"Missing required least-privilege role '{role}' in iam.tf"
+
+    # Must define catalog-cicd-sa for Cloud Build CI/CD BYOSA
+    assert 'resource "google_service_account" "catalog_cicd_sa"' in content
+    assert 'account_id   = "catalog-cicd-sa"' in content
+
+    # Required least-privilege roles for CI/CD BYOSA service account
+    required_cicd_roles = [
+        "roles/artifactregistry.writer",
+        "roles/clouddeploy.releaser",
+        "roles/clouddeploy.jobRunner",
+        "roles/run.admin",
+        "roles/aiplatform.user",
+        "roles/iam.serviceAccountUser",
+        "roles/logging.logWriter",
+        "roles/cloudbuild.builds.editor",
+        "roles/storage.admin",
+        "roles/serviceusage.serviceUsageConsumer",
+    ]
+    for cicd_role in required_cicd_roles:
+        assert cicd_role in content, (
+            f"Missing required CI/CD least-privilege role '{cicd_role}' in iam.tf"
+        )
 
 
 def test_bigquery_schema_and_partitioning():
