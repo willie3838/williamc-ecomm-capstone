@@ -110,6 +110,13 @@ resource "google_service_account_iam_member" "sa_cicd_act_as_itself" {
 }
 
 
+# Logging Log Writer: Required for Cloud Build to write build step logs to Cloud Logging
+resource "google_project_iam_member" "sa_cicd_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
 # Cloud Build Editor: Required to submit and manage builds via gcloud builds submit
 resource "google_project_iam_member" "sa_cloudbuild_editor" {
   project = var.project_id

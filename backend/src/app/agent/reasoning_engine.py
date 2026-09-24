@@ -47,7 +47,9 @@ class CatalogComparisonReasoningEngine:
             )
             logger.info("Configured Cloud Trace exporter for Agent Runtime Reasoning Engine.")
         except Exception as trace_err:
-            logger.warning("Could not initialize Cloud Trace exporter in Reasoning Engine: %s", trace_err)
+            logger.warning(
+                "Could not initialize Cloud Trace exporter in Reasoning Engine: %s", trace_err
+            )
 
         self._coordinator = MultiAgentCoordinator(
             model=self.model,

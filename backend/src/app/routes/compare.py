@@ -34,8 +34,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     # Default to tiered-hybrid for production if not explicitly specified
     effective_model = request.model
     if effective_model is None and (
-        not request.agent_version
-        or request.agent_version in ("1.0.0", "1.2.0-tiered")
+        not request.agent_version or request.agent_version in ("1.0.0", "1.2.0-tiered")
     ):
         effective_model = "tiered-hybrid"
     effective_synthesis = request.synthesis_model
