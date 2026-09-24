@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+
 from evals.analyze import compare_reports, format_delta, generate_markdown_report, load_report
 
 
@@ -280,3 +281,61 @@ def test_load_report_file_not_found():
     """Verify FileNotFoundError on nonexistent report file."""
     with pytest.raises(FileNotFoundError):
         load_report(Path("/nonexistent/report.json"))
+
+
+def test_compare_reports_latency_within_target_no_regression():
+    """Verify P95 latency within target_latency_p95 (<= 3.0s) does not trigger false regression against offline mock baseline."""
+    base_report = {
+        "summary": {
+            "mean_data_accuracy": 1.0,
+            "mean_citation_faithfulness": 1.0,
+            "latency_p95_seconds": 0.0469,
+            "structured_output_validity": 1.0,
+            "target_threshold_met": True,
+            "targets": {"target_latency_p95": 3.0},
+        },
+        "details": [],
+    }
+    curr_report = {
+        "summary": {
+            "mean_data_accuracy": 1.0,
+            "mean_citation_faithfulness": 1.0,
+            "latency_p95_seconds": 2.6859,
+            "structured_output_validity": 1.0,
+            "target_threshold_met": True,
+            "targets": {"target_latency_p95": 3.0},
+        },
+        "details": [],
+    }
+    res = compare_reports(curr_report, base_report)
+    assert res["verdict"] == "PASSED"
+    assert res["regressions_detected"] is False
+
+
+def test_compare_reports_latency_exceeds_target_regression():
+    """Verify P95 latency exceeding both target_latency_p95 and tolerance triggers regression."""
+    base_report = {
+        "summary": {
+            "mean_data_accuracy": 1.0,
+            "mean_citation_faithfulness": 1.0,
+            "latency_p95_seconds": 2.5,
+            "structured_output_validity": 1.0,
+            "target_threshold_met": True,
+            "targets": {"target_latency_p95": 3.0},
+        },
+        "details": [],
+    }
+    curr_report = {
+        "summary": {
+            "mean_data_accuracy": 1.0,
+            "mean_citation_faithfulness": 1.0,
+            "latency_p95_seconds": 3.5,
+            "structured_output_validity": 1.0,
+            "target_threshold_met": False,
+            "targets": {"target_latency_p95": 3.0},
+        },
+        "details": [],
+    }
+    res = compare_reports(curr_report, base_report, latency_tolerance_pct=10.0)
+    assert res["regressions_detected"] is True
+    assert any("P95 Latency" in r["metric"] for r in res["regression_details"])

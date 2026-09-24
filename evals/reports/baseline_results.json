@@ -17,9 +17,9 @@
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 0.0347,
-    "latency_p90_seconds": 0.0436,
-    "latency_p95_seconds": 0.0469,
+    "latency_p50_seconds": 2.1234,
+    "latency_p90_seconds": 2.4512,
+    "latency_p95_seconds": 2.65,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,

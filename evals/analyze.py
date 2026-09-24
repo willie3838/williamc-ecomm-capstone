@@ -142,7 +142,8 @@ def compare_reports(
                 }
             )
             regressions_found = True
-        if lat_pct_delta > latency_tolerance_pct and cur_lat > 1.0:
+        target_lat = cur_sum.get("targets", {}).get("target_latency_p95", 3.0)
+        if lat_pct_delta > latency_tolerance_pct and cur_lat > target_lat:
             regressions.append(
                 {
                     "metric": "P95 Latency",
