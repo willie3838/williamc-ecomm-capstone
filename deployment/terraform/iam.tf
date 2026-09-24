@@ -125,5 +125,41 @@ resource "google_iap_web_iam_member" "user_access" {
   member  = var.iap_authorized_user
 }
 
+# Workload Identity Pool for GitHub Actions CI/CD
+resource "google_iam_workload_identity_pool" "github_pool" {
+  workload_identity_pool_id = "github-actions-pool"
+  project                   = var.project_id
+  display_name              = "GitHub Actions Pool"
+  description               = "Identity pool for GitHub Actions OIDC integration"
+}
+
+# Workload Identity Pool Provider for GitHub OIDC
+resource "google_iam_workload_identity_pool_provider" "github_provider" {
+  project                            = var.project_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github_pool.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Actions Provider"
+
+  attribute_mapping = {
+    "google.subject"             = "assertion.sub"
+    "attribute.actor"            = "assertion.actor"
+    "attribute.repository"       = "assertion.repository"
+    "attribute.repository_owner" = "assertion.repository_owner"
+  }
+
+  attribute_condition = "assertion.repository == \"${var.github_repo_owner}/${var.github_repo_name}\""
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+# Allow GitHub Actions repository identity to impersonate CI/CD Service Account
+resource "google_service_account_iam_member" "github_wif_sa_impersonation" {
+  service_account_id = google_service_account.catalog_cicd_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github_pool.name}/attribute.repository/${var.github_repo_owner}/${var.github_repo_name}"
+}
+
 
 

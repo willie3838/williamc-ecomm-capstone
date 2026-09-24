@@ -144,3 +144,17 @@ terraform init
 terraform plan -var="project_id=fde-bestbuy-sandbox-dev-508321" -out=tfplan
 terraform apply tfplan
 ```
+
+---
+
+## 7. Workload Identity Federation (WIF) for GitHub Actions CI/CD
+
+To comply with Google Cloud Organization Policy constraints (`constraints/iam.managed.disableServiceAccountKeyCreation`), long-lived service account keys (`GCP_SA_KEY`) are prohibited.
+
+Instead, GitHub Actions authenticates dynamically via **Workload Identity Federation (WIF)**:
+- **Workload Identity Pool**: `github-actions-pool` (`projects/499572810092/locations/global/workloadIdentityPools/github-actions-pool`)
+- **Pool Provider**: `github-provider` (OIDC issuer: `https://token.actions.githubusercontent.com`)
+- **Attribute Restriction**: Restricted strictly to `attribute.repository == "willie3838/williamc-ecomm-capstone"`
+- **Target Service Account**: `catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com` (granted `roles/iam.workloadIdentityUser`)
+- **Token Lifecycle**: GitHub dynamically mints a short-lived OIDC JWT per workflow step; Google STS exchanges it for a 1-hour short-lived OAuth2 access token with zero stored secrets.
+

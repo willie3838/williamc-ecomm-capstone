@@ -93,8 +93,8 @@ def clean_stale_engines(project_id: str, region: str, keep_resource_name: str | 
                 print(f"  [+] Keeping active production engine: {res_name} ({disp_name})")
                 continue
 
-            # Only prune engines matching our service name
-            if "techbuy" in disp_name.lower() or "catalog" in disp_name.lower():
+            # Only prune engines matching our service or generic default name
+            if "techbuy" in disp_name.lower() or "catalog" in disp_name.lower() or disp_name.lower() == "agent":
                 print(f"  [-] Deleting stale/superseded engine: {res_name} ({disp_name})...")
                 try:
                     eng.delete()
