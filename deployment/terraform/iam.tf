@@ -102,6 +102,14 @@ resource "google_service_account_iam_member" "sa_act_as_self" {
   member             = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
+# Service Account User: Allow CI/CD SA to submit Cloud Build jobs running as itself
+resource "google_service_account_iam_member" "sa_cicd_act_as_itself" {
+  service_account_id = google_service_account.catalog_cicd_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+
 # Cloud Build Editor: Required to submit and manage builds via gcloud builds submit
 resource "google_project_iam_member" "sa_cloudbuild_editor" {
   project = var.project_id

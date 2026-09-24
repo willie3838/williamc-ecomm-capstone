@@ -155,6 +155,7 @@ Instead, GitHub Actions authenticates dynamically via **Workload Identity Federa
 - **Workload Identity Pool**: `github-actions-pool` (`projects/499572810092/locations/global/workloadIdentityPools/github-actions-pool`)
 - **Pool Provider**: `github-provider` (OIDC issuer: `https://token.actions.githubusercontent.com`)
 - **Attribute Restriction**: Restricted strictly to `attribute.repository == "willie3838/williamc-ecomm-capstone"`
-- **Target Service Account**: `catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com` (granted `roles/iam.workloadIdentityUser`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, and `roles/serviceusage.serviceUsageConsumer`)
+- **Target Service Account**: `catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com` (granted `roles/iam.workloadIdentityUser`, `roles/iam.serviceAccountUser`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, and `roles/serviceusage.serviceUsageConsumer`)
 - **Token Lifecycle**: GitHub dynamically mints a short-lived OIDC JWT per workflow step; Google STS exchanges it for a 1-hour short-lived OAuth2 access token with zero stored secrets.
+
 
