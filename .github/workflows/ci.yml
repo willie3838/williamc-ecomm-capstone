@@ -68,21 +68,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud via WIF
         id: gcp-auth
         uses: google-github-actions/auth@v2
-        continue-on-error: true
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: 'projects/499572810092/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com'
 
       - name: Set up Cloud SDK
-        if: steps.gcp-auth.outcome == 'success'
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Submit Cloud Build Pipeline
-        if: steps.gcp-auth.outcome == 'success'
         run: |
-          echo "=== Submitting build to Google Cloud Build ==="
+          echo "=== Submitting build to Google Cloud Build via WIF ==="
           gcloud builds submit --config=deployment/cloudbuild.yaml \
             --substitutions=COMMIT_SHA=${{ github.sha }},SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7),_PROJECT_ID=fde-bestbuy-sandbox-dev-508321,_REGION=us-central1,_PROJECT_NUMBER=499572810092 \
             --project=fde-bestbuy-sandbox-dev-508321
