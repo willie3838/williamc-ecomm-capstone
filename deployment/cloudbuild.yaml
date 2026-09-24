@@ -216,9 +216,6 @@ substitutions:
   _REGION: 'us-central1'
   _PROJECT_ID: 'fde-bestbuy-sandbox-dev-508321'
   _PROJECT_NUMBER: '499572810092'
-  COMMIT_SHA: ''
-  SHORT_SHA: ''
-
 
 images:
   - '${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}'
@@ -226,5 +223,7 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  substitution_option: 'ALLOW_LOOSE'
 
 timeout: '1200s'
+
