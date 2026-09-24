@@ -100,14 +100,13 @@ steps:
       - '.'
 
   # Step 4: Push Container Image to Artifact Registry
-  - name: 'gcr.io/cloud-builders/gcloud'
+  - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         set -euo pipefail
-        gcloud auth configure-docker "${_REGION}-docker.pkg.dev" --quiet
         docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
         docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest"
 
@@ -192,7 +191,7 @@ steps:
           # Detect existing engine ID to update in-place and avoid duplicate instances
           ENGINE_FLAG=""
           if [ -f "deployment_metadata.json" ]; then
-            EXISTING_ID=$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); raw=data.get('remote_agent_runtime_id', ''); print(raw.split('/')[-1] if raw else '')")
+            EXISTING_ID=$$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); raw=data.get('remote_agent_runtime_id', ''); print(raw.split('/')[-1] if raw else '')")
             if [ -n "$$EXISTING_ID" ]; then
               ENGINE_FLAG="--agent_engine_id=$${EXISTING_ID}"
               echo "[+] Found existing engine ID to update in-place: $${EXISTING_ID}"
@@ -213,7 +212,7 @@ steps:
           python3 scripts/deploy_agent_runtime.py --clean-stale
 
           # Synchronize live Cloud Run service with the active Agent Runtime ID
-          NEW_ENGINE_ID=$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); print(data.get('remote_agent_runtime_id', ''))")
+          NEW_ENGINE_ID=$$(python3 -c "import json; data=json.load(open('deployment_metadata.json')); print(data.get('remote_agent_runtime_id', ''))")
           if [ -n "$$NEW_ENGINE_ID" ]; then
             echo "[+] Updating Cloud Run catalog-comparison-service with AGENT_RUNTIME_RESOURCE_NAME=$${NEW_ENGINE_ID}"
             gcloud run services update catalog-comparison-service \
