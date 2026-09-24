@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from evals.analyze import compare_reports, format_delta, generate_markdown_report, load_report
 
 
