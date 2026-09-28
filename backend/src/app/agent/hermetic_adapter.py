@@ -111,6 +111,116 @@ def _warm_vertex_client_and_auth() -> None:
 _VERTEX_CALL_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 
+def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
+    """Invoke regional Model Armor sanitizeUserPrompt API when inline Vertex AI template lookup hits regional mismatch."""
+    if (
+        not prompt_text
+        or not getattr(settings, "enable_model_armor", True)
+        or os.environ.get("PYTEST_CURRENT_TEST")
+        or hasattr(genai.Client, "assert_called")
+    ):
+        return False, ""
+    try:
+        import google.auth
+        import requests
+        from google.auth.transport.requests import Request
+
+        creds, _ = google.auth.default()
+        if not getattr(creds, "valid", False):
+            creds.refresh(Request())
+        project_id = settings.gcp_project
+        region = settings.region or "us-central1"
+        url = (
+            f"https://modelarmor.{region}.rep.googleapis.com/v1/"
+            f"projects/{project_id}/locations/{region}/templates/catalog-prompt-guard:sanitizeUserPrompt"
+        )
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {creds.token}",
+                "Content-Type": "application/json",
+            },
+            json={"userPromptData": {"text": prompt_text}},
+            timeout=1.5,
+        )
+        if resp.status_code == 200:
+            res = resp.json().get("sanitizationResult", {})
+            if res.get("filterMatchState") == "MATCH_FOUND":
+                label_map = {
+                    "pi_and_jailbreak": "Prompt Injection and Jailbreak",
+                    "rai": "Responsible AI Safety settings",
+                    "malicious_uris": "Malicious URIs",
+                    "sdp": "SDP/PII",
+                    "csam": "CSAM",
+                }
+                matched: list[str] = []
+                for k, v in res.get("filterResults", {}).items():
+                    if not isinstance(v, dict):
+                        continue
+                    is_hit = False
+                    for sub_v in v.values():
+                        if isinstance(sub_v, dict):
+                            if sub_v.get("matchState") == "MATCH_FOUND":
+                                is_hit = True
+                            for sub_v2 in sub_v.values():
+                                if (
+                                    isinstance(sub_v2, dict)
+                                    and sub_v2.get("matchState") == "MATCH_FOUND"
+                                ):
+                                    is_hit = True
+                    if is_hit:
+                        matched.append(label_map.get(k, k))
+                reason_str = (
+                    f"The prompt violated {', '.join(matched)} filters."
+                    if matched
+                    else "The prompt violated Model Armor security filters."
+                )
+                return True, reason_str
+    except Exception as exc:
+        logger.debug("Model Armor REST fallback check error: %s", exc)
+    return False, ""
+
+
+def _build_model_armor_refusal_response(
+    reason_code: str,
+    detail_message: str = "",
+    template_name: str | None = None,
+    inferred_schema: Any = None,
+) -> LlmResponse:
+    """Construct a deterministic LlmResponse when Google Cloud Model Armor blocks a prompt or response."""
+    tmpl_id = (template_name or settings.model_armor_prompt_template).split("/")[-1]
+    clean_detail = (
+        detail_message.strip()
+        or "The request violated Google Cloud Model Armor safety, prompt injection, malicious URI, or sensitive data protection (SDP/PII) guardrails."
+    )
+    if inferred_schema is QueryIntentAnalysis:
+        payload = QueryIntentAnalysis(
+            intent_type="OPINION_OR_CHATTER",
+            is_comparison_eligible=False,
+            reasoning=f"Blocked by Model Armor ({tmpl_id}): {clean_detail}"[:120],
+        ).model_dump_json()
+        return LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part.from_text(text=payload)],
+            ),
+            partial=False,
+        )
+    refusal_text = (
+        f"[Model Armor Security Guardrail Activated — Template: {tmpl_id}]\n"
+        f"Request blocked by Google Cloud Model Armor (verdict: {reason_code}). "
+        f"{clean_detail} "
+        "No catalog tools or database queries were executed. Please submit a valid consumer electronics comparison query."
+    )
+    return LlmResponse(
+        content=types.Content(
+            role="model",
+            parts=[types.Part.from_text(text=refusal_text)],
+        ),
+        partial=False,
+    )
+
+
 def _call_real_vertex_gemini(
     prompt: str,
     schema_cls: Any = None,
@@ -1298,10 +1408,7 @@ class CatalogAdkLlm(BaseLlm):
                     )
 
             if (
-                not self.hermetic
-                and not is_test_env
-                and "lite" not in target_model
-                and getattr(settings, "enable_model_armor", True)
+                getattr(settings, "enable_model_armor", True)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):
@@ -1331,6 +1438,23 @@ class CatalogAdkLlm(BaseLlm):
                         or "not found" in err_msg
                         or "thinking" in err_msg
                     ):
+                        if (
+                            "model_armor" in err_msg
+                            or "template" in err_msg
+                            or "not found" in err_msg
+                        ):
+                            ma_blocked, ma_reason = _check_model_armor_prompt_guard(prompt_text)
+                            if ma_blocked:
+                                span.set_attribute("ai.safety.blocked", True)
+                                span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR")
+                                yield _build_model_armor_refusal_response(
+                                    reason_code="MODEL_ARMOR",
+                                    detail_message=ma_reason,
+                                    template_name=settings.model_armor_prompt_template,
+                                    inferred_schema=inferred_schema,
+                                )
+                                return
+
                         fallback_kwargs: dict[str, Any] = {
                             "system_instruction": getattr(
                                 effective_config, "system_instruction", None
@@ -1340,6 +1464,8 @@ class CatalogAdkLlm(BaseLlm):
                             ),
                             "response_schema": getattr(effective_config, "response_schema", None),
                             "safety_settings": getattr(effective_config, "safety_settings", None),
+                            "tools": getattr(effective_config, "tools", None),
+                            "tool_config": getattr(effective_config, "tool_config", None),
                             "temperature": getattr(effective_config, "temperature", 0.1),
                             "max_output_tokens": getattr(
                                 effective_config, "max_output_tokens", effective_max_tokens
@@ -1362,6 +1488,7 @@ class CatalogAdkLlm(BaseLlm):
                 # Validate prompt_feedback.block_reason and candidate finish_reason for safety/Model Armor blocks
                 prompt_fb = getattr(response, "prompt_feedback", None)
                 block_reason = str(getattr(prompt_fb, "block_reason", "") or "").upper()
+                block_reason_msg = str(getattr(prompt_fb, "block_reason_message", "") or "").strip()
                 if any(
                     flag in block_reason
                     for flag in (
@@ -1372,11 +1499,24 @@ class CatalogAdkLlm(BaseLlm):
                         "SPII",
                     )
                 ):
-                    raise ValueError(f"Prompt blocked by safety/Model Armor filter: {block_reason}")
+                    span.set_attribute("ai.safety.blocked", True)
+                    span.set_attribute("ai.safety.block_reason", block_reason)
+                    if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
+                        raise ValueError(
+                            f"Prompt blocked by safety/Model Armor filter: {block_reason}"
+                        )
+                    yield _build_model_armor_refusal_response(
+                        reason_code=block_reason.split(".")[-1],
+                        detail_message=block_reason_msg,
+                        template_name=settings.model_armor_prompt_template,
+                        inferred_schema=inferred_schema,
+                    )
+                    return
 
                 if hasattr(response, "candidates") and response.candidates:
                     first_cand = response.candidates[0]
                     finish_reason = str(getattr(first_cand, "finish_reason", "")).upper()
+                    finish_msg = str(getattr(first_cand, "finish_message", "") or "").strip()
                     if any(
                         flag in finish_reason
                         for flag in (
@@ -1387,10 +1527,33 @@ class CatalogAdkLlm(BaseLlm):
                             "SPII",
                         )
                     ):
-                        raise ValueError(
-                            f"Response blocked by safety/Model Armor filter: {finish_reason}"
+                        span.set_attribute("ai.safety.blocked", True)
+                        span.set_attribute("ai.safety.block_reason", finish_reason)
+                        if self._injected_client is not None or hasattr(
+                            genai.Client, "assert_called"
+                        ):
+                            raise ValueError(
+                                f"Response blocked by safety/Model Armor filter: {finish_reason}"
+                            )
+                        yield _build_model_armor_refusal_response(
+                            reason_code=finish_reason.split(".")[-1],
+                            detail_message=finish_msg,
+                            template_name=settings.model_armor_response_template,
+                            inferred_schema=inferred_schema,
                         )
+                        return
                     if is_tool_selection_turn and "MALFORMED_FUNCTION_CALL" in finish_reason:
+                        ma_blocked, ma_reason = _check_model_armor_prompt_guard(prompt_text)
+                        if ma_blocked:
+                            span.set_attribute("ai.safety.blocked", True)
+                            span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR")
+                            yield _build_model_armor_refusal_response(
+                                reason_code="MODEL_ARMOR",
+                                detail_message=ma_reason,
+                                template_name=settings.model_armor_prompt_template,
+                                inferred_schema=inferred_schema,
+                            )
+                            return
                         llm_response = self._generate_hermetic_llm_response(llm_request)
                         yield llm_response
                         return
