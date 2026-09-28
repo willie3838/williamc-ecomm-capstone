@@ -198,8 +198,31 @@ class BigQueryCatalogIngestor:
             logger.info("Table '%s' already exists.", self.table_ref)
             return table
 
+    @staticmethod
+    def deduplicate_records(records: list[ProductRecord]) -> list[ProductRecord]:
+        """Deduplicate ProductRecord items by SKU, keeping the latest occurrence for each SKU."""
+        deduped_by_sku: dict[str, ProductRecord] = {}
+        duplicate_count = 0
+        for record in records:
+            sku_key = record.sku.strip()
+            if sku_key in deduped_by_sku:
+                duplicate_count += 1
+                logger.warning(
+                    "Duplicate SKU '%s' (%s) encountered; replacing previous entry with latest record.",
+                    sku_key,
+                    record.name,
+                )
+            deduped_by_sku[sku_key] = record
+        if duplicate_count > 0:
+            logger.info(
+                "Deduplicated %d duplicate SKU record(s); %d unique SKUs retained.",
+                duplicate_count,
+                len(deduped_by_sku),
+            )
+        return list(deduped_by_sku.values())
+
     def load_from_json(self, file_path: Path | str) -> list[ProductRecord]:
-        """Load and validate product records from a JSON file."""
+        """Load, validate, and deduplicate product records from a JSON file."""
         path = Path(file_path)
         if not path.is_file():
             raise FileNotFoundError(f"Catalog file not found: {path}")
@@ -217,10 +240,10 @@ class BigQueryCatalogIngestor:
                     f"Validation failed for item index {index} (SKU: {item.get('sku')}): {exc}"
                 ) from exc
 
-        return records
+        return self.deduplicate_records(records)
 
     def load_from_csv(self, file_path: Path | str) -> list[ProductRecord]:
-        """Load and validate product records from a CSV file with stringified JSON specs."""
+        """Load, validate, and deduplicate product records from a CSV file with stringified JSON specs."""
         path = Path(file_path)
         if not path.is_file():
             raise FileNotFoundError(f"Catalog file not found: {path}")
@@ -237,25 +260,28 @@ class BigQueryCatalogIngestor:
                         f"Validation failed for CSV row {row_idx + 1} (SKU: {row.get('sku')}): {exc}"
                     ) from exc
 
-        return records
+        return self.deduplicate_records(records)
 
     def ingest_products(
         self,
         products: list[ProductRecord],
         dry_run: bool = False,
         create_table: bool = True,
+        write_disposition: str = bigquery.WriteDisposition.WRITE_TRUNCATE,
     ) -> IngestionResult:
-        """Batch ingest validated ProductRecords into BigQuery.
+        """Batch ingest validated, deduplicated ProductRecords into BigQuery.
 
         Args:
             products: List of validated ProductRecord objects.
             dry_run: If True, validate schemas without writing to BigQuery.
             create_table: If True, ensure dataset and table exist before loading.
+            write_disposition: BigQuery write disposition (defaults to WRITE_TRUNCATE to prevent duplicate SKUs).
 
         Returns:
             IngestionResult summary with counts and errors.
         """
-        total = len(products)
+        unique_products = self.deduplicate_records(products)
+        total = len(unique_products)
         if total == 0:
             logger.warning("No product records provided for ingestion.")
             return IngestionResult(
@@ -263,7 +289,7 @@ class BigQueryCatalogIngestor:
             )
 
         # Validate all records can serialize to BigQuery schema
-        rows = [p.to_bigquery_row() for p in products]
+        rows = [p.to_bigquery_row() for p in unique_products]
 
         if dry_run:
             logger.info(
@@ -286,7 +312,7 @@ class BigQueryCatalogIngestor:
 
         job_config = bigquery.LoadJobConfig(
             schema=self.get_schema(),
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            write_disposition=write_disposition,
         )
 
         try:

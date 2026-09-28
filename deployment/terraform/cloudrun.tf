@@ -96,6 +96,21 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
         value = var.environment
       }
 
+      env {
+        name  = "ENABLE_MODEL_ARMOR"
+        value = "true"
+      }
+
+      env {
+        name  = "MODEL_ARMOR_PROMPT_TEMPLATE"
+        value = "projects/${var.project_id}/locations/us/templates/catalog-prompt-guard"
+      }
+
+      env {
+        name  = "MODEL_ARMOR_RESPONSE_TEMPLATE"
+        value = "projects/${var.project_id}/locations/us/templates/catalog-resp-guard"
+      }
+
       startup_probe {
         initial_delay_seconds = 5
         timeout_seconds       = 3

@@ -126,12 +126,12 @@ class Settings(BaseSettings):
         description="Pinned Vertex AI model version snapshot",
     )
     model_armor_prompt_template: str = Field(
-        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-prompt-guard",
+        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us/templates/catalog-prompt-guard",
         alias="MODEL_ARMOR_PROMPT_TEMPLATE",
         description="Google Cloud Model Armor prompt guardrail template",
     )
     model_armor_response_template: str = Field(
-        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-resp-guard",
+        default="projects/fde-bestbuy-sandbox-dev-508321/locations/us/templates/catalog-resp-guard",
         alias="MODEL_ARMOR_RESPONSE_TEMPLATE",
         description="Google Cloud Model Armor response guardrail template",
     )

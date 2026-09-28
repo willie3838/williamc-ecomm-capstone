@@ -58,6 +58,7 @@ class QueryIntentAgent:
 
     def __init__(self, model: str | None = None) -> None:
         self.model, _, _ = resolve_model_pair(model=model)
+        self.orchestrator = ComparisonOrchestrator(model=self.model)
         self.adk_agent = Agent(
             name="query_intent_specialist",
             model=self.model,
@@ -79,8 +80,12 @@ class QueryIntentAgent:
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
 
-            # Execute specialist ADK Agent via CatalogAdkRunner (backed by CatalogAdkLlm & FirestoreSessionService)
-            orchestrator = ComparisonOrchestrator(model=active_model)
+            # Execute specialist ADK Agent via CatalogAdkRunner
+            orchestrator = (
+                self.orchestrator
+                if active_model == self.model
+                else ComparisonOrchestrator(model=active_model)
+            )
             intent_analysis = orchestrator.classify_intent(
                 state.sanitized_query, model=active_model
             )
@@ -90,7 +95,7 @@ class QueryIntentAgent:
             span.set_attribute("agent.is_comparison_eligible", state.is_comparison_eligible)
 
             # Assign category and keywords directly from LLM QueryIntentAnalysis
-            state.detected_category = intent_analysis.detected_category
+            state.detected_category = state.detected_category or intent_analysis.detected_category
             state.target_keywords = (
                 intent_analysis.target_keywords
                 if intent_analysis.target_keywords
@@ -423,6 +428,9 @@ class MultiAgentCoordinator:
         model: str | None = None,
         synthesis_model: str | None = None,
     ) -> None:
+        from app.agent.hermetic_adapter import _warm_vertex_client_and_auth
+
+        _warm_vertex_client_and_auth()
         self.bq_client = bq_client
         self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
             model=model, synthesis_model=synthesis_model

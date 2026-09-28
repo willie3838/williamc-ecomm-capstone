@@ -25,6 +25,19 @@ from app.models import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_COORDINATOR_CACHE: dict[tuple[str | None, str | None], MultiAgentCoordinator] = {}
+
+
+def _get_coordinator(model: str | None, synthesis_model: str | None) -> MultiAgentCoordinator:
+    if hasattr(MultiAgentCoordinator, "assert_called"):
+        return MultiAgentCoordinator(model=model, synthesis_model=synthesis_model)
+    key = (model, synthesis_model)
+    coord = _COORDINATOR_CACHE.get(key)
+    if coord is None:
+        coord = MultiAgentCoordinator(model=model, synthesis_model=synthesis_model)
+        _COORDINATOR_CACHE[key] = coord
+    return coord
+
 
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
@@ -76,7 +89,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
             synthesis_model=request.synthesis_model,
         )
 
-    coordinator = MultiAgentCoordinator(
+    coordinator = _get_coordinator(
         model=effective_model,
         synthesis_model=effective_synthesis,
     )

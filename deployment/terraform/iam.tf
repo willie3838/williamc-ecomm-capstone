@@ -36,6 +36,13 @@ resource "google_project_iam_member" "sa_vertex_user" {
   member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
 }
 
+# IAM Role: Model Armor User (Required to evaluate prompt and response guardrail templates)
+resource "google_project_iam_member" "sa_modelarmor_user" {
+  project = var.project_id
+  role    = "roles/modelarmor.user"
+  member  = "serviceAccount:${google_service_account.catalog_agent_sa.email}"
+}
+
 # BigQuery Dataset Access: Data Viewer on catalog (Read-only access to products)
 resource "google_bigquery_dataset_iam_member" "sa_catalog_viewer" {
   project    = var.project_id
@@ -156,6 +163,13 @@ resource "google_project_iam_member" "sa_cicd_vertex_user" {
 resource "google_project_iam_member" "sa_cicd_trace_agent" {
   project = var.project_id
   role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# Model Armor Admin: Allow CI/CD SA to provision and update Model Armor guardrail templates
+resource "google_project_iam_member" "sa_cicd_modelarmor_admin" {
+  project = var.project_id
+  role    = "roles/modelarmor.admin"
   member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 

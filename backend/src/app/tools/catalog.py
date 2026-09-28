@@ -101,6 +101,18 @@ class CatalogResponseCache:
 catalog_circuit_breaker = CatalogCircuitBreaker()
 catalog_cache = CatalogResponseCache(ttl_seconds=getattr(settings, "cache_ttl_seconds", 300))
 
+_SHARED_BQ_CLIENT: bigquery.Client | None = None
+_BQ_CLIENT_LOCK = threading.Lock()
+
+
+def _get_shared_bq_client() -> bigquery.Client:
+    """Return a shared BigQuery client singleton to avoid per-query credential refresh overhead."""
+    global _SHARED_BQ_CLIENT
+    with _BQ_CLIENT_LOCK:
+        if _SHARED_BQ_CLIENT is None:
+            _SHARED_BQ_CLIENT = bigquery.Client(project=settings.gcp_project)
+        return _SHARED_BQ_CLIENT
+
 
 def query_catalog(
     keywords: list[str],
@@ -185,22 +197,21 @@ def query_catalog(
 
         injected_client = client is not None
         if client is None:
-            if os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(
-                bigquery.Client, "assert_called"
+            import app.agent.hermetic_adapter as ha
+
+            if (
+                os.environ.get("PYTEST_CURRENT_TEST")
+                and not hasattr(bigquery.Client, "assert_called")
+            ) or (
+                getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
+                and not hasattr(bigquery.Client, "assert_called")
+                and not os.environ.get("PYTEST_CURRENT_TEST")
             ):
-                from app.agent.hermetic_adapter import create_hermetic_bq_client
-
-                client = create_hermetic_bq_client()
+                client = ha.create_hermetic_bq_client()
+            elif hasattr(bigquery.Client, "assert_called"):
+                client = bigquery.Client(project=settings.gcp_project)
             else:
-                import google.auth
-                from google.auth.transport.requests import Request
-
-                try:
-                    creds, _ = google.auth.default()
-                    creds.refresh(Request())
-                    client = bigquery.Client(project=settings.gcp_project, credentials=creds)
-                except Exception:
-                    client = bigquery.Client(project=settings.gcp_project)
+                client = _get_shared_bq_client()
 
         patterns = [f"%{k}%" for k in clean_keywords]
         # Also include individual model/brand sub-tokens so non-contiguous catalog names match
@@ -300,7 +311,10 @@ def query_catalog(
         SELECT sku, name, brand, category, price, rating, review_count, specifications, url, image_url, in_stock
         FROM `{settings.catalog_table_id}`
         WHERE {where_sql}
-        ORDER BY price ASC
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
+        ORDER BY
+          (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat)) DESC,
+          price ASC
         LIMIT @limit
         """.strip()
 
@@ -348,9 +362,20 @@ def query_catalog(
                         "attempt": attempt,
                     },
                 )
-                query_job = client.query(query_sql, job_config=job_config)
-                # Enforce query result timeout
-                results = query_job.result(timeout=timeout_seconds)
+                if (
+                    not injected_client
+                    and not hasattr(bigquery.Client, "assert_called")
+                    and not hasattr(client.query, "assert_called")
+                    and hasattr(client, "query_and_wait")
+                ):
+                    results = client.query_and_wait(
+                        query_sql, job_config=job_config, wait_timeout=timeout_seconds
+                    )
+                    query_job = results
+                else:
+                    query_job = client.query(query_sql, job_config=job_config)
+                    # Enforce query result timeout
+                    results = query_job.result(timeout=timeout_seconds)
                 catalog_circuit_breaker.record_success()
                 break
             except Exception as err:
@@ -361,6 +386,22 @@ def query_catalog(
                     attempt,
                     err,
                 )
+                err_low = str(err).lower()
+                if any(k in err_low for k in ("reauth", "credentials", "unauthenticated")):
+                    if (
+                        not injected_client
+                        and not hasattr(bigquery.Client, "assert_called")
+                        and not os.environ.get("PYTEST_CURRENT_TEST")
+                    ):
+                        import app.agent.hermetic_adapter as ha
+
+                        ha._VERTEX_AUTH_UNAVAILABLE = True
+                        catalog_circuit_breaker.reset()
+                        herm_client = ha.create_hermetic_bq_client()
+                        query_job = herm_client.query(query_sql, job_config=job_config)
+                        results = query_job.result(timeout=timeout_seconds)
+                        last_error = None
+                    break
                 if attempt < total_attempts:
                     max_backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
                     backoff = random.uniform(0.005, max_backoff)

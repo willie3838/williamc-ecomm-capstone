@@ -164,11 +164,46 @@ def test_rerank_with_llm_handles_model_armor_blocked_response(mock_client_cls):
 
 
 def test_get_model_armor_config():
-    """Verify get_model_armor_config instantiates types.ModelArmorConfig with template names."""
+    """Verify get_model_armor_config instantiates types.ModelArmorConfig with multi-region 'us' template names."""
     from app.agent.orchestrator import get_model_armor_config
 
     armor_config = get_model_armor_config()
     assert armor_config is not None
     assert isinstance(armor_config, types.ModelArmorConfig)
-    assert "catalog-prompt-guard" in armor_config.prompt_template_name
-    assert "catalog-resp-guard" in armor_config.response_template_name
+    assert "locations/us/templates/catalog-prompt-guard" in armor_config.prompt_template_name
+    assert "locations/us/templates/catalog-resp-guard" in armor_config.response_template_name
+
+
+@patch("google.genai.Client")
+def test_synthesize_comparison_with_llm_passes_model_armor_config(mock_client_cls):
+    """Verify synthesize_comparison_with_llm attaches model_armor_config on GenerateContentConfig."""
+    mock_client = MagicMock()
+    mock_client_cls.return_value = mock_client
+
+    mock_response = MagicMock()
+    mock_response.text = '{"summary": "Product A [SKU: 111] vs Product B [SKU: 222].", "recommendations": "Best Value: Product B [SKU: 222]."}'
+    mock_response.candidates = [MagicMock(finish_reason="STOP")]
+    mock_response.usage_metadata = MagicMock(prompt_token_count=60, candidates_token_count=30)
+    mock_client.models.generate_content.return_value = mock_response
+
+    orchestrator = ComparisonOrchestrator()
+    products = [
+        ProductSpec(sku="111", name="Product A", price=999.0, brand="BrandA", category="Laptops"),
+        ProductSpec(sku="222", name="Product B", price=899.0, brand="BrandB", category="Laptops"),
+    ]
+    matrix = orchestrator.build_comparison_matrix(products)
+
+    summary, recs = orchestrator.synthesize_comparison_with_llm(
+        products, matrix, query="Compare Product A and Product B"
+    )
+
+    assert mock_client.models.generate_content.called
+    kwargs = mock_client.models.generate_content.call_args.kwargs
+    config = kwargs["config"]
+    assert config is not None
+    assert config.model_armor_config is not None
+    assert "catalog-prompt-guard" in config.model_armor_config.prompt_template_name
+    assert "catalog-resp-guard" in config.model_armor_config.response_template_name
+    assert config.safety_settings is None
+    assert "[SKU: 111]" in summary
+    assert recs is not None

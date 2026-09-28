@@ -220,6 +220,17 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
         temp_folder = "/tmp/adk_staging"
         os.makedirs(temp_folder, exist_ok=True)
 
+        metadata_file = Path(SCRIPT_DIR).parent / "deployment_metadata.json"
+        existing_engine_id = None
+        if metadata_file.exists():
+            try:
+                existing_meta = json.loads(metadata_file.read_text(encoding="utf-8"))
+                existing_res = existing_meta.get("remote_agent_runtime_id", "")
+                if existing_res and "/" in existing_res:
+                    existing_engine_id = existing_res.split("/")[-1]
+            except Exception:
+                pass
+
         cmd = [
             sys.executable,
             "-m",
@@ -233,14 +244,13 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
             "--otel_to_cloud",
             f"--temp_folder={temp_folder}",
         ]
+        if existing_engine_id:
+            cmd.append(f"--agent_engine_id={existing_engine_id}")
 
-        print(f"[*] Executing ADK deploy: {' '.join(cmd)}")
-        result = subprocess.run(
-            cmd, cwd=str(Path(SCRIPT_DIR).parent), env=env, capture_output=True, text=True
-        )
-        print(result.stdout)
+        print(f"[*] Executing ADK deploy: {' '.join(cmd)}", flush=True)
+        result = subprocess.run(cmd, cwd=str(Path(SCRIPT_DIR).parent), env=env, text=True)
         if result.returncode != 0:
-            print(f"[!] ADK deploy failed with code {result.returncode}: {result.stderr}")
+            print(f"[!] ADK deploy failed with code {result.returncode}")
             return result.returncode
 
         # Locate newest reasoning engine created with this display name

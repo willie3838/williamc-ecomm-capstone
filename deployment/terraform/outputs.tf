@@ -64,3 +64,14 @@ output "bigquery_evaluation_table_id" {
   description = "The BigQuery table ID for nightly evaluation runs"
   value       = google_bigquery_table.evaluation_runs.table_id
 }
+
+output "model_armor_prompt_template" {
+  description = "The Google Cloud Model Armor prompt guardrail template resource name"
+  value       = terraform_data.model_armor_prompt_template.output.template_name
+}
+
+output "model_armor_response_template" {
+  description = "The Google Cloud Model Armor response guardrail template resource name"
+  value       = terraform_data.model_armor_response_template.output.template_name
+}
+

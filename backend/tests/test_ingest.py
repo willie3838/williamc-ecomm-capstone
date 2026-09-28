@@ -431,3 +431,78 @@ def test_product_specifications_not_dict(sample_product_dict: dict) -> None:
     sample_product_dict["specifications"] = "not a dict"
     with pytest.raises(ValidationError):
         ProductRecord(**sample_product_dict)
+
+
+def test_catalog_seed_json_enhanced_and_no_duplicate_skus() -> None:
+    """Verify catalog_seed.json has >= 40 unique SKUs, >= 8 per category, zero duplicates, and rich specs."""
+    from collections import Counter
+
+    seed_file = Path(__file__).parent.parent / "src" / "app" / "data" / "catalog_seed.json"
+    raw_items = json.loads(seed_file.read_text(encoding="utf-8"))
+    raw_skus = [item["sku"] for item in raw_items]
+    assert len(raw_skus) == len(set(raw_skus)), "Duplicate SKUs found in catalog_seed.json"
+
+    ingestor = BigQueryCatalogIngestor(project_id="test-project")
+    products = ingestor.load_from_json(seed_file)
+    assert len(products) >= 40, f"Expected at least 40 unique SKUs, got {len(products)}"
+
+    cat_counts = Counter(p.category for p in products)
+    for cat in ("Laptops", "Tablets", "Headphones", "Smart Home", "TVs"):
+        assert cat_counts[cat] >= 8, f"Category {cat} should have >= 8 SKUs, got {cat_counts[cat]}"
+
+    for prod in products:
+        assert len(prod.specifications) >= 6, (
+            f"SKU {prod.sku} ({prod.name}) should have >= 6 specification attributes"
+        )
+
+
+def test_ingest_deduplicates_duplicate_skus_and_uses_write_truncate(
+    tmp_path: Path, sample_product_dict: dict
+) -> None:
+    """Verify BigQueryCatalogIngestor deduplicates duplicate SKUs and uses WRITE_TRUNCATE by default."""
+    from google.cloud import bigquery
+
+    dup_dict = dict(sample_product_dict)
+    dup_dict["price"] = 999.0  # Updated price for the same SKU
+
+    json_file = tmp_path / "dup_products.json"
+    json_file.write_text(
+        json.dumps([sample_product_dict, dup_dict]),
+        encoding="utf-8",
+    )
+
+    mock_client = MagicMock()
+    mock_job = MagicMock()
+    mock_job.result.return_value = None
+    mock_job.errors = None
+    mock_client.load_table_from_json.return_value = mock_job
+
+    ingestor = BigQueryCatalogIngestor(project_id="test-project", client=mock_client)
+    loaded = ingestor.load_from_json(json_file)
+    assert len(loaded) == 1, "load_from_json should deduplicate duplicate SKUs"
+    assert loaded[0].price == 999.0, "Deduplication should retain latest record for duplicate SKU"
+
+    # Also test passing duplicate ProductRecords directly to ingest_products
+    p1 = ProductRecord(**sample_product_dict)
+    p2 = ProductRecord(**dup_dict)
+    result = ingestor.ingest_products([p1, p2], dry_run=False, create_table=False)
+    assert result.total_records == 1
+    assert result.inserted_records == 1
+
+    call_kwargs = mock_client.load_table_from_json.call_args[1]
+    job_config = call_kwargs["job_config"]
+    assert job_config.write_disposition == bigquery.WriteDisposition.WRITE_TRUNCATE
+
+
+def test_query_catalog_sql_deduplicates_skus_via_qualify() -> None:
+    """Verify query_catalog SQL query includes QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ...) = 1."""
+    from app.tools.catalog import query_catalog
+
+    mock_client = MagicMock()
+    mock_job = MagicMock()
+    mock_job.result.return_value = []
+    mock_client.query.return_value = mock_job
+
+    query_catalog(keywords=["MacBook"], client=mock_client)
+    sql_arg = mock_client.query.call_args[0][0]
+    assert "QUALIFY ROW_NUMBER() OVER (PARTITION BY sku" in sql_arg

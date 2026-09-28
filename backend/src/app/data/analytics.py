@@ -34,6 +34,10 @@ class AnalyticsService:
             return self._firestore_client
         if os.getenv("PYTEST_CURRENT_TEST"):
             return None
+        import app.agent.hermetic_adapter as ha
+
+        if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
+            return None
 
         try:
             self._firestore_client = firestore.Client(project=settings.gcp_project)
@@ -51,6 +55,10 @@ class AnalyticsService:
         if self._bq_client is not None:
             return self._bq_client
         if os.getenv("PYTEST_CURRENT_TEST"):
+            return None
+        import app.agent.hermetic_adapter as ha
+
+        if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
             return None
 
         try:

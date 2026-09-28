@@ -24,6 +24,7 @@ EXPECTED_HCL_FILES = [
     "cloudbuild.tf",
     "outputs.tf",
     "eval_job.tf",
+    "model_armor.tf",
 ]
 
 
@@ -131,6 +132,7 @@ def test_no_hardcoded_project_ids_in_resources():
         "firestore.tf",
         "audit_logs.tf",
         "clouddeploy.tf",
+        "model_armor.tf",
     ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 
@@ -179,6 +181,7 @@ def test_iam_least_privilege_enforcement():
         "roles/cloudtrace.agent",
         "roles/logging.logWriter",
         "roles/aiplatform.user",
+        "roles/modelarmor.user",
     ]
     for role in required_roles:
         assert role in content, f"Missing required least-privilege role '{role}' in iam.tf"
@@ -200,6 +203,7 @@ def test_iam_least_privilege_enforcement():
         "roles/storage.admin",
         "roles/serviceusage.serviceUsageConsumer",
         "roles/cloudtrace.agent",
+        "roles/modelarmor.admin",
     ]
     for cicd_role in required_cicd_roles:
         assert cicd_role in content, (
@@ -321,6 +325,7 @@ def test_main_apis_and_storage():
         "cloudtrace.googleapis.com",
         "logging.googleapis.com",
         "storage.googleapis.com",
+        "modelarmor.googleapis.com",
     ]
     for api in required_apis:
         assert api in content, f"API '{api}' not enabled in main.tf"
@@ -350,6 +355,8 @@ def test_outputs_coverage():
         "cloud_run_eval_job_name",
         "cloud_scheduler_eval_job_id",
         "bigquery_evaluation_table_id",
+        "model_armor_prompt_template",
+        "model_armor_response_template",
     ]
     for output_name in expected_outputs:
         pattern = rf'output\s+"{output_name}"\s+{{'
@@ -538,3 +545,23 @@ def test_weekly_model_benchmark_terraform():
         'resource "google_cloud_run_v2_job_iam_member" "scheduler_model_benchmark_invoker"'
         in content
     )
+
+
+def test_model_armor_terraform():
+    """Verify Google Cloud Model Armor API, templates, IAM, and Cloud Run env vars in Terraform."""
+    armor_tf = TERRAFORM_DIR / "model_armor.tf"
+    assert armor_tf.exists(), "model_armor.tf missing"
+    content = armor_tf.read_text()
+
+    assert 'resource "google_project_service" "modelarmor_api"' in content
+    assert '"modelarmor.googleapis.com"' in content
+    assert 'resource "terraform_data" "model_armor_prompt_template"' in content
+    assert 'resource "terraform_data" "model_armor_response_template"' in content
+    assert "catalog-prompt-guard" in content
+    assert "catalog-resp-guard" in content
+    assert "var.project_id" in content
+
+    cloudrun_tf = (TERRAFORM_DIR / "cloudrun.tf").read_text()
+    assert "ENABLE_MODEL_ARMOR" in cloudrun_tf
+    assert "MODEL_ARMOR_PROMPT_TEMPLATE" in cloudrun_tf
+    assert "MODEL_ARMOR_RESPONSE_TEMPLATE" in cloudrun_tf
