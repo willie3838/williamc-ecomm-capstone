@@ -204,9 +204,13 @@ class ComparisonOrchestrator:
         self.last_output_tokens: int = 0
         self.last_synthesis_model: str = self.synthesis_model
         if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
-            from app.agent.hermetic_adapter import _get_shared_vertex_client
+            from app.agent.hermetic_adapter import (
+                _get_shared_vertex_client,
+                _warm_vertex_client_and_auth,
+            )
 
             _get_shared_vertex_client()
+            _warm_vertex_client_and_auth()
 
     def _get_genai_client(self) -> Any:
         """Return injected genai_client if provided, or return the shared Vertex AI genai.Client."""

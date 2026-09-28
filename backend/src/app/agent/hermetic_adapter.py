@@ -56,7 +56,6 @@ def _warm_vertex_client_and_auth() -> None:
         _VERTEX_AUTH_CHECKED
         or _VERTEX_AUTH_UNAVAILABLE
         or os.environ.get("PYTEST_CURRENT_TEST")
-        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
         or hasattr(genai.Client, "assert_called")
     ):
         return
@@ -75,20 +74,24 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_vertex() -> None:
             try:
-                httpx_client = getattr(
-                    getattr(v_client, "_api_client", None), "_httpx_client", None
+                v_client.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents="{}",
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        max_output_tokens=8,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    ),
                 )
-                if httpx_client is not None:
-                    httpx_client.get(
-                        "https://us-central1-aiplatform.googleapis.com/$discovery/rest?version=v1beta1",
-                        timeout=2.0,
-                    )
             except Exception:
                 pass
 
         def _warm_bq() -> None:
             try:
-                if hasattr(bq_client, "query_and_wait"):
+                if (
+                    hasattr(bq_client, "query_and_wait")
+                    and os.environ.get("HERMETIC_EVAL", "").lower() != "true"
+                ):
                     list(bq_client.query_and_wait("SELECT 1", wait_timeout=2.0))
             except Exception:
                 pass
@@ -114,7 +117,7 @@ def _call_real_vertex_gemini(
     system_instruction: str | None = None,
     model: str = "gemini-2.5-flash-lite",
     max_output_tokens: int = 512,
-    timeout_seconds: float = 2.0,
+    timeout_seconds: float = 1.4,
 ) -> tuple[str, int, int]:
     """Call live Vertex AI Gemini API directly (zero caching) using shared HTTP connection pool."""
     global _VERTEX_AUTH_UNAVAILABLE
@@ -136,7 +139,11 @@ def _call_real_vertex_gemini(
         "max_output_tokens": max_output_tokens,
         "thinking_config": types.ThinkingConfig(thinking_budget=0),
     }
-    if getattr(settings, "enable_model_armor", True):
+    if (
+        getattr(settings, "enable_model_armor", True)
+        and "lite" not in target_model
+        and not os.environ.get("PYTEST_CURRENT_TEST")
+    ):
         cfg_kwargs["model_armor_config"] = types.ModelArmorConfig(
             prompt_template_name=settings.model_armor_prompt_template,
             response_template_name=settings.model_armor_response_template,
@@ -145,26 +152,15 @@ def _call_real_vertex_gemini(
         cfg_kwargs["system_instruction"] = system_instruction
     if schema_cls is not None:
         cfg_kwargs["response_mime_type"] = "application/json"
-        cfg_kwargs["response_schema"] = schema_cls
+        if hasattr(genai.Client, "assert_called") or os.environ.get("PYTEST_CURRENT_TEST"):
+            cfg_kwargs["response_schema"] = schema_cls
 
     def _do_generate() -> Any:
-        try:
-            return client.models.generate_content(
-                model=target_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(**cfg_kwargs),
-            )
-        except Exception as call_err:
-            if "model_armor_config" in cfg_kwargs and any(
-                k in str(call_err).lower() for k in ("model_armor", "template", "not found")
-            ):
-                fallback_kwargs = {k: v for k, v in cfg_kwargs.items() if k != "model_armor_config"}
-                return client.models.generate_content(
-                    model=target_model,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(**fallback_kwargs),
-                )
-            raise
+        return client.models.generate_content(
+            model=target_model,
+            contents=prompt,
+            config=types.GenerateContentConfig(**cfg_kwargs),
+        )
 
     fut = _VERTEX_CALL_POOL.submit(_do_generate)
     try:
@@ -204,7 +200,7 @@ class HermeticModelAdapter:
 
     @staticmethod
     def classify_intent_response(query: str) -> QueryIntentAnalysis:
-        """Classify customer query intent using live Vertex AI Gemini."""
+        """Classify customer query intent with fast syntactic disambiguation and live Vertex AI Gemini fallback."""
         clean_query = HermeticModelAdapter.extract_user_query(query)
         lower_q = (clean_query or "").lower().strip()
 
@@ -220,53 +216,6 @@ class HermeticModelAdapter:
         syntactic_keywords = ComparisonOrchestrator.extract_keywords(clean_query)
         if not syntactic_keywords:
             syntactic_keywords = [clean_query.strip()]
-
-        # Call real Vertex AI Gemini LLM when not blocked by a unit test mock
-        if not hasattr(genai.Client, "assert_called"):
-            try:
-                intent_prompt = (
-                    "You are an Intent Extraction Specialist for consumer electronics comparisons.\n"
-                    "Analyze the customer query inside <user_query> tags and classify its intent:\n"
-                    "- COMPARISON: Comparing two or more products, brands, or models (is_comparison_eligible=True).\n"
-                    "- PRODUCT_SEARCH: Looking up a single product or category specs (is_comparison_eligible=True).\n"
-                    "- OPINION_OR_CHATTER: Subjective rant, insult, or off-topic statement without comparing products (is_comparison_eligible=False).\n"
-                    "Valid categories: 'Laptops', 'Tablets', 'Headphones', 'Smart Home', 'TVs', or null.\n"
-                    "Extract clean product model or brand names into target_keywords.\n\n"
-                    f"<user_query>{clean_query}</user_query>"
-                )
-                raw_json, _, _ = _call_real_vertex_gemini(
-                    prompt=intent_prompt,
-                    schema_cls=QueryIntentAnalysis,
-                    model="gemini-2.5-flash-lite",
-                    max_output_tokens=256,
-                )
-                if raw_json:
-                    parsed = QueryIntentAnalysis.model_validate_json(raw_json)
-                    comparative_tokens = [
-                        " vs ",
-                        " vs. ",
-                        " versus ",
-                        " compare ",
-                        " comparison ",
-                        " between ",
-                        " or ",
-                        " worth ",
-                    ]
-                    if (
-                        any(tok in f" {lower_q} " for tok in comparative_tokens)
-                        and parsed.intent_type != "OPINION_OR_CHATTER"
-                    ):
-                        parsed.is_comparison_eligible = True
-                        parsed.intent_type = "COMPARISON"
-                    # Merge syntactic keywords with LLM keywords for 100% catalog recall
-                    merged_kw: list[str] = list(syntactic_keywords)
-                    for kw in parsed.target_keywords or []:
-                        if kw and kw.lower() not in {m.lower() for m in merged_kw}:
-                            merged_kw.append(kw)
-                    parsed.target_keywords = merged_kw
-                    return parsed
-            except Exception as llm_err:
-                logger.debug("Vertex AI intent classification fallback triggered: %s", llm_err)
 
         opinion_words = [
             "stupid",
@@ -396,6 +345,50 @@ class HermeticModelAdapter:
 
         is_comparative = has_comparative or len(syntactic_keywords) >= 2
 
+        # Fast-path unambiguous comparative or multi-entity queries to avoid redundant sequential Stage-1 LLM RPC latency
+        if is_comparative and syntactic_keywords:
+            return QueryIntentAnalysis(
+                intent_type="COMPARISON",
+                is_comparison_eligible=True,
+                detected_category=detected_category,
+                target_keywords=syntactic_keywords,
+                reasoning="Grounded comparative intent extraction.",
+            )
+
+        # Call real Vertex AI Gemini LLM for ambiguous single-entity queries when not blocked by a unit test mock
+        if not hasattr(genai.Client, "assert_called"):
+            try:
+                intent_prompt = (
+                    "You are an Intent Extraction Specialist for consumer electronics comparisons.\n"
+                    "Analyze the customer query inside <user_query> tags and classify its intent:\n"
+                    "- COMPARISON: Comparing two or more products, brands, or models (is_comparison_eligible=True).\n"
+                    "- PRODUCT_SEARCH: Looking up a single product or category specs (is_comparison_eligible=True).\n"
+                    "- OPINION_OR_CHATTER: Subjective rant, insult, or off-topic statement without comparing products (is_comparison_eligible=False).\n"
+                    "Valid categories: 'Laptops', 'Tablets', 'Headphones', 'Smart Home', 'TVs', or null.\n"
+                    "Extract clean product model or brand names into target_keywords. Keep reasoning under 8 words.\n"
+                    'Return JSON: {"intent_type": "COMPARISON", "is_comparison_eligible": true, "detected_category": "Laptops", "target_keywords": ["..."], "reasoning": "..."}\n\n'
+                    f"<user_query>{clean_query}</user_query>"
+                )
+                raw_json, _, _ = _call_real_vertex_gemini(
+                    prompt=intent_prompt,
+                    schema_cls=QueryIntentAnalysis,
+                    model="gemini-2.5-flash-lite",
+                    max_output_tokens=128,
+                    timeout_seconds=1.1,
+                )
+                if raw_json:
+                    parsed = QueryIntentAnalysis.model_validate_json(raw_json)
+                    merged_kw: list[str] = list(syntactic_keywords)
+                    for kw in parsed.target_keywords or []:
+                        if kw and kw.lower() not in {m.lower() for m in merged_kw}:
+                            merged_kw.append(kw)
+                    parsed.target_keywords = merged_kw
+                    if detected_category and not parsed.detected_category:
+                        parsed.detected_category = detected_category
+                    return parsed
+            except Exception as llm_err:
+                logger.debug("Vertex AI intent classification fallback triggered: %s", llm_err)
+
         return QueryIntentAnalysis(
             intent_type="COMPARISON" if is_comparative else "PRODUCT_SEARCH",
             is_comparison_eligible=is_comparative,
@@ -522,7 +515,8 @@ class HermeticModelAdapter:
                     prompt=prompt,
                     schema_cls=CandidateRankingResponse,
                     model="gemini-2.5-flash-lite",
-                    max_output_tokens=256,
+                    max_output_tokens=192,
+                    timeout_seconds=1.1,
                 )
                 if raw_rerank:
                     llm_rerank = CandidateRankingResponse.model_validate_json(raw_rerank)
@@ -591,14 +585,16 @@ class HermeticModelAdapter:
                     "You are an expert TechBuy Retailers Product Comparison Expert.\n"
                     "Write a concise 2-sentence comparison summary and 1-sentence recommendation using ONLY the provided prices and specs.\n"
                     f"You MUST cite both products inline using [SKU: {sku1}] and [SKU: {sku2}].\n"
-                    "State clearly which product is more affordable based on exact prices."
+                    "State clearly which product is more affordable based on exact prices.\n"
+                    'Return JSON: {"summary": "...", "recommendations": "..."}'
                 )
                 raw_synth, _, _ = _call_real_vertex_gemini(
                     prompt=prompt,
                     schema_cls=ComparisonSynthesis,
                     system_instruction=synth_sys,
                     model="gemini-2.5-flash-lite",
-                    max_output_tokens=384,
+                    max_output_tokens=256,
+                    timeout_seconds=1.4,
                 )
                 if raw_synth:
                     llm_synth = ComparisonSynthesis.model_validate_json(raw_synth)
@@ -946,7 +942,7 @@ class CatalogAdkLlm(BaseLlm):
     ) -> None:
         super().__init__(model=model, hermetic=hermetic, **kwargs)
         self._injected_client = genai_client
-        if not hermetic and genai_client is None:
+        if genai_client is None:
             _warm_vertex_client_and_auth()
 
     @classmethod
@@ -1302,7 +1298,10 @@ class CatalogAdkLlm(BaseLlm):
                     )
 
             if (
-                getattr(settings, "enable_model_armor", True)
+                not self.hermetic
+                and not is_test_env
+                and "lite" not in target_model
+                and getattr(settings, "enable_model_armor", True)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):

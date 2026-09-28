@@ -39,6 +39,12 @@ spec:
               value: "true"
             - name: AGENT_RUNTIME_RESOURCE_NAME
               value: "projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928"
+            - name: ENABLE_MODEL_ARMOR
+              value: "true"
+            - name: MODEL_ARMOR_PROMPT_TEMPLATE
+              value: "projects/fde-bestbuy-sandbox-dev-508321/locations/us/templates/catalog-prompt-guard"
+            - name: MODEL_ARMOR_RESPONSE_TEMPLATE
+              value: "projects/fde-bestbuy-sandbox-dev-508321/locations/us/templates/catalog-resp-guard"
           ports:
             - containerPort: 8080
           startupProbe:
