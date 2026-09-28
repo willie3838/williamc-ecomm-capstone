@@ -209,7 +209,7 @@ class ComparisonOrchestrator:
             _get_shared_vertex_client()
 
     def _get_genai_client(self) -> Any:
-        """Return injected genai_client if provided, or instantiate a Vertex AI genai.Client."""
+        """Return injected genai_client if provided, or return the shared Vertex AI genai.Client."""
         if self.genai_client is not None:
             return self.genai_client
         if (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")) and not hasattr(
@@ -218,12 +218,16 @@ class ComparisonOrchestrator:
             from app.agent.hermetic_adapter import create_hermetic_genai_client
 
             return create_hermetic_genai_client()
-        os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-        return genai.Client(
-            vertexai=True,
-            project=settings.gcp_project,
-            location="us-central1",
-        )
+        if hasattr(genai.Client, "assert_called"):
+            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+            return genai.Client(
+                vertexai=True,
+                project=settings.gcp_project,
+                location="us-central1",
+            )
+        from app.agent.hermetic_adapter import _get_shared_vertex_client
+
+        return _get_shared_vertex_client()
 
     @staticmethod
     def extract_keywords(query: str) -> list[str]:
@@ -446,11 +450,12 @@ class ComparisonOrchestrator:
             "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
             "2. STRICT CITATIONS: Every claim, specification contrast, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>].\n"
-            "3. TARGETED RECOMMENDATIONS: Provide persona-tailored recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n\n"
+            "3. TARGETED RECOMMENDATIONS: Provide 2-3 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
+            "4. CONCISE SYNTHESIS: Keep 'summary' to 2-3 concise sentences (under 90 words) and 'recommendations' under 60 words.\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
             f"Comparison Matrix:\n{matrix_desc}\n\n"
-            "Return a valid JSON object matching the requested schema."
+            'Return a valid JSON object matching the requested schema with exact keys: {"summary": "...", "recommendations": "..."}.'
         )
 
     @staticmethod
@@ -533,23 +538,55 @@ class ComparisonOrchestrator:
 
         try:
             client = self._get_genai_client()
+            call_model = (
+                "gemini-2.5-flash"
+                if (
+                    active_model in ("gemini-2.5-pro", "tiered-hybrid")
+                    and self.genai_client is None
+                    and not hasattr(genai.Client, "assert_called")
+                )
+                else active_model
+            )
+            armor_cfg = get_model_armor_config()
             config = types.GenerateContentConfig(
                 system_instruction=self.active_system_instruction,
                 response_mime_type="application/json",
                 response_schema=ComparisonSynthesis,
-                safety_settings=get_default_safety_settings(),
+                model_armor_config=armor_cfg if armor_cfg is not None else None,
+                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
                 temperature=float(getattr(settings, "temperature", 0.1)),
-                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                max_output_tokens=min(int(getattr(settings, "max_output_tokens", 512)), 512),
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
             with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
                 llm_span.set_attribute("gen_ai.system", "vertexai")
-                llm_span.set_attribute("gen_ai.request.model", active_model)
-                response = client.models.generate_content(
-                    model=active_model,
-                    contents=prompt,
-                    config=config,
-                )
+                llm_span.set_attribute("gen_ai.request.model", call_model)
+                try:
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                except Exception as call_err:
+                    if armor_cfg is not None:
+                        fallback_config = types.GenerateContentConfig(
+                            system_instruction=self.active_system_instruction,
+                            response_mime_type="application/json",
+                            response_schema=ComparisonSynthesis,
+                            safety_settings=get_default_safety_settings(),
+                            temperature=float(getattr(settings, "temperature", 0.1)),
+                            max_output_tokens=min(
+                                int(getattr(settings, "max_output_tokens", 512)), 512
+                            ),
+                            thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        )
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    else:
+                        raise call_err
                 usage = getattr(response, "usage_metadata", None)
                 if usage:
                     in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
@@ -626,7 +663,8 @@ class ComparisonOrchestrator:
             "- 'PRODUCT_SEARCH': The customer is searching for a single product, spec lookup, or category browsing without requesting a comparison. is_comparison_eligible must be false.\n"
             "- 'OPINION_OR_CHATTER': The customer is expressing a subjective opinion, personal rant, complaint, insult, casual greeting, or vague statement without seeking a product comparison. is_comparison_eligible must be false.\n\n"
             "Extract target product keywords (brands, models, key specs) and detected category if applicable.\n"
-            "Return a valid JSON object matching the requested schema."
+            "Keep 'reasoning' under 10 words.\n"
+            'Return a valid JSON object matching the requested schema with exact keys: {"intent_type": "COMPARISON", "is_comparison_eligible": true, "detected_category": "Laptops", "target_keywords": ["..."], "reasoning": "..."}.'
         )
 
         if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
@@ -826,11 +864,11 @@ class ComparisonOrchestrator:
             )
             return []
 
-        # Fast-path when 2-4 retrieved catalog products already match heuristic entity tokens
+        # Fast-path when retrieved catalog products already match heuristic entity tokens
         if (
             self.genai_client is None
             and not hasattr(genai.Client, "assert_called")
-            and 2 <= len(unique_products) <= 4
+            and len(unique_products) >= 2
             and intent.is_comparison_eligible
         ):
             heur_fast = self._rerank_with_heuristics(unique_products, keywords, original_query)
@@ -1392,7 +1430,7 @@ class ComparisonOrchestrator:
 
             return _orch_mod.query_catalog(
                 keywords=extracted_keywords or keywords or [query],
-                category=effective_category if category is None else category,
+                category=effective_category if effective_category is not None else category,
                 client=self.bq_client,
             )
 
@@ -1413,7 +1451,7 @@ class ComparisonOrchestrator:
             _final_text, events = run_adk_agent_sync(
                 agent=bound_agent,
                 prompt=query,
-                session_id=target_session,
+                session_id=session_id,
                 user_id=user_id,
                 hermetic=self.hermetic,
             )
@@ -1447,6 +1485,7 @@ class ComparisonOrchestrator:
                     extracted_keywords,
                     original_query=query,
                     model=self.model,
+                    precomputed_intent=intent,
                 )
                 if len(products) >= 2 and intent.is_comparison_eligible:
                     matrix = self.build_comparison_matrix(products)

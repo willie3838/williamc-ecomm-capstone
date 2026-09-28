@@ -15,6 +15,7 @@ resource "google_project_service" "required_apis" {
     "firestore.googleapis.com",
     "clouddeploy.googleapis.com",
     "secretmanager.googleapis.com",
+    "modelarmor.googleapis.com",
   ])
 
   project            = var.project_id

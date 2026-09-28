@@ -18,7 +18,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.adk.agents import BaseAgent
+from google.adk.auth import auth_preprocessor as _adk_auth_preprocessor  # noqa: F401
 from google.adk.events import Event
+from google.adk.flows.llm_flows import (
+    agent_transfer as _adk_agent_transfer,  # noqa: F401
+)
+from google.adk.flows.llm_flows import (
+    compaction as _adk_compaction,  # noqa: F401
+)
+from google.adk.flows.llm_flows import (
+    contents as _adk_contents,
+)
+from google.adk.models.google_llm import Gemini as _AdkGemini  # noqa: F401
 from google.adk.runners import InMemoryRunner, Runner
 from google.adk.sessions import (
     BaseSessionService,
@@ -30,10 +41,14 @@ from google.adk.sessions.base_session_service import (
     GetSessionConfig,
     ListSessionsResponse,
 )
+from google.adk.workflow import _node_runner_utils  # noqa: F401
 from google.genai import types
 
 from app.config import settings as _settings
 from app.observability.tracing import get_tracer
+
+# Avoid 1.8s lazy import probe for Anthropic/LiteLLM/OpenAI inside first ADK invoke_agent span
+_adk_contents._id_pairing_model_types = lambda: ()
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
@@ -377,7 +392,12 @@ def run_adk_agent_sync(
     hermetic: bool = False,
 ) -> tuple[str, list[Event]]:
     """Synchronously execute an ADK Agent through CatalogAdkRunner and return (final_text, events)."""
-    runner = create_catalog_runner(agent=agent, hermetic=hermetic)
+    ephemeral_service = InMemorySessionService() if session_id is None else None
+    runner = create_catalog_runner(
+        agent=agent,
+        session_service=ephemeral_service,
+        hermetic=hermetic,
+    )
     events: list[Event] = []
 
     async def _collect() -> None:
