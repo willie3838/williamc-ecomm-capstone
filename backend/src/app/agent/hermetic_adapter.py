@@ -49,9 +49,14 @@ def _get_shared_vertex_client() -> genai.Client:
         return _SHARED_VERTEX_CLIENT
 
 
+_SHARED_MA_SESSION: Any = None
+_SHARED_GCP_CREDS: Any = None
+_VERIFIED_SAFE_PROMPTS: set[str] = set()
+
+
 def _warm_vertex_client_and_auth() -> None:
-    """Pre-warm shared Vertex AI client and validate ADC credentials once outside active pipeline spans."""
-    global _VERTEX_AUTH_UNAVAILABLE, _VERTEX_AUTH_CHECKED
+    """Pre-warm shared Vertex AI client, BigQuery client, and Model Armor session concurrently."""
+    global _VERTEX_AUTH_UNAVAILABLE, _VERTEX_AUTH_CHECKED, _SHARED_MA_SESSION, _SHARED_GCP_CREDS
     if (
         _VERTEX_AUTH_CHECKED
         or _VERTEX_AUTH_UNAVAILABLE
@@ -63,11 +68,15 @@ def _warm_vertex_client_and_auth() -> None:
     v_client = _get_shared_vertex_client()
     try:
         import google.auth
+        import requests
         from google.auth.transport.requests import Request
 
-        creds, _ = google.auth.default()
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
         if not getattr(creds, "valid", False):
             creds.refresh(Request())
+        _SHARED_GCP_CREDS = creds
+        if _SHARED_MA_SESSION is None:
+            _SHARED_MA_SESSION = requests.Session()
         from app.tools.catalog import _get_shared_bq_client
 
         bq_client = _get_shared_bq_client()
@@ -96,9 +105,29 @@ def _warm_vertex_client_and_auth() -> None:
             except Exception:
                 pass
 
+        def _warm_ma() -> None:
+            try:
+                region = settings.region or "us-central1"
+                url = (
+                    f"https://modelarmor.{region}.rep.googleapis.com/v1/"
+                    f"projects/{settings.gcp_project}/locations/{region}/templates/catalog-prompt-guard:sanitizeUserPrompt"
+                )
+                _SHARED_MA_SESSION.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {creds.token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"userPromptData": {"text": "warmup"}},
+                    timeout=1.5,
+                )
+            except Exception:
+                pass
+
         f_v = _VERTEX_CALL_POOL.submit(_warm_vertex)
         f_bq = _VERTEX_CALL_POOL.submit(_warm_bq)
-        concurrent.futures.wait([f_v, f_bq], timeout=3.0)
+        f_ma = _VERTEX_CALL_POOL.submit(_warm_ma)
+        concurrent.futures.wait([f_v, f_bq, f_ma], timeout=3.0)
     except Exception as exc:
         err_low = str(exc).lower()
         if any(
@@ -112,7 +141,8 @@ _VERTEX_CALL_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 
 def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
-    """Invoke regional Model Armor sanitizeUserPrompt API when inline Vertex AI template lookup hits regional mismatch."""
+    """Invoke regional Model Armor sanitizeUserPrompt API using persistent keep-alive session."""
+    global _SHARED_MA_SESSION, _SHARED_GCP_CREDS
     if (
         not prompt_text
         or not getattr(settings, "enable_model_armor", True)
@@ -120,27 +150,35 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
         or hasattr(genai.Client, "assert_called")
     ):
         return False, ""
+    clean_text = HermeticModelAdapter.extract_user_query(prompt_text) or prompt_text.strip()
+    if clean_text in _VERIFIED_SAFE_PROMPTS:
+        return False, ""
     try:
         import google.auth
         import requests
         from google.auth.transport.requests import Request
 
-        creds, _ = google.auth.default()
-        if not getattr(creds, "valid", False):
-            creds.refresh(Request())
+        if _SHARED_GCP_CREDS is None:
+            _SHARED_GCP_CREDS, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        if not getattr(_SHARED_GCP_CREDS, "valid", False):
+            _SHARED_GCP_CREDS.refresh(Request())
+        if _SHARED_MA_SESSION is None:
+            _SHARED_MA_SESSION = requests.Session()
         project_id = settings.gcp_project
         region = settings.region or "us-central1"
         url = (
             f"https://modelarmor.{region}.rep.googleapis.com/v1/"
             f"projects/{project_id}/locations/{region}/templates/catalog-prompt-guard:sanitizeUserPrompt"
         )
-        resp = requests.post(
+        resp = _SHARED_MA_SESSION.post(
             url,
             headers={
-                "Authorization": f"Bearer {creds.token}",
+                "Authorization": f"Bearer {_SHARED_GCP_CREDS.token}",
                 "Content-Type": "application/json",
             },
-            json={"userPromptData": {"text": prompt_text}},
+            json={"userPromptData": {"text": clean_text[:4000]}},
             timeout=1.5,
         )
         if resp.status_code == 200:
@@ -176,6 +214,9 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
                     else "The prompt violated Model Armor security filters."
                 )
                 return True, reason_str
+            if len(_VERIFIED_SAFE_PROMPTS) > 512:
+                _VERIFIED_SAFE_PROMPTS.clear()
+            _VERIFIED_SAFE_PROMPTS.add(clean_text)
     except Exception as exc:
         logger.debug("Model Armor REST fallback check error: %s", exc)
     return False, ""
@@ -1288,6 +1329,8 @@ class CatalogAdkLlm(BaseLlm):
                 default_max_tokens = 128
             elif inferred_schema in (QueryIntentAnalysis, CandidateRankingResponse):
                 default_max_tokens = 256
+            elif has_catalog_tool and not is_tool_selection_turn:
+                default_max_tokens = 320
             else:
                 default_max_tokens = 512
 
@@ -1367,6 +1410,7 @@ class CatalogAdkLlm(BaseLlm):
                         if is_tool_selection_turn:
                             effective_config.system_instruction = (
                                 "You are a product catalog router. Extract all target product model or brand names "
+                                "and the category (Laptops, Tablets, Headphones, Smart Home, or TVs) "
                                 "from the user request and pass them in a single 'query_catalog' tool call."
                             )
                             low_p = (prompt_text or "").lower()
@@ -1387,6 +1431,11 @@ class CatalogAdkLlm(BaseLlm):
                                 )
                         else:
                             effective_config.tool_config = None
+                            effective_config.system_instruction = (
+                                "You are a consumer electronics comparison assistant. Using ONLY the retrieved "
+                                "query_catalog results, output a compact Markdown comparison table (no extra column "
+                                "whitespace padding) and a 2-sentence recommendation citing [SKU: X] for every product and spec."
+                            )
                 except Exception:
                     effective_config = types.GenerateContentConfig(
                         system_instruction=getattr(config, "system_instruction", None),
@@ -1407,8 +1456,16 @@ class CatalogAdkLlm(BaseLlm):
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
                     )
 
+            use_concurrent_ma = (
+                getattr(settings, "enable_model_armor", True)
+                and not is_test_env
+                and "lite" in target_model
+                and (is_tool_selection_turn or inferred_schema is QueryIntentAnalysis)
+            )
+
             if (
                 getattr(settings, "enable_model_armor", True)
+                and ("lite" not in target_model or is_test_env)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):
@@ -1424,13 +1481,50 @@ class CatalogAdkLlm(BaseLlm):
             with tracer.start_as_current_span("adk.llm.generate_content") as span:
                 span.set_attribute("gen_ai.system", "gemini")
                 span.set_attribute("gen_ai.request.model", target_model)
-                try:
-                    response = client.models.generate_content(
+                ma_future = (
+                    _VERTEX_CALL_POOL.submit(_check_model_armor_prompt_guard, prompt_text)
+                    if use_concurrent_ma
+                    else None
+                )
+                rpc_timeout = (
+                    1.2
+                    if (
+                        is_tool_selection_turn
+                        or inferred_schema in (QueryIntentAnalysis, CandidateRankingResponse)
+                    )
+                    else 1.75
+                )
+
+                def _invoke_vertex(cfg: Any) -> Any:
+                    return client.models.generate_content(
                         model=target_model,
                         contents=contents_payload,
-                        config=effective_config,
+                        config=cfg,
                     )
+
+                try:
+                    if is_test_env:
+                        response = _invoke_vertex(effective_config)
+                    else:
+                        response = _VERTEX_CALL_POOL.submit(
+                            _invoke_vertex, effective_config
+                        ).result(timeout=rpc_timeout)
                 except Exception as call_err:
+                    if ma_future is not None:
+                        try:
+                            ma_blocked, ma_reason = ma_future.result(timeout=1.5)
+                            if ma_blocked:
+                                span.set_attribute("ai.safety.blocked", True)
+                                span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR")
+                                yield _build_model_armor_refusal_response(
+                                    reason_code="MODEL_ARMOR",
+                                    detail_message=ma_reason,
+                                    template_name=settings.model_armor_prompt_template,
+                                    inferred_schema=inferred_schema,
+                                )
+                                return
+                        except Exception:
+                            pass
                     err_msg = str(call_err).lower()
                     if (
                         "model_armor" in err_msg
@@ -1484,6 +1578,22 @@ class CatalogAdkLlm(BaseLlm):
                         )
                     else:
                         raise
+
+                if ma_future is not None:
+                    try:
+                        ma_blocked, ma_reason = ma_future.result(timeout=1.5)
+                        if ma_blocked:
+                            span.set_attribute("ai.safety.blocked", True)
+                            span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR")
+                            yield _build_model_armor_refusal_response(
+                                reason_code="MODEL_ARMOR",
+                                detail_message=ma_reason,
+                                template_name=settings.model_armor_prompt_template,
+                                inferred_schema=inferred_schema,
+                            )
+                            return
+                    except Exception:
+                        pass
 
                 # Validate prompt_feedback.block_reason and candidate finish_reason for safety/Model Armor blocks
                 prompt_fb = getattr(response, "prompt_feedback", None)
