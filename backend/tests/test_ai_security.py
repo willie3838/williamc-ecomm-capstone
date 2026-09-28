@@ -207,3 +207,157 @@ def test_synthesize_comparison_with_llm_passes_model_armor_config(mock_client_cl
     assert config.safety_settings is None
     assert "[SKU: 111]" in summary
     assert recs is not None
+
+
+import pytest
+from google.adk.models import LlmRequest
+
+
+@pytest.mark.asyncio
+async def test_catalog_adk_llm_attaches_model_armor_on_flash_lite_tool_turn(monkeypatch):
+    """Verify CatalogAdkLlm attaches model_armor_config even when routing Playground tool turns to gemini-2.5-flash-lite."""
+    import app.agent.hermetic_adapter as ha
+
+    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
+    monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
+
+    fake_client = MagicMock()
+    fake_resp = MagicMock()
+    fake_resp.prompt_feedback = None
+    fake_cand = MagicMock()
+    fake_cand.finish_reason = "STOP"
+    fake_cand.content = types.Content(
+        role="model",
+        parts=[
+            types.Part.from_function_call(
+                name="query_catalog",
+                args={"keywords": ["MacBook Air M3", "Dell XPS 13"]},
+            )
+        ],
+    )
+    fake_resp.candidates = [fake_cand]
+    fake_resp.usage_metadata = MagicMock(prompt_token_count=40, candidates_token_count=15)
+    fake_client.models.generate_content.return_value = fake_resp
+
+    with patch.object(ha, "_get_shared_vertex_client", return_value=fake_client):
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        req = LlmRequest(
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="Compare MacBook Air M3 and Dell XPS 13")],
+                )
+            ],
+            config=types.GenerateContentConfig(),
+        )
+        req.tools_dict = {"query_catalog": MagicMock()}
+        outputs = [r async for r in llm.generate_content_async(req)]
+
+    assert len(outputs) == 1
+    call_kwargs = fake_client.models.generate_content.call_args.kwargs
+    assert call_kwargs["model"] == "gemini-2.5-flash-lite"
+    cfg = call_kwargs["config"]
+    assert cfg.model_armor_config is not None
+    assert "catalog-prompt-guard" in cfg.model_armor_config.prompt_template_name
+    assert "catalog-resp-guard" in cfg.model_armor_config.response_template_name
+
+
+@pytest.mark.asyncio
+async def test_catalog_adk_llm_returns_valid_model_armor_refusal_without_hermetic_fallback(
+    monkeypatch,
+):
+    """Verify CatalogAdkLlm yields an explicit Model Armor refusal response (and does not call query_catalog or hermetic fallback) when Model Armor blocks a prompt."""
+    import app.agent.hermetic_adapter as ha
+
+    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
+    monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
+
+    fake_client = MagicMock()
+    fake_resp = MagicMock()
+    fake_fb = MagicMock()
+    fake_fb.block_reason = "MODEL_ARMOR"
+    fake_fb.block_reason_message = (
+        "The prompt violated Responsible AI Safety settings (Dangerous), SDP/PII filters."
+    )
+    fake_resp.prompt_feedback = fake_fb
+    fake_resp.candidates = []
+    fake_client.models.generate_content.return_value = fake_resp
+
+    with patch.object(ha, "_get_shared_vertex_client", return_value=fake_client):
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        req = LlmRequest(
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(
+                            text="My SSN is 123-45-6789 and credit card is 4532-0151-1283-0366. Compare MacBook Air M3 vs Dell XPS 13."
+                        )
+                    ],
+                )
+            ],
+            config=types.GenerateContentConfig(),
+        )
+        req.tools_dict = {"query_catalog": MagicMock()}
+        outputs = [r async for r in llm.generate_content_async(req)]
+
+    assert len(outputs) == 1
+    parts = outputs[0].content.parts
+    assert len(parts) == 1
+    assert getattr(parts[0], "function_call", None) is None
+    text = parts[0].text or ""
+    assert "Model Armor" in text
+    assert "catalog-prompt-guard" in text
+    assert "SDP/PII" in text
+    assert "appears to be an opinion" not in text
+
+
+@pytest.mark.asyncio
+async def test_catalog_adk_llm_template_not_found_checks_model_armor_api_and_preserves_tools(
+    monkeypatch,
+):
+    """Verify TEMPLATE_NOT_FOUND consults _check_model_armor_prompt_guard and blocks on MATCH_FOUND or preserves tools on retry."""
+    import app.agent.hermetic_adapter as ha
+
+    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
+    monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
+
+    fake_client = MagicMock()
+    fake_client.models.generate_content.side_effect = RuntimeError(
+        "400 INVALID_ARGUMENT: TEMPLATE_NOT_FOUND for catalog-prompt-guard"
+    )
+
+    with (
+        patch.object(ha, "_get_shared_vertex_client", return_value=fake_client),
+        patch.object(
+            ha,
+            "_check_model_armor_prompt_guard",
+            return_value=(True, "The prompt violated Malicious URIs filters."),
+        ) as mock_ma_api,
+    ):
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        req = LlmRequest(
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(
+                            text="Compare laptop at http://testsafebrowsing.appspot.com/s/phishing.html"
+                        )
+                    ],
+                )
+            ],
+            config=types.GenerateContentConfig(),
+        )
+        req.tools_dict = {"query_catalog": MagicMock()}
+        outputs = [r async for r in llm.generate_content_async(req)]
+
+    assert mock_ma_api.called
+    assert len(outputs) == 1
+    text = outputs[0].content.parts[0].text or ""
+    assert "Model Armor" in text
+    assert "Malicious URIs" in text
+    assert fake_client.models.generate_content.call_count == 1
