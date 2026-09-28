@@ -125,7 +125,7 @@ backend/
 7. **Google ADK Runner & `VertexAiSessionService` Integration (`app.agent.runner`, `app.agent.hermetic_adapter`)**:
     - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`) and `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`).
     - `CatalogVertexAiSessionService` automatically resolves `GOOGLE_CLOUD_AGENT_ENGINE_ID` injected at runtime by Agent Runtime (Vertex AI Agent Engine) to persist sessions via `vertexai.Client.aio.agent_engines.sessions`, while transparently falling back to `InMemorySessionService` during local development, `pytest`, and offline evaluations.
-    - `CatalogAdkLlm(BaseLlm)` is registered in `LLMRegistry` for `gemini-*` models, unifying live Vertex AI Gemini execution (with Model Armor & safety settings) and offline hermetic execution (`HermeticModelAdapter`), including multi-turn ADK `FunctionCall(query_catalog)` -> `FunctionResponse` -> `ComparisonSynthesis` trajectories.
+    - `CatalogAdkLlm(BaseLlm)` is registered in `LLMRegistry` for `gemini-*` models, unifying live Vertex AI Gemini execution (with Google Cloud Model Armor `locations/us/templates/catalog-prompt-guard` and `catalog-resp-guard` guardrails & safety settings) and offline hermetic execution (`HermeticModelAdapter`), including multi-turn ADK `FunctionCall(query_catalog)` -> `FunctionResponse` -> `ComparisonSynthesis` trajectories.
     - `MultiAgentCoordinator` specialists (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) and `ComparisonOrchestrator.execute_with_adk_runner` execute through `CatalogAdkRunner`.
 
 ---

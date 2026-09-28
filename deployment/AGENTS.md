@@ -32,8 +32,9 @@ deployment/
     ├── variables.tf           # Input variables (project_id, region, etc.)
     ├── main.tf                # Core resources orchestration
     ├── bigquery.tf            # BigQuery catalog and telemetry tables
-    ├── cloudrun.tf            # Cloud Run service definition
-    ├── iam.tf                 # Least-privilege IAM bindings
+    ├── cloudrun.tf            # Cloud Run service definition (with Model Armor env vars)
+    ├── iam.tf                 # Least-privilege IAM bindings (including roles/modelarmor.user & roles/modelarmor.admin)
+    ├── model_armor.tf         # Google Cloud Model Armor API and prompt/response guardrail templates
     ├── vpc_sc.tf              # VPC Service Controls perimeter (anti-exfiltration)
     └── outputs.tf             # Service URL and resource identifiers
 ```
@@ -50,6 +51,7 @@ deployment/
      - `roles/bigquery.jobUser` on project level
      - `roles/bigquery.dataViewer` on dataset `catalog`
      - `roles/bigquery.dataEditor` on dataset `catalog_agent_telemetry`
+     - `roles/aiplatform.user` and `roles/modelarmor.user`
      - `roles/cloudtrace.agent`
      - `roles/logging.logWriter`
 3. **VPC Service Controls (VPC-SC Anti-Exfiltration)**:
