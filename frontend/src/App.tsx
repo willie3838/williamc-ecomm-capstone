@@ -10,6 +10,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { compareProducts } from './api/client';
+import { getCatalogProducts } from './data/catalogProducts';
 import { SearchBar } from './components/SearchBar';
 import { ComparisonTable } from './components/ComparisonTable';
 import { RecommendationCard } from './components/RecommendationCard';
@@ -55,6 +56,10 @@ export const App: React.FC = () => {
     category: string | null;
   } | null>(null);
 
+  const [browseCategory, setBrowseCategory] = useState<{
+    category: string | null;
+  } | null>(null);
+
   const {
     data: comparison,
     isLoading,
@@ -76,13 +81,29 @@ export const App: React.FC = () => {
     retry: false,
   });
 
+  const handleGoHome = () => {
+    setSearchParams(null);
+    setBrowseCategory(null);
+  };
+
   const handleSearch = (query: string, category: string | null) => {
+    setBrowseCategory(null);
     setSearchParams({ query, category });
   };
 
+  const handleCategorySelect = (category: string | null) => {
+    setSearchParams(null);
+    setBrowseCategory({ category });
+  };
+
   const handleSampleClick = (sample: (typeof SAMPLE_COMPARISONS)[number]) => {
+    setBrowseCategory(null);
     setSearchParams({ query: sample.query, category: sample.category });
   };
+
+  const browsedProducts = browseCategory
+    ? getCatalogProducts(browseCategory.category)
+    : [];
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-gray-900 selection:bg-bb-yellow selection:text-bb-slate">
@@ -92,9 +113,13 @@ export const App: React.FC = () => {
           <div className="flex items-center justify-between h-16 gap-4">
             {/* Logo & Tagline */}
             <div className="flex items-center gap-3">
-              <div className="bg-bb-yellow text-bb-slate font-black text-xl px-2.5 py-1 rounded shadow-xs tracking-tighter">
+              <button
+                type="button"
+                onClick={handleGoHome}
+                className="bg-bb-yellow text-bb-slate font-black text-xl px-2.5 py-1 rounded shadow-xs tracking-tighter hover:bg-bb-yellow-hover transition-colors cursor-pointer"
+              >
                 TECHBUY RETAILERS
-              </div>
+              </button>
               <div className="hidden sm:block border-l border-blue-400/50 pl-3">
                 <span className="text-sm font-bold tracking-tight block">
                   Catalog Comparison Agent
@@ -146,9 +171,16 @@ export const App: React.FC = () => {
 
         <SearchBar
           onSearch={handleSearch}
+          onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
           initialQuery={searchParams?.query || ''}
-          initialCategory={searchParams?.category || null}
+          initialCategory={
+            searchParams
+              ? searchParams.category
+              : browseCategory
+                ? browseCategory.category
+                : null
+          }
         />
       </section>
 
@@ -291,8 +323,42 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {/* Category SKU Browsing State */}
+        {!isLoading && !isError && !comparison && browseCategory && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
+              <div className="flex items-center gap-2 text-sm text-gray-700 font-medium">
+                <Layers className="w-4 h-4 text-bb-blue" aria-hidden="true" />
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">
+                    {browseCategory.category
+                      ? `${browseCategory.category} Catalog`
+                      : 'All Categories Catalog'}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Showing {browsedProducts.length} verified SKUs grounded in Google Cloud BigQuery
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleGoHome}
+                className="text-xs font-semibold text-bb-blue hover:underline"
+              >
+                ← Back to Homepage
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {browsedProducts.map((product) => (
+                <ProductCard key={product.sku} product={product} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Empty / Idle State */}
-        {!isLoading && !isError && !comparison && (
+        {!isLoading && !isError && !comparison && !browseCategory && (
           <div className="max-w-4xl mx-auto space-y-8 py-6">
             <div className="text-center space-y-2">
               <h2 className="text-xl font-bold text-gray-800">

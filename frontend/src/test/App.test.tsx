@@ -104,4 +104,56 @@ describe('App Integration', () => {
       screen.getByText('Catalog service temporarily unavailable')
     ).toBeInTheDocument();
   });
+
+  it('shows all catalog SKUs when All Categories pill is clicked and filters relevant SKUs when a category pill is clicked', () => {
+    renderWithClient(<App />);
+
+    // Click "All Categories" pill -> should show all 40 catalog SKUs
+    const allCategoriesBtn = screen.getByRole('button', { name: /all categories/i });
+    fireEvent.click(allCategoriesBtn);
+
+    expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/SKU: 6534606/i)).toBeInTheDocument();
+    expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
+
+    // Click "Headphones" pill -> should show only the 8 Headphones SKUs
+    const headphonesBtn = screen.getByRole('button', { name: /headphones/i });
+    fireEvent.click(headphonesBtn);
+
+    expect(screen.getByText(/Headphones Catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 8 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
+    expect(screen.queryByText(/SKU: 6534606/i)).not.toBeInTheDocument();
+  });
+
+  it('returns to the homepage when TECHBUY RETAILERS header logo is clicked', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // Navigate into a comparison view
+    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
+    fireEvent.click(sampleBtn!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
+    });
+
+    // Click TECHBUY RETAILERS logo to return home
+    const logoBtn = screen.getByRole('button', { name: /techbuy retailers/i });
+    fireEvent.click(logoBtn);
+
+    expect(screen.getByText('Popular Product Comparisons')).toBeInTheDocument();
+    expect(screen.queryByText('Side-by-Side Specification Matrix')).not.toBeInTheDocument();
+
+    // Also verify returning home from category SKU browse view
+    fireEvent.click(screen.getByRole('button', { name: /^laptops$/i }));
+    expect(screen.getByText(/Laptops Catalog/i)).toBeInTheDocument();
+
+    fireEvent.click(logoBtn);
+    expect(screen.getByText('Popular Product Comparisons')).toBeInTheDocument();
+    expect(screen.queryByText(/Laptops Catalog/i)).not.toBeInTheDocument();
+  });
 });
+

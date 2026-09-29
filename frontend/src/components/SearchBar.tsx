@@ -3,6 +3,7 @@ import { Search, Loader2, X, Laptop, Tablet, Headphones, Home, Tv, Layers } from
 
 export interface SearchBarProps {
   onSearch: (query: string, category: string | null) => void;
+  onCategorySelect?: (category: string | null) => void;
   isLoading: boolean;
   initialQuery?: string;
   initialCategory?: string | null;
@@ -20,13 +21,26 @@ const CATEGORIES = [
 
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
+  onCategorySelect,
   isLoading,
   initialQuery = '',
   initialCategory = null,
   className = '',
 }) => {
   const [query, setQuery] = useState(initialQuery);
+  const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory);
+  const [prevInitialCategory, setPrevInitialCategory] = useState<string | null>(initialCategory);
+
+  if (initialQuery !== prevInitialQuery) {
+    setPrevInitialQuery(initialQuery);
+    setQuery(initialQuery);
+  }
+
+  if (initialCategory !== prevInitialCategory) {
+    setPrevInitialCategory(initialCategory);
+    setSelectedCategory(initialCategory);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +52,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const handleClear = () => {
     setQuery('');
+  };
+
+  const handleCategoryClick = (id: string | null) => {
+    setSelectedCategory(id);
+    onCategorySelect?.(id);
   };
 
   return (
@@ -102,7 +121,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             <button
               key={label}
               type="button"
-              onClick={() => setSelectedCategory(isSelected && id !== null ? null : id)}
+              onClick={() => handleCategoryClick(id)}
               aria-pressed={isSelected}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all flex-shrink-0 ${
                 isSelected
