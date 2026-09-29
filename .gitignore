@@ -76,6 +76,5 @@ Thumbs.db
 .swarm/
 logs/
 skills/project-creation
-skills/swarm-development
 uv.lock
 /reports/
