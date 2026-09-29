@@ -15,9 +15,11 @@ import { SearchBar } from './components/SearchBar';
 import { ComparisonTable } from './components/ComparisonTable';
 import { RecommendationCard } from './components/RecommendationCard';
 import { ProductCard } from './components/ProductCard';
+import { ProductSelectionTray } from './components/ProductSelectionTray';
 import { CitationChip } from './components/CitationChip';
 import { LatencyBadge } from './components/LatencyBadge';
 import { SkeletonLoader } from './components/SkeletonLoader';
+import { ProductSpec } from './types/comparison';
 
 const SAMPLE_COMPARISONS = [
   {
@@ -60,6 +62,8 @@ export const App: React.FC = () => {
     category: string | null;
   } | null>(null);
 
+  const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
+
   const {
     data: comparison,
     isLoading,
@@ -84,6 +88,7 @@ export const App: React.FC = () => {
   const handleGoHome = () => {
     setSearchParams(null);
     setBrowseCategory(null);
+    setSelectedProducts([]);
   };
 
   const handleSearch = (query: string, category: string | null) => {
@@ -100,6 +105,47 @@ export const App: React.FC = () => {
     setBrowseCategory(null);
     setSearchParams({ query: sample.query, category: sample.category });
   };
+
+  const handleToggleSelectProduct = (product: ProductSpec) => {
+    setSelectedProducts((prev) => {
+      const exists = prev.some((p) => p.sku === product.sku);
+      if (exists) {
+        return prev.filter((p) => p.sku !== product.sku);
+      }
+      if (prev.length >= 4) {
+        return prev;
+      }
+      return [...prev, product];
+    });
+  };
+
+  const handleRemoveSelectedProduct = (sku: string) => {
+    setSelectedProducts((prev) => prev.filter((p) => p.sku !== sku));
+  };
+
+  const handleClearSelectedProducts = () => {
+    setSelectedProducts([]);
+  };
+
+  const handleCompareSelected = (products: ProductSpec[]) => {
+    if (products.length < 2) return;
+
+    let constructedQuery = '';
+    if (products.length === 2) {
+      constructedQuery = `Compare ${products[0].name} vs ${products[1].name}`;
+    } else {
+      const allExceptLast = products.slice(0, -1).map((p) => p.name).join(', ');
+      const last = products[products.length - 1].name;
+      constructedQuery = `Compare ${allExceptLast}, and ${last}`;
+    }
+
+    const category = products[0]?.category || browseCategory?.category || null;
+
+    setBrowseCategory(null);
+    setSelectedProducts([]);
+    setSearchParams({ query: constructedQuery, category });
+  };
+
 
   const browsedProducts = browseCategory
     ? getCatalogProducts(browseCategory.category)
@@ -350,9 +396,18 @@ export const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {browsedProducts.map((product) => (
-                <ProductCard key={product.sku} product={product} />
-              ))}
+              {browsedProducts.map((product) => {
+                const isSelected = selectedProducts.some((p) => p.sku === product.sku);
+                return (
+                  <ProductCard
+                    key={product.sku}
+                    product={product}
+                    selectable={true}
+                    isSelected={isSelected}
+                    onToggleSelect={handleToggleSelectProduct}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
@@ -426,6 +481,14 @@ export const App: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Product Selection Tray for Multiselect Catalog Comparisons */}
+        <ProductSelectionTray
+          selectedProducts={selectedProducts}
+          onRemoveProduct={handleRemoveSelectedProduct}
+          onClearSelection={handleClearSelectedProducts}
+          onCompare={handleCompareSelected}
+        />
       </main>
 
       {/* TechBuy Retailers Footer */}

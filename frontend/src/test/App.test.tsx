@@ -155,5 +155,58 @@ describe('App Integration', () => {
     expect(screen.getByText('Popular Product Comparisons')).toBeInTheDocument();
     expect(screen.queryByText(/Laptops Catalog/i)).not.toBeInTheDocument();
   });
+
+  it('allows multiselecting products in category SKU browser and executing comparison via selection tray', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // 1. Enter Laptops category catalog
+    const laptopsBtn = screen.getByRole('button', { name: /^laptops$/i });
+    fireEvent.click(laptopsBtn);
+
+    expect(screen.getByText(/Laptops Catalog/i)).toBeInTheDocument();
+
+    // 2. Select first laptop (MacBook Air)
+    const macbookCheckbox = screen.getByRole('checkbox', {
+      name: /Select Apple MacBook Air 13.6" Laptop/i,
+    });
+    fireEvent.click(macbookCheckbox);
+
+    // Verify selection tray appears with 1 item and disabled Compare button
+    expect(screen.getByText('Selected for Comparison')).toBeInTheDocument();
+    expect(screen.getByText(/Select at least 1 more product/i)).toBeInTheDocument();
+
+    // 3. Select second laptop (Dell XPS 13)
+    const dellCheckbox = screen.getByRole('checkbox', {
+      name: /Select Dell XPS 13"/i,
+    });
+    fireEvent.click(dellCheckbox);
+
+    // Verify tray shows ready state (2/4)
+    expect(screen.getByText('Ready to compare (2/4)')).toBeInTheDocument();
+
+    // 4. Click Compare Selected
+    const compareSelectedBtn = screen.getByRole('button', {
+      name: /compare 2 selected products/i,
+    });
+    fireEvent.click(compareSelectedBtn);
+
+    // 5. Verify comparison is triggered and SearchBar is populated
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(1);
+    });
+
+    const callArgs = vi.mocked(compareProducts).mock.calls[0][0];
+    expect(callArgs.query).toContain('Apple MacBook Air 13.6" Laptop');
+    expect(callArgs.query).toContain('Dell XPS 13"');
+    expect(callArgs.category).toBe('Laptops');
+
+    // Matrix should be displayed
+    await waitFor(() => {
+      expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
+    });
+  });
 });
+
 
