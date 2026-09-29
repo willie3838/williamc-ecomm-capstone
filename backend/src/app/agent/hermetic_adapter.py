@@ -60,6 +60,7 @@ def _warm_vertex_client_and_auth() -> None:
     if (
         _VERTEX_AUTH_CHECKED
         or _VERTEX_AUTH_UNAVAILABLE
+        or _SHARED_VERTEX_CLIENT is not None
         or os.environ.get("PYTEST_CURRENT_TEST")
         or hasattr(genai.Client, "assert_called")
     ):

@@ -25,6 +25,7 @@ EXPECTED_HCL_FILES = [
     "outputs.tf",
     "eval_job.tf",
     "model_armor.tf",
+    "monitoring.tf",
 ]
 
 
@@ -133,6 +134,7 @@ def test_no_hardcoded_project_ids_in_resources():
         "audit_logs.tf",
         "clouddeploy.tf",
         "model_armor.tf",
+        "monitoring.tf",
     ]
     hardcoded_id = "fde-bestbuy-sandbox-dev-508321"
 
@@ -324,6 +326,7 @@ def test_main_apis_and_storage():
         "bigquery.googleapis.com",
         "cloudtrace.googleapis.com",
         "logging.googleapis.com",
+        "monitoring.googleapis.com",
         "storage.googleapis.com",
         "modelarmor.googleapis.com",
     ]
@@ -357,6 +360,8 @@ def test_outputs_coverage():
         "bigquery_evaluation_table_id",
         "model_armor_prompt_template",
         "model_armor_response_template",
+        "monitoring_dashboard_id",
+        "looker_studio_linking_urls",
     ]
     for output_name in expected_outputs:
         pattern = rf'output\s+"{output_name}"\s+{{'
@@ -565,3 +570,26 @@ def test_model_armor_terraform():
     assert "ENABLE_MODEL_ARMOR" in cloudrun_tf
     assert "MODEL_ARMOR_PROMPT_TEMPLATE" in cloudrun_tf
     assert "MODEL_ARMOR_RESPONSE_TEMPLATE" in cloudrun_tf
+
+
+def test_monitoring_and_looker_automation_terraform():
+    """Verify automated Cloud Monitoring dashboard and Looker Studio Linking API URLs."""
+    mon_tf = TERRAFORM_DIR / "monitoring.tf"
+    assert mon_tf.exists(), "monitoring.tf missing"
+    mon_content = mon_tf.read_text()
+
+    assert 'resource "google_monitoring_dashboard" "catalog_agent_dashboard"' in mon_content
+    assert "run.googleapis.com/request_latencies" in mon_content
+    assert "run.googleapis.com/request_count" in mon_content
+    assert "var.service_name" in mon_content
+    assert "var.project_id" in mon_content
+
+    outputs_tf = (TERRAFORM_DIR / "outputs.tf").read_text()
+    assert "https://lookerstudio.google.com/reporting/create" in outputs_tf
+    assert "vw_most_compared_categories" in outputs_tf
+    assert "vw_latency_performance_trends" in outputs_tf
+    assert "vw_token_and_cost_analytics" in outputs_tf
+
+    looker_readme = (TERRAFORM_DIR.parent / "looker" / "README.md").read_text()
+    assert "https://lookerstudio.google.com/reporting/create" in looker_readme
+    assert "google_monitoring_dashboard" in looker_readme
