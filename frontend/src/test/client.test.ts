@@ -99,4 +99,44 @@ describe('API client: compareProducts', () => {
     const { checkHealth } = await import('../api/client');
     await expect(checkHealth()).rejects.toThrow('Health check failed with HTTP 503');
   });
+
+  it('fetchCatalog returns products from /api/catalog on successful response', async () => {
+    const mockCatalogResp = {
+      products: [
+        {
+          sku: '6534606',
+          name: 'Apple MacBook Air M3',
+          brand: 'Apple',
+          category: 'Laptops',
+          price: 1099.0,
+          specifications: { ram_gb: 16 },
+          in_stock: true,
+        },
+      ],
+      total_count: 1,
+      category: 'Laptops',
+    };
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockCatalogResp,
+    });
+
+    const { fetchCatalog } = await import('../api/client');
+    const products = await fetchCatalog('Laptops');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/api/catalog?category=Laptops');
+    expect(products).toHaveLength(1);
+    expect(products[0].sku).toBe('6534606');
+  });
+
+  it('fetchCatalog gracefully falls back to local catalog data if network request fails', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('Network error'));
+
+    const { fetchCatalog } = await import('../api/client');
+    const products = await fetchCatalog('Laptops');
+    expect(products.length).toBeGreaterThan(0);
+    expect(products[0].category).toBe('Laptops');
+  });
 });
+

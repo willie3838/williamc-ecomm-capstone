@@ -78,3 +78,9 @@ export interface HealthResponse {
   version: string;
   environment: string;
 }
+
+export interface CatalogResponse {
+  products: ProductSpec[];
+  total_count: number;
+  category?: string | null;
+}

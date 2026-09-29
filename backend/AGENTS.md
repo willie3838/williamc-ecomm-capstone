@@ -63,6 +63,7 @@ backend/
 - `GET /health`: Returns `{"status": "ok", "service": "catalog-backend", "project": "fde-bestbuy-sandbox-dev-508321"}`.
 - `GET /.well-known/agent-card.json`: Stateless A2A protocol discovery card conforming to Google Cloud Agent Registry (`gcloud agent-registry`).
 - `GET /api/agent/card`: Returns A2A Agent Card specification.
+- `GET /api/catalog` & `GET /api/v1/catalog`: Returns verified catalog products matching optional `category`, `min_price`, `max_price`, and `limit` query parameters with `CatalogResponse` schema.
 - `POST /api/compare`:
   - Request:
     ```json

@@ -178,6 +178,24 @@ class ComparisonResponse(BaseModel):
 CompareResponse = ComparisonResponse
 
 
+class CatalogResponse(BaseModel):
+    """Response payload for catalog browsing endpoint."""
+
+    products: list[ProductSpec] = Field(
+        default_factory=list,
+        description="List of catalog products matching filters",
+    )
+    total_count: int = Field(
+        ...,
+        ge=0,
+        description="Total number of matching products in catalog",
+    )
+    category: str | None = Field(
+        default=None,
+        description="Filtered taxonomy category if specified",
+    )
+
+
 class AgentVersionSummary(BaseModel):
     """Summary information for a registered agent version."""
 
