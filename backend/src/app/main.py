@@ -1,13 +1,15 @@
 """FastAPI Application entrypoint for the Best Buy Catalog Comparison Agent."""
 
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+if TYPE_CHECKING:
+    from app.agent.orchestrator import ComparisonOrchestrator
+
 from app.agent.agent_card import build_a2a_agent_card
-from app.agent.orchestrator import ComparisonOrchestrator
 from app.config import Settings, get_settings
 from app.models import (
     AgentVersionsResponse,
@@ -148,6 +150,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 app = create_app()
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy-load ComparisonOrchestrator on module attribute access to keep startup fast."""
+    if name == "ComparisonOrchestrator":
+        from app.agent.orchestrator import ComparisonOrchestrator
+
+        globals()["ComparisonOrchestrator"] = ComparisonOrchestrator
+        return ComparisonOrchestrator
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "PROJECT_ID",

@@ -14,7 +14,7 @@ backend/
 ├── src/
 │   └── app/
 │       ├── __init__.py
-│       ├── main.py            # FastAPI application entrypoint (/health, /api/compare, A2A discovery)
+│       ├── main.py            # FastAPI application entrypoint (/health, /api/compare, A2A discovery; lazy ADK startup)
 │       ├── config.py          # Environment settings (Pydantic BaseSettings)
 │       ├── models/            # Pydantic data schemas
 │       │   ├── __init__.py

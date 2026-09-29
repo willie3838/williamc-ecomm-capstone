@@ -111,10 +111,10 @@ steps:
         set -euo pipefail
         IMAGE_URI="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
         echo "=== Smoke-Testing Built Container Image Locally Before Push ==="
-        docker run -d --name smoke-test -p 8080:8080 -e EXPORT_TRACES_TO_CLOUD=false "$${IMAGE_URI}"
+        docker run -d --name smoke-test --network=host -e EXPORT_TRACES_TO_CLOUD=false "$${IMAGE_URI}"
         SMOKE_OK=0
         for i in $$(seq 1 30); do
-          if python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)" 2>/dev/null; then
+          if docker exec smoke-test python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)" 2>/dev/null; then
             echo "[+] Container smoke test passed on attempt $${i}!"
             SMOKE_OK=1
             break

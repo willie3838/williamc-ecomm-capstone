@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.agent.agent_card import build_a2a_agent_card
-from app.agent.multi_agent import MultiAgentCoordinator
 from app.config import Settings, get_settings
 from app.data.analytics import analytics_service
 from app.models import (
@@ -27,18 +26,37 @@ from app.models import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_COORDINATOR_CACHE: dict[tuple[str | None, str | None], MultiAgentCoordinator] = {}
+_COORDINATOR_CACHE: dict[tuple[str | None, str | None], Any] = {}
 
 
-def _get_coordinator(model: str | None, synthesis_model: str | None) -> MultiAgentCoordinator:
-    if hasattr(MultiAgentCoordinator, "assert_called"):
-        return MultiAgentCoordinator(model=model, synthesis_model=synthesis_model)
+def _get_coordinator(model: str | None, synthesis_model: str | None) -> Any:
+    import sys
+
+    coord_cls = getattr(sys.modules.get(__name__), "MultiAgentCoordinator", None)
+    if coord_cls is None:
+        from app.agent.multi_agent import MultiAgentCoordinator
+
+        globals()["MultiAgentCoordinator"] = MultiAgentCoordinator
+        coord_cls = MultiAgentCoordinator
+
+    if hasattr(coord_cls, "assert_called"):
+        return coord_cls(model=model, synthesis_model=synthesis_model)
     key = (model, synthesis_model)
     coord = _COORDINATOR_CACHE.get(key)
     if coord is None:
-        coord = MultiAgentCoordinator(model=model, synthesis_model=synthesis_model)
+        coord = coord_cls(model=model, synthesis_model=synthesis_model)
         _COORDINATOR_CACHE[key] = coord
     return coord
+
+
+def __getattr__(name: str) -> Any:
+    """Lazy-load MultiAgentCoordinator on module attribute access to support unittest.mock.patch."""
+    if name == "MultiAgentCoordinator":
+        from app.agent.multi_agent import MultiAgentCoordinator
+
+        globals()["MultiAgentCoordinator"] = MultiAgentCoordinator
+        return MultiAgentCoordinator
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
@@ -76,7 +94,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
             )
 
     # Honor unit test patches on app.main.ComparisonOrchestrator if present
-    orch_cls = getattr(app_main, "ComparisonOrchestrator", None)
+    orch_cls = app_main.__dict__.get("ComparisonOrchestrator")
     if orch_cls is not None and hasattr(orch_cls, "assert_called"):
         orchestrator = orch_cls(
             model=request.model,
