@@ -35,8 +35,9 @@ deployment/
     ├── cloudrun.tf            # Cloud Run service definition (with Model Armor env vars)
     ├── iam.tf                 # Least-privilege IAM bindings (including roles/modelarmor.user & roles/modelarmor.admin)
     ├── model_armor.tf         # Google Cloud Model Armor API and prompt/response guardrail templates
+    ├── monitoring.tf          # Automated Google Cloud Monitoring operational & SLA dashboard
     ├── vpc_sc.tf              # VPC Service Controls perimeter (anti-exfiltration)
-    └── outputs.tf             # Service URL and resource identifiers
+    └── outputs.tf             # Service URL, resource identifiers, and 1-click Looker Studio Linking API URLs
 ```
 
 ---

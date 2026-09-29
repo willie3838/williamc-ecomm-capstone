@@ -10,6 +10,7 @@ resource "google_project_service" "required_apis" {
     "bigquery.googleapis.com",
     "cloudtrace.googleapis.com",
     "logging.googleapis.com",
+    "monitoring.googleapis.com",
     "storage.googleapis.com",
     "cloudscheduler.googleapis.com",
     "firestore.googleapis.com",

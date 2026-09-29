@@ -75,3 +75,18 @@ output "model_armor_response_template" {
   value       = terraform_data.model_armor_response_template.output.template_name
 }
 
+output "monitoring_dashboard_id" {
+  description = "The Terraform-provisioned Google Cloud Monitoring dashboard resource ID"
+  value       = google_monitoring_dashboard.catalog_agent_dashboard.id
+}
+
+output "looker_studio_linking_urls" {
+  description = "Pre-bound 1-click Looker Studio Linking API URLs for the 3 BigQuery BI reporting views"
+  value = {
+    category_engagement = "https://lookerstudio.google.com/reporting/create?ds.alias=CategoryEngagement&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_most_compared_categories.table_id}"
+    latency_trends      = "https://lookerstudio.google.com/reporting/create?ds.alias=LatencyTrends&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_latency_performance_trends.table_id}"
+    token_cost          = "https://lookerstudio.google.com/reporting/create?ds.alias=TokenCostAnalytics&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_token_and_cost_analytics.table_id}"
+  }
+}
+
+

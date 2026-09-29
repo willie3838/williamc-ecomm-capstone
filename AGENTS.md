@@ -39,6 +39,7 @@ Project tracking, pull request reviews, and task state observability are managed
 - **Taskflow Workspace**: `6062895` ("Capstone")
 - **Buganizer Component**: `2257265` (`Personal issues > williamwlchan`)
 - **Active Sprint Iteration**: `6062377` (`Test (Current)`, Hotlist: `8948653`)
+- **Google Slides Presentation**: [Capstone Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit) (ID: `113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`)
 
 ### Mandatory Triple-Track Protocol (Buganizer + Taskflow + GitHub PR)
 Every feature implementation, architectural change, or bug fix MUST maintain full bidirectional traceability between Buganizer/Taskflow and GitHub Pull Requests:
@@ -188,9 +189,41 @@ If a code change intentionally does not require documentation updates (e.g. pure
   ```
 This is verified both statically in unit tests (`backend/tests/test_docs_sync.py`) and by the pre-commit / CI gate.
 
+### 5.4 Presentation Slides Protocol: Google Slides ("Capstone Slides") & Human Edit Preservation
+When the user mentions "slides", "presentation", or asks to modify slides:
+
+#### 1. Official Google Slides Presentation Deck
+- **Always Target the Live Google Slides Deck**: The authoritative presentation is the Google Slides deck:
+  - **Title**: [Capstone Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit)
+  - **Presentation ID**: `113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`
+- **Tooling**: Use `/google/bin/releases/gemini-agents-gslides/gslides` (CLI for reading, inspecting elements, and mutating slides via the Google Slides API).
+- **No Local Markdown Slides**: Markdown slide files in the repo (such as `docs/presentation/slides.md`) are unlinked offline drafts and must not be treated as the live deck.
+
+#### 2. Strict Human Edit Preservation Rules (Never Revert User Changes)
+- **Zero Unintended Reverts**: Never touch, reformat, or revert slides that do not need to be changed.
+- **Isolate Modifications**: If the user modified a slide, or asks to modify a specific slide (e.g. Slide 5), all other slides and any existing human edits MUST remain strictly untouched.
+- **Inspect Before Mutating**: Always run `/google/bin/releases/gemini-agents-gslides/gslides readonly list-elements <deck_id> <slide_index> --json` to inspect the exact element IDs and existing text before mutating.
+- **Surgical Updates Only**: Use targeted `mutate update-text --element <ELEMENT_ID>` or batch updates targeting specific element IDs. Never delete or recreate entire slides unless explicitly requested.
+
+#### 3. Current 11-Slide Deck Architecture Reference
+| Slide # | Slide ID | Title / Topic | Primary Content |
+| :---: | :---: | :--- | :--- |
+| **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $20.90/mo base |
+| **2** | `slide_02` | Customer Friction | "Spec Overload" drives 68% cart abandonment, 8+ browser tab fatigue |
+| **3** | `slide_03` | Live Demo & Impact | Grounded side-by-side matrices, WINNER badges, clickable `[SKU: ...]` citations |
+| **4** | `slide_04` | Cloud FinOps & TCO | $20.90/mo base (98.8% savings vs GKE + Vector DB + GPU), $0.209/1k queries |
+| **5** | `slide_05` | Observability & Guardrails | 5 production pillars: Model Armor, Cloud Deploy Canary + Prompt/Model Rollback, OpenTelemetry, Multi-Region Run, Evals |
+| **6** | `slide_06` | AI-Driven Development | Outer-loop TDD hillclimbing, specialized agent skills, tmux swarm engineering |
+| **7** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Gateway |
+| **8** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $20.90 TCO, 3.00/3.00 rubric) & Q&A |
+| **9** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives |
+| **10** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter, 4-Node ADK sequential pipeline, BigQuery catalog, CI/CD |
+| **11** | `slide_11` | Appendix B: ADR-004 Scorecard | 4-model evaluation, tiered-hybrid selection, 80-pair counterfactual eval suite |
+
 ---
 
 ## 6. Key Documentation Reference
+- [Capstone Google Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit): Live executive and technical architecture presentation deck (`113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`).
 - [SPEC.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/SPEC.md): Complete product specifications, technical requirements, and TDD agreement.
 - [RUBRIC.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/RUBRIC.md): Official 31-competency FDE grading rubric and scoring dimensions.
 - [ARCHITECTURE.md](file:///usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/ARCHITECTURE.md): System diagrams, BigQuery schemas, data flow, IAM architecture.
