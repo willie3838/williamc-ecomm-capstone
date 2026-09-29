@@ -22,7 +22,8 @@ RUN groupadd -g 1000 appgroup && \
     useradd -u 1000 -g appgroup -s /bin/bash -m appuser
 
 # Copy installed Python packages from builder to non-root user directory
-COPY --from=builder /root/.local /home/appuser/.local
+COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
+RUN chmod -R a+rX /home/appuser/.local
 
 # Set environment variables for runtime
 ENV PATH=/home/appuser/.local/bin:$PATH
@@ -44,4 +45,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
 
-CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

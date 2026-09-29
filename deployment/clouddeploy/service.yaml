@@ -20,8 +20,8 @@ spec:
         - image: us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest
           resources:
             limits:
-              cpu: 1000m
-              memory: 512Mi
+              cpu: 2000m
+              memory: 2Gi
           env:
             - name: GCP_PROJECT_ID
               value: fde-bestbuy-sandbox-dev-508321

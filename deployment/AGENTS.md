@@ -79,9 +79,9 @@ The automated delivery pipeline cleanly decouples Continuous Integration (Cloud 
 1. **Linter & Formatting Check**: Runs `ruff check backend/ evals/` and `ruff format --check backend/ evals/`.
 2. **Unit Test Gate**: Runs `pytest --cov=src --cov-fail-under=80 tests/` inside containerized test harness with `EXPORT_TRACES_TO_CLOUD=false` (keeping OpenTelemetry in-memory span recording enabled while disabling remote Cloud Trace network export during unit tests; production Cloud Run and Agent Engine remain `EXPORT_TRACES_TO_CLOUD=true`).
 3. **ADK Agent Conformance Gate**: Runs `evals/test_eval_adk.py` to assert ADK agent specs.
-4. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`).
-5. **Artifact Push**: Pushes image tags `:${SHORT_SHA}` and `:latest` to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend`.
-6. **Release Registration**: Creates Google Cloud Deploy release targeting `catalog-service-pipeline`:
+4. **Container Build**: Builds optimized container using Docker multi-stage build (`as builder` -> `as runner`) with `--chown=appuser:appgroup` on `/home/appuser/.local` and `uvicorn app.main:app` entrypoint.
+5. **Container Smoke Test & Artifact Push**: Starts the built image locally in Cloud Build (`docker run -d -p 8080:8080`) and verifies `http://localhost:8080/health` returns HTTP 200 before pushing `:${SHORT_SHA}` and `:latest` tags to Artifact Registry `us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend`.
+6. **Release Registration & Cloud Run Rollout (`2Gi` RAM / `2` vCPU)**: Creates Google Cloud Deploy release targeting `catalog-service-pipeline` (`deployment/clouddeploy/service.yaml` configured with `2000m` CPU and `2Gi` memory) and updates `catalog-comparison-service` with `--memory=2Gi --cpu=2`:
    `gcloud deploy releases create "rel-${SHORT_SHA}-..." --delivery-pipeline=catalog-service-pipeline ...`
 
 ### 4.2 Google Cloud Deploy CD Pipeline (`clouddeploy/`)

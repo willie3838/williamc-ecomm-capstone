@@ -101,7 +101,7 @@ steps:
       - 'deployment/Dockerfile'
       - '.'
 
-  # Step 4: Push Container Image to Artifact Registry
+  # Step 4: Smoke-Test & Push Container Image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'push-image'
     entrypoint: 'bash'
@@ -109,6 +109,29 @@ steps:
       - '-c'
       - |
         set -euo pipefail
+        IMAGE_URI="${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
+        echo "=== Smoke-Testing Built Container Image Locally Before Push ==="
+        docker run -d --name smoke-test -p 8080:8080 -e EXPORT_TRACES_TO_CLOUD=false "$${IMAGE_URI}"
+        SMOKE_OK=0
+        for i in $$(seq 1 30); do
+          if python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)" 2>/dev/null; then
+            echo "[+] Container smoke test passed on attempt $${i}!"
+            SMOKE_OK=1
+            break
+          fi
+          if ! docker ps | grep -q smoke-test; then
+            echo "[-] Container exited prematurely during smoke test!"
+            break
+          fi
+          sleep 1
+        done
+        if [ "$${SMOKE_OK}" -ne 1 ]; then
+          echo "=== Container Smoke Test Failed — Dumping Container Logs ==="
+          docker logs smoke-test || true
+          docker rm -f smoke-test || true
+          exit 1
+        fi
+        docker rm -f smoke-test || true
         docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:${SHORT_SHA}"
         docker push "${_REGION}-docker.pkg.dev/${_PROJECT_ID}/catalog-agent-repo/backend:latest"
 
@@ -134,24 +157,33 @@ steps:
 
         echo "Cloud Deploy release $${RELEASE_ID} registered."
         echo "Cloud Deploy is now orchestrating the progressive 0% -> 100% rollout."
-        echo "=== Enforcing Identity-Aware Proxy (IAP) on Cloud Run Service ==="
+        echo "=== Enforcing Identity-Aware Proxy (IAP) & Deploying Latest Revision on Cloud Run ==="
         gcloud run services add-iam-policy-binding catalog-comparison-service \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --member="serviceAccount:service-${_PROJECT_NUMBER}@gcp-sa-iap.iam.gserviceaccount.com" \
           --role="roles/run.invoker" \
           --quiet || true
-        gcloud beta run services update catalog-comparison-service \
+        if ! gcloud beta run services update catalog-comparison-service \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --image="$${IMAGE_URI}" \
+          --memory=2Gi \
+          --cpu=2 \
           --iap \
-          --quiet || echo "Cloud Run IAP configuration validated."
+          --quiet; then
+          echo "=== Cloud Run Revision Update Failed — Dumping Recent Cloud Run Revision Logs ==="
+          gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=catalog-comparison-service" \
+            --project="${_PROJECT_ID}" \
+            --limit=30 \
+            --format="value(timestamp,severity,textPayload)" || true
+          exit 1
+        fi
         gcloud run services update-traffic catalog-comparison-service \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
           --to-latest \
-          --quiet || true
+          --quiet
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'python:3.11-slim'
