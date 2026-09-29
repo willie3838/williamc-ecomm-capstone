@@ -57,7 +57,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x Thunderbolt 4',
     },
     url: 'https://www.techbuy.com/site/sku/6575132.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6575/6575132_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6575/6575146_sd.jpg',
     in_stock: true,
   },
   {
@@ -85,7 +85,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'HDMI, SDXC slot, 3x Thunderbolt 4, MagSafe 3',
     },
     url: 'https://www.techbuy.com/site/sku/6534640.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534640_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6534/6534615_sd.jpg',
     in_stock: true,
   },
   {
@@ -113,7 +113,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x Thunderbolt 4, 2x USB-A 3.2, HDMI 2.1',
     },
     url: 'https://www.techbuy.com/site/sku/6579840.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6579/6579840_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/7e59f614-9e7d-4269-90f9-3a6c33dea602.png',
     in_stock: true,
   },
   {
@@ -141,7 +141,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB4 Type-C, USB-C 3.2 Gen 2, 2x USB-A 3.2 Gen 2, HDMI 2.1, MicroSD UHS-II',
     },
     url: 'https://www.techbuy.com/site/sku/6570214.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6570/6570214_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6570/6570270_sd.jpg',
     in_stock: true,
   },
   {
@@ -169,7 +169,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x Thunderbolt 4 / USB4, 1x USB-A 3.2, 3.5mm Audio Combo',
     },
     url: 'https://www.techbuy.com/site/sku/6572088.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6572/6572088_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/bd6b9eed-10f7-4a8c-ad78-e135aef239e0.jpg',
     in_stock: true,
   },
   {
@@ -197,7 +197,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x USB4 / Thunderbolt 4, 1x USB-A 3.1, Surface Connect, 3.5mm Headphone Jack',
     },
     url: 'https://www.techbuy.com/site/sku/6581910.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6581/6581910_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/d8f551a5-7b2f-4354-8c8e-d0c5e2b78f89.jpg',
     in_stock: true,
   },
   {
@@ -225,7 +225,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x USB4 Type-C, 2x USB-A 3.2, HDMI 2.1, MicroSD Reader',
     },
     url: 'https://www.techbuy.com/site/sku/6576412.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6576/6576412_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6546/6546242_sd.jpg',
     in_stock: true,
   },
   {
@@ -251,7 +251,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'Thunderbolt / USB4',
     },
     url: 'https://www.techbuy.com/site/sku/6579601.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6579/6579601_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/5495/5495362_sd.jpg',
     in_stock: true,
   },
   {
@@ -277,7 +277,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 3.2 Gen 1, MicroSDXC Slot (up to 1TB)',
     },
     url: 'https://www.techbuy.com/site/sku/6546522.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6546/6546522_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6546/6546661_sd.jpg',
     in_stock: true,
   },
   {
@@ -303,7 +303,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 3.2 Gen 1, 4-pin Magnetic Speaker Dock Pogo Connector',
     },
     url: 'https://www.techbuy.com/site/sku/6542951.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6542/6542951_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6543/6543737_sd.jpg',
     in_stock: true,
   },
   {
@@ -329,7 +329,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: '2x USB4 / Thunderbolt 4, Surface Connect, Surface Pro Keyboard Magnetic Port',
     },
     url: 'https://www.techbuy.com/site/sku/6582105.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6582/6582105_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/13a8fa68-4dcd-4932-a3df-a421000b1ded.jpg',
     in_stock: true,
   },
   {
@@ -355,7 +355,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 2.0, MicroSD Card Slot',
     },
     url: 'https://www.techbuy.com/site/sku/6568419.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6568/6568419_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/9a95b761-c52f-448c-9f0f-73d01abe6d22.jpg',
     in_stock: true,
   },
   {
@@ -381,7 +381,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 3.2 Gen 1 (67W SUPERVOOC)',
     },
     url: 'https://www.techbuy.com/site/sku/6583920.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6583/6583920_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/4a694173-614f-4d3b-8307-1881b276035d.jpg',
     in_stock: true,
   },
   {
@@ -407,7 +407,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 2.0, MicroSD Slot (up to 1TB)',
     },
     url: 'https://www.techbuy.com/site/sku/6554812.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6554/6554812_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/85889fbf-78ec-477d-92f0-c7f6b2695156.jpg',
     in_stock: true,
   },
   {
@@ -433,7 +433,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       ports: 'USB-C 2.0 (33W PD Fast Charge)',
     },
     url: 'https://www.techbuy.com/site/sku/6574310.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6574/6574310_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/53156c70-bf08-4dbc-989e-726529cd24fc.jpg',
     in_stock: true,
   },
   {
@@ -479,7 +479,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '15 min charge for 2.5 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6553823.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6553/6553823_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/b89eb4ca-517b-44a4-8793-f8c245d307ff.jpg',
     in_stock: true,
   },
   {
@@ -525,7 +525,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '10 min charge for 6 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6519302.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6519/6519302_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6514/6514466_sd.jpg',
     in_stock: true,
   },
   {
@@ -548,7 +548,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '10 min Fast Fuel for 4 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6501045.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6501/6501045_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6501/6501017_sd.jpg',
     in_stock: true,
   },
   {
@@ -571,7 +571,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '15 min charge for 7 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6561844.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6561/6561844_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6562/6562971_sd.jpg',
     in_stock: true,
   },
   {
@@ -594,7 +594,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '10 min charge for 5 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6548219.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6548/6548219_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6582/6582670_sd.jpg',
     in_stock: true,
   },
   {
@@ -617,7 +617,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       quick_charge: '15 min charge for 5 hours playback',
     },
     url: 'https://www.techbuy.com/site/sku/6559104.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6559/6559104_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6425/6425864_sd.jpg',
     in_stock: true,
   },
   {
@@ -663,7 +663,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Tizen OS',
     },
     url: 'https://www.techbuy.com/site/sku/6536965.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6536/6536965_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6536/6536964_sd.jpg',
     in_stock: true,
   },
   {
@@ -686,7 +686,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Google TV',
     },
     url: 'https://www.techbuy.com/site/sku/6543908.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6543/6543908_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6543/6543909_sd.jpg',
     in_stock: true,
   },
   {
@@ -709,7 +709,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Google TV',
     },
     url: 'https://www.techbuy.com/site/sku/6551173.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6551/6551173_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6fb8bf2f-78ae-4989-bba8-36c0b656418c.jpg',
     in_stock: true,
   },
   {
@@ -732,7 +732,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Google TV',
     },
     url: 'https://www.techbuy.com/site/sku/6577012.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6577/6577012_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6577/6577004_sd.jpg',
     in_stock: true,
   },
   {
@@ -755,7 +755,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Vizio Home',
     },
     url: 'https://www.techbuy.com/site/sku/6544890.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6544/6544890_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6469/6469571_sd.jpg',
     in_stock: true,
   },
   {
@@ -778,7 +778,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Fire TV OS',
     },
     url: 'https://www.techbuy.com/site/sku/6580125.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6580/6580125_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/84e12a8c-8dd5-44a2-9802-8f4864987bae.jpg',
     in_stock: true,
   },
   {
@@ -801,7 +801,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       smart_platform: 'Roku OS',
     },
     url: 'https://www.techbuy.com/site/sku/6569402.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6569/6569402_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/1c242748-9552-4469-b4c0-5041ee588121.jpg',
     in_stock: true,
   },
   {
@@ -821,7 +821,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 50,
     },
     url: 'https://www.techbuy.com/site/sku/6584201.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6584/6584201_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/f01b5d21-7bf5-48a8-bfb0-638033eedf67.jpg',
     in_stock: true,
   },
   {
@@ -841,7 +841,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 60,
     },
     url: 'https://www.techbuy.com/site/sku/6502275.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6502/6502275_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/5823/5823200_sd.jpg',
     in_stock: true,
   },
   {
@@ -861,7 +861,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 200,
     },
     url: 'https://www.techbuy.com/site/sku/6562418.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6562/6562418_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6332/6332966_sd.jpg',
     in_stock: true,
   },
   {
@@ -881,7 +881,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 30,
     },
     url: 'https://www.techbuy.com/site/sku/6571290.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6571/6571290_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/76937ef0-bc0d-40de-a676-25637ecc4c3b.jpg',
     in_stock: true,
   },
   {
@@ -901,7 +901,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 25,
     },
     url: 'https://www.techbuy.com/site/sku/6539021.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6539/6539021_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6553/6553156_sd.jpg',
     in_stock: true,
   },
   {
@@ -921,7 +921,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 35,
     },
     url: 'https://www.techbuy.com/site/sku/6481592.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6481/6481592_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6430/6430068_sd.jpg',
     in_stock: true,
   },
   {
@@ -941,7 +941,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 100,
     },
     url: 'https://www.techbuy.com/site/sku/6549310.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6549/6549310_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6472/6472230_sd.jpg',
     in_stock: true,
   },
   {
@@ -961,7 +961,7 @@ export const CATALOG_PRODUCTS: ProductSpec[] = [
       sensor_range_ft: 40,
     },
     url: 'https://www.techbuy.com/site/sku/6573841.p',
-    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6573/6573841_sd.jpg',
+    image_url: 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/6515/6515346_sd.jpg',
     in_stock: true,
   },
 ];
