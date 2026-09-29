@@ -6,11 +6,17 @@ import { CitationChip } from './CitationChip';
 export interface ProductCardProps {
   product: ProductSpec;
   className?: string;
+  selectable?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (product: ProductSpec) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   className = '',
+  selectable = false,
+  isSelected = false,
+  onToggleSelect,
 }) => {
   const [imageError, setImageError] = useState(false);
 
@@ -19,12 +25,41 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     currency: 'USD',
   }).format(product.price);
 
+  const handleSelectToggle = (e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    onToggleSelect?.(product);
+  };
+
   return (
     <div
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col p-4 transition-all hover:shadow-md ${className}`}
+      className={`bg-white rounded-xl border overflow-hidden flex flex-col p-4 transition-all hover:shadow-md ${
+        isSelected
+          ? 'border-bb-blue ring-2 ring-bb-blue/50 shadow-md bg-blue-50/20'
+          : 'border-gray-200 shadow-sm'
+      } ${className}`}
     >
       {/* Product Image Area */}
       <div className="relative w-full h-44 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden mb-3">
+        {/* Selection Checkbox Toggle */}
+        {selectable && (
+          <div className="absolute top-2 right-2 z-10">
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={isSelected}
+              aria-label={`Select ${product.name} for comparison`}
+              onClick={handleSelectToggle}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                isSelected
+                  ? 'bg-bb-blue text-white ring-2 ring-white'
+                  : 'bg-white/90 text-transparent hover:text-gray-400 border border-gray-300 backdrop-blur-xs'
+              }`}
+            >
+              <Check className="w-4 h-4 stroke-[3]" />
+            </button>
+          </div>
+        )}
+
         {product.image_url && !imageError ? (
           <img
             src={product.image_url}
