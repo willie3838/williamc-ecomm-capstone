@@ -207,6 +207,68 @@ describe('App Integration', () => {
       expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
     });
   });
+
+  it('opens ProductDetailsModal when View at TechBuy button on ProductCard is clicked and closes upon dismissing', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // Perform a search to populate compared products
+    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
+    fireEvent.click(sampleBtn!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    // Find "View at TechBuy" buttons
+    const viewButtons = screen.getAllByRole('button', { name: /view at techbuy/i });
+    expect(viewButtons.length).toBeGreaterThan(0);
+
+    // Click the first "View at TechBuy" button (MacBook Air)
+    fireEvent.click(viewButtons[0]);
+
+    // Modal dialog should now be visible with MacBook specs and details
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Verified Product Specifications')).toBeInTheDocument();
+    expect(screen.getByText('Apple M3 8-core')).toBeInTheDocument();
+
+    // Close the modal via Close button
+    const closeBtn = screen.getByRole('button', { name: /close product details/i });
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens ProductDetailsModal when SKU CitationChip is clicked', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
+    fireEvent.click(sampleBtn!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Verified SKU Grounding & Citations')).toBeInTheDocument();
+    });
+
+    // Find citation chips in the page
+    const citationBtns = screen.getAllByRole('button', {
+      name: /view product details for sku 6534606/i,
+    });
+    expect(citationBtns.length).toBeGreaterThan(0);
+    fireEvent.click(citationBtns[0]);
+
+    // Modal dialog should open displaying MacBook Air details
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Apple M3 8-core')).toBeInTheDocument();
+
+    // Dismiss using Escape key
+    fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });
 
 

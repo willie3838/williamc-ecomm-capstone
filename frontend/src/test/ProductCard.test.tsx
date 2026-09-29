@@ -70,5 +70,17 @@ describe('ProductCard', () => {
       })
     ).not.toBeInTheDocument();
   });
+
+  it('calls onViewDetails when View at TechBuy button is clicked', () => {
+    const onViewDetails = vi.fn();
+    render(<ProductCard product={mockMacBook} onViewDetails={onViewDetails} />);
+
+    const viewBtn = screen.getByRole('button', { name: /view at techbuy/i });
+    expect(viewBtn).toBeInTheDocument();
+
+    viewBtn.click();
+    expect(onViewDetails).toHaveBeenCalledTimes(1);
+    expect(onViewDetails).toHaveBeenCalledWith(mockMacBook);
+  });
 });
 

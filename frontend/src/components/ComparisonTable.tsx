@@ -7,6 +7,7 @@ export interface ComparisonTableProps {
   products: ProductSpec[];
   matrix: MatrixRow[];
   className?: string;
+  onViewDetails?: (product: ProductSpec) => void;
 }
 
 /**
@@ -17,6 +18,7 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
   products,
   matrix,
   className = '',
+  onViewDetails,
 }) => {
   if (!products || products.length === 0) {
     return null;
@@ -83,9 +85,20 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                     <span className="text-xs font-bold uppercase tracking-wider text-bb-blue block">
                       {product.brand}
                     </span>
-                    <h4 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">
-                      {product.name}
-                    </h4>
+                    {onViewDetails ? (
+                      <button
+                        type="button"
+                        onClick={() => onViewDetails(product)}
+                        className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight text-left hover:text-bb-blue transition-colors cursor-pointer"
+                        title={`View details for ${product.name}`}
+                      >
+                        {product.name}
+                      </button>
+                    ) : (
+                      <h4 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">
+                        {product.name}
+                      </h4>
+                    )}
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-base font-extrabold text-gray-900">
                         {new Intl.NumberFormat('en-US', {
@@ -93,7 +106,11 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                           currency: 'USD',
                         }).format(product.price)}
                       </span>
-                      <CitationChip sku={product.sku} url={product.url} />
+                      <CitationChip
+                        sku={product.sku}
+                        url={product.url}
+                        onClick={onViewDetails ? () => onViewDetails(product) : undefined}
+                      />
                     </div>
                   </div>
                 </th>

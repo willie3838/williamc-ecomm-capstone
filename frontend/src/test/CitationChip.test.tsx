@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { CitationChip } from '../components/CitationChip';
 
 describe('CitationChip', () => {
@@ -31,5 +31,17 @@ describe('CitationChip', () => {
     );
     const link = screen.getByRole('link');
     expect(link).toHaveAttribute('title', 'Verified catalog record in BigQuery');
+  });
+
+  it('renders as a clickable button and calls onClick when provided', () => {
+    const onClick = vi.fn();
+    render(<CitationChip sku="6534606" onClick={onClick} />);
+
+    const chipBtn = screen.getByRole('button', { name: /view product details for sku 6534606/i });
+    expect(chipBtn).toBeInTheDocument();
+
+    chipBtn.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledWith('6534606');
   });
 });

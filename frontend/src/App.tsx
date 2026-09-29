@@ -10,7 +10,8 @@ import {
   Activity,
 } from 'lucide-react';
 import { compareProducts } from './api/client';
-import { getCatalogProducts } from './data/catalogProducts';
+import { ProductDetailsModal } from './components/ProductDetailsModal';
+import { CATALOG_PRODUCTS, getCatalogProducts } from './data/catalogProducts';
 import { SearchBar } from './components/SearchBar';
 import { ComparisonTable } from './components/ComparisonTable';
 import { RecommendationCard } from './components/RecommendationCard';
@@ -63,6 +64,53 @@ export const App: React.FC = () => {
   } | null>(null);
 
   const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
+  const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
+    if (typeof productOrSku === 'object' && productOrSku !== null) {
+      setActiveModalProduct(productOrSku);
+      setIsModalOpen(true);
+      return;
+    }
+
+    const sku = String(productOrSku).trim();
+    // 1. Search in current comparison result products
+    const foundInComparison = comparison?.products?.find((p) => p.sku === sku);
+    if (foundInComparison) {
+      setActiveModalProduct(foundInComparison);
+      setIsModalOpen(true);
+      return;
+    }
+
+    // 2. Search in browsed / catalog products
+    const foundInCatalog = CATALOG_PRODUCTS.find((p) => p.sku === sku);
+    if (foundInCatalog) {
+      setActiveModalProduct(foundInCatalog);
+      setIsModalOpen(true);
+      return;
+    }
+
+    // 3. Fallback dummy ProductSpec for unknown SKU
+    setActiveModalProduct({
+      sku,
+      name: `TechBuy Verified SKU ${sku}`,
+      brand: 'TechBuy Retailers',
+      price: 0,
+      specifications: {
+        sku,
+        status: 'Catalog Grounded Record',
+        source: 'Google Cloud BigQuery (fde-bestbuy-sandbox-dev-508321.catalog.products)',
+      },
+      in_stock: true,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCloseProductDetails = () => {
+    setIsModalOpen(false);
+    setActiveModalProduct(null);
+  };
 
   const {
     data: comparison,
@@ -307,7 +355,11 @@ export const App: React.FC = () => {
                     }`}
                   >
                     {comparison.products.map((product) => (
-                      <ProductCard key={product.sku} product={product} />
+                      <ProductCard
+                        key={product.sku}
+                        product={product}
+                        onViewDetails={handleOpenProductDetails}
+                      />
                     ))}
                   </div>
                 </div>
@@ -316,6 +368,7 @@ export const App: React.FC = () => {
                 <ComparisonTable
                   products={comparison.products}
                   matrix={comparison.comparison_matrix}
+                  onViewDetails={handleOpenProductDetails}
                 />
               </>
             ) : (
@@ -361,6 +414,7 @@ export const App: React.FC = () => {
                         sku={citation.sku}
                         url={citation.url}
                         description={citation.description}
+                        onClick={handleOpenProductDetails}
                       />
                       {citation.description && (
                         <span className="text-xs text-gray-500 hidden sm:inline">
@@ -411,6 +465,7 @@ export const App: React.FC = () => {
                     selectable={true}
                     isSelected={isSelected}
                     onToggleSelect={handleToggleSelectProduct}
+                    onViewDetails={handleOpenProductDetails}
                   />
                 );
               })}
@@ -494,6 +549,19 @@ export const App: React.FC = () => {
           onRemoveProduct={handleRemoveSelectedProduct}
           onClearSelection={handleClearSelectedProducts}
           onCompare={handleCompareSelected}
+        />
+
+        {/* Product Specifications & Details Modal */}
+        <ProductDetailsModal
+          product={activeModalProduct}
+          isOpen={isModalOpen}
+          onClose={handleCloseProductDetails}
+          onSelectForCompare={handleToggleSelectProduct}
+          isSelectedForCompare={
+            activeModalProduct
+              ? selectedProducts.some((p) => p.sku === activeModalProduct.sku)
+              : false
+          }
         />
       </main>
 
