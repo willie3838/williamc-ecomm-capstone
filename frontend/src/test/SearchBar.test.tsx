@@ -59,4 +59,49 @@ describe('SearchBar', () => {
     expect(input).toBeDisabled();
     expect(submitBtn).toBeDisabled();
   });
+
+  it('calls onCategorySelect with category id when a category pill is clicked and null when All Categories is clicked', () => {
+    const handleCategorySelect = vi.fn();
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        onCategorySelect={handleCategorySelect}
+        isLoading={false}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /laptops/i }));
+    expect(handleCategorySelect).toHaveBeenCalledWith('Laptops');
+
+    fireEvent.click(screen.getByRole('button', { name: /all categories/i }));
+    expect(handleCategorySelect).toHaveBeenCalledWith(null);
+  });
+
+  it('resets input and selected category when initialQuery and initialCategory props change', () => {
+    const { rerender } = render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        initialQuery="Compare laptops"
+        initialCategory="Laptops"
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i) as HTMLInputElement;
+    expect(input.value).toBe('Compare laptops');
+    expect(screen.getByRole('button', { name: /laptops/i })).toHaveAttribute('aria-pressed', 'true');
+
+    rerender(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        initialQuery=""
+        initialCategory={null}
+      />
+    );
+
+    expect(input.value).toBe('');
+    expect(screen.getByRole('button', { name: /all categories/i })).toHaveAttribute('aria-pressed', 'true');
+  });
 });
+

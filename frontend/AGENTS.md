@@ -28,8 +28,10 @@ frontend/
     ├── App.tsx                # Root layout
     ├── api/                   # Backend client
     │   └── client.ts          # Axios / Fetch client calling /api/compare
+    ├── data/                  # Grounded catalog SKU dataset
+    │   └── catalogProducts.ts # 40 verified catalog SKUs and category filter helper
     ├── components/
-    │   ├── SearchBar.tsx      # Query input with category pills
+    │   ├── SearchBar.tsx      # Query input with interactive category pills
     │   ├── ComparisonTable.tsx# Side-by-side feature matrix
     │   ├── CitationChip.tsx   # Verified SKU badge linking to BestBuy.com
     │   ├── RecommendationCard.tsx # Agent narrative summary and pros/cons
@@ -46,9 +48,11 @@ frontend/
 - Render attributes dynamically based on product category (e.g. RAM, Storage, CPU for Laptops; Battery Life, Noise Cancellation for Headphones).
 - Highlight winning / superior specifications with subtle badge indicators where unambiguous (e.g., higher battery life).
 
-### 2. Verified SKU Citation Badges
+### 2. Verified SKU Citation Badges & Category Browsing
 - Every product claim must display an interactive SKU badge (`[SKU: 6534606]`).
 - Clicking the badge opens the official product listing on BestBuy.com in a new tab: `https://www.bestbuy.com/site/sku/{sku}.p`.
+- Clicking the **TECHBUY RETAILERS** header logo returns the user to the homepage (`Popular Product Comparisons`).
+- Clicking **All Categories** or any category filter pill (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`) displays all 40 verified catalog SKUs or the relevant category SKUs.
 
 ### 3. Latency & Perceived Performance
 - Total backend roundtrip target is $\le 3.0$ seconds.
