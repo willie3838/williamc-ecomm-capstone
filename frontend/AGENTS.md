@@ -33,8 +33,11 @@ frontend/
     ├── components/
     │   ├── SearchBar.tsx      # Query input with interactive category pills
     │   ├── ComparisonTable.tsx# Side-by-side feature matrix
-    │   ├── CitationChip.tsx   # Verified SKU badge linking to BestBuy.com
+    │   ├── CitationChip.tsx   # Verified SKU badge linking to modal or canonical TechBuy listing
     │   ├── RecommendationCard.tsx # Agent narrative summary and pros/cons
+    │   ├── ProductCard.tsx    # Individual product spec card with compare checkbox and View at TechBuy button
+    │   ├── ProductDetailsModal.tsx # Accessible in-app modal displaying comprehensive product specifications, stock status, ratings, and grounding
+    │   ├── ProductSelectionTray.tsx # Floating selection tray for multiselect comparison
     │   └── SkeletonLoader.tsx # Shimmer loading animation during generation
     └── types/
         └── comparison.ts      # TypeScript interfaces mirroring backend schemas
@@ -48,9 +51,10 @@ frontend/
 - Render attributes dynamically based on product category (e.g. RAM, Storage, CPU for Laptops; Battery Life, Noise Cancellation for Headphones).
 - Highlight winning / superior specifications with subtle badge indicators where unambiguous (e.g., higher battery life).
 
-### 2. Verified SKU Citation Badges, Category Browsing & Multiselect Comparison
+### 2. Verified SKU Citation Badges, Category Browsing, Multiselect & In-App Product Details
 - Every product claim must display an interactive SKU badge (`[SKU: 6534606]`).
-- Clicking the badge opens the official product listing on BestBuy.com in a new tab: `https://www.bestbuy.com/site/sku/{sku}.p`.
+- Clicking "View at TechBuy" on any `ProductCard` or clicking any `CitationChip` opens the in-app `ProductDetailsModal` displaying full product specifications, description, price, customer reviews & rating, stock status, and BigQuery grounding metadata.
+- The `ProductDetailsModal` is accessible, closes via `Escape` key or backdrop click, and allows adding/removing products directly to the compare tray.
 - Clicking the **TECHBUY RETAILERS** header logo returns the user to the homepage (`Popular Product Comparisons`).
 - Clicking **All Categories** or any category filter pill (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`) displays all 40 verified catalog SKUs or the relevant category SKUs.
 - While browsing catalog categories, users can multiselect products via the `+ Compare` / `Selected` checkbox badge on each `ProductCard`.

@@ -9,6 +9,7 @@ export interface ProductCardProps {
   selectable?: boolean;
   isSelected?: boolean;
   onToggleSelect?: (product: ProductSpec) => void;
+  onViewDetails?: (product: ProductSpec) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -17,6 +18,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   selectable = false,
   isSelected = false,
   onToggleSelect,
+  onViewDetails,
 }) => {
   const [imageError, setImageError] = useState(false);
 
@@ -131,14 +133,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {formattedPrice}
             </span>
           </div>
-          <a
-            href={product.url || `https://www.techbuy.com/site/sku/${product.sku}.p`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs"
-          >
-            View at TechBuy
-          </a>
+          {onViewDetails ? (
+            <button
+              type="button"
+              onClick={() => onViewDetails(product)}
+              className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs cursor-pointer"
+            >
+              View at TechBuy
+            </button>
+          ) : (
+            <a
+              href={product.url || `https://www.techbuy.com/site/sku/${product.sku}.p`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs"
+            >
+              View at TechBuy
+            </a>
+          )}
         </div>
       </div>
     </div>
