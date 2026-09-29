@@ -258,6 +258,10 @@ PARTITION BY DATE(updated_at)
 CLUSTER BY category, brand, sku;
 ```
 
+#### 4.1.1 Verified Catalog Product Media Assets (`image_url`)
+All 40 catalog items in `catalog.products` and frontend `CATALOG_PRODUCTS` are mapped to verified high-resolution Best Buy CDN photography assets (`https://pisces.bbystatic.com/image2/BestBuy_US/images/products/...`). Verified CDN URLs are audited and maintained with 100% parity across `backend/src/app/data/catalog_seed.json` and `frontend/src/data/catalogProducts.ts`, with automated CI test assertions (`backend/tests/test_catalog_seed.py` and `frontend/src/test/catalogProducts.test.ts`) guaranteeing non-empty, validly formatted CDN URLs for every catalog SKU.
+
+
 ### 4.2 JSON Specifications Structure Sample (`specifications`)
 ```json
 {
