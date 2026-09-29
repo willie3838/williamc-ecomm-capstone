@@ -144,8 +144,14 @@ steps:
         gcloud beta run services update catalog-comparison-service \
           --region="${_REGION}" \
           --project="${_PROJECT_ID}" \
+          --image="$${IMAGE_URI}" \
           --iap \
           --quiet || echo "Cloud Run IAP configuration validated."
+        gcloud run services update-traffic catalog-comparison-service \
+          --region="${_REGION}" \
+          --project="${_PROJECT_ID}" \
+          --to-latest \
+          --quiet || true
 
   # Step 6: Synchronize Google Cloud Agent Registry & Vertex AI Prompt Management
   - name: 'python:3.11-slim'

@@ -53,8 +53,8 @@ frontend/
 - Clicking the badge opens the official product listing on BestBuy.com in a new tab: `https://www.bestbuy.com/site/sku/{sku}.p`.
 - Clicking the **TECHBUY RETAILERS** header logo returns the user to the homepage (`Popular Product Comparisons`).
 - Clicking **All Categories** or any category filter pill (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`) displays all 40 verified catalog SKUs or the relevant category SKUs.
-- While browsing catalog categories, users can multiselect products via a checkmark toggle on each `ProductCard`.
-- Selecting products displays the floating `ProductSelectionTray` showing selected count, thumbnails, removable chips, clear action (with `Escape` key shortcut support), and a "Compare Selected (N)" button that automatically formats an optimal natural-language comparison query across the selected SKUs.
+- While browsing catalog categories, users can multiselect products via the `+ Compare` / `Selected` checkbox badge on each `ProductCard`.
+- Selecting products immediately updates the `SearchBar` query input (`Compare <Product A> vs <Product B>...`) and displays the floating `ProductSelectionTray` showing selected count, thumbnails, removable chips, clear action (with `Escape` key shortcut support), and a "Compare Selected (N)" button that executes the comparison query across the selected SKUs.
 
 ### 3. Latency & Perceived Performance
 - Total backend roundtrip target is $\le 3.0$ seconds.

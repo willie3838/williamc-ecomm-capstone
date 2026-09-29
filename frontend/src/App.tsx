@@ -127,25 +127,27 @@ export const App: React.FC = () => {
     setSelectedProducts([]);
   };
 
+  const formatSelectedQuery = (products: ProductSpec[]): string => {
+    if (products.length === 0) return '';
+    if (products.length === 1) return `Compare ${products[0].name} vs `;
+    if (products.length === 2) {
+      return `Compare ${products[0].name} vs ${products[1].name}`;
+    }
+    const allExceptLast = products.slice(0, -1).map((p) => p.name).join(', ');
+    const last = products[products.length - 1].name;
+    return `Compare ${allExceptLast}, and ${last}`;
+  };
+
   const handleCompareSelected = (products: ProductSpec[]) => {
     if (products.length < 2) return;
 
-    let constructedQuery = '';
-    if (products.length === 2) {
-      constructedQuery = `Compare ${products[0].name} vs ${products[1].name}`;
-    } else {
-      const allExceptLast = products.slice(0, -1).map((p) => p.name).join(', ');
-      const last = products[products.length - 1].name;
-      constructedQuery = `Compare ${allExceptLast}, and ${last}`;
-    }
-
+    const constructedQuery = formatSelectedQuery(products);
     const category = products[0]?.category || browseCategory?.category || null;
 
     setBrowseCategory(null);
     setSelectedProducts([]);
     setSearchParams({ query: constructedQuery, category });
   };
-
 
   const browsedProducts = browseCategory
     ? getCatalogProducts(browseCategory.category)
@@ -219,7 +221,11 @@ export const App: React.FC = () => {
           onSearch={handleSearch}
           onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
-          initialQuery={searchParams?.query || ''}
+          initialQuery={
+            selectedProducts.length > 0
+              ? formatSelectedQuery(selectedProducts)
+              : searchParams?.query || ''
+          }
           initialCategory={
             searchParams
               ? searchParams.category

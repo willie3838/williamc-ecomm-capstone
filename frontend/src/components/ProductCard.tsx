@@ -49,13 +49,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               aria-checked={isSelected}
               aria-label={`Select ${product.name} for comparison`}
               onClick={handleSelectToggle}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm ${
                 isSelected
                   ? 'bg-bb-blue text-white ring-2 ring-white'
-                  : 'bg-white/90 text-transparent hover:text-gray-400 border border-gray-300 backdrop-blur-xs'
+                  : 'bg-white/95 text-bb-blue hover:bg-blue-50 border border-bb-blue/40 backdrop-blur-xs'
               }`}
             >
-              <Check className="w-4 h-4 stroke-[3]" />
+              <Check className={`w-3.5 h-3.5 stroke-[3] ${isSelected ? 'opacity-100' : 'opacity-40'}`} />
+              <span>{isSelected ? 'Selected' : '+ Compare'}</span>
             </button>
           </div>
         )}
