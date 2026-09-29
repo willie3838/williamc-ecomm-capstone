@@ -23,6 +23,7 @@ def test_catalog_seed_schema_validation():
     """Verify that every product in catalog_seed.json validates cleanly against ProductRecord via BigQueryCatalogIngestor."""
     seed_file = Path(__file__).parent.parent / "src" / "app" / "data" / "catalog_seed.json"
     from app.data.ingest import BigQueryCatalogIngestor
+
     ingestor = BigQueryCatalogIngestor(project_id="test-project")
     records = ingestor.load_from_json(seed_file)
     assert len(records) == 40
@@ -33,19 +34,24 @@ def test_catalog_seed_schema_validation():
         assert record.rating is not None and 0.0 <= record.rating <= 5.0
         assert record.category in {"Laptops", "Tablets", "Headphones", "Smart Home", "TVs"}
         assert record.in_stock is True
-        assert record.image_url.startswith("https://pisces.bbystatic.com/image2/BestBuy_US/images/products/")
-
+        assert record.image_url.startswith(
+            "https://pisces.bbystatic.com/image2/BestBuy_US/images/products/"
+        )
 
 
 def test_catalog_seed_image_urls_match_verified_bestbuy_cdn():
     """Verify that all 40 products have valid Best Buy CDN image URLs starting with the pisces prefix."""
     seed_file = Path(__file__).parent.parent / "src" / "app" / "data" / "catalog_seed.json"
-    verified_file = Path("/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/.swarm/verified_image_urls.json")
+    verified_file = Path(
+        "/usr/local/google/home/williamwlchan/Playground/williamc-ecomm-capstone/.swarm/verified_image_urls.json"
+    )
 
     with open(seed_file, encoding="utf-8") as f:
         products_data = json.load(f)
 
-    cdn_pattern = re.compile(r"^https://pisces\.bbystatic\.com/image2/BestBuy_US/images/products/.+")
+    cdn_pattern = re.compile(
+        r"^https://pisces\.bbystatic\.com/image2/BestBuy_US/images/products/.+"
+    )
 
     for p in products_data:
         image_url = p.get("image_url", "")
@@ -69,7 +75,9 @@ def test_catalog_seed_image_urls_match_verified_bestbuy_cdn():
 def test_frontend_backend_catalog_parity():
     """Verify that frontend catalogProducts.ts and backend catalog_seed.json have matching SKUs and image URLs."""
     seed_file = Path(__file__).parent.parent / "src" / "app" / "data" / "catalog_seed.json"
-    frontend_catalog = Path(__file__).parent.parent.parent / "frontend" / "src" / "data" / "catalogProducts.ts"
+    frontend_catalog = (
+        Path(__file__).parent.parent.parent / "frontend" / "src" / "data" / "catalogProducts.ts"
+    )
 
     assert seed_file.exists()
     assert frontend_catalog.exists()

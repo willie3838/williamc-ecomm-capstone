@@ -47,6 +47,7 @@ backend/
     ├── test_multi_agent.py    # Multi-node agent unit tests
     ├── test_agent_registry.py # Vertex AI Prompt Management & A2A Agent Card unit tests
     ├── test_compare_api.py    # End-to-end API route tests
+    ├── test_catalog_seed.py   # Catalog seed integrity, schema & frontend/backend parity tests
     └── test_reasoning_engine.py # Vertex AI Reasoning Engine contract & delegation tests
 ```
 
