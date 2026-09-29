@@ -115,4 +115,20 @@ describe('ProductSelectionTray', () => {
 
     expect(onClear).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onClearSelection when Escape key is pressed', () => {
+    const onClear = vi.fn();
+    render(
+      <ProductSelectionTray
+        selectedProducts={[mockMacBook, mockDellXPS]}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={onClear}
+        onCompare={vi.fn()}
+      />
+    );
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
 });
+

@@ -19,6 +19,16 @@ export const ProductSelectionTray: React.FC<ProductSelectionTrayProps> = ({
   maxProducts = 4,
   className = '',
 }) => {
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedProducts.length > 0) {
+        onClearSelection();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedProducts.length, onClearSelection]);
+
   if (selectedProducts.length === 0) {
     return null;
   }
@@ -30,6 +40,7 @@ export const ProductSelectionTray: React.FC<ProductSelectionTrayProps> = ({
       onCompare(selectedProducts);
     }
   };
+
 
   return (
     <div
