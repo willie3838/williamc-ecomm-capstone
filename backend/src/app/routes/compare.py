@@ -16,9 +16,11 @@ from app.data.analytics import analytics_service
 from app.models import (
     AgentVersionsResponse,
     AgentVersionSummary,
+    CatalogResponse,
     ComparisonRequest,
     ComparisonResponse,
     FeedbackRequest,
+    ProductSpec,
     UserActionRequest,
 )
 
@@ -163,6 +165,115 @@ async def compare_products(
     )
 
     return result
+
+
+def _fetch_catalog_sync(
+    category: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    limit: int = 50,
+) -> CatalogResponse:
+    """Fetch product catalog records synchronously inside worker thread."""
+    import json
+    from pathlib import Path
+
+    from app.tools.catalog import query_catalog
+
+    # 1. Attempt query_catalog with category or broad wildcard
+    keywords = (
+        [category]
+        if category
+        else ["laptop", "tablet", "headphone", "tv", "camera", "home", "apple", "dell", "sony"]
+    )
+    try:
+        raw_products = query_catalog(
+            keywords=keywords,
+            category=category,
+            min_price=min_price,
+            max_price=max_price,
+            limit=limit,
+        )
+    except Exception as err:
+        logger.warning(
+            "query_catalog failed in list_catalog (%s); falling back to seed catalog.", err
+        )
+        raw_products = []
+
+    # 2. Fallback to catalog_seed.json if query_catalog returned empty in offline / test mode
+    if not raw_products:
+        seed_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
+        if seed_path.exists():
+            try:
+                with open(seed_path, encoding="utf-8") as f:
+                    seed_data = json.load(f)
+                dedup: dict[str, dict[str, Any]] = {}
+                for item in seed_data:
+                    sku = str(item.get("sku", "")).strip()
+                    if sku:
+                        dedup[sku] = item
+                for item in dedup.values():
+                    item_cat = str(item.get("category", "")).strip()
+                    if category and item_cat.lower() != category.strip().lower():
+                        continue
+                    item_price = float(item.get("price", 0.0))
+                    if min_price is not None and item_price < min_price:
+                        continue
+                    if max_price is not None and item_price > max_price:
+                        continue
+                    raw_products.append(
+                        {
+                            "sku": item["sku"],
+                            "name": str(item.get("name", "")),
+                            "brand": str(item.get("brand", "")),
+                            "category": item.get("category"),
+                            "price": item_price,
+                            "rating": float(item["rating"])
+                            if item.get("rating") is not None
+                            else None,
+                            "review_count": int(item["review_count"])
+                            if item.get("review_count") is not None
+                            else None,
+                            "specifications": item.get("specifications") or {},
+                            "url": item.get("url")
+                            or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
+                            "image_url": item.get("image_url"),
+                            "in_stock": bool(item.get("in_stock", True)),
+                        }
+                    )
+                    if len(raw_products) >= limit:
+                        break
+            except Exception as read_err:
+                logger.warning("Failed loading seed catalog fallback: %s", read_err)
+
+    validated_products = [ProductSpec.model_validate(p) for p in raw_products]
+    return CatalogResponse(
+        products=validated_products,
+        total_count=len(validated_products),
+        category=category,
+    )
+
+
+@router.get(
+    "/catalog",
+    response_model=CatalogResponse,
+    tags=["Catalog"],
+    summary="List or Filter Catalog Products",
+)
+async def list_catalog(
+    _app_settings: Annotated[Settings, Depends(get_settings)],
+    category: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    limit: int = 50,
+) -> CatalogResponse:
+    """Browse verified product catalog grounded in BigQuery with category and price filters."""
+    return await asyncio.to_thread(
+        _fetch_catalog_sync,
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        limit=limit,
+    )
 
 
 @router.get(

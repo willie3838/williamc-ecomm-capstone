@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.models import (
     AgentVersionsResponse,
     AgentVersionSummary,
+    CatalogResponse,
     Citation,
     CompareRequest,
     CompareResponse,
@@ -152,6 +153,7 @@ __all__ = [
     "PROJECT_ID",
     "AgentVersionSummary",
     "AgentVersionsResponse",
+    "CatalogResponse",
     "Citation",
     "CompareRequest",
     "CompareResponse",

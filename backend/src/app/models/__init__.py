@@ -11,6 +11,7 @@ from app.models.requests import (
 from app.models.responses import (
     AgentVersionsResponse,
     AgentVersionSummary,
+    CatalogResponse,
     Citation,
     CompareResponse,
     ComparisonResponse,
@@ -24,6 +25,7 @@ __all__ = [
     "AgentVersionSummary",
     "AgentVersionsResponse",
     "CatalogQueryInput",
+    "CatalogResponse",
     "Citation",
     "CompareRequest",
     "CompareResponse",

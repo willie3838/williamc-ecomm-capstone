@@ -225,3 +225,48 @@ def test_compare_endpoint_opinion_query_suppresses_matrix() -> None:
     assert data["comparison_matrix"] == []
     assert data["products"] == []
     assert "opinion or general comment" in data["summary"].lower()
+
+
+def test_catalog_endpoint_all_products() -> None:
+    """Verify GET /api/catalog returns full catalog list with 200 OK and valid schema."""
+    response = client.get("/api/catalog")
+    assert response.status_code == 200
+    data = response.json()
+    assert "products" in data
+    assert "total_count" in data
+    assert data["total_count"] > 0
+    assert len(data["products"]) == data["total_count"]
+    # Check first item structure
+    first = data["products"][0]
+    assert "sku" in first
+    assert "name" in first
+    assert "price" in first
+    assert "specifications" in first
+
+
+def test_catalog_endpoint_v1_alias() -> None:
+    """Verify GET /api/v1/catalog alias returns identical catalog data."""
+    response = client.get("/api/v1/catalog")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_count"] > 0
+
+
+def test_catalog_endpoint_category_filtering() -> None:
+    """Verify GET /api/catalog?category=Headphones filters products correctly."""
+    response = client.get("/api/catalog?category=Headphones")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["category"] == "Headphones"
+    assert data["total_count"] > 0
+    for product in data["products"]:
+        assert product["category"].lower() == "headphones"
+
+
+def test_catalog_endpoint_price_filters() -> None:
+    """Verify GET /api/catalog with price range filtering."""
+    response = client.get("/api/catalog?min_price=1000&max_price=1500")
+    assert response.status_code == 200
+    data = response.json()
+    for product in data["products"]:
+        assert 1000.0 <= product["price"] <= 1500.0

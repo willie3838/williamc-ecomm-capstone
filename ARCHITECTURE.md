@@ -355,6 +355,12 @@ class ComparisonResponse(BaseModel):
     timing_breakdown_ms: dict[str, float] | None = None
 
 CompareResponse = ComparisonResponse  # Backward-compatible alias
+
+# Catalog Browsing Response (backend/src/app/models/responses.py)
+class CatalogResponse(BaseModel):
+    products: list[ProductSpec] = Field(default_factory=list, description="List of catalog products matching filters")
+    total_count: int = Field(..., ge=0, description="Total count of matching products")
+    category: str | None = Field(default=None, description="Filtered category taxonomy")
 ```
 
 ---

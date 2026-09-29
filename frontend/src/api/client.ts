@@ -1,8 +1,11 @@
 import {
+  CatalogResponse,
   ComparisonRequest,
   ComparisonResponse,
   HealthResponse,
+  ProductSpec,
 } from '../types/comparison';
+import { getCatalogProducts } from '../data/catalogProducts';
 
 const API_BASE_URL =
   import.meta.env?.VITE_API_BASE_URL || '';
@@ -114,3 +117,33 @@ export async function checkHealth(): Promise<HealthResponse> {
 
   return response.json();
 }
+
+/**
+ * Retrieves verified catalog products from backend /api/catalog endpoint with graceful client fallback.
+ *
+ * @param category Optional product taxonomy category to filter (e.g. 'Laptops', 'Tablets').
+ * @returns Promise resolving to list of grounded ProductSpec records.
+ */
+export async function fetchCatalog(category?: string | null): Promise<ProductSpec[]> {
+  const queryParam = category ? `?category=${encodeURIComponent(category)}` : '';
+  const endpoint = `${API_BASE_URL}/api/catalog${queryParam}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (response.ok) {
+      const data: CatalogResponse = await response.json();
+      if (Array.isArray(data.products) && data.products.length > 0) {
+        return data.products;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend /api/catalog request failed, falling back to local catalog data:', err);
+  }
+
+  // Graceful fallback to verified client catalog dataset
+  return getCatalogProducts(category);
+}
+
