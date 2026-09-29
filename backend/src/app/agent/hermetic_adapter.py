@@ -62,6 +62,7 @@ def _warm_vertex_client_and_auth() -> None:
         or _VERTEX_AUTH_UNAVAILABLE
         or _SHARED_VERTEX_CLIENT is not None
         or os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
         or hasattr(genai.Client, "assert_called")
     ):
         return
@@ -148,6 +149,7 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
         not prompt_text
         or not getattr(settings, "enable_model_armor", True)
         or os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
         or hasattr(genai.Client, "assert_called")
     ):
         return False, ""
@@ -274,11 +276,13 @@ def _call_real_vertex_gemini(
     """Call live Vertex AI Gemini API directly (zero caching) using shared HTTP connection pool."""
     global _VERTEX_AUTH_UNAVAILABLE
     if (
-        _VERTEX_AUTH_UNAVAILABLE
+        (_VERTEX_AUTH_UNAVAILABLE or os.environ.get("HERMETIC_EVAL", "").lower() == "true")
         and not hasattr(genai.Client, "assert_called")
         and not os.environ.get("PYTEST_CURRENT_TEST")
     ):
-        raise RuntimeError("Vertex AI ADC credentials unavailable; skipping redundant live RPC.")
+        raise RuntimeError(
+            "Hermetic eval or Vertex AI ADC unavailable; using deterministic adapter."
+        )
 
     client = _get_shared_vertex_client()
     target_model = (
