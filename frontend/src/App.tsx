@@ -5,7 +5,6 @@ import {
   AlertCircle,
   RefreshCw,
   Layers,
-  ArrowRight,
   Database,
   Activity,
 } from 'lucide-react';
@@ -23,28 +22,6 @@ import { SkeletonLoader } from './components/SkeletonLoader';
 import { ProductSpec } from './types/comparison';
 import { buildComparisonPrompt } from './utils/promptBuilder';
 
-const SAMPLE_COMPARISONS = [
-  {
-    title: 'MacBook Air M3 vs Dell XPS 13',
-    category: 'Laptops',
-    query: 'Compare MacBook Air 13 M3 and Dell XPS 13 OLED specs and battery life',
-  },
-  {
-    title: 'Sony WH-1000XM5 vs Bose QC Ultra',
-    category: 'Headphones',
-    query: 'Compare Sony WH-1000XM5 and Bose QuietComfort Ultra noise canceling headphones',
-  },
-  {
-    title: 'iPad Pro 11 vs Samsung Galaxy Tab S9',
-    category: 'Tablets',
-    query: 'Compare iPad Pro 11-inch and Samsung Galaxy Tab S9 price and performance',
-  },
-  {
-    title: 'LG C3 OLED vs Samsung S90C OLED TV',
-    category: 'TVs',
-    query: 'Compare LG C3 Series 4K OLED TV and Samsung S90C OLED specs and gaming features',
-  },
-];
 
 export const App: React.FC = () => {
   const [sessionId] = useState<string>(() => {
@@ -62,7 +39,7 @@ export const App: React.FC = () => {
 
   const [browseCategory, setBrowseCategory] = useState<{
     category: string | null;
-  } | null>(null);
+  } | null>({ category: null });
 
   const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
@@ -147,7 +124,7 @@ export const App: React.FC = () => {
 
   const handleGoHome = () => {
     setSearchParams(null);
-    setBrowseCategory(null);
+    setBrowseCategory({ category: null });
     setSelectedProducts([]);
     setTaggedProducts([]);
   };
@@ -168,12 +145,6 @@ export const App: React.FC = () => {
   const handleCategorySelect = (category: string | null) => {
     setSearchParams(null);
     setBrowseCategory({ category });
-  };
-
-  const handleSampleClick = (sample: (typeof SAMPLE_COMPARISONS)[number]) => {
-    setBrowseCategory(null);
-    setTaggedProducts([]);
-    setSearchParams({ query: sample.query, category: sample.category });
   };
 
   const handleToggleSelectProduct = (product: ProductSpec) => {
@@ -410,15 +381,21 @@ export const App: React.FC = () => {
                   </p>
                 </div>
                 <div className="pt-2 flex flex-wrap justify-center gap-2">
-                  {SAMPLE_COMPARISONS.map((sample) => (
+                  {['Laptops', 'Tablets', 'Headphones', 'Smart Home', 'TVs'].map((cat) => (
                     <button
-                      key={sample.title}
-                      onClick={() => handleSampleClick(sample)}
+                      key={cat}
+                      onClick={() => handleCategorySelect(cat)}
                       className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-gray-700 hover:bg-bb-yellow hover:text-bb-slate transition-all border border-gray-200"
                     >
-                      {sample.title}
+                      Browse {cat}
                     </button>
                   ))}
+                  <button
+                    onClick={() => handleCategorySelect(null)}
+                    className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-blue-50 text-bb-blue hover:bg-bb-yellow hover:text-bb-slate transition-all border border-blue-200"
+                  >
+                    View All Categories
+                  </button>
                 </div>
               </div>
             )}
@@ -499,75 +476,7 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Empty / Idle State */}
-        {!isLoading && !isError && !comparison && !browseCategory && (
-          <div className="max-w-4xl mx-auto space-y-8 py-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-xl font-bold text-gray-800">
-                Popular Product Comparisons
-              </h2>
-              <p className="text-sm text-gray-500">
-                Select an example below or enter your own query in the search bar above.
-              </p>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {SAMPLE_COMPARISONS.map((sample) => (
-                <button
-                  key={sample.title}
-                  onClick={() => handleSampleClick(sample)}
-                  className="bg-white p-5 rounded-xl border border-gray-200 hover:border-bb-blue hover:shadow-md text-left transition-all flex items-start justify-between group"
-                >
-                  <div className="space-y-1.5 pr-4">
-                    <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-50 text-bb-blue border border-blue-100">
-                      {sample.category}
-                    </span>
-                    <h3 className="text-base font-bold text-gray-900 group-hover:text-bb-blue transition-colors">
-                      {sample.title}
-                    </h3>
-                    <p className="text-xs text-gray-500 line-clamp-2">
-                      {sample.query}
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-bb-yellow group-hover:text-bb-slate flex items-center justify-center text-gray-400 transition-colors flex-shrink-0 mt-2">
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            {/* Architecture Highlights Banner */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-1">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-bb-blue flex items-center justify-center font-black text-sm mb-2">
-                  BQ
-                </div>
-                <h4 className="text-sm font-bold text-gray-900">100% Fact Grounded</h4>
-                <p className="text-xs text-gray-500">
-                  Specifications originate strictly from BigQuery catalog dataset with zero hallucination.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="w-8 h-8 rounded-lg bg-yellow-50 text-yellow-800 flex items-center justify-center font-black text-sm mb-2">
-                  ⚡
-                </div>
-                <h4 className="text-sm font-bold text-gray-900">Sub-3.0s Latency</h4>
-                <p className="text-xs text-gray-500">
-                  Target end-to-end response time under 3.0 seconds with immediate skeleton feedback.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center font-black text-sm mb-2">
-                  ✓
-                </div>
-                <h4 className="text-sm font-bold text-gray-900">Verified SKU Citations</h4>
-                <p className="text-xs text-gray-500">
-                  Interactive badges link directly to official TechBuy.com catalog product listings.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Product Selection Tray for Multiselect Catalog Comparisons */}
         <ProductSelectionTray
