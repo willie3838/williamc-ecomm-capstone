@@ -692,12 +692,14 @@ class HermeticModelAdapter:
         return CandidateRankingResponse(rankings=rankings).model_dump_json()
 
     @staticmethod
-    def synthesis_response(prompt: str) -> str:
+    def synthesis_response(prompt: str, skip_vertex_call: bool = False) -> str:
         """Generate grounded narrative and recommendations via Vertex AI Gemini with [SKU: ...] citations."""
         prod_matches = re.findall(
             r"- Product:\s*([^\[]+)\[SKU:\s*([A-Za-z0-9_-]+)\]\s*\|\s*Brand:\s*([^|]+)\|\s*Price:\s*\$([0-9\.,]+)\s*\|\s*Specs:\s*(\{.*?\})",
             prompt,
         )
+        query_match = re.search(r"<user_query>(.*?)</user_query>", prompt, re.DOTALL)
+        clean_user_query = (query_match.group(1).strip() if query_match else "").lower()
 
         if not prod_matches or len(prod_matches) < 2:
             if len(prod_matches) == 1:
@@ -735,7 +737,7 @@ class HermeticModelAdapter:
             specs2 = {}
 
         # Invoke real Vertex AI Gemini LLM for synthesis when not mocked
-        if not hasattr(genai.Client, "assert_called"):
+        if not skip_vertex_call and not hasattr(genai.Client, "assert_called"):
             try:
                 synth_sys = (
                     "You are an expert TechBuy Retailers Product Comparison Expert.\n"
@@ -1012,39 +1014,96 @@ class HermeticModelAdapter:
                 f"{name2} [SKU: {sku2}] includes {sh_disp2 or 'standard display'} ({pwr2 or 'wired'})."
             )
 
-        rec_parts = ["Key Buying Recommendations:"]
-        if b1 is not None and b2 is not None and b1 > b2:
-            rec_parts.append(
-                f"- Best for Battery & Portability: Choose {name1} [SKU: {sku1}] for all-day endurance."
+        is_only_price = any(
+            phrase in clean_user_query
+            for phrase in (
+                "only price",
+                "price only",
+                "just price",
+                "compare price",
+                "strictly price",
             )
-        elif b1 is not None and b2 is not None and b2 > b1:
-            rec_parts.append(
-                f"- Best for Battery & Portability: Choose {name2} [SKU: {sku2}] for all-day endurance."
-            )
+        )
+        is_gaming = any(
+            term in clean_user_query for term in ("gaming", "game", "gamer", "fps", "esports")
+        )
+        is_office = any(
+            term in clean_user_query
+            for term in ("office", "work", "business", "productivity", "study", "school")
+        )
 
+        rec_parts = ["Key Buying Recommendations:"]
+
+        # 1. Gaming tailored recommendations
+        gaming_rec = None
         if hz1 is not None and hz2 is not None and hz1 != hz2:
             if hz1 > hz2:
-                rec_parts.append(
-                    f"- Best for High-Refresh Gaming & Cinema: Choose {name1} [SKU: {sku1}] ({hz1}Hz {dtech1 or ''})."
-                )
+                gaming_rec = f"- Best for High-Refresh Gaming: Choose {name1} [SKU: {sku1}] ({hz1}Hz display for smooth gameplay)."
             else:
-                rec_parts.append(
-                    f"- Best for High-Refresh Gaming & Cinema: Choose {name2} [SKU: {sku2}] ({hz2}Hz {dtech2 or ''})."
-                )
+                gaming_rec = f"- Best for High-Refresh Gaming: Choose {name2} [SKU: {sku2}] ({hz2}Hz display for smooth gameplay)."
+        elif (specs1.get("processor") or specs2.get("processor")) and is_gaming:
+            higher_perf_sku = sku1 if "ultra" in str(specs1.get("processor", "")).lower() else sku2
+            higher_perf_name = name1 if higher_perf_sku == sku1 else name2
+            gaming_rec = f"- Best for Gaming Performance: Choose {higher_perf_name} [SKU: {higher_perf_sku}] for enhanced graphics and processing power."
 
-        if va1 or va2:
-            rec_parts.append(
-                f"- Best for Smart Home Ecosystem Integration: Choose {name1} [SKU: {sku1}] for {va1 or 'smart control'} or {name2} [SKU: {sku2}] for {va2 or 'multi-assistant flexibility'}."
-            )
+        # 2. Office & Battery tailored recommendations
+        office_rec = None
+        if b1 is not None and b2 is not None and b1 > b2:
+            office_rec = f"- Best for Office Work & Portability: Choose {name1} [SKU: {sku1}] with up to {b1} hours of battery life."
+        elif b1 is not None and b2 is not None and b2 > b1:
+            office_rec = f"- Best for Office Work & Portability: Choose {name2} [SKU: {sku2}] with up to {b2} hours of battery life."
 
+        # 3. Price / Value recommendation
+        price_rec = None
         if price1 < price2:
-            rec_parts.append(
-                f"- Best Value for Money: {name1} [SKU: {sku1}] offers excellent performance per dollar."
-            )
+            diff = price2 - price1
+            price_rec = f"- Best Value & Budget Option: Choose {name1} [SKU: {sku1}] (${diff:,.2f} more affordable at ${price1:,.2f})."
         elif price2 < price1:
-            rec_parts.append(
-                f"- Best Value for Money: {name2} [SKU: {sku2}] provides maximum cost efficiency."
-            )
+            diff = price1 - price2
+            price_rec = f"- Best Value & Budget Option: Choose {name2} [SKU: {sku2}] (${diff:,.2f} more affordable at ${price2:,.2f})."
+        else:
+            price_rec = f"- Best Value Option: Either {name1} [SKU: {sku1}] or {name2} [SKU: {sku2}] (both priced identically at ${price1:,.2f})."
+
+        # Apply ordering based on user focus query
+        if is_only_price:
+            summary_lines = [
+                f"Direct price comparison between {name1} [SKU: {sku1}] and {name2} [SKU: {sku2}]:",
+                (
+                    f"- Price: {name1} [SKU: {sku1}] is ${price2 - price1:,.2f} more affordable at ${price1:,.2f} versus ${price2:,.2f} for {name2} [SKU: {sku2}]."
+                    if price1 < price2
+                    else (
+                        f"- Price: {name2} [SKU: {sku2}] is ${price1 - price2:,.2f} more affordable at ${price2:,.2f} versus ${price1:,.2f} for {name1} [SKU: {sku1}]."
+                        if price2 < price1
+                        else f"- Price: Both products are priced identically at ${price1:,.2f}."
+                    )
+                ),
+            ]
+            rec_parts.append(price_rec)
+        elif is_gaming:
+            if gaming_rec:
+                rec_parts.append(gaming_rec)
+            if price_rec:
+                rec_parts.append(price_rec)
+            if office_rec:
+                rec_parts.append(office_rec)
+        elif is_office:
+            if office_rec:
+                rec_parts.append(office_rec)
+            if price_rec:
+                rec_parts.append(price_rec)
+            if gaming_rec:
+                rec_parts.append(gaming_rec)
+        else:
+            if office_rec:
+                rec_parts.append(office_rec)
+            if gaming_rec:
+                rec_parts.append(gaming_rec)
+            if va1 or va2:
+                rec_parts.append(
+                    f"- Best for Smart Home Ecosystem Integration: Choose {name1} [SKU: {sku1}] for {va1 or 'smart control'} or {name2} [SKU: {sku2}] for {va2 or 'multi-assistant flexibility'}."
+                )
+            if price_rec:
+                rec_parts.append(price_rec)
 
         return ComparisonSynthesis(
             summary="\n".join(summary_lines),
@@ -1161,7 +1220,9 @@ class CatalogAdkLlm(BaseLlm):
 
         return "\n".join(text_chunks).strip(), tool_items
 
-    def _generate_hermetic_llm_response(self, llm_request: LlmRequest) -> LlmResponse:
+    def _generate_hermetic_llm_response(
+        self, llm_request: LlmRequest, skip_vertex_call: bool = False
+    ) -> LlmResponse:
         """Produce a deterministic LlmResponse (including FunctionCall when tools are bound)."""
         prompt_text, tool_items = self._extract_prompt_and_tool_state(llm_request)
         tools_dict = llm_request.tools_dict or {}
@@ -1251,7 +1312,9 @@ class CatalogAdkLlm(BaseLlm):
         ):
             out_text = HermeticModelAdapter.rerank_response(prompt_text)
         else:
-            out_text = HermeticModelAdapter.synthesis_response(prompt_text)
+            out_text = HermeticModelAdapter.synthesis_response(
+                prompt_text, skip_vertex_call=skip_vertex_call
+            )
 
         return LlmResponse(
             content=types.Content(
@@ -1492,12 +1555,12 @@ class CatalogAdkLlm(BaseLlm):
                     else None
                 )
                 rpc_timeout = (
-                    1.2
+                    4.0
                     if (
                         is_tool_selection_turn
                         or inferred_schema in (QueryIntentAnalysis, CandidateRankingResponse)
                     )
-                    else 1.75
+                    else 6.0
                 )
 
                 def _invoke_vertex(cfg: Any) -> Any:
@@ -1721,22 +1784,34 @@ class CatalogAdkLlm(BaseLlm):
                     span.set_attribute("gen_ai.usage.prompt_tokens", prompt_tokens)
                     span.set_attribute("gen_ai.usage.completion_tokens", cand_tokens)
 
-                llm_response = LlmResponse.create(response)
+                try:
+                    llm_response = LlmResponse.create(response)
+                except Exception:
+                    if hasattr(response, "text") and isinstance(
+                        getattr(response, "text", None), str
+                    ):
+                        llm_response = LlmResponse(
+                            content=types.Content(
+                                role="model",
+                                parts=[types.Part.from_text(text=response.text)],
+                            ),
+                            partial=False,
+                        )
+                    else:
+                        raise
 
             yield llm_response
         except Exception as exc:
+            if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
+                logger.error("CatalogAdkLlm live generation failed: %s", exc)
+                raise
             if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
                 raise
-            err_low = str(exc).lower()
-            if any(
-                k in err_low for k in ("reauth", "credentials", "unauthenticated")
-            ) and not os.environ.get("PYTEST_CURRENT_TEST"):
-                _VERTEX_AUTH_UNAVAILABLE = True
             logger.warning(
-                "CatalogAdkLlm live generation encountered error (%s); falling back to hermetic ADK response.",
+                "CatalogAdkLlm live generation encountered error in test mode (%s); falling back to hermetic ADK response.",
                 exc,
             )
-            yield self._generate_hermetic_llm_response(llm_request)
+            yield self._generate_hermetic_llm_response(llm_request, skip_vertex_call=True)
 
 
 def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMock:
