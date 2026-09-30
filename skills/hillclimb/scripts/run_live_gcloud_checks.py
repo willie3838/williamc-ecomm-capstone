@@ -191,6 +191,48 @@ def verify_iam_service_account(project_id: str, sa_name: str = "catalog-agent-sa
     return {"status": "PASS", "roles": list(assigned_roles)}
 
 
+def get_cloud_run_auth_headers(project_id: str, url: str) -> dict[str, str]:
+    headers = {"User-Agent": "Hillclimb-Verifier/1.0"}
+    iap_client_id = None
+    try:
+        import re as _re
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                return None
+
+        opener = urllib.request.build_opener(_NoRedirect)
+        opener.open(urllib.request.Request(f"{url}/health", headers=headers), timeout=5)
+    except urllib.error.HTTPError as err:
+        loc = err.headers.get("Location") or err.headers.get("location") or ""
+        m = _re.search(r"client_id=([^&]+)", loc)
+        if m:
+            iap_client_id = m.group(1)
+    except Exception:
+        pass
+
+    if iap_client_id:
+        sa_email = f"catalog-agent-sa@{project_id}.iam.gserviceaccount.com"
+        token_res = run_cmd(
+            [
+                "gcloud",
+                "auth",
+                "print-identity-token",
+                "--include-email",
+                f"--impersonate-service-account={sa_email}",
+                f"--audiences={iap_client_id}",
+            ]
+        )
+        if token_res.returncode == 0 and token_res.stdout.strip():
+            headers["Authorization"] = f"Bearer {token_res.stdout.strip()}"
+            return headers
+
+    token_res = run_cmd(["gcloud", "auth", "print-identity-token"])
+    if token_res.returncode == 0 and token_res.stdout.strip():
+        headers["Authorization"] = f"Bearer {token_res.stdout.strip()}"
+    return headers
+
+
 def verify_cloud_run(
     project_id: str, service_name: str = "catalog-comparison-service", region: str = "us-central1"
 ) -> dict:
@@ -218,11 +260,7 @@ def verify_cloud_run(
     url = res.stdout.strip()
     print(f"[INFO] Discovered active Cloud Run service URL: {url}")
 
-    # Fetch authorization token if available
-    token_res = run_cmd(["gcloud", "auth", "print-identity-token"])
-    headers = {"User-Agent": "Hillclimb-Verifier/1.0"}
-    if token_res.returncode == 0 and token_res.stdout.strip():
-        headers["Authorization"] = f"Bearer {token_res.stdout.strip()}"
+    headers = get_cloud_run_auth_headers(project_id, url)
 
     # Check /health liveness probe
     try:
@@ -282,15 +320,15 @@ def verify_cloud_logging(project_id: str) -> dict:
         return {"status": "FAIL", "error": str(e)}
 
 
-def verify_live_comparison(service_url: str) -> dict:
+def verify_live_comparison(
+    service_url: str, project_id: str = "fde-bestbuy-sandbox-dev-508321"
+) -> dict:
     print(f"\n--- [E2E] Probing Live Comparison Endpoint at {service_url} ---")
     compare_url = f"{service_url}/api/compare"
     payload = json.dumps({"query": "Compare MacBook Air M3 and Dell XPS 13"}).encode("utf-8")
 
-    token_res = run_cmd(["gcloud", "auth", "print-identity-token"])
-    headers = {"Content-Type": "application/json", "User-Agent": "Hillclimb-Verifier/1.0"}
-    if token_res.returncode == 0 and token_res.stdout.strip():
-        headers["Authorization"] = f"Bearer {token_res.stdout.strip()}"
+    headers = get_cloud_run_auth_headers(project_id, service_url)
+    headers["Content-Type"] = "application/json"
 
     try:
         start_time = time.time()
