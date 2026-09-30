@@ -330,6 +330,61 @@ describe('App Integration', () => {
     expect(followUpCallArgs.query).toContain('[SKU: 6534606]');
     expect(followUpCallArgs.query).toContain('[SKU: 6573822]');
   });
+
+  it('renders SKU tags immediately in SearchBar during category multi-select without raw query text', async () => {
+    renderWithClient(<App />);
+
+    // Enter Laptops category catalog
+    const laptopsBtn = screen.getByRole('button', { name: /^laptops$/i });
+    fireEvent.click(laptopsBtn);
+
+    expect(screen.getByText(/Laptops Catalog/i)).toBeInTheDocument();
+
+    // Select first laptop (MacBook Air SKU: 6534606)
+    const macbookCheckbox = screen.getByRole('checkbox', {
+      name: /Select Apple MacBook Air 13.6" Laptop/i,
+    });
+    fireEvent.click(macbookCheckbox);
+
+    // SearchBar search form should now display SKU: 6534606 tag chip immediately
+    const searchForm = screen.getByRole('search');
+    expect(searchForm).toHaveTextContent(/SKU:\s*6534606/i);
+    expect(searchForm).toHaveTextContent(/Apple MacBook Air/i);
+
+    // Textbox should NOT contain raw query text like "Compare Apple MacBook Air..."
+    const searchInput = screen.getByRole('textbox') as HTMLInputElement;
+    expect(searchInput.value).toBe('');
+    expect(searchInput).toHaveAttribute(
+      'placeholder',
+      'Add follow-up requirements (e.g., "only price", "good for gaming", "battery life")...'
+    );
+
+    // Select second laptop (Dell XPS 13 SKU: 6575132)
+    const dellCheckbox = screen.getByRole('checkbox', {
+      name: /Select Dell XPS 13"/i,
+    });
+    fireEvent.click(dellCheckbox);
+
+    // SearchBar now shows both SKU chips
+    expect(searchForm).toHaveTextContent(/SKU:\s*6534606/i);
+    expect(searchForm).toHaveTextContent(/SKU:\s*6575132/i);
+    expect(searchInput.value).toBe('');
+
+    // Remove first tag via SearchBar remove tag button
+    const removeBtn = screen.getByRole('button', {
+      name: /remove tag for Apple MacBook Air 13.6" Laptop/i,
+    });
+    fireEvent.click(removeBtn);
+
+    // First tag should be gone, second tag remains
+    expect(searchForm).not.toHaveTextContent(/SKU:\s*6534606/i);
+    expect(searchForm).toHaveTextContent(/SKU:\s*6575132/i);
+
+    // Checkbox in catalog should reflect unselection
+    expect(macbookCheckbox).not.toBeChecked();
+    expect(dellCheckbox).toBeChecked();
+  });
 });
+
 
 

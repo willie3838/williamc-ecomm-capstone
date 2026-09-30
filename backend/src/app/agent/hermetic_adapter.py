@@ -369,6 +369,20 @@ class HermeticModelAdapter:
 
         from app.agent.orchestrator import ComparisonOrchestrator
 
+        # Fast-path explicit tagged product prompts from buildComparisonPrompt
+        tagged = ComparisonOrchestrator.extract_tagged_products(clean_query)
+        if len(tagged) >= 2 or (
+            tagged and re.search(r"\b(?:vs\.?|versus|compare|and)\b", clean_query, re.IGNORECASE)
+        ):
+            names = [name for name, _sku in tagged if name] or [sku for _name, sku in tagged if sku]
+            return QueryIntentAnalysis(
+                intent_type="COMPARISON",
+                is_comparison_eligible=True,
+                detected_category=None,
+                target_keywords=names,
+                reasoning="Tagged products comparison query.",
+            )
+
         syntactic_keywords = ComparisonOrchestrator.extract_keywords(clean_query)
         if not syntactic_keywords:
             syntactic_keywords = [clean_query.strip()]
@@ -610,6 +624,21 @@ class HermeticModelAdapter:
                 rankings=[CandidateRankItem(sku=s, score=9.5) for s in candidate_skus]
             ).model_dump_json()
 
+        # Lock rankings onto explicit tagged SKUs from buildComparisonPrompt if present
+        tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query)
+        if tagged_skus and candidate_lines:
+            rankings = []
+            for _idx, (sku, _name, _brand, _category) in enumerate(candidate_lines):
+                sku_clean = sku.strip()
+                if sku_clean in tagged_skus:
+                    rank_pos = tagged_skus.index(sku_clean)
+                    score = round(9.8 - (rank_pos * 0.1), 2)
+                    rankings.append(CandidateRankItem(sku=sku_clean, score=score))
+                else:
+                    rankings.append(CandidateRankItem(sku=sku_clean, score=2.0))
+            rankings.sort(key=lambda item: item.score, reverse=True)
+            return CandidateRankingResponse(rankings=rankings).model_dump_json()
+
         stopwords = {
             "vs",
             "and",
@@ -699,7 +728,11 @@ class HermeticModelAdapter:
             prompt,
         )
         query_match = re.search(r"<user_query>(.*?)</user_query>", prompt, re.DOTALL)
-        clean_user_query = (query_match.group(1).strip() if query_match else "").lower()
+        raw_user_query = query_match.group(1).strip() if query_match else prompt
+        focus_match = re.search(
+            r"User Focus\s*/\s*Follow-up:\s*(.+)", raw_user_query, re.IGNORECASE
+        )
+        clean_user_query = (focus_match.group(1).strip() if focus_match else raw_user_query).lower()
 
         if not prod_matches or len(prod_matches) < 2:
             if len(prod_matches) == 1:

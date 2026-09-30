@@ -11,6 +11,7 @@ Implements specialized cooperative agents under the Google ADK framework:
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -235,6 +236,16 @@ class RelevanceDetectorAgent:
                 precomputed_intent=precomputed,
             )
 
+            # Lock onto explicit tagged SKUs from buildComparisonPrompt if present
+            tagged_skus = re.findall(
+                r"\[SKU:\s*([A-Za-z0-9_-]+)\]", state.sanitized_query or state.raw_query
+            )
+            if tagged_skus:
+                sku_map = {p.sku: p for p in state.retrieved_products}
+                matched_tagged = [sku_map[s] for s in tagged_skus if s in sku_map]
+                if len(matched_tagged) >= 2:
+                    ranked = matched_tagged[:2]
+
             if len(ranked) < 2:
                 state.is_comparison_eligible = False
                 state.ranked_products = ranked
@@ -242,7 +253,11 @@ class RelevanceDetectorAgent:
             else:
                 state.is_comparison_eligible = True
                 state.ranked_products = ranked[:2]
-                decision = "APPROVED_FOR_COMPARISON"
+                decision = (
+                    "APPROVED_FOR_COMPARISON_TAGGED_SKUS"
+                    if tagged_skus and len(matched_tagged) >= 2
+                    else "APPROVED_FOR_COMPARISON"
+                )
 
             state.step_history.append(
                 {
@@ -258,6 +273,10 @@ class RelevanceDetectorAgent:
             span.set_attribute("agent.relevance_decision", decision)
             span.set_attribute("agent.relevant_count", len(state.ranked_products))
             return state
+
+
+# Alias for candidate relevance reranking specialist
+RelevanceRerankerAgent = RelevanceDetectorAgent
 
 
 class SpecComparisonAgent:
