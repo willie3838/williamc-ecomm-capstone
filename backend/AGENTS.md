@@ -66,7 +66,7 @@ backend/
 - `GET /api/agent/card`: Returns A2A Agent Card specification.
 - `GET /api/catalog` & `GET /api/v1/catalog`: Returns verified catalog products matching optional `category`, `min_price`, `max_price`, and `limit` query parameters with `CatalogResponse` schema.
 - `POST /api/compare`:
-  - Request:
+  - Request: Supports natural language queries and rich attribute-grounded prompts up to 4000 characters (`ComparisonRequest.query`).
     ```json
     {
       "query": "Compare MacBook Air M3 and Dell XPS 13",

@@ -58,7 +58,8 @@ frontend/
 - Clicking the **TECHBUY RETAILERS** header logo returns the user to the homepage (`Popular Product Comparisons`).
 - Clicking **All Categories** or any category filter pill (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`) displays all 40 verified catalog SKUs or the relevant category SKUs.
 - While browsing catalog categories, users can multiselect products via the `+ Compare` / `Selected` checkbox badge on each `ProductCard`.
-- Selecting products immediately updates the `SearchBar` query input (`Compare <Product A> vs <Product B>...`) and displays the floating `ProductSelectionTray` showing selected count, thumbnails, removable chips, clear action (with `Escape` key shortcut support), and a "Compare Selected (N)" button that executes the comparison query across the selected SKUs.
+- Selecting products immediately displays the floating `ProductSelectionTray` showing selected count, thumbnails, removable chips, clear action (with `Escape` key shortcut support), and a "Compare Selected (N)" button that executes the comparison query across the selected SKUs.
+- **Interactive SKU Tags inside SearchBar**: When running or selecting comparisons, tagged SKU chips appear inside the `SearchBar` input container (`[SKU: ...] <Product Name> [x]`). Users can type follow-up questions / filters (e.g., 'only price', 'good for gaming', 'battery life') or press Backspace on an empty input to remove tags. Submitting implicitly constructs a rich, grounded prompt (`buildComparisonPrompt`) encapsulating all tagged SKU attributes alongside user follow-up instructions, supported by backend `ComparisonRequest.query` max_length of 4000.
 
 ### 3. Latency & Perceived Performance
 - Total backend roundtrip target is $\le 3.0$ seconds.

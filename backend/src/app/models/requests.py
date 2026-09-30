@@ -9,8 +9,8 @@ class ComparisonRequest(BaseModel):
     query: str = Field(
         ...,
         min_length=3,
-        max_length=500,
-        description="Natural language product comparison query",
+        max_length=4000,
+        description="Natural language product comparison query or rich attribute-grounded prompt",
         examples=["Compare MacBook Air M3 and Dell XPS 13"],
     )
     category: str | None = Field(

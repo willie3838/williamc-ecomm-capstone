@@ -19,6 +19,15 @@ export interface ProductSpec {
 // Backward compatibility alias
 export type ProductItem = ProductSpec;
 
+export interface TaggedSku {
+  sku: string;
+  name: string;
+  brand?: string;
+  price?: number;
+  category?: string | null;
+  specifications?: Record<string, string | number | boolean | null>;
+}
+
 export interface MatrixRow {
   feature: string;
   values: Record<string, string | number | boolean | null>;

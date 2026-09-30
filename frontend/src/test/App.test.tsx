@@ -192,7 +192,7 @@ describe('App Integration', () => {
     });
     fireEvent.click(compareSelectedBtn);
 
-    // 5. Verify comparison is triggered and SearchBar is populated
+    // 5. Verify comparison is triggered with implicitly built prompt containing tagged SKUs
     await waitFor(() => {
       expect(compareProducts).toHaveBeenCalledTimes(1);
     });
@@ -200,12 +200,33 @@ describe('App Integration', () => {
     const callArgs = vi.mocked(compareProducts).mock.calls[0][0];
     expect(callArgs.query).toContain('Apple MacBook Air 13.6" Laptop');
     expect(callArgs.query).toContain('Dell XPS 13"');
+    expect(callArgs.query).toContain('[SKU: 6534606]');
+    expect(callArgs.query).toContain('[SKU: 6575132]');
     expect(callArgs.category).toBe('Laptops');
 
     // Matrix should be displayed
     await waitFor(() => {
       expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
     });
+
+    // Verify SKU tags are visible inside the SearchBar form
+    const searchForm = screen.getByRole('search');
+    expect(searchForm).toHaveTextContent(/SKU:\s*6534606/i);
+    expect(searchForm).toHaveTextContent(/SKU:\s*6575132/i);
+
+    // 6. Test submitting user follow-up prompt (e.g., "only price") retains tagged SKUs
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, { target: { value: 'only price' } });
+    fireEvent.submit(screen.getByRole('search'));
+
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+    const followUpArgs = vi.mocked(compareProducts).mock.calls[1][0];
+    expect(followUpArgs.query).toContain('User Focus / Follow-up: only price');
+    expect(followUpArgs.query).toContain('[SKU: 6534606]');
+    expect(followUpArgs.query).toContain('[SKU: 6575132]');
   });
 
   it('opens ProductDetailsModal when View at TechBuy button on ProductCard is clicked and closes upon dismissing', async () => {

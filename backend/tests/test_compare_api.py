@@ -110,9 +110,20 @@ def test_compare_endpoint_whitespace_only() -> None:
 
 
 def test_compare_endpoint_query_too_long() -> None:
-    """Verify 422 error on queries exceeding 500 characters."""
-    response = client.post("/api/compare", json={"query": "x" * 501})
+    """Verify 422 error on queries exceeding 4000 characters."""
+    response = client.post("/api/compare", json={"query": "x" * 4001})
     assert response.status_code == 422
+
+
+def test_compare_endpoint_query_max_length_4000(mock_bq_client: MagicMock) -> None:
+    """Verify 4000-character query is accepted and passes validation."""
+    mock_job = MagicMock()
+    mock_job.result.return_value = []
+    mock_bq_client.query.return_value = mock_job
+
+    with patch("app.agent.orchestrator.bigquery.Client", return_value=mock_bq_client):
+        response = client.post("/api/compare", json={"query": "Compare " + ("x" * 3992)})
+    assert response.status_code == 200
 
 
 def test_compare_endpoint_top_k_bounds(mock_bq_client: MagicMock) -> None:
@@ -168,6 +179,20 @@ def test_comparison_request_direct_instantiation() -> None:
     """Test model validation with explicit null category."""
     req = ComparisonRequest(query="Valid query", category=None)
     assert req.category is None
+
+
+def test_comparison_request_query_length_boundary() -> None:
+    """Test Pydantic model accepts query up to 4000 characters and rejects 4001."""
+    import pytest
+    from pydantic import ValidationError
+
+    # Exactly 4000 chars - valid
+    req_4000 = ComparisonRequest(query="x" * 4000)
+    assert len(req_4000.query) == 4000
+
+    # 4001 chars - raises ValidationError
+    with pytest.raises(ValidationError):
+        ComparisonRequest(query="x" * 4001)
 
 
 def test_cors_preflight_headers() -> None:
