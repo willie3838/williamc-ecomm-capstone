@@ -30,17 +30,20 @@ describe('App Integration', () => {
     vi.clearAllMocks();
   });
 
-  it('renders TechBuy Retailers branding, hero text, and sample comparisons by default', () => {
+  it('renders TechBuy Retailers branding, hero text, and All Categories catalog by default', () => {
     renderWithClient(<App />);
 
     expect(screen.getByText('TECHBUY RETAILERS')).toBeInTheDocument();
     expect(
       screen.getByText('Compare Consumer Electronics Side-by-Side')
     ).toBeInTheDocument();
-    expect(screen.getByText('MacBook Air M3 vs Dell XPS 13')).toBeInTheDocument();
-    expect(
-      screen.getByText('Sony WH-1000XM5 vs Bose QC Ultra')
-    ).toBeInTheDocument();
+    // Default view should now be All Categories Catalog
+    expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/SKU: 6534606/i)).toBeInTheDocument();
+    expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
+    expect(screen.queryByText('Popular Product Comparisons')).not.toBeInTheDocument();
+    expect(screen.queryByText('MacBook Air M3 vs Dell XPS 13')).not.toBeInTheDocument();
   });
 
   it('executes search and displays comparison results, matrix, and citations', async () => {
@@ -64,20 +67,6 @@ describe('App Integration', () => {
     expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
     expect(screen.getByText('Compared Products')).toBeInTheDocument();
     expect(screen.getByText('Verified SKU Grounding & Citations')).toBeInTheDocument();
-  });
-
-  it('triggers comparison when a sample card is clicked', async () => {
-    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
-
-    renderWithClient(<App />);
-
-    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
-    expect(sampleBtn).not.toBeNull();
-    fireEvent.click(sampleBtn!);
-
-    await waitFor(() => {
-      expect(compareProducts).toHaveBeenCalledTimes(1);
-    });
   });
 
   it('displays error state when comparison request fails', async () => {
@@ -127,14 +116,17 @@ describe('App Integration', () => {
     expect(screen.queryByText(/SKU: 6534606/i)).not.toBeInTheDocument();
   });
 
-  it('returns to the homepage when TECHBUY RETAILERS header logo is clicked', async () => {
+  it('returns to All Categories catalog when TECHBUY RETAILERS header logo is clicked', async () => {
     vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
 
     renderWithClient(<App />);
 
-    // Navigate into a comparison view
-    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
-    fireEvent.click(sampleBtn!);
+    // Navigate into a comparison view via SearchBar
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
@@ -144,15 +136,16 @@ describe('App Integration', () => {
     const logoBtn = screen.getByRole('button', { name: /techbuy retailers/i });
     fireEvent.click(logoBtn);
 
-    expect(screen.getByText('Popular Product Comparisons')).toBeInTheDocument();
+    expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
     expect(screen.queryByText('Side-by-Side Specification Matrix')).not.toBeInTheDocument();
 
-    // Also verify returning home from category SKU browse view
+    // Also verify returning home from category SKU browse view (e.g. Laptops)
     fireEvent.click(screen.getByRole('button', { name: /^laptops$/i }));
     expect(screen.getByText(/Laptops Catalog/i)).toBeInTheDocument();
 
     fireEvent.click(logoBtn);
-    expect(screen.getByText('Popular Product Comparisons')).toBeInTheDocument();
+    expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
     expect(screen.queryByText(/Laptops Catalog/i)).not.toBeInTheDocument();
   });
 
@@ -235,8 +228,11 @@ describe('App Integration', () => {
     renderWithClient(<App />);
 
     // Perform a search to populate compared products
-    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
-    fireEvent.click(sampleBtn!);
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, {
+      target: { value: 'MacBook Air M3 vs Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Compared Products')).toBeInTheDocument();
@@ -267,8 +263,11 @@ describe('App Integration', () => {
 
     renderWithClient(<App />);
 
-    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
-    fireEvent.click(sampleBtn!);
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, {
+      target: { value: 'MacBook Air M3 vs Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Verified SKU Grounding & Citations')).toBeInTheDocument();
@@ -296,9 +295,12 @@ describe('App Integration', () => {
 
     renderWithClient(<App />);
 
-    // Perform initial comparison via sample card
-    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
-    fireEvent.click(sampleBtn!);
+    // Perform initial comparison via search
+    const searchInput = screen.getByRole('textbox');
+    fireEvent.change(searchInput, {
+      target: { value: 'MacBook Air M3 vs Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
@@ -310,7 +312,6 @@ describe('App Integration', () => {
     expect(searchForm).toHaveTextContent(/SKU:\s*6573822/i);
 
     // Verify placeholder now invites follow-up constraints
-    const searchInput = screen.getByRole('textbox');
     expect(searchInput).toHaveAttribute(
       'placeholder',
       'Add follow-up requirements (e.g., "only price", "good for gaming", "battery life")...'
