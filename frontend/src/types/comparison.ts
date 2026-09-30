@@ -55,11 +55,41 @@ export interface ComparisonResponse {
   bq_bytes_billed?: number | null;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_history?: ChatMessage[];
+  products: ProductSpec[];
+  comparison_matrix?: MatrixRow[];
+  session_id?: string | null;
+  model?: string | null;
+  synthesis_model?: string | null;
+  agent_version?: string | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  citations: Citation[];
+  suggested_followups: string[];
+  latency_ms?: number | null;
+  session_id?: string | null;
+  trace_id?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  agent_version?: string | null;
+  model_version?: string | null;
+}
+
 export interface ComparisonRequest {
   query: string;
   category?: string | null;
   top_k?: number;
   session_id?: string | null;
+  conversation_history?: ChatMessage[];
 }
 
 export interface UserActionPayload {

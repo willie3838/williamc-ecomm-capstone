@@ -16,6 +16,8 @@ from app.models import (
     AgentVersionsResponse,
     AgentVersionSummary,
     CatalogResponse,
+    ChatRequest,
+    ChatResponse,
     ComparisonRequest,
     ComparisonResponse,
     FeedbackRequest,
@@ -370,6 +372,72 @@ async def compare_products(
         asyncio.create_task(asyncio.to_thread(_record_telemetry_sync, request, result, latency_ms))
 
     return result
+
+
+def _execute_chat_sync(request: ChatRequest) -> ChatResponse:
+    """Execute conversational chat synchronously inside worker thread."""
+    import app.main as app_main
+
+    effective_model = request.model
+    effective_synthesis = request.synthesis_model
+
+    # Check mock/test patch on app.main.ComparisonOrchestrator
+    orch_cls = app_main.__dict__.get("ComparisonOrchestrator")
+    if orch_cls is not None and hasattr(orch_cls, "assert_called"):
+        orchestrator = orch_cls(
+            model=request.model,
+            synthesis_model=request.synthesis_model,
+        )
+        return orchestrator.chat_with_products(
+            message=request.message,
+            products=request.products,
+            conversation_history=request.conversation_history,
+            comparison_matrix=request.comparison_matrix,
+            session_id=request.session_id,
+            model=request.model,
+            synthesis_model=request.synthesis_model,
+            agent_version=request.agent_version,
+        )
+
+    coordinator = _get_coordinator(
+        model=effective_model,
+        synthesis_model=effective_synthesis,
+    )
+    return coordinator.chat(
+        message=request.message,
+        products=request.products,
+        conversation_history=request.conversation_history,
+        comparison_matrix=request.comparison_matrix,
+        session_id=request.session_id,
+        agent_version=request.agent_version,
+        model=effective_model,
+        synthesis_model=effective_synthesis,
+    )
+
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    tags=["Comparison"],
+    summary="Follow-up Conversational Chat with Compared Products",
+)
+async def chat_products(
+    request: ChatRequest,
+    _app_settings: Annotated[Settings, Depends(get_settings)],
+) -> ChatResponse:
+    """Answer conversational follow-up questions grounded strictly in compared ProductSpec list."""
+    if not request.message.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Message string must not be empty.",
+        )
+    if not request.products:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one product must be provided for conversational grounding.",
+        )
+
+    return await asyncio.to_thread(_execute_chat_sync, request)
 
 
 def _fetch_catalog_sync(

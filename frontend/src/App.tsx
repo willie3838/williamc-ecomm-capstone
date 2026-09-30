@@ -20,6 +20,7 @@ import { ProductSelectionTray } from './components/ProductSelectionTray';
 import { CitationChip } from './components/CitationChip';
 import { LatencyBadge } from './components/LatencyBadge';
 import { SkeletonLoader } from './components/SkeletonLoader';
+import { ConversationSidebar } from './components/ConversationSidebar';
 import { ProductSpec } from './types/comparison';
 import { buildComparisonPrompt } from './utils/promptBuilder';
 
@@ -67,6 +68,7 @@ export const App: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
     if (typeof productOrSku === 'object' && productOrSku !== null) {
@@ -366,92 +368,120 @@ export const App: React.FC = () => {
               targetSkus={comparison.products.map((p) => p.sku)}
               sessionId={sessionId}
               traceId={comparison.trace_id || ''}
+              onOpenChat={() => setIsChatOpen(true)}
             />
 
-            {/* Product Summary Cards & Matrix Table (Only if products found) */}
-            {comparison.products.length > 0 ? (
-              <>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 mb-4">Compared Products</h2>
-                  <div
-                    className={`grid gap-6 ${
-                      comparison.products.length === 2
-                        ? 'grid-cols-1 md:grid-cols-2'
-                        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                    }`}
-                  >
-                    {comparison.products.map((product) => (
-                      <ProductCard
-                        key={product.sku}
-                        product={product}
-                        onViewDetails={handleOpenProductDetails}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Side-by-side Feature Matrix Table */}
-                <ComparisonTable
-                  products={comparison.products}
-                  matrix={comparison.comparison_matrix}
-                  onViewDetails={handleOpenProductDetails}
-                />
-              </>
-            ) : (
-              /* Helpful zero-results guidance card */
-              <div className="bg-white rounded-2xl border border-blue-100 p-8 text-center space-y-4 shadow-xs">
-                <div className="w-12 h-12 rounded-full bg-blue-50 text-bb-blue flex items-center justify-center mx-auto text-xl font-bold">
-                  🔍
-                </div>
-                <div className="max-w-md mx-auto space-y-1">
-                  <h3 className="text-lg font-bold text-gray-900">No Matching Electronics Found</h3>
-                  <p className="text-sm text-gray-500">
-                    We couldn't find items matching this query in the catalog. Try searching for consumer tech models like laptops, headphones, tablets, or TVs.
-                  </p>
-                </div>
-                <div className="pt-2 flex flex-wrap justify-center gap-2">
-                  {SAMPLE_COMPARISONS.map((sample) => (
-                    <button
-                      key={sample.title}
-                      onClick={() => handleSampleClick(sample)}
-                      className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-gray-700 hover:bg-bb-yellow hover:text-bb-slate transition-all border border-gray-200"
-                    >
-                      {sample.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Verified SKU Citations Section */}
-            {comparison.citations && comparison.citations.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">
-                  Verified SKU Grounding & Citations
-                </h3>
-                <p className="text-xs text-gray-600">
-                  Every specification above is strictly verified against Google Cloud BigQuery. Click any SKU badge
-                  to view canonical product details on TechBuy.com.
-                </p>
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  {comparison.citations.map((citation) => (
-                    <div key={citation.sku} className="flex items-center gap-2">
-                      <CitationChip
-                        sku={citation.sku}
-                        url={citation.url}
-                        description={citation.description}
-                        onClick={handleOpenProductDetails}
-                      />
-                      {citation.description && (
-                        <span className="text-xs text-gray-500 hidden sm:inline">
-                          — {citation.description}
-                        </span>
-                      )}
+            {/* Layout with Main Comparison Details and Conversational Sidebar */}
+            <div className="flex flex-col lg:flex-row items-start gap-8">
+              <div className="flex-1 w-full space-y-8 min-w-0">
+                {/* Product Summary Cards & Matrix Table (Only if products found) */}
+                {comparison.products.length > 0 ? (
+                  <>
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-gray-900">Compared Products</h2>
+                        {!isChatOpen && (
+                          <button
+                            onClick={() => setIsChatOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-bb-blue bg-blue-50 hover:bg-bb-yellow hover:text-bb-slate border border-blue-200 rounded-lg transition-all"
+                          >
+                            <span>Open Follow-up Chat</span>
+                          </button>
+                        )}
+                      </div>
+                      <div
+                        className={`grid gap-6 ${
+                          comparison.products.length === 2
+                            ? 'grid-cols-1 md:grid-cols-2'
+                            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                        }`}
+                      >
+                        {comparison.products.map((product) => (
+                          <ProductCard
+                            key={product.sku}
+                            product={product}
+                            onViewDetails={handleOpenProductDetails}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Side-by-side Feature Matrix Table */}
+                    <ComparisonTable
+                      products={comparison.products}
+                      matrix={comparison.comparison_matrix}
+                      onViewDetails={handleOpenProductDetails}
+                    />
+                  </>
+                ) : (
+                  /* Helpful zero-results guidance card */
+                  <div className="bg-white rounded-2xl border border-blue-100 p-8 text-center space-y-4 shadow-xs">
+                    <div className="w-12 h-12 rounded-full bg-blue-50 text-bb-blue flex items-center justify-center mx-auto text-xl font-bold">
+                      🔍
+                    </div>
+                    <div className="max-w-md mx-auto space-y-1">
+                      <h3 className="text-lg font-bold text-gray-900">No Matching Electronics Found</h3>
+                      <p className="text-sm text-gray-500">
+                        We couldn't find items matching this query in the catalog. Try searching for consumer tech models like laptops, headphones, tablets, or TVs.
+                      </p>
+                    </div>
+                    <div className="pt-2 flex flex-wrap justify-center gap-2">
+                      {SAMPLE_COMPARISONS.map((sample) => (
+                        <button
+                          key={sample.title}
+                          onClick={() => handleSampleClick(sample)}
+                          className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-gray-700 hover:bg-bb-yellow hover:text-bb-slate transition-all border border-gray-200"
+                        >
+                          {sample.title}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Verified SKU Citations Section */}
+                {comparison.citations && comparison.citations.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">
+                      Verified SKU Grounding & Citations
+                    </h3>
+                    <p className="text-xs text-gray-600">
+                      Every specification above is strictly verified against Google Cloud BigQuery. Click any SKU badge
+                      to view canonical product details on TechBuy.com.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      {comparison.citations.map((citation) => (
+                        <div key={citation.sku} className="flex items-center gap-2">
+                          <CitationChip
+                            sku={citation.sku}
+                            url={citation.url}
+                            description={citation.description}
+                            onClick={handleOpenProductDetails}
+                          />
+                          {citation.description && (
+                            <span className="text-xs text-gray-500 hidden sm:inline">
+                              — {citation.description}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Conversational Follow-up Sidebar */}
+              {comparison.products.length > 0 && (
+                <ConversationSidebar
+                  isOpen={isChatOpen}
+                  onClose={() => setIsChatOpen(false)}
+                  products={comparison.products}
+                  comparisonMatrix={comparison.comparison_matrix}
+                  sessionId={sessionId}
+                  onViewProductDetails={handleOpenProductDetails}
+                />
+              )}
+            </div>
           </div>
         )}
 

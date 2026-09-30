@@ -176,9 +176,41 @@ sequenceDiagram
     UI-->>Customer: Render side-by-side comparison table with clickable SKU citation chips
 ```
 
+### 3.1 Multi-Turn Conversational Follow-Up Chat Sequence (`POST /api/chat`)
+
+Once a comparison matrix has been generated, users can engage in multi-turn conversational follow-ups via the interactive `ConversationSidebar` alongside the comparison table. This workflow is grounded strictly in the compared `ProductSpec` objects and `MatrixRow` specifications:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer as Shopper / Browser
+    participant UI as React 18 Frontend (ConversationSidebar)
+    participant API as FastAPI Gateway (/api/chat)
+    participant OTEL as OpenTelemetry / Cloud Trace
+    participant Coord as MultiAgentCoordinator
+    participant Orch as ComparisonOrchestrator
+    participant LLM as Vertex AI Gemini (Structured Synthesis)
+
+    Customer->>UI: Type follow-up question ("Which has better battery for travel?")
+    UI->>API: POST /api/chat (ChatRequest with message, history, products, matrix)
+    API->>OTEL: Start Root Span: [POST /api/chat] (trace_id)
+    API->>Coord: Invoke coordinator.chat(message, products, matrix, history)
+    Coord->>Orch: Delegate chat_with_products()
+    Orch->>Orch: Sanitize prompt injection attempts & strip delimiter markers
+    Orch->>LLM: Prompt with grounding context (<compared_products>, <comparison_matrix>, <conversation_history>)
+    LLM-->>Orch: Structured JSON (reply with [SKU: <sku>] citations + suggested_followups)
+    Orch->>Orch: Extract & verify SKU citations against compared products
+    Orch-->>Coord: Validated ChatResponse
+    Coord-->>API: ChatResponse envelope with latency_ms & trace_id
+    API->>OTEL: Record chat metrics (message_length, product_count, latency)
+    API-->>UI: HTTP 200 OK (ChatResponse)
+    UI-->>Customer: Display conversational reply with clickable [SKU: ...] citations & suggested chips
+```
+
 ### 3.2 Single-Agent vs. Multi-Agent Systems Architectural Trade-off Evaluation
 
 To address complex consumer electronics comparison workflows, our architecture implements a modular 4-Node Multi-Agent Cooperative System (`MultiAgentCoordinator`) backed by Google ADK:
+
 
 ```mermaid
 flowchart TD

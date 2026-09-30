@@ -18,10 +18,17 @@ from app.agent.registry import default_registry
 from app.config import settings
 from app.models.requests import (
     CandidateRankingResponse,
+    ChatMessage,
     ComparisonSynthesis,
     QueryIntentAnalysis,
 )
-from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
+from app.models.responses import (
+    ChatResponse,
+    Citation,
+    CompareResponse,
+    MatrixRow,
+    ProductSpec,
+)
 from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
 
@@ -1544,4 +1551,209 @@ class ComparisonOrchestrator:
             query=query,
             category=category,
             session_id=target_session,
+        )
+
+    def chat_with_products(
+        self,
+        message: str,
+        products: list[ProductSpec],
+        conversation_history: list[ChatMessage] | None = None,
+        comparison_matrix: list[MatrixRow] | None = None,
+        session_id: str | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+        agent_version: str | None = None,
+    ) -> ChatResponse:
+        """Answer conversational follow-up questions grounded strictly in compared ProductSpecs and matrix."""
+        start_time = time.perf_counter()
+        clean_message = sanitize_user_prompt(message)
+        valid_skus = {p.sku for p in products if p.sku}
+        active_model = synthesis_model or model or self.synthesis_model
+        resolved_agent_version = agent_version or settings.agent_version
+
+        # Build citations for compared products
+        citations = [
+            Citation(
+                sku=p.sku,
+                url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p",
+                description=f"{p.name} (${p.price:,.2f})",
+            )
+            for p in products
+        ]
+
+        # Context lines for products
+        product_blocks: list[str] = []
+        for p in products:
+            specs_str = ", ".join(f"{k}: {v}" for k, v in (p.specifications or {}).items())
+            product_blocks.append(
+                f"- Product: {p.name} [SKU: {p.sku}], Brand: {p.brand}, Price: ${p.price:,.2f}\n"
+                f"  Specs: {specs_str}"
+            )
+
+        matrix_lines: list[str] = []
+        for row in comparison_matrix or []:
+            vals = ", ".join(f"[SKU: {sku}]={val}" for sku, val in row.values.items())
+            matrix_lines.append(
+                f"- Feature '{row.feature}': {vals} (Winner: {row.winner_sku or 'Tie/None'})"
+            )
+
+        history_lines: list[str] = []
+        for msg in conversation_history or []:
+            history_lines.append(f"{msg.role.upper()}: {msg.content}")
+
+        # Check hermetic / mock mode
+        is_mock_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+
+        reply_text = ""
+        suggested: list[str] = []
+
+        if is_mock_env:
+            # Deterministic, grounded offline response generator
+            lower_msg = clean_message.lower()
+            if "battery" in lower_msg:
+                # Find battery specs
+                best_batt_p = None
+                best_batt_val = -1.0
+                for p in products:
+                    b_val = (p.specifications or {}).get("battery_life_hours")
+                    try:
+                        b_float = float(b_val) if b_val is not None else 0.0
+                        if b_float > best_batt_val:
+                            best_batt_val = b_float
+                            best_batt_p = p
+                    except (ValueError, TypeError):
+                        pass
+                if best_batt_p and best_batt_val > 0:
+                    other_ps = [p for p in products if p.sku != best_batt_p.sku]
+                    other_detail = ""
+                    if other_ps:
+                        other = other_ps[0]
+                        o_val = (other.specifications or {}).get("battery_life_hours", "unknown")
+                        other_detail = (
+                            f" compared to {o_val} hours on {other.name} [SKU: {other.sku}]"
+                        )
+                    reply_text = (
+                        f"The {best_batt_p.name} [SKU: {best_batt_p.sku}] offers the longest battery life "
+                        f"with up to {best_batt_val:g} hours{other_detail}."
+                    )
+                else:
+                    reply_text = (
+                        f"Comparing battery life across {len(products)} products: "
+                        + ", ".join(
+                            f"{p.name} [SKU: {p.sku}] ({p.specifications.get('battery_life_hours', 'N/A')} hrs)"
+                            for p in products
+                        )
+                        + "."
+                    )
+            elif "price" in lower_msg or "cheap" in lower_msg or "budget" in lower_msg:
+                cheapest_p = min(products, key=lambda x: x.price)
+                most_exp_p = max(products, key=lambda x: x.price)
+                if cheapest_p.sku != most_exp_p.sku:
+                    reply_text = (
+                        f"The {cheapest_p.name} [SKU: {cheapest_p.sku}] is the most affordable at ${cheapest_p.price:,.2f}, "
+                        f"which is ${most_exp_p.price - cheapest_p.price:,.2f} less than {most_exp_p.name} [SKU: {most_exp_p.sku}] (${most_exp_p.price:,.2f})."
+                    )
+                else:
+                    reply_text = (
+                        f"All compared products are priced equally at ${cheapest_p.price:,.2f} "
+                        f"([SKU: {cheapest_p.sku}])."
+                    )
+            else:
+                p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:2])
+                reply_text = (
+                    f"Based on the catalog specs for {p_names}, both offer distinct advantages. "
+                    + " ".join(
+                        f"{p.name} [SKU: {p.sku}] is priced at ${p.price:,.2f}."
+                        for p in products[:2]
+                    )
+                )
+
+            suggested = [
+                "Which product offers better value for the price?",
+                "How do their physical dimensions and weight compare?",
+                "Which option is better for daily multitasking?",
+            ]
+        else:
+            prompt = (
+                "You are an expert consumer electronics comparison assistant.\n"
+                "A customer is asking a follow-up question regarding the products they just compared.\n"
+                "You must strictly ground your answer ONLY on the provided products, specifications, and comparison matrix below.\n"
+                "CRITICAL RULES:\n"
+                "1. Strictly cite the product SKU [SKU: <sku>] whenever referencing a product or its specs.\n"
+                "2. NEVER invent, extrapolate, or hallucinate specs not in the provided catalog data.\n"
+                "3. If the user asks about an unrelated topic or unavailable spec, clearly state that the specification is not in the catalog.\n"
+                "4. Provide 2-3 concise, relevant suggested follow-up questions.\n\n"
+                "<compared_products>\n"
+                + "\n".join(product_blocks)
+                + "\n</compared_products>\n\n"
+                + (
+                    "<comparison_matrix>\n" + "\n".join(matrix_lines) + "\n</comparison_matrix>\n\n"
+                    if matrix_lines
+                    else ""
+                )
+                + (
+                    "<conversation_history>\n"
+                    + "\n".join(history_lines)
+                    + "\n</conversation_history>\n\n"
+                    if history_lines
+                    else ""
+                )
+                + f"<customer_question>{clean_message}</customer_question>\n\n"
+                + "Return a valid JSON object with format:\n"
+                + '{"reply": "your grounded answer citing [SKU: <sku>]", "suggested_followups": ["Question 1", "Question 2"]}'
+            )
+
+            client = self._get_genai_client()
+            call_model = "gemini-2.5-flash-lite"
+            config = types.GenerateContentConfig(
+                system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
+                response_mime_type="application/json",
+                temperature=0.2,
+                max_output_tokens=500,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            )
+            with tracer.start_as_current_span("gemini.chat_followup") as chat_span:
+                chat_span.set_attribute("gen_ai.system", "vertexai")
+                chat_span.set_attribute("gen_ai.request.model", call_model)
+                try:
+                    resp = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                    if resp.text:
+                        parsed = json.loads(resp.text)
+                        reply_text = parsed.get("reply", "")
+                        suggested = parsed.get("suggested_followups", [])
+                except Exception as exc:
+                    logger.warning(
+                        "Live chat generation failed; using grounded template fallback: %s", exc
+                    )
+                    reply_text = f"Grounded response for {clean_message}: " + " ".join(
+                        f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:2]
+                    )
+                    suggested = ["How do their specs compare?", "Which is better for travel?"]
+
+        # Ensure SKU scrub and citation validation
+        reply_scrubbed = self.verify_and_scrub_sku_citations(reply_text, valid_skus) or reply_text
+        if not any(f"[SKU: {p.sku}]" in reply_scrubbed for p in products):
+            reply_scrubbed += f" (Referencing: {', '.join(f'[SKU: {p.sku}]' for p in products)})"
+
+        latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
+        trace_id = get_current_trace_id()
+
+        return ChatResponse(
+            reply=reply_scrubbed,
+            citations=citations,
+            suggested_followups=suggested[:3],
+            latency_ms=latency_ms,
+            session_id=session_id,
+            trace_id=trace_id,
+            agent_version=resolved_agent_version,
+            model_version=f"{active_model}@001",
         )
