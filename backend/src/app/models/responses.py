@@ -178,6 +178,52 @@ class ComparisonResponse(BaseModel):
 CompareResponse = ComparisonResponse
 
 
+class ChatResponse(BaseModel):
+    """Complete structured response for follow-up conversational comparison chat."""
+
+    reply: str = Field(
+        ...,
+        description="Conversational grounded answer strictly citing compared products and specs [SKU: <sku>].",
+    )
+    citations: list[Citation] = Field(
+        default_factory=list,
+        description="List of verified product SKU citations supporting the reply",
+    )
+    suggested_followups: list[str] = Field(
+        default_factory=list,
+        description="Suggested contextual follow-up questions to continue exploring differences",
+    )
+    latency_ms: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="Processing latency in milliseconds",
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Client session identifier",
+    )
+    trace_id: str | None = Field(
+        default=None,
+        description="OpenTelemetry trace ID",
+    )
+    input_tokens: int | None = Field(
+        default=None,
+        description="Prompt tokens consumed",
+    )
+    output_tokens: int | None = Field(
+        default=None,
+        description="Completion tokens produced",
+    )
+    agent_version: str | None = Field(
+        default=None,
+        description="Agent version executed",
+    )
+    model_version: str | None = Field(
+        default=None,
+        description="Foundation model version executed",
+    )
+
+
 class CatalogResponse(BaseModel):
     """Response payload for catalog browsing endpoint."""
 

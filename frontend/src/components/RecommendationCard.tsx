@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { Sparkles, CheckCircle2, Award, Copy, Check, ThumbsUp, ThumbsDown } from 'lucide-react';
+import {
+  Sparkles,
+  CheckCircle2,
+  Award,
+  Copy,
+  Check,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare,
+} from 'lucide-react';
 import { sendFeedback, sendUserAction } from '../api/client';
 
 export interface RecommendationCardProps {
@@ -10,6 +19,7 @@ export interface RecommendationCardProps {
   sessionId?: string;
   traceId?: string;
   className?: string;
+  onOpenChat?: () => void;
 }
 
 /**
@@ -122,6 +132,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
   sessionId = '',
   traceId = '',
   className = '',
+  onOpenChat,
 }) => {
   const [copied, setCopied] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState<'thumbs_up' | 'thumbs_down' | null>(null);
@@ -179,6 +190,18 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
 
             {/* User Actions & Feedback Toolbar */}
             <div className="flex items-center gap-2">
+              {onOpenChat && (
+                <button
+                  onClick={onOpenChat}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-bb-blue bg-blue-50 hover:bg-bb-yellow hover:text-bb-slate border border-blue-200 rounded-lg transition-all cursor-pointer shadow-2xs"
+                  title="Ask follow-up questions in conversational sidebar"
+                  aria-label="Ask follow-up questions"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Ask Follow-up Questions</span>
+                </button>
+              )}
+
               <button
                 onClick={handleCopyMarkdown}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-700 bg-slate-50 hover:bg-slate-100 border border-gray-200 rounded-lg transition-colors cursor-pointer"

@@ -1,5 +1,7 @@
 import {
   CatalogResponse,
+  ChatRequest,
+  ChatResponse,
   ComparisonRequest,
   ComparisonResponse,
   HealthResponse,
@@ -145,5 +147,54 @@ export async function fetchCatalog(category?: string | null): Promise<ProductSpe
 
   // Graceful fallback to verified client catalog dataset
   return getCatalogProducts(category);
+}
+
+/**
+ * Sends a conversational follow-up message grounded strictly in compared products.
+ *
+ * @param request Chat payload including message, conversation history, and compared products.
+ * @returns Promise resolving to the grounded ChatResponse.
+ */
+export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+  const message = request.message?.trim();
+  if (!message) {
+    throw new Error('Message string must not be empty.');
+  }
+  if (!request.products || request.products.length === 0) {
+    throw new Error('At least one compared product must be provided for conversational grounding.');
+  }
+
+  const endpoint = `${API_BASE_URL}/api/chat`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (request.session_id) {
+    headers['x-session-id'] = request.session_id;
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Chat request failed with HTTP ${response.status}`;
+    try {
+      const errorJson = await response.json();
+      if (errorJson.detail) {
+        errorMessage = errorJson.detail;
+      }
+    } catch {
+      if (response.statusText) {
+        errorMessage = response.statusText;
+      }
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response.json();
 }
 

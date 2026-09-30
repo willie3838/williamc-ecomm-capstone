@@ -34,8 +34,10 @@ frontend/
     │   ├── SearchBar.tsx      # Query input with interactive category pills
     │   ├── ComparisonTable.tsx# Side-by-side feature matrix
     │   ├── CitationChip.tsx   # Verified SKU badge linking to modal or canonical TechBuy listing
-    │   ├── RecommendationCard.tsx # Agent narrative summary and pros/cons
+    │   ├── RecommendationCard.tsx # Agent narrative summary and pros/cons (with Ask Follow-up Questions CTA)
+    │   ├── ConversationSidebar.tsx # Interactive follow-up chat sidebar grounded in compared SKUs & matrix
     │   ├── ProductCard.tsx    # Individual product spec card with compare checkbox and View at TechBuy button
+
     │   ├── ProductDetailsModal.tsx # Accessible in-app modal displaying comprehensive product specifications, stock status, ratings, and grounding
     │   ├── ProductSelectionTray.tsx # Floating selection tray for multiselect comparison
     │   └── SkeletonLoader.tsx # Shimmer loading animation during generation
@@ -66,9 +68,17 @@ frontend/
 - Provide immediate visual feedback within 100ms: activate the `SkeletonLoader` immediately upon query submission.
 - Display latency indicator or "verified grounded in BigQuery" status chip.
 
+### 4. Interactive Follow-Up Chat Sidebar (`ConversationSidebar.tsx`)
+- Clicking "Ask Follow-up Questions" on `RecommendationCard` or the sticky "Chat" toggle button opens the responsive `ConversationSidebar`.
+- **Parallel Multi-Pane View**: The comparison summary, product cards, and side-by-side `ComparisonTable` matrix remain fully visible and interactable alongside the sidebar.
+- **Strictly Grounded Multi-Turn Thread**: Follow-up questions are submitted to `POST /api/chat` via `sendChatMessage(request)`, grounded strictly in the compared products and matrix rows.
+- **Rich Citation Chips & Suggested Follow-ups**: Responses include clickable SKU citation chips (`[SKU: ...]`) that open the in-app `ProductDetailsModal`, as well as clickable suggested follow-up chips that populate the chat prompt.
+- **Session Continuity**: Multi-turn history is preserved in client state across queries in the same session.
+
 ---
 
 ## 4. Development Workflow & Commands
+
 
 ```bash
 # Install dependencies

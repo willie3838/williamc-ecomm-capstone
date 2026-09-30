@@ -94,8 +94,43 @@ backend/
       "prompt_version": "2026.03-v1"
     }
     ```
+- `POST /api/chat` & `POST /api/v1/chat`:
+  - Request: Multi-turn conversational follow-up questions grounded in compared products and matrix (`ChatRequest`).
+    ```json
+    {
+      "message": "Which laptop has better battery life for long flights?",
+      "conversation_history": [
+        {"role": "user", "content": "Compare MacBook Air M3 and Dell XPS 13"},
+        {"role": "assistant", "content": "The MacBook Air M3 leads with 18 hours of battery life..."}
+      ],
+      "products": [
+        {"sku": "6534606", "name": "MacBook Air 13.6\" - M3", "brand": "Apple", "price": 1099.0, "specifications": {"battery_life": "18 hours"}},
+        {"sku": "6575132", "name": "Dell XPS 13\" - Intel Core Ultra 7", "brand": "Dell", "price": 1199.0, "specifications": {"battery_life": "14 hours"}}
+      ],
+      "comparison_matrix": [
+        {"feature": "Battery Life", "values": {"6534606": "Up to 18 hours", "6575132": "Up to 14 hours"}, "winner_sku": "6534606"}
+      ],
+      "session_id": "test-session-123"
+    }
+    ```
+  - Response:
+    ```json
+    {
+      "reply": "The Apple MacBook Air M3 [SKU: 6534606] offers up to 18 hours of battery life compared to 14 hours on the Dell XPS 13 [SKU: 6575132], making it superior for long flights.",
+      "citations": [
+        {"sku": "6534606", "url": "https://www.techbuy.com/site/sku/6534606.p", "description": "Apple MacBook Air 13.6\" - M3"}
+      ],
+      "suggested_followups": [
+        "How do their display resolutions compare?",
+        "Which one is lighter to carry?"
+      ],
+      "latency_ms": 245.0,
+      "session_id": "test-session-123"
+    }
+    ```
 
 ---
+
 
 ## 3. Grounding & Anti-Hallucination Rules
 

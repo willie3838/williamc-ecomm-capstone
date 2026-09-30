@@ -25,7 +25,14 @@ from app.agent.orchestrator import (
     sanitize_user_prompt,
 )
 from app.agent.prompts import SYSTEM_INSTRUCTION
-from app.models.responses import Citation, CompareResponse, ProductSpec
+from app.models.requests import ChatMessage
+from app.models.responses import (
+    ChatResponse,
+    Citation,
+    CompareResponse,
+    MatrixRow,
+    ProductSpec,
+)
 from app.observability.tracing import get_current_trace_id, get_tracer
 from app.tools.catalog import query_catalog
 
@@ -460,6 +467,7 @@ class MultiAgentCoordinator:
             model=self.model,
             synthesis_model=self.synthesis_model,
         )
+        self.orchestrator = self.comparison_agent.orchestrator
         self.adk_sequential_agent = SequentialAgent(
             name="catalog_multi_agent_pipeline",
             sub_agents=[
@@ -592,3 +600,37 @@ class MultiAgentCoordinator:
 
             state.comparison_response.timing_breakdown_ms = timing_breakdown
             return state.comparison_response
+
+    def chat(
+        self,
+        message: str,
+        products: list[ProductSpec],
+        conversation_history: list[ChatMessage] | None = None,
+        comparison_matrix: list[MatrixRow] | None = None,
+        session_id: str | None = None,
+        agent_version: str | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+    ) -> ChatResponse:
+        """Execute conversational follow-up chat using orchestrator with tracing."""
+        with tracer.start_as_current_span("agent.conversational_chat") as span:
+            span.set_attribute("chat.message_length", len(message))
+            span.set_attribute("chat.product_count", len(products))
+            if session_id:
+                span.set_attribute("session_id", session_id)
+
+            active_model = model or self.model
+            active_synthesis = synthesis_model or self.synthesis_model
+            span.set_attribute("ai.model.name", active_model or "")
+            span.set_attribute("ai.synthesis_model.name", active_synthesis or "")
+
+            return self.orchestrator.chat_with_products(
+                message=message,
+                products=products,
+                conversation_history=conversation_history,
+                comparison_matrix=comparison_matrix,
+                session_id=session_id,
+                model=active_model,
+                synthesis_model=active_synthesis,
+                agent_version=agent_version,
+            )

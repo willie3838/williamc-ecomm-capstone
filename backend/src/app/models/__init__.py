@@ -4,6 +4,8 @@ from app.models.analytics import FeedbackRequest, SessionMetricsResponse, UserAc
 from app.models.product import ProductRecord
 from app.models.requests import (
     CatalogQueryInput,
+    ChatMessage,
+    ChatRequest,
     CompareRequest,
     ComparisonRequest,
     QueryIntentAnalysis,
@@ -12,6 +14,7 @@ from app.models.responses import (
     AgentVersionsResponse,
     AgentVersionSummary,
     CatalogResponse,
+    ChatResponse,
     Citation,
     CompareResponse,
     ComparisonResponse,
@@ -26,6 +29,9 @@ __all__ = [
     "AgentVersionsResponse",
     "CatalogQueryInput",
     "CatalogResponse",
+    "ChatMessage",
+    "ChatRequest",
+    "ChatResponse",
     "Citation",
     "CompareRequest",
     "CompareResponse",
