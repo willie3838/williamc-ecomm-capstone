@@ -23,6 +23,8 @@ RUN groupadd -g 1000 appgroup && \
 
 # Copy installed Python packages from builder to non-root user directory
 COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
+COPY --chown=appuser:appgroup backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir packaging>=24.2.0 && rm -f /tmp/requirements.txt
 RUN chmod -R a+rX /home/appuser/.local
 
 # Set environment variables for runtime
