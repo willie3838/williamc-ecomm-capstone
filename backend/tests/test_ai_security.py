@@ -6,7 +6,7 @@ from google.genai import types
 
 from app.agent.orchestrator import (
     ComparisonOrchestrator,
-    get_default_safety_settings,
+    get_model_armor_config,
     sanitize_user_prompt,
 )
 from app.agent.prompts import SYSTEM_INSTRUCTION
@@ -54,19 +54,12 @@ def test_sanitize_user_prompt_empty_and_whitespace():
     assert sanitize_user_prompt("   ") == ""
 
 
-def test_default_safety_settings_coverage():
-    """Verify safety settings cover all standard harm categories with BLOCK_MEDIUM_AND_ABOVE."""
-    settings = get_default_safety_settings()
-    assert len(settings) == 4
-
-    categories = {s.category for s in settings}
-    assert types.HarmCategory.HARM_CATEGORY_HATE_SPEECH in categories
-    assert types.HarmCategory.HARM_CATEGORY_HARASSMENT in categories
-    assert types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT in categories
-    assert types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT in categories
-
-    for s in settings:
-        assert s.threshold == types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+def test_model_armor_config_coverage():
+    """Verify Model Armor configuration replaces default safety settings."""
+    cfg = get_model_armor_config()
+    assert cfg is not None
+    assert "catalog-prompt-guard" in cfg.prompt_template_name
+    assert "catalog-resp-guard" in cfg.response_template_name
 
 
 def test_system_prompt_untrusted_data_boundary():
@@ -78,7 +71,7 @@ def test_system_prompt_untrusted_data_boundary():
 
 @patch("google.genai.Client")
 def test_rerank_with_llm_passes_safety_and_xml_tags(mock_client_cls):
-    """Verify _rerank_with_llm applies XML tags and passes GenerateContentConfig with safety settings and Model Armor."""
+    """Verify _rerank_with_llm applies XML tags and passes GenerateContentConfig with Model Armor."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
 
@@ -109,10 +102,11 @@ def test_rerank_with_llm_passes_safety_and_xml_tags(mock_client_cls):
     assert "</user_query>" in prompt
     assert "[BLOCKED_INJECTION]" in prompt
 
-    # Verify config contains Model Armor configuration (mutually exclusive with safety_settings in Vertex AI)
+    # Verify config contains Model Armor configuration (no default safety_settings needed)
     config = kwargs["config"]
     assert config is not None
     assert config.model_armor_config is not None
+    assert config.safety_settings is None
     assert "catalog-prompt-guard" in config.model_armor_config.prompt_template_name
     assert result is not None
     assert len(result) == 1
@@ -121,7 +115,7 @@ def test_rerank_with_llm_passes_safety_and_xml_tags(mock_client_cls):
 
 @patch("google.genai.Client")
 def test_rerank_with_llm_handles_safety_blocked_response(mock_client_cls):
-    """Verify _rerank_with_llm gracefully returns None when Vertex AI triggers safety block."""
+    """Verify _rerank_with_llm returns empty list [] when Vertex AI / Model Armor triggers safety block."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
 
@@ -136,12 +130,12 @@ def test_rerank_with_llm_handles_safety_blocked_response(mock_client_cls):
     ]
 
     result = orchestrator._rerank_with_llm(products, "malicious query that triggers safety filter")
-    assert result is None
+    assert result == []
 
 
 @patch("google.genai.Client")
 def test_rerank_with_llm_handles_model_armor_blocked_response(mock_client_cls):
-    """Verify _rerank_with_llm gracefully returns None when Google Cloud Model Armor blocks execution."""
+    """Verify _rerank_with_llm returns empty list [] when Google Cloud Model Armor blocks execution."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
 
@@ -155,12 +149,15 @@ def test_rerank_with_llm_handles_model_armor_blocked_response(mock_client_cls):
             ProductSpec(
                 sku="111", name="Product A", price=999.0, brand="BrandA", category="Laptops"
             ),
+            ProductSpec(
+                sku="222", name="Product B", price=899.0, brand="BrandB", category="Laptops"
+            ),
         ]
 
         result = orchestrator._rerank_with_llm(
             products, "malicious prompt injection triggering Model Armor"
         )
-        assert result is None, f"Expected None for blocked reason: {blocked_reason}"
+        assert result == [], f"Expected [] for blocked reason: {blocked_reason}"
 
 
 def test_get_model_armor_config():

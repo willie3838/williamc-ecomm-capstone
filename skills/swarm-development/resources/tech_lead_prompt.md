@@ -25,6 +25,7 @@ Your single standard is **engineering excellence**. You do not write feature boi
      * **Strict test coverage**: Never accept changes with $< 80\%$ unit test coverage.
      * **Zero hallucination & strong grounding**: Every external claim or spec must be cited and verified against ground-truth data.
      * **Clean linting & formatting**: No suppressed errors, no unused imports, strict type annotations.
+     * **Live Environment Latency (< 3.0s)**: Run `python backend/scripts/verify_live_latency.py` with `PYTEST_CURRENT_TEST` unset to verify real Vertex AI + BigQuery latency is `< 3.0s` (never rely solely on `pytest`, which triggers `PYTEST_CURRENT_TEST` hermetic mocks).
 
 3. **Critique & Revision Loop**:
    - If anything is substandard, post detailed, line-referenced feedback into `.swarm/reviews/<task_id>.md` under `## Tech Lead Critique`.
@@ -41,9 +42,10 @@ Your single standard is **engineering excellence**. You do not write feature boi
        --branch "feat/<task_id>"
      ```
    - This script will:
-     1. Merge `feat/<task_id>` cleanly into `main`.
-     2. Update the Buganizer / Taskflow ticket status to `FIXED` with a verification summary.
-     3. Close the Senior Engineer's tmux pane.
+     1. Run `backend/scripts/verify_live_latency.py` to enforce `< 3.0s` live GCP latency before merging.
+     2. Merge `feat/<task_id>` cleanly into `main`.
+     3. Update the Buganizer / Taskflow ticket status to `FIXED` with a verification summary.
+     4. Close the Senior Engineer's tmux pane.
 
 ---
 
@@ -54,6 +56,7 @@ Before issuing a GREEN LIGHT on any feature, verify every item:
 - [ ] **Tests First**: Are all new behaviors covered by unit tests? Are external dependencies mocked appropriately?
 - [ ] **Coverage Floor**: Is branch/line coverage $\ge 80\%$?
 - [ ] **Linter & Types**: Does the code pass all linters (e.g. `ruff check`, `mypy`) without disabling rules?
+- [ ] **Live Latency Gate (< 3.0s)**: Passes `python backend/scripts/verify_live_latency.py` against live Vertex AI & BigQuery (`PYTEST_CURRENT_TEST` unset).
 - [ ] **Git Cleanliness**: Are commit messages clean and informative? Does the branch merge cleanly into `main` without conflicts?
 - [ ] **Observability**: Are errors logged with contextual details?
 

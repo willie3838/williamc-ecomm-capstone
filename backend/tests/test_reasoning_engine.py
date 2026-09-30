@@ -96,3 +96,77 @@ def test_route_delegates_to_agent_runtime_when_configured() -> None:
         response = _execute_comparison_sync(test_request)
         assert response.summary == "Remote comparison summary from Vertex AI Agent Runtime"
         mock_remote_agent.query.assert_called_once()
+
+
+def test_adk_app_registers_query_method() -> None:
+    """Verify app.agent.agent attaches structured .query() onto AdkApp and allowlists it."""
+    import google.adk.cli.fast_api as adk_fast_api
+    from vertexai.agent_engines import AdkApp
+
+    import app.agent.agent  # noqa: F401
+
+    assert hasattr(AdkApp, "query")
+    assert "query" in adk_fast_api._ALLOWED_AGENT_ENGINE_CLASS_METHODS
+
+
+def test_invoke_remote_reasoning_engine_rest_endpoint() -> None:
+    """Verify _invoke_remote_reasoning_engine posts to Vertex AI :streamQuery via pooled session."""
+    import json
+
+    from app.routes import compare as compare_module
+
+    mock_session = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.text = json.dumps(
+        {
+            "summary": "REST ReasoningEngine summary",
+            "products": [
+                {
+                    "sku": "6534606",
+                    "name": "MacBook Air",
+                    "brand": "Apple",
+                    "category": "Laptops",
+                    "price": 1099.0,
+                    "url": "https://www.techbuy.com/site/sku/6534606.p",
+                },
+                {
+                    "sku": "6575132",
+                    "name": "Dell XPS 13",
+                    "brand": "Dell",
+                    "category": "Laptops",
+                    "price": 1199.0,
+                    "url": "https://www.techbuy.com/site/sku/6575132.p",
+                },
+            ],
+            "comparison_matrix": [],
+            "citations": [],
+            "agent_version": "1.2.0-tiered",
+            "model_version": "tiered-hybrid(gemini-2.5-flash+gemini-2.5-pro)@001",
+            "synthesis_model": "gemini-2.5-pro",
+        }
+    )
+    mock_session.post.return_value = mock_resp
+
+    mock_creds = MagicMock()
+    mock_creds.valid = True
+    mock_creds.expired = False
+    mock_creds.token = "fake-token"
+
+    with (
+        patch.object(compare_module, "_REMOTE_ENGINE_SESSION", mock_session),
+        patch.object(compare_module, "_REMOTE_ENGINE_CREDS", mock_creds),
+    ):
+        req = ComparisonRequest(query="MacBook Air vs Dell XPS 13", category="Laptops")
+        resp = compare_module._invoke_remote_reasoning_engine(
+            resource_name="projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928",
+            request=req,
+            effective_model="tiered-hybrid",
+            effective_synthesis=None,
+        )
+        assert resp.summary == "REST ReasoningEngine summary"
+        mock_session.post.assert_called_once()
+        called_url = mock_session.post.call_args[0][0]
+        assert called_url.endswith(
+            "projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928:streamQuery"
+        )

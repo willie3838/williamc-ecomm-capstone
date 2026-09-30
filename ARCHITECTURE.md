@@ -10,7 +10,7 @@
 > **Agent Registry Service**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/services/bestbuy-catalog-comparison-agent`  
 > **Vertex AI Prompt Resource**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/prompts/6884046974429954048`  
 > **LLM Inference Mode**: 100% Live Uncached Vertex AI (`google-genai` persistent HTTP/2 connection pool + LLM-extracted `intent.target_keywords` -> `query_catalog` -> `ComparisonSynthesis` achieving $\sim 1.75\text{s}$–$2.15\text{s}$ P95 against the $\le 3.0\text{s}$ SLA)  
-> **C-Suite Executive Deck**: [Google Slides Readout](https://docs.google.com/presentation/d/1TV1D_mM5YkXxFIp_WaQkZycwd44WtVBXwh4hUBaj6T8/edit) | [docs/presentation/slides.md](docs/presentation/slides.md)  
+> **C-Suite Executive Deck**: [Capstone Google Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit)  
 > **Status**: MASTER REFERENCE ARCHITECTURE & GAP ANALYSIS (PRODUCTION READY)
 
 ---
@@ -29,7 +29,7 @@ The system architecture directly moves three business KPIs:
 3. **Strict Latency SLA**: End-to-end P95 response time $\le 3.0$ seconds to maintain conversational engagement and prevent checkout bounce.
 
 ### 1.3 Total Cost of Ownership (TCO) & Unit Economics
-The architectural selection prioritizes a lean, serverless footprint optimized for Argolis sandbox validation and regional enterprise replication. Costs are modeled identically across `ARCHITECTURE.md` and `docs/presentation/slides.md` using **official Google Cloud `us-central1` (Iowa) list pricing** (`cloud.google.com`, verified `2026-09-29`) for **100,000 monthly comparisons** and **10x Black Friday Burst (1,000,000 monthly comparisons)**, showing both **Gross Usage Cost (excluding monthly free tiers)** and **Net Billable Cost (after GCP monthly free tiers)**:
+The architectural selection prioritizes a lean, serverless footprint optimized for Argolis sandbox validation and regional enterprise replication. Costs are modeled identically across `ARCHITECTURE.md` and the live [Capstone Google Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit) using **official Google Cloud `us-central1` (Iowa) list pricing** (`cloud.google.com`, verified `2026-09-29`) for **100,000 monthly comparisons** and **10x Black Friday Burst (1,000,000 monthly comparisons)**, showing both **Gross Usage Cost (excluding monthly free tiers)** and **Net Billable Cost (after GCP monthly free tiers)**:
 
 | Cost Component | Architecture Choice | 100k Comparisons/Mo (Gross / Net After Free Tier) | Unit Economics (Gross per 1,000 Queries) | 10x Burst Sensitivity (1M Queries/Mo Gross / Net) | Rationale & Commercial Advantage |
 | :--- | :--- | :--- | :--- | :--- | :--- |

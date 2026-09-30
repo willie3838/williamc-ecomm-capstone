@@ -26,14 +26,17 @@ Your mission is to implement your assigned feature to **superior technical quali
    - Robust error handling with clear error messages.
    - Zero hardcoded secrets, project IDs, or credentials.
    - Defensive programming against edge cases and null values.
-3. **Verify Locally**:
-   - Run unit tests and linters continuously:
+3. **Verify Locally & Against Live GCP Latency (< 3.0s)**:
+   - Run unit tests, linters, and live latency checks continuously:
      ```bash
      # Run project checks:
      bash skills/hillclimb/scripts/run_checks.sh
+     # Verify live Vertex AI + BigQuery latency is < 3.0s (with PYTEST_CURRENT_TEST unset):
+     python backend/scripts/verify_live_latency.py
      ```
    - Ensure code coverage is $\ge 80\%$.
    - Ensure all linters and formatters pass cleanly with zero warnings.
+   - Ensure `verify_live_latency.py` passes `< 3.0s` against real Vertex AI and BigQuery.
 
 ### Phase 3: Submit for Tech Lead Review
 1. Commit all your changes with clear, conventional commit messages:
@@ -42,7 +45,7 @@ Your mission is to implement your assigned feature to **superior technical quali
    ```
 2. Update `.swarm/reviews/<task_id>.md` with:
    - Summary of implemented components.
-   - Evidence of passing tests and coverage percentages.
+   - Evidence of passing tests, coverage percentages, and live `< 3.0s` latency output (`verify_live_latency.py`).
    - Git commit hash.
    - Set `Status: READY_FOR_REVIEW`.
 

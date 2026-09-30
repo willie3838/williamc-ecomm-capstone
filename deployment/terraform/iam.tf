@@ -196,6 +196,13 @@ resource "google_iap_web_iam_member" "user_access" {
   member  = var.iap_authorized_user
 }
 
+# Grant Google Workspace domain browser access to IAP protected web resources
+resource "google_iap_web_iam_member" "google_domain_access" {
+  project = var.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = var.iap_authorized_domain
+}
+
 # Workload Identity Pool for GitHub Actions CI/CD
 resource "google_iam_workload_identity_pool" "github_pool" {
   workload_identity_pool_id = "github-actions-pool"

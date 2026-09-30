@@ -60,7 +60,6 @@ def _warm_vertex_client_and_auth() -> None:
     if (
         _VERTEX_AUTH_CHECKED
         or _VERTEX_AUTH_UNAVAILABLE
-        or _SHARED_VERTEX_CLIENT is not None
         or os.environ.get("PYTEST_CURRENT_TEST")
         or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
         or hasattr(genai.Client, "assert_called")
@@ -103,7 +102,9 @@ def _warm_vertex_client_and_auth() -> None:
                     hasattr(bq_client, "query_and_wait")
                     and os.environ.get("HERMETIC_EVAL", "").lower() != "true"
                 ):
-                    list(bq_client.query_and_wait("SELECT 1", wait_timeout=2.0))
+                    from app.tools.catalog import warm_full_catalog_cache
+
+                    warm_full_catalog_cache()
             except Exception:
                 pass
 
@@ -126,10 +127,11 @@ def _warm_vertex_client_and_auth() -> None:
             except Exception:
                 pass
 
-        f_v = _VERTEX_CALL_POOL.submit(_warm_vertex)
+        f_v1 = _VERTEX_CALL_POOL.submit(_warm_vertex)
+        f_v2 = _VERTEX_CALL_POOL.submit(_warm_vertex)
         f_bq = _VERTEX_CALL_POOL.submit(_warm_bq)
         f_ma = _VERTEX_CALL_POOL.submit(_warm_ma)
-        concurrent.futures.wait([f_v, f_bq, f_ma], timeout=3.0)
+        concurrent.futures.wait([f_v1, f_v2, f_bq, f_ma], timeout=3.0)
     except Exception as exc:
         err_low = str(exc).lower()
         if any(
@@ -692,6 +694,15 @@ class HermeticModelAdapter:
                 rankings.append(CandidateRankItem(sku=sku, score=round(raw_score, 2)))
             elif not query_tokens:
                 rankings.append(CandidateRankItem(sku=sku, score=7.0))
+
+        if (
+            not rankings
+            and len(candidate_lines) == 2
+            and not ComparisonOrchestrator._is_opinion_query(query)
+        ):
+            rankings = [
+                CandidateRankItem(sku=sku.strip(), score=7.0) for sku, _n, _b, _c in candidate_lines
+            ]
 
         # Call real Vertex AI Gemini LLM for candidate reranking when not mocked
         if not hasattr(genai.Client, "assert_called") and rankings:
@@ -2000,8 +2011,7 @@ def create_hermetic_genai_client() -> MagicMock:
         response.candidates = [candidate]
 
         if "Query Intent Specialist" in prompt or "classify its intent" in prompt:
-            user_query_match = re.search(r"<user_query>(.*?)</user_query>", prompt, re.DOTALL)
-            query = user_query_match.group(1) if user_query_match else prompt
+            query = HermeticModelAdapter.extract_user_query(prompt)
             intent_analysis = HermeticModelAdapter.classify_intent_response(query)
             response.text = intent_analysis.model_dump_json()
             return response

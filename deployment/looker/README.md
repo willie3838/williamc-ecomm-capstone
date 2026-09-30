@@ -34,13 +34,17 @@ View it directly in GCP Console:
 
 ---
 
-## 3. Automated Option B: 1-Click Looker Studio Linking API URLs
+## 3. Automated Option B: 1-Click Looker Studio Linking API URLs & BigQuery Native Export
 
-Because Looker Studio (`lookerstudio.google.com`) requires an interactive browser session to save visual reports, Terraform outputs pre-bound **Looker Studio Linking API URLs** (`terraform output looker_studio_linking_urls`) that auto-configure the BigQuery connector, project, dataset, and BI view in **1 click**:
+Because Looker Studio (`lookerstudio.google.com`) requires an interactive browser session to save visual reports, Terraform provisions a single **Unified Executive BI View (`vw_unified_executive_dashboard`)** with human-readable units (`Latency_Seconds`, `SLA_Compliance`, `Total_Tokens`, `BigQuery_MB_Scanned`, `Estimated_Cost_USD`) and embeds the 1-click link directly in the Cloud Monitoring Dashboard (`monitoring.tf`):
 
-1. **[1-Click: Create Category Engagement Report (`vw_most_compared_categories`)](https://lookerstudio.google.com/reporting/create?ds.alias=CategoryEngagement&ds.connector=bigQuery&ds.projectId=fde-bestbuy-sandbox-dev-508321&ds.type=TABLE&ds.datasetId=catalog_agent_telemetry&ds.tableId=vw_most_compared_categories)**
-2. **[1-Click: Create Latency & SLA Report (`vw_latency_performance_trends`)](https://lookerstudio.google.com/reporting/create?ds.alias=LatencyTrends&ds.connector=bigQuery&ds.projectId=fde-bestbuy-sandbox-dev-508321&ds.type=TABLE&ds.datasetId=catalog_agent_telemetry&ds.tableId=vw_latency_performance_trends)**
-3. **[1-Click: Create Token & Cost Report (`vw_token_and_cost_analytics`)](https://lookerstudio.google.com/reporting/create?ds.alias=TokenCostAnalytics&ds.connector=bigQuery&ds.projectId=fde-bestbuy-sandbox-dev-508321&ds.type=TABLE&ds.datasetId=catalog_agent_telemetry&ds.tableId=vw_token_and_cost_analytics)**
+- **Unified All-in-One Executive Dashboard (`vw_unified_executive_dashboard`)**:
+  `https://lookerstudio.google.com/reporting/create?c.mode=edit&r.reportName=TechBuy_Unified_Executive_Dashboard&ds.datasourceName=UnifiedExecutiveTelemetry&ds.connector=bigQuery&ds.type=TABLE&ds.projectId=fde-bestbuy-sandbox-dev-508321&ds.datasetId=catalog_agent_telemetry&ds.tableId=vw_unified_executive_dashboard`
 
-When the link opens in your browser, click **Acknowledge and Save** in the top-right corner to persist the report.
+### Alternative: Open Directly from BigQuery Console in 2 Clicks
+1. Open the BigQuery dataset in GCP Console:
+   `https://console.cloud.google.com/bigquery?project=fde-bestbuy-sandbox-dev-508321&ws=!1m4!1m3!3m2!1sfde-bestbuy-sandbox-dev-508321!2scatalog_agent_telemetry`
+2. Click `vw_unified_executive_dashboard` $\rightarrow$ click **Export** (top toolbar) $\rightarrow$ **Explore with Looker Studio** $\rightarrow$ click **Save and Share**.
+
+
 

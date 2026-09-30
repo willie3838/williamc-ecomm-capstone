@@ -61,6 +61,16 @@ class CatalogComparisonReasoningEngine:
             model=self.model,
             synthesis_model=self.synthesis_model,
         )
+        try:
+            import os
+            import threading
+
+            if "PYTEST_CURRENT_TEST" not in os.environ:
+                from app.tools.catalog import warm_full_catalog_cache
+
+                threading.Thread(target=warm_full_catalog_cache, daemon=True).start()
+        except Exception:
+            pass
         logger.info(
             "Initialized CatalogComparisonReasoningEngine coordinator (model=%s, synthesis=%s)",
             self.model,
@@ -75,6 +85,7 @@ class CatalogComparisonReasoningEngine:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         """Serve comparison query on Vertex AI Agent Runtime."""
         if self._coordinator is None:
@@ -99,6 +110,7 @@ class CatalogComparisonReasoningEngine:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        **_kwargs: Any,
     ) -> Iterable[dict[str, Any]]:
         """Serve streaming turn events for Vertex AI Agent Runtime :streamQuery."""
         result = self.query(

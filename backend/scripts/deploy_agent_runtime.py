@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -187,11 +186,28 @@ def update_cloud_run_service(
         if not updated:
             env_list.append({"name": "AGENT_RUNTIME_RESOURCE_NAME", "value": resource_name})
 
+        # Ensure 2Gi memory / 2 vCPU and minScale=1 to prevent cold-start memory thrashing
+        containers[0]["resources"] = {
+            "limits": {
+                "cpu": "2000m",
+                "memory": "2Gi",
+            }
+        }
+        template_annotations = (
+            svc.setdefault("spec", {})
+            .setdefault("template", {})
+            .setdefault("metadata", {})
+            .setdefault("annotations", {})
+        )
+        template_annotations["autoscaling.knative.dev/minScale"] = "1"
+        # Clear pinned revision name if present so Knative generates a new revision cleanly
+        svc.get("spec", {}).get("template", {}).get("metadata", {}).pop("name", None)
+
         # PUT updated service spec
         put_resp = requests.put(url, headers=headers, json=svc)
         if put_resp.status_code in (200, 201):
             print(
-                f"[✓] Cloud Run service {service_name} updated successfully with AGENT_RUNTIME_RESOURCE_NAME={resource_name}"
+                f"[✓] Cloud Run service {service_name} updated successfully (2Gi/2vCPU, AGENT_RUNTIME_RESOURCE_NAME={resource_name})"
             )
             return True
         else:
@@ -202,8 +218,27 @@ def update_cloud_run_service(
         return False
 
 
+_QUERY_CLASS_METHOD_SPEC: dict[str, object] = {
+    "name": "query",
+    "description": "Execute grounded multi-agent product comparison and return CompareResponse dictionary.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "category": {"type": "string", "nullable": True},
+            "session_id": {"type": "string", "nullable": True},
+            "agent_version": {"type": "string", "nullable": True},
+            "model": {"type": "string", "nullable": True},
+            "synthesis_model": {"type": "string", "nullable": True},
+        },
+        "required": ["query"],
+    },
+    "api_mode": "",
+}
+
+
 def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int:
-    """Package and deploy ADK Agent Engine to Vertex AI Agent Runtime."""
+    """Package and deploy ADK Agent Engine with both Playground streaming and structured .query()."""
     print(f"[*] Deploying {display_name} via ADK to Vertex AI Agent Runtime ({region})...")
     console_url = (
         f"https://console.cloud.google.com/vertex-ai/reasoning-engines?project={project_id}"
@@ -211,11 +246,21 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
 
     try:
         # Prepare clean environment without corporate mTLS overrides
-        env = os.environ.copy()
-        env.pop("GOOGLE_API_CERTIFICATE_CONFIG", None)
-        env.pop("CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH", None)
-        env["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
-        env["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+        os.environ.pop("GOOGLE_API_CERTIFICATE_CONFIG", None)
+        os.environ.pop("CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH", None)
+        os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
+        os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
+
+        # 1. Pre-deploy gate: verify local code passes < 3.0s live GCP latency
+        from verify_live_latency import (
+            verify_local_code_against_live_gcp,
+            verify_remote_reasoning_engine,
+        )
+
+        print("[*] Running mandatory pre-deploy live latency gate (< 3000 ms)...")
+        if not verify_local_code_against_live_gcp(threshold_ms=3000.0):
+            print("[!] Pre-deploy live latency gate (< 3.0s) FAILED. Aborting deployment!")
+            return 1
 
         temp_folder = "/tmp/adk_staging"
         os.makedirs(temp_folder, exist_ok=True)
@@ -231,43 +276,46 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
             except Exception:
                 pass
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "google.adk.cli",
-            "deploy",
-            "agent_engine",
-            "src/app/agent",
-            f"--project={project_id}",
-            f"--region={region}",
-            f"--display_name={display_name}",
-            "--otel_to_cloud",
-            f"--temp_folder={temp_folder}",
-        ]
-        if existing_engine_id:
-            cmd.append(f"--agent_engine_id={existing_engine_id}")
+        import google.adk.cli.cli_deploy as cli_deploy
 
-        print(f"[*] Executing ADK deploy: {' '.join(cmd)}", flush=True)
-        result = subprocess.run(cmd, cwd=str(Path(SCRIPT_DIR).parent), env=env, text=True)
-        if result.returncode != 0:
-            print(f"[!] ADK deploy failed with code {result.returncode}")
-            return result.returncode
+        existing_methods = list(getattr(cli_deploy, "_AGENT_ENGINE_CLASS_METHODS", []))
+        if not any(isinstance(m, dict) and m.get("name") == "query" for m in existing_methods):
+            existing_methods.append(_QUERY_CLASS_METHOD_SPEC)
+            cli_deploy._AGENT_ENGINE_CLASS_METHODS = existing_methods
 
-        # Locate newest reasoning engine created with this display name
-        import vertexai
-        from vertexai.preview import reasoning_engines
+        agent_folder = str(Path(SCRIPT_DIR).parent / "src" / "app" / "agent")
+        print(
+            f"[*] Executing in-process ADK deploy for {agent_folder} (engine_id={existing_engine_id})...",
+            flush=True,
+        )
+        cli_deploy.to_agent_engine(
+            agent_folder=agent_folder,
+            temp_folder=temp_folder,
+            project=project_id,
+            region=region,
+            display_name=display_name,
+            otel_to_cloud=True,
+            agent_engine_id=existing_engine_id,
+        )
 
-        vertexai.init(project=project_id, location=region)
-        engines = list(reasoning_engines.ReasoningEngine.list())
-        target_engine = None
-        for eng in sorted(
-            engines, key=lambda e: getattr(e, "create_time", None) or "", reverse=True
-        ):
-            if eng.display_name == display_name:
-                target_engine = eng
-                break
+        res_name = (
+            f"projects/499572810092/locations/{region}/reasoningEngines/{existing_engine_id}"
+            if existing_engine_id
+            else None
+        )
+        if not res_name:
+            import vertexai
+            from vertexai.preview import reasoning_engines
 
-        res_name = target_engine.resource_name if target_engine else None
+            vertexai.init(project=project_id, location=region)
+            engines = list(reasoning_engines.ReasoningEngine.list())
+            for eng in sorted(
+                engines, key=lambda e: getattr(e, "create_time", None) or "", reverse=True
+            ):
+                if eng.display_name == display_name:
+                    res_name = eng.resource_name
+                    break
+
         if not res_name:
             print("[!] Could not determine deployed ADK Agent Engine resource name.")
             return 1
@@ -277,7 +325,6 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
         print(f"    View in Console: {console_url}")
 
         # Record deployment metadata
-        metadata_file = Path(SCRIPT_DIR).parent / "deployment_metadata.json"
         metadata = {
             "remote_agent_runtime_id": res_name,
             "deployment_target": "agent_runtime",
@@ -288,8 +335,14 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
         metadata_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         print(f"[*] Saved deployment metadata to {metadata_file}")
 
-        # Update Cloud Run service with active runtime ID
+        # Update Cloud Run service with active runtime ID and 2Gi/2vCPU resources
         update_cloud_run_service(project_id, region, res_name)
+
+        # 2. Post-deploy gate: verify remote Reasoning Engine passes < 3.0s live latency
+        print("[*] Running post-deploy remote Reasoning Engine latency gate (< 3000 ms)...")
+        if not verify_remote_reasoning_engine(res_name, threshold_ms=3000.0):
+            print("[!] Post-deploy remote Reasoning Engine latency check exceeded 3.0s!")
+            return 1
         return 0
     except Exception as err:
         print(f"[!] Deployment failed: {err}")
@@ -297,15 +350,21 @@ def deploy_agent_runtime(project_id: str, region: str, display_name: str) -> int
 
 
 def test_query(resource_name: str, query: str) -> int:
-    """Execute test query against remote Reasoning Engine."""
+    """Execute test query against remote Reasoning Engine via :query REST endpoint."""
     print(f"[*] Querying remote Reasoning Engine: {resource_name}...")
     try:
-        from vertexai.preview import reasoning_engines
+        from app.models.requests import ComparisonRequest
+        from app.routes.compare import _invoke_remote_reasoning_engine
 
-        remote_agent = reasoning_engines.ReasoningEngine(resource_name)
-        response = remote_agent.query(query=query)
+        req = ComparisonRequest(query=query)
+        response = _invoke_remote_reasoning_engine(
+            resource_name=resource_name,
+            request=req,
+            effective_model="tiered-hybrid",
+            effective_synthesis=None,
+        )
         print("[+] Query Response Received:")
-        print(json.dumps(response, indent=2))
+        print(json.dumps(response.model_dump(), indent=2))
         return 0
     except Exception as err:
         print(f"[!] Query failed: {err}")

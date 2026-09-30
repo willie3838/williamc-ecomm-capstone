@@ -81,11 +81,12 @@ output "monitoring_dashboard_id" {
 }
 
 output "looker_studio_linking_urls" {
-  description = "Pre-bound 1-click Looker Studio Linking API URLs for the 3 BigQuery BI reporting views"
+  description = "Pre-bound 1-click Looker Studio Linking API URLs for the Unified Executive Dashboard and BI reporting views"
   value = {
-    category_engagement = "https://lookerstudio.google.com/reporting/create?ds.alias=CategoryEngagement&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_most_compared_categories.table_id}"
-    latency_trends      = "https://lookerstudio.google.com/reporting/create?ds.alias=LatencyTrends&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_latency_performance_trends.table_id}"
-    token_cost          = "https://lookerstudio.google.com/reporting/create?ds.alias=TokenCostAnalytics&ds.connector=bigQuery&ds.projectId=${var.project_id}&ds.type=TABLE&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_token_and_cost_analytics.table_id}"
+    unified_dashboard   = "https://lookerstudio.google.com/reporting/create?c.mode=edit&r.reportName=TechBuy_Unified_Executive_Dashboard&ds.datasourceName=UnifiedExecutiveTelemetry&ds.connector=bigQuery&ds.type=TABLE&ds.projectId=${var.project_id}&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_unified_executive_dashboard.table_id}"
+    category_engagement = "https://lookerstudio.google.com/reporting/create?c.mode=edit&r.reportName=TechBuy_Category_Engagement&ds.datasourceName=CategoryEngagement&ds.connector=bigQuery&ds.type=TABLE&ds.projectId=${var.project_id}&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_most_compared_categories.table_id}"
+    latency_trends      = "https://lookerstudio.google.com/reporting/create?c.mode=edit&r.reportName=TechBuy_Latency_SLA_Trends&ds.datasourceName=LatencyTrends&ds.connector=bigQuery&ds.type=TABLE&ds.projectId=${var.project_id}&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_latency_performance_trends.table_id}"
+    token_cost          = "https://lookerstudio.google.com/reporting/create?c.mode=edit&r.reportName=TechBuy_Token_Cost_Analytics&ds.datasourceName=TokenCostAnalytics&ds.connector=bigQuery&ds.type=TABLE&ds.projectId=${var.project_id}&ds.datasetId=${var.telemetry_dataset_id}&ds.tableId=${google_bigquery_table.vw_token_and_cost_analytics.table_id}"
   }
 }
 

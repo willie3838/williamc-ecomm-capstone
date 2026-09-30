@@ -145,6 +145,43 @@ resource "google_bigquery_table" "evaluation_runs" {
 # BigQuery BI Reporting Views for Looker Studio Dashboards
 # -----------------------------------------------------------------------------
 
+# Unified BI View: Single All-in-One Executive & FinOps Dashboard View for Looker Studio
+resource "google_bigquery_table" "vw_unified_executive_dashboard" {
+  dataset_id = google_bigquery_dataset.telemetry.dataset_id
+  table_id   = "vw_unified_executive_dashboard"
+  project    = var.project_id
+
+  view {
+    query          = <<-SQL
+      SELECT
+        TIMESTAMP_TRUNC(timestamp, HOUR) AS Hour_Timestamp,
+        DATE(timestamp) AS Date,
+        ROUND(AVG(latency_ms), 1) AS Latency_ms,
+        ROUND(AVG(latency_ms) / 1000.0, 2) AS Latency_Seconds,
+        SUM(COALESCE(input_tokens, 0) + COALESCE(output_tokens, 0)) AS Total_Tokens,
+        SUM(COALESCE(input_tokens, 0)) AS Input_Tokens,
+        SUM(COALESCE(output_tokens, 0)) AS Output_Tokens,
+        ROUND(
+          SUM(
+            (COALESCE(input_tokens, 0) / 1000000.0 * 0.075) +
+            (COALESCE(output_tokens, 0) / 1000000.0 * 0.30)
+          ),
+          5
+        ) AS Token_Cost_USD
+      FROM `${var.project_id}.${var.telemetry_dataset_id}.${var.telemetry_table_id}`
+      GROUP BY Hour_Timestamp, Date
+      ORDER BY Hour_Timestamp DESC
+    SQL
+    use_legacy_sql = false
+  }
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+    purpose     = "bi_reporting"
+  }
+}
+
 # BI View 1: Most Compared Product Categories
 resource "google_bigquery_table" "vw_most_compared_categories" {
   dataset_id = google_bigquery_dataset.telemetry.dataset_id
@@ -157,7 +194,8 @@ resource "google_bigquery_table" "vw_most_compared_categories" {
         COALESCE(category, 'All Categories / Unspecified') AS category,
         DATE(timestamp) AS comparison_date,
         COUNT(1) AS comparison_count,
-        ROUND(AVG(latency_ms), 2) AS avg_latency_ms
+        ROUND(AVG(latency_ms), 2) AS avg_latency_ms,
+        ROUND(AVG(latency_ms) / 1000.0, 2) AS avg_latency_seconds
       FROM `${var.project_id}.${var.telemetry_dataset_id}.${var.telemetry_table_id}`
       GROUP BY category, comparison_date
       ORDER BY comparison_count DESC
@@ -185,8 +223,11 @@ resource "google_bigquery_table" "vw_latency_performance_trends" {
         status,
         COUNT(1) AS request_count,
         ROUND(AVG(latency_ms), 2) AS avg_total_latency_ms,
+        ROUND(AVG(latency_ms) / 1000.0, 2) AS avg_latency_seconds,
         ROUND(APPROX_QUANTILES(latency_ms, 100)[OFFSET(95)], 2) AS p95_total_latency_ms,
-        ROUND(AVG(bq_bytes_billed), 0) AS avg_bq_bytes_billed
+        ROUND(APPROX_QUANTILES(latency_ms, 100)[OFFSET(95)] / 1000.0, 2) AS p95_latency_seconds,
+        ROUND(AVG(bq_bytes_billed), 0) AS avg_bq_bytes_billed,
+        ROUND(AVG(bq_bytes_billed) / (1024.0 * 1024.0), 2) AS avg_bq_mb_scanned
       FROM `${var.project_id}.${var.telemetry_dataset_id}.${var.telemetry_table_id}`
       GROUP BY date_bucket, status
       ORDER BY date_bucket DESC
@@ -217,6 +258,7 @@ resource "google_bigquery_table" "vw_token_and_cost_analytics" {
         ROUND(AVG(COALESCE(input_tokens, 0)), 1) AS avg_input_tokens,
         ROUND(AVG(COALESCE(output_tokens, 0)), 1) AS avg_output_tokens,
         SUM(COALESCE(bq_bytes_billed, 0)) AS total_bytes_scanned,
+        ROUND(SUM(COALESCE(bq_bytes_billed, 0)) / (1024.0 * 1024.0), 2) AS total_mb_scanned,
         -- Cost estimate: BQ $6.25 per TB scanned + Gemini 2.5 Flash ($0.075/1M input, $0.30/1M output)
         ROUND(
           (SUM(COALESCE(bq_bytes_billed, 0)) / (1024 * 1024 * 1024 * 1024) * 6.25) +

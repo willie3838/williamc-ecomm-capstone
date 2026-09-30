@@ -197,7 +197,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
   - **Title**: [Capstone Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit)
   - **Presentation ID**: `113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`
 - **Tooling**: Use `/google/bin/releases/gemini-agents-gslides/gslides` (CLI for reading, inspecting elements, and mutating slides via the Google Slides API).
-- **No Local Markdown Slides**: Markdown slide files in the repo (such as `docs/presentation/slides.md`) are unlinked offline drafts and must not be treated as the live deck.
+- **No Local Markdown Slides**: Do not create or maintain local Markdown slide files in the repo (such as `docs/presentation/slides.md`); the Google Slides deck is the single source of truth.
 
 #### 2. Strict Human Edit Preservation Rules (Never Revert User Changes)
 - **Zero Unintended Reverts**: Never touch, reformat, or revert slides that do not need to be changed.
@@ -205,20 +205,25 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 - **Inspect Before Mutating**: Always run `/google/bin/releases/gemini-agents-gslides/gslides readonly list-elements <deck_id> <slide_index> --json` to inspect the exact element IDs and existing text before mutating.
 - **Surgical Updates Only**: Use targeted `mutate update-text --element <ELEMENT_ID>` or batch updates targeting specific element IDs. Never delete or recreate entire slides unless explicitly requested.
 
-#### 3. Current 11-Slide Deck Architecture Reference
+#### 3. Current 16-Slide Deck Architecture Reference
 | Slide # | Slide ID | Title / Topic | Primary Content |
 | :---: | :---: | :--- | :--- |
-| **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $20.90/mo base |
+| **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $547.38/mo net Hybrid TCO |
 | **2** | `slide_02` | Customer Friction | "Spec Overload" drives 68% cart abandonment, 8+ browser tab fatigue |
-| **3** | `slide_03` | Live Demo & Impact | Grounded side-by-side matrices, WINNER badges, clickable `[SKU: ...]` citations |
-| **4** | `slide_04` | Cloud FinOps & TCO | $20.90/mo base (98.8% savings vs GKE + Vector DB + GPU), $0.209/1k queries |
-| **5** | `slide_05` | Observability & Guardrails | 5 production pillars: Model Armor, Cloud Deploy Canary + Prompt/Model Rollback, OpenTelemetry, Multi-Region Run, Evals |
-| **6** | `slide_06` | AI-Driven Development | Outer-loop TDD hillclimbing, specialized agent skills, tmux swarm engineering |
-| **7** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Gateway |
-| **8** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $20.90 TCO, 3.00/3.00 rubric) & Q&A |
-| **9** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives |
-| **10** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter, 4-Node ADK sequential pipeline, BigQuery catalog, CI/CD |
-| **11** | `slide_11` | Appendix B: ADR-004 Scorecard | 4-model evaluation, tiered-hybrid selection, 80-pair counterfactual eval suite |
+| **3** | `slide_03` | Live Demo & Impact | 4-Node ADK pipeline, side-by-side matrices, WINNER badges, clickable `[SKU: ...]` citations |
+| **4** | `slide_04` | Cloud FinOps & TCO | $547.38/mo net Hybrid ($190.38/mo Flash canary; 70.5% savings vs $1,858.20/mo GKE+GPU) |
+| **5** | `slide_05` | Observability & Guardrails | VPC-SC, 4-Node ADK pipeline, Model Armor, Cloud Deploy Canary, OpenTelemetry, Multi-Region Run, Evals |
+| **6** | `slide_06` | AI-Driven Development | Pre-coding `AGENTS.md` harness, Outside-the-Loop TDD hillclimbing, In-the-Loop skills, 4-pane tmux swarm |
+| **7** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Agent Gateway |
+| **8** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
+| **9** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–G) |
+| **10** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter (`fde-bestbuy-sandbox-dev-508321`), 4-Node ADK sequential pipeline, BigQuery catalog, CI/CD |
+| **11** | `slide_11` | Appendix B: ADR-004 Scorecard | 4-model evaluation (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
+| **12** | `slide_12` | Appendix C: Decisions D1–D4 | 4-node pipeline (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
+| **13** | `slide_13` | Appendix D: Decisions D5–D8 | Dual runtime (`D5`), 3-trigger GitOps (`D6`), Triple-Plane IAP (`D7`), bounded telemetry & de-overfitting (`D8`) |
+| **14** | `SLIDES_API1777442355_0` | Appendix E: Drift Dashboards | Live Cloud Monitoring Latency (2,180ms P95) & Token/FinOps ($0.0055/req, 2,060 tokens) drift guards |
+| **15** | `slide_15` | Appendix F: Eval Methodology | 4-stage benchmark & evaluation suite construction (`E1`–`E4`) |
+| **16** | `slide_16` | Appendix G: Executive Q&A Defense | Objection handling (`Q1` Why Not All-Flash vs Hybrid ROI, `Q2` Single-Agent SPEC.md, `Q3` SQL vs Vector DB, `Q4` Split GitOps) |
 
 ---
 

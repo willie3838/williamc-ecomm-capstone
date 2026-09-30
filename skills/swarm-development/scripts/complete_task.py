@@ -102,6 +102,40 @@ def build_pr_body(
     )
 
 
+def verify_live_latency_gate(branch: str, repo_dir: Path, task: str) -> None:
+    """Run backend/scripts/verify_live_latency.py (< 3.0s against live GCP) if present in the repo."""
+    import os as _os
+
+    worktree_dir = repo_dir / ".swarm" / "worktrees" / task
+    target_root = worktree_dir if worktree_dir.exists() else repo_dir
+    script_path = target_root / "backend" / "scripts" / "verify_live_latency.py"
+    if not script_path.exists():
+        return
+
+    print(
+        f"\n--- [PRE-MERGE GATE] Verifying live environment latency (< 3.0s) in {target_root} ---"
+    )
+    venv_python = repo_dir / "backend" / ".venv" / "bin" / "python"
+    python_bin = str(venv_python) if venv_python.exists() else sys.executable
+    env = dict(_os.environ)
+    env.pop("PYTEST_CURRENT_TEST", None)
+    env.pop("HERMETIC_EVAL", None)
+
+    res = subprocess.run(
+        [python_bin, str(script_path)],
+        cwd=target_root / "backend",
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    print(res.stdout)
+    if res.returncode != 0:
+        print(res.stderr, file=sys.stderr)
+        raise RuntimeError(
+            f"Live latency gate (< 3.0s) failed on branch '{branch}'. Refusing to merge!"
+        )
+
+
 def merge_git_branch(
     branch: str,
     base: str,
@@ -112,6 +146,7 @@ def merge_git_branch(
     why_text: str,
 ) -> tuple[str, str | None]:
     """Push branch, create & merge GitHub PR (if origin exists), and return (commit_hash, pr_url)."""
+    verify_live_latency_gate(branch=branch, repo_dir=repo_dir, task=task)
     print(f"\n--- [1/4] Merging git branch '{branch}' into '{base}' ---")
 
     status = run_cmd(["git", "status", "--porcelain"], cwd=repo_dir)

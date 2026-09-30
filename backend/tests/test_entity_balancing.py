@@ -1,7 +1,7 @@
 """Unit tests verifying comparative entity balancing, SKU deduplication, and session counter increments."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.data.analytics import AnalyticsService
@@ -91,11 +91,9 @@ def test_rank_and_select_products_balances_mac_vs_dell():
     ]
 
     orchestrator = ComparisonOrchestrator()
-    # Force heuristic path
-    with patch.object(orchestrator, "_rerank_with_llm", return_value=None):
-        selected = orchestrator.rank_and_select_products(
-            candidates, keywords=["mac", "dell"], original_query="mac vs dell"
-        )
+    selected = orchestrator.rank_and_select_products(
+        candidates, keywords=["mac", "dell"], original_query="mac vs dell"
+    )
 
     assert len(selected) >= 2
     top_two = selected[:2]
@@ -138,12 +136,11 @@ def test_rank_and_select_products_preserves_intra_brand_macbook_air_vs_pro():
     ]
 
     orchestrator = ComparisonOrchestrator()
-    with patch.object(orchestrator, "_rerank_with_llm", return_value=None):
-        selected = orchestrator.rank_and_select_products(
-            candidates,
-            keywords=["MacBook Air 13 M3", "MacBook Pro 14 M3 Pro"],
-            original_query="What are the key differences between MacBook Air 13 M3 and MacBook Pro 14 M3 Pro?",
-        )
+    selected = orchestrator.rank_and_select_products(
+        candidates,
+        keywords=["MacBook Air 13 M3", "MacBook Pro 14 M3 Pro"],
+        original_query="What are the key differences between MacBook Air 13 M3 and MacBook Pro 14 M3 Pro?",
+    )
 
     assert len(selected) >= 2
     top_two_skus = [p.sku for p in selected[:2]]

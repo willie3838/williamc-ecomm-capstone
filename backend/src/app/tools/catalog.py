@@ -103,6 +103,9 @@ catalog_cache = CatalogResponseCache(ttl_seconds=getattr(settings, "cache_ttl_se
 
 _SHARED_BQ_CLIENT: bigquery.Client | None = None
 _BQ_CLIENT_LOCK = threading.Lock()
+_FULL_CATALOG_SNAPSHOT: list[dict[str, Any]] | None = None
+_FULL_CATALOG_SNAPSHOT_EXPIRES: float = 0.0
+_FULL_CATALOG_LOCK = threading.Lock()
 
 
 def _get_shared_bq_client() -> bigquery.Client:
@@ -112,6 +115,128 @@ def _get_shared_bq_client() -> bigquery.Client:
         if _SHARED_BQ_CLIENT is None:
             _SHARED_BQ_CLIENT = bigquery.Client(project=settings.gcp_project)
         return _SHARED_BQ_CLIENT
+
+
+def warm_full_catalog_cache() -> list[dict[str, Any]] | None:
+    """Fetch and cache the full product catalog snapshot in memory for sub-millisecond retrieval."""
+    global _FULL_CATALOG_SNAPSHOT, _FULL_CATALOG_SNAPSHOT_EXPIRES
+    if os.environ.get("PYTEST_CURRENT_TEST") or hasattr(bigquery.Client, "assert_called"):
+        return None
+    now = time.monotonic()
+    if _FULL_CATALOG_SNAPSHOT is not None and now < _FULL_CATALOG_SNAPSHOT_EXPIRES:
+        return _FULL_CATALOG_SNAPSHOT
+    with _FULL_CATALOG_LOCK:
+        now = time.monotonic()
+        if _FULL_CATALOG_SNAPSHOT is not None and now < _FULL_CATALOG_SNAPSHOT_EXPIRES:
+            return _FULL_CATALOG_SNAPSHOT
+        try:
+            client = _get_shared_bq_client()
+            if hasattr(client.query, "assert_called"):
+                return None
+            sql = f"""
+            SELECT sku, name, brand, category, price, rating, review_count, specifications, url, image_url, in_stock
+            FROM `{settings.catalog_table_id}`
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
+            LIMIT 200
+            """.strip()
+            job_config = bigquery.QueryJobConfig(maximum_bytes_billed=50 * 1024 * 1024)
+            if hasattr(client, "query_and_wait"):
+                rows = client.query_and_wait(sql, job_config=job_config, wait_timeout=3.0)
+            else:
+                rows = client.query(sql, job_config=job_config).result(timeout=3.0)
+            snapshot: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for row in rows:
+                row_dict = dict(row) if hasattr(row, "keys") else row
+                sku = str(row_dict.get("sku") or "").strip()
+                if not sku or sku in seen:
+                    continue
+                specs_raw = row_dict.get("specifications")
+                if isinstance(specs_raw, str):
+                    try:
+                        specifications = json.loads(specs_raw)
+                    except Exception:
+                        specifications = {}
+                elif isinstance(specs_raw, dict):
+                    specifications = specs_raw
+                else:
+                    specifications = {}
+                try:
+                    price = float(row_dict["price"]) if row_dict.get("price") is not None else 0.0
+                except (ValueError, TypeError):
+                    continue
+                try:
+                    rating = (
+                        float(row_dict["rating"]) if row_dict.get("rating") is not None else None
+                    )
+                except (ValueError, TypeError):
+                    rating = None
+                try:
+                    review_count = (
+                        int(row_dict["review_count"])
+                        if row_dict.get("review_count") is not None
+                        else None
+                    )
+                except (ValueError, TypeError):
+                    review_count = None
+                url = row_dict.get("url") or f"https://www.techbuy.com/site/sku/{sku}.p"
+                snapshot.append(
+                    {
+                        "sku": sku,
+                        "name": str(row_dict.get("name") or ""),
+                        "brand": str(row_dict.get("brand") or ""),
+                        "category": row_dict.get("category"),
+                        "price": price,
+                        "rating": rating,
+                        "review_count": review_count,
+                        "specifications": specifications,
+                        "url": url,
+                        "image_url": row_dict.get("image_url"),
+                        "in_stock": bool(row_dict.get("in_stock", True)),
+                    }
+                )
+                seen.add(sku)
+            if snapshot:
+                _FULL_CATALOG_SNAPSHOT = snapshot
+                _FULL_CATALOG_SNAPSHOT_EXPIRES = time.monotonic() + getattr(
+                    settings, "cache_ttl_seconds", 300
+                )
+                logger.info("Warmed full catalog snapshot with %d products.", len(snapshot))
+            return _FULL_CATALOG_SNAPSHOT
+        except Exception as err:
+            logger.debug("Full catalog snapshot warm skipped: %s", err)
+            return None
+
+
+def _match_from_snapshot(
+    snapshot: list[dict[str, Any]],
+    patterns: list[str],
+    category: str | None,
+    min_price: float | None,
+    max_price: float | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Filter and rank products from the warmed BigQuery catalog snapshot using exact SQL parity."""
+    clean_pats = [p.strip("%").lower() for p in patterns if p.strip("%")]
+    scored: list[tuple[int, float, dict[str, Any]]] = []
+    cat_low = category.strip().lower() if category else None
+    for item in snapshot:
+        item_cat = str(item.get("category") or "").lower()
+        if cat_low and item_cat != cat_low:
+            continue
+        price = float(item.get("price") or 0.0)
+        if min_price is not None and price < min_price:
+            continue
+        if max_price is not None and price > max_price:
+            continue
+        name_low = str(item.get("name") or "").lower()
+        brand_low = str(item.get("brand") or "").lower()
+        if not any(pat in name_low or pat in brand_low or pat in item_cat for pat in clean_pats):
+            continue
+        score_hits = sum(1 for pat in clean_pats if pat in name_low or pat in brand_low)
+        scored.append((-score_hits, price, dict(item)))
+    scored.sort(key=lambda x: (x[0], x[1]))
+    return [m[2] for m in scored[: int(limit)]]
 
 
 def query_catalog(
@@ -276,6 +401,30 @@ def query_catalog(
                 patterns.append(f"%{t}%")
         # Deduplicate while preserving order
         patterns = list(dict.fromkeys(patterns))
+
+        if (
+            should_cache
+            and not injected_client
+            and not os.environ.get("PYTEST_CURRENT_TEST")
+            and not hasattr(bigquery.Client, "assert_called")
+            and not hasattr(client.query, "assert_called")
+        ):
+            snapshot = warm_full_catalog_cache()
+            if snapshot is not None:
+                matched_products = _match_from_snapshot(
+                    snapshot=snapshot,
+                    patterns=patterns,
+                    category=category,
+                    min_price=min_price,
+                    max_price=max_price,
+                    limit=limit,
+                )
+                catalog_cache.set(cache_key, matched_products)
+                span.set_attribute("bq.snapshot_hit", True)
+                span.set_attribute("bq.result_count", len(matched_products))
+                span.set_attribute("bq.bytes_billed", 0)
+                span.set_status(StatusCode.OK)
+                return matched_products
 
         query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
             bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),

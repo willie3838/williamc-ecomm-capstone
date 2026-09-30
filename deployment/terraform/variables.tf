@@ -173,4 +173,10 @@ variable "iap_authorized_user" {
   default     = "user:admin@williamwlchan.altostrat.com"
 }
 
+variable "iap_authorized_domain" {
+  type        = string
+  description = "Google Workspace domain granted IAP HTTPS resource access"
+  default     = "domain:google.com"
+}
+
 

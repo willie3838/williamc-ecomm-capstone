@@ -129,10 +129,12 @@ AUTH_SCRIPT="${REPO_ROOT}/skills/hillclimb/scripts/check_gcloud_auth.sh"
 LIVE_SCRIPT="${REPO_ROOT}/skills/hillclimb/scripts/run_live_gcloud_checks.py"
 
 if [ "$LIVE_GCLOUD" = true ]; then
-  echo "[ENFORCED] Running mandatory live Google Cloud verification..."
+  echo "[ENFORCED] Running mandatory live Google Cloud verification & <3.0s latency gate..."
+  env -u PYTEST_CURRENT_TEST -u HERMETIC_EVAL "${PYTHON_BIN}" "${BACKEND_DIR}/scripts/verify_live_latency.py" --threshold-ms 3000
   "${PYTHON_BIN}" "${LIVE_SCRIPT}"
 elif bash "${AUTH_SCRIPT}" >/dev/null 2>&1; then
-  echo "[DETECTED] Active Google Cloud authentication found. Running live cloud checks..."
+  echo "[DETECTED] Active Google Cloud authentication found. Running live <3.0s latency gate & cloud checks..."
+  env -u PYTEST_CURRENT_TEST -u HERMETIC_EVAL "${PYTHON_BIN}" "${BACKEND_DIR}/scripts/verify_live_latency.py" --threshold-ms 3000
   "${PYTHON_BIN}" "${LIVE_SCRIPT}" --allow-unauthenticated
 else
   echo "[INFO] Live Google Cloud checks skipped (local hermetic mode). Run with --live-gcloud to enforce."

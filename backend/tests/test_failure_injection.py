@@ -87,11 +87,11 @@ class TestBigQueryFailureModes:
 
 
 class TestVertexAIFailureModes:
-    """Simulate and verify Vertex AI foundation model failure modes and fallback."""
+    """Simulate and verify Vertex AI foundation model failure modes raise fail-fast exceptions."""
 
     @patch("google.genai.Client")
-    def test_vertex_ai_429_quota_exceeded_falls_back_to_heuristics(self, mock_client_cls):
-        """Verify HTTP 429 quota exhaustion gracefully falls back to deterministic heuristic reranking."""
+    def test_vertex_ai_429_quota_exceeded_raises_error(self, mock_client_cls):
+        """Verify HTTP 429 quota exhaustion raises fail-fast error without silent heuristic fallback."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         mock_client.models.generate_content.side_effect = g_exceptions.ResourceExhausted(
@@ -106,17 +106,14 @@ class TestVertexAIFailureModes:
             sku="222", name="Dell XPS 13", price=999.0, brand="Dell", category="Laptops"
         )
 
-        # Rerank with LLM should gracefully return None and orchestrator falls back to heuristics
-        result = orchestrator.rank_and_select_products(
-            [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
-        )
-
-        assert len(result) == 2
-        assert {p.sku for p in result} == {"111", "222"}
+        with pytest.raises(g_exceptions.ResourceExhausted):
+            orchestrator.rank_and_select_products(
+                [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
+            )
 
     @patch("google.genai.Client")
-    def test_vertex_ai_500_internal_error_fallback(self, mock_client_cls):
-        """Verify downstream 500 error from foundation model does not break the user experience."""
+    def test_vertex_ai_500_internal_error_raises_error(self, mock_client_cls):
+        """Verify downstream 500 error from foundation model raises fail-fast error."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         mock_client.models.generate_content.side_effect = g_exceptions.InternalServerError(
@@ -131,14 +128,14 @@ class TestVertexAIFailureModes:
             sku="222", name="Bose QC Ultra", price=429.0, brand="Bose", category="Headphones"
         )
 
-        result = orchestrator.rank_and_select_products(
-            [p1, p2], keywords=["sony", "bose"], original_query="Sony vs Bose"
-        )
-        assert len(result) == 2
+        with pytest.raises(g_exceptions.InternalServerError):
+            orchestrator.rank_and_select_products(
+                [p1, p2], keywords=["sony", "bose"], original_query="Sony vs Bose"
+            )
 
     @patch("google.genai.Client")
     def test_vertex_ai_garbage_json_response_handling(self, mock_client_cls):
-        """Verify model returning non-JSON garbage or hallucinated structure is caught and handled."""
+        """Verify model returning non-JSON garbage or hallucinated structure raises RuntimeError."""
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         mock_response = MagicMock()
@@ -154,10 +151,10 @@ class TestVertexAIFailureModes:
             sku="222", name="Dell XPS 13", price=999.0, brand="Dell", category="Laptops"
         )
 
-        result = orchestrator.rank_and_select_products(
-            [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
-        )
-        assert len(result) == 2
+        with pytest.raises((RuntimeError, ValueError)):
+            orchestrator.rank_and_select_products(
+                [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
+            )
 
 
 class TestDataCorruptionAndBoundaryFailures:

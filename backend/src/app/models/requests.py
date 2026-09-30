@@ -113,6 +113,24 @@ class ComparisonSynthesis(BaseModel):
         description="Optional tailored buying guidance explaining which product to choose based on user persona or priority use cases, strictly citing [SKU: <sku>].",
     )
 
+    @field_validator("summary", mode="before")
+    @classmethod
+    def coerce_summary_to_str(cls, v: object) -> str:
+        if isinstance(v, list):
+            return " ".join(str(item) for item in v if item is not None)
+        return str(v) if v is not None else ""
+
+    @field_validator("recommendations", mode="before")
+    @classmethod
+    def coerce_recommendations_to_str(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return "\n".join(str(item) for item in v if item is not None)
+        if isinstance(v, dict):
+            return "\n".join(f"{k}: {val}" for k, val in v.items())
+        return str(v)
+
 
 class CandidateRankItem(BaseModel):
     """Individual SKU relevance score from the LLM reranker."""

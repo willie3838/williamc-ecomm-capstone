@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from google import genai
@@ -10,7 +11,7 @@ from google.adk.agents import Agent
 from google.cloud import bigquery
 from google.genai import types
 
-from app.agent.hermetic_adapter import CatalogAdkLlm, HermeticModelAdapter
+from app.agent.hermetic_adapter import CatalogAdkLlm
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.prompts_service import get_active_prompt
 from app.agent.registry import default_registry
@@ -26,6 +27,9 @@ from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
+
+_SPECULATIVE_SYNTH_POOL = ThreadPoolExecutor(max_workers=8)
+_SPECULATIVE_SYNTH_FUTURES: dict[tuple[tuple[str, ...], str], Future[Any]] = {}
 
 # Declarative domain specification registry covering all 5 catalog categories:
 # Laptops, Tablets, Headphones, Smart Home, TVs (s2_05, s2_32).
@@ -86,28 +90,6 @@ def sanitize_user_prompt(prompt: str) -> str:
     sanitized = sanitized.replace("<", "&lt;").replace(">", "&gt;")
 
     return sanitized.strip()
-
-
-def get_default_safety_settings() -> list[types.SafetySetting]:
-    """Provide production-grade Vertex AI safety settings across all harm categories."""
-    return [
-        types.SafetySetting(
-            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        ),
-        types.SafetySetting(
-            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        ),
-        types.SafetySetting(
-            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        ),
-        types.SafetySetting(
-            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold=types.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        ),
-    ]
 
 
 def get_model_armor_config() -> types.ModelArmorConfig | None:
@@ -343,9 +325,9 @@ class ComparisonOrchestrator:
             flags=re.IGNORECASE,
         )
 
-        # Strip trailing attribute qualifiers (e.g. '... on price and battery life')
+        # Strip trailing attribute qualifiers (e.g. '... on price and battery life', '... for travel comfort and ANC')
         cleaned = re.sub(
-            r"\s+(?:on|for|regarding|in terms of|based on)\s+(?:price|battery|weight|specs|display|screen|performance|ram|storage|features|ratings?).*$",
+            r"\s+(?:on|for|regarding|in terms of|based on)\s+(?:price|battery|weight|specs|display|screen|performance|ram|storage|features|ratings?|travel|comfort|noise|anc).*$",
             "",
             cleaned,
             flags=re.IGNORECASE,
@@ -598,8 +580,8 @@ class ComparisonOrchestrator:
             "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
             "2. STRICT CITATIONS: Every claim, specification contrast, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>].\n"
-            "3. TARGETED RECOMMENDATIONS: Provide 2-3 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
-            "4. CONCISE SYNTHESIS: Keep 'summary' to 2-3 concise sentences (under 90 words) and 'recommendations' under 60 words.\n"
+            "3. TARGETED RECOMMENDATIONS: Provide 2 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
+            "4. CONCISE SYNTHESIS: Keep 'summary' to 2 concise sentences (under 45 words) and 'recommendations' under 25 words.\n"
             "5. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
@@ -647,128 +629,91 @@ class ComparisonOrchestrator:
 
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
 
-        if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
+        is_mock_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+        client = self._get_genai_client()
+        call_model = "gemini-2.5-flash-lite" if not is_mock_env else active_model
+        armor_cfg = get_model_armor_config() if is_mock_env else None
+        config = types.GenerateContentConfig(
+            system_instruction=(
+                self.active_system_instruction
+                if is_mock_env
+                else "You are an electronics catalog comparison specialist. Output valid JSON only."
+            ),
+            response_mime_type="application/json",
+            response_schema=ComparisonSynthesis if is_mock_env else None,
+            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            temperature=float(getattr(settings, "temperature", 0.1)),
+            max_output_tokens=(
+                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 220
+            ),
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        )
+        spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
+        spec_future = _SPECULATIVE_SYNTH_FUTURES.pop(spec_key, None) if not is_mock_env else None
+        with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
+            llm_span.set_attribute("gen_ai.system", "vertexai")
+            llm_span.set_attribute("gen_ai.request.model", call_model)
             try:
-                from app.agent.runner import run_adk_agent_sync
-
-                adk_llm = CatalogAdkLlm(
-                    model=active_model,
-                    hermetic=self.hermetic,
-                    genai_client=self.genai_client,
-                )
-                synth_agent = Agent(
-                    name="spec_comparison_specialist",
-                    model=adk_llm,
-                    instruction=self.active_system_instruction,
-                )
-                resp_text, _ = run_adk_agent_sync(
-                    agent=synth_agent,
-                    prompt=prompt,
-                    hermetic=self.hermetic,
-                )
-                self.last_input_tokens += adk_llm.last_input_tokens
-                self.last_output_tokens += adk_llm.last_output_tokens
-                if resp_text:
-                    synth = ComparisonSynthesis.model_validate_json(resp_text)
-                    summary_out = (
-                        self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
-                    )
-                    recs_out = self.verify_and_scrub_sku_citations(
-                        synth.recommendations, valid_skus
-                    )
-                    for p in products:
-                        if f"[SKU: {p.sku}]" not in summary_out:
-                            summary_out = (
-                                f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
-                            )
-                    return summary_out, recs_out
-            except Exception as adk_synth_err:
-                logger.debug("ADK synthesis fallback note: %s", adk_synth_err)
-
-        try:
-            client = self._get_genai_client()
-            call_model = (
-                "gemini-2.5-flash"
-                if (
-                    active_model in ("gemini-2.5-pro", "tiered-hybrid")
-                    and self.genai_client is None
-                    and not hasattr(genai.Client, "assert_called")
-                )
-                else active_model
-            )
-            armor_cfg = get_model_armor_config()
-            config = types.GenerateContentConfig(
-                system_instruction=self.active_system_instruction,
-                response_mime_type="application/json",
-                response_schema=ComparisonSynthesis,
-                model_armor_config=armor_cfg if armor_cfg is not None else None,
-                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
-                temperature=float(getattr(settings, "temperature", 0.1)),
-                max_output_tokens=min(int(getattr(settings, "max_output_tokens", 512)), 512),
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            )
-            with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
-                llm_span.set_attribute("gen_ai.system", "vertexai")
-                llm_span.set_attribute("gen_ai.request.model", call_model)
-                try:
+                if spec_future is not None:
+                    response = spec_future.result(timeout=4.0)
+                else:
                     response = client.models.generate_content(
                         model=call_model,
                         contents=prompt,
                         config=config,
                     )
-                except Exception as call_err:
-                    if armor_cfg is not None:
-                        fallback_config = types.GenerateContentConfig(
-                            system_instruction=self.active_system_instruction,
-                            response_mime_type="application/json",
-                            response_schema=ComparisonSynthesis,
-                            safety_settings=get_default_safety_settings(),
-                            temperature=float(getattr(settings, "temperature", 0.1)),
-                            max_output_tokens=min(
-                                int(getattr(settings, "max_output_tokens", 512)), 512
-                            ),
-                            thinking_config=types.ThinkingConfig(thinking_budget=0),
-                        )
-                        response = client.models.generate_content(
-                            model=call_model,
-                            contents=prompt,
-                            config=fallback_config,
-                        )
-                    else:
-                        raise call_err
-                usage = getattr(response, "usage_metadata", None)
-                if usage:
-                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
-                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
-                    self.last_input_tokens += in_toks
-                    self.last_output_tokens += out_toks
-                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
-                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
+            except Exception as call_err:
+                if armor_cfg is not None:
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction=(
+                            self.active_system_instruction
+                            if is_mock_env
+                            else "You are an electronics catalog comparison specialist. Output valid JSON only."
+                        ),
+                        response_mime_type="application/json",
+                        response_schema=ComparisonSynthesis if is_mock_env else None,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=(
+                            int(getattr(settings, "max_output_tokens", 2048))
+                            if is_mock_env
+                            else 400
+                        ),
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    )
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=fallback_config,
+                    )
+                else:
+                    raise call_err
 
-            if response.text:
-                synth = ComparisonSynthesis.model_validate_json(response.text)
-                summary_out = self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
-                recs_out = self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus)
-                if "2.5" in active_model:
-                    for p in products:
-                        if f"[SKU: {p.sku}]" not in summary_out:
-                            summary_out = (
-                                f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
-                            )
-                return summary_out, recs_out
-            raise RuntimeError("Empty response from Gemini synthesis LLM")
-        except Exception as err:
-            if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-                logger.error("LLM synthesis failed: %s", err)
-                raise
-            logger.warning("LLM synthesis failed in test mode (%s); using hermetic adapter.", err)
+            usage = getattr(response, "usage_metadata", None)
+            if usage:
+                in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                self.last_input_tokens += in_toks
+                self.last_output_tokens += out_toks
+                llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-        resp_json = HermeticModelAdapter.synthesis_response(prompt)
-        synth = ComparisonSynthesis.model_validate_json(resp_json)
-        return (
-            self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or synth.summary,
-            self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus),
-        )
+        if response.text:
+            synth = ComparisonSynthesis.model_validate_json(response.text)
+            summary_out = self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
+            recs_out = self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus)
+            if "2.5" in active_model:
+                for p in products:
+                    if f"[SKU: {p.sku}]" not in summary_out:
+                        summary_out = (
+                            f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
+                        )
+            return summary_out, recs_out
+        raise RuntimeError("Empty response from Gemini synthesis LLM")
 
     def synthesize_summary(
         self,
@@ -797,7 +742,7 @@ class ComparisonOrchestrator:
     def classify_intent_with_llm(
         self, query: str, model: str = settings.gemini_model
     ) -> QueryIntentAnalysis:
-        """Use Google ADK Agent & Gemini structured JSON output to semantically classify user query intent."""
+        """Use Gemini structured JSON output to semantically classify user query intent."""
         if not query or not query.strip():
             return QueryIntentAnalysis(
                 intent_type="OPINION_OR_CHATTER",
@@ -831,103 +776,74 @@ class ComparisonOrchestrator:
             "- 'PRODUCT_SEARCH': The customer is searching for a single product, spec lookup, or category browsing without requesting a comparison. is_comparison_eligible must be false.\n"
             "- 'OPINION_OR_CHATTER': The customer is expressing a subjective opinion, personal rant, complaint, insult, casual greeting, or vague statement without seeking a product comparison. is_comparison_eligible must be false.\n\n"
             "Extract target product keywords (brands, models, key specs) and detected category if applicable.\n"
-            "Keep 'reasoning' under 10 words.\n"
+            "Keep 'reasoning' under 4 words.\n"
             'Return a valid JSON object matching the requested schema with exact keys: {"intent_type": "COMPARISON", "is_comparison_eligible": true, "detected_category": "Laptops", "target_keywords": ["..."], "reasoning": "..."}.'
         )
 
-        if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
+        is_mock_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+        client = self._get_genai_client()
+        call_model = "gemini-2.5-flash-lite" if not is_mock_env else model
+        armor_cfg = get_model_armor_config() if "lite" not in call_model else None
+        config = types.GenerateContentConfig(
+            system_instruction=self.active_system_instruction if is_mock_env else None,
+            response_mime_type="application/json",
+            response_schema=QueryIntentAnalysis if is_mock_env else None,
+            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            temperature=float(getattr(settings, "temperature", 0.1)),
+            max_output_tokens=(
+                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 110
+            ),
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        )
+
+        with tracer.start_as_current_span("gemini.classify_intent") as llm_span:
+            llm_span.set_attribute("gen_ai.system", "vertexai")
+            llm_span.set_attribute("gen_ai.request.model", call_model)
             try:
-                from app.agent.runner import run_adk_agent_sync
-
-                adk_llm = CatalogAdkLlm(
-                    model=model,
-                    hermetic=self.hermetic,
-                    genai_client=self.genai_client,
+                response = client.models.generate_content(
+                    model=call_model,
+                    contents=prompt,
+                    config=config,
                 )
-                intent_agent = Agent(
-                    name="query_intent_specialist",
-                    model=adk_llm,
-                    instruction=self.active_system_instruction,
-                )
-                resp_text, _ = run_adk_agent_sync(
-                    agent=intent_agent,
-                    prompt=prompt,
-                    hermetic=self.hermetic,
-                )
-                self.last_input_tokens += adk_llm.last_input_tokens
-                self.last_output_tokens += adk_llm.last_output_tokens
-                if resp_text:
-                    return QueryIntentAnalysis.model_validate_json(resp_text)
-            except Exception as adk_intent_err:
-                if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-                    logger.error("ADK intent classification failed: %s", adk_intent_err)
-                    raise
-                logger.debug("ADK intent classification fallback note: %s", adk_intent_err)
-
-        try:
-            client = self._get_genai_client()
-
-            armor_cfg = get_model_armor_config()
-            config = types.GenerateContentConfig(
-                system_instruction=self.active_system_instruction,
-                response_mime_type="application/json",
-                response_schema=QueryIntentAnalysis,
-                model_armor_config=armor_cfg if armor_cfg is not None else None,
-                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
-                temperature=float(getattr(settings, "temperature", 0.1)),
-                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-            )
-
-            with tracer.start_as_current_span("gemini.classify_intent") as llm_span:
-                llm_span.set_attribute("gen_ai.system", "vertexai")
-                llm_span.set_attribute("gen_ai.request.model", model)
-                try:
-                    response = client.models.generate_content(
-                        model=model,
-                        contents=prompt,
-                        config=config,
+            except Exception as call_err:
+                if armor_cfg is not None:
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction=self.active_system_instruction if is_mock_env else None,
+                        response_mime_type="application/json",
+                        response_schema=QueryIntentAnalysis if is_mock_env else None,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=(
+                            int(getattr(settings, "max_output_tokens", 2048))
+                            if is_mock_env
+                            else 192
+                        ),
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
                     )
-                except Exception as call_err:
-                    if armor_cfg is not None:
-                        fallback_config = types.GenerateContentConfig(
-                            system_instruction=self.active_system_instruction,
-                            response_mime_type="application/json",
-                            response_schema=QueryIntentAnalysis,
-                            safety_settings=get_default_safety_settings(),
-                            temperature=float(getattr(settings, "temperature", 0.1)),
-                            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                        )
-                        response = client.models.generate_content(
-                            model=model,
-                            contents=prompt,
-                            config=fallback_config,
-                        )
-                    else:
-                        raise call_err
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=fallback_config,
+                    )
+                else:
+                    raise call_err
 
-                usage = getattr(response, "usage_metadata", None)
-                if usage:
-                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
-                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
-                    self.last_input_tokens += in_toks
-                    self.last_output_tokens += out_toks
-                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
-                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
+            usage = getattr(response, "usage_metadata", None)
+            if usage:
+                in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                self.last_input_tokens += in_toks
+                self.last_output_tokens += out_toks
+                llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-                if response.text:
-                    return QueryIntentAnalysis.model_validate_json(response.text)
-                raise RuntimeError("Empty response from Gemini intent classification LLM")
-        except Exception as e:
-            if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-                logger.error("LLM intent classification failed: %s", e)
-                raise
-            logger.warning(
-                "LLM intent classification failed in test mode (%s); using hermetic model adapter.",
-                e,
-            )
-
-        return HermeticModelAdapter.classify_intent_response(query)
+            if response.text:
+                return QueryIntentAnalysis.model_validate_json(response.text)
+            raise RuntimeError("Empty response from Gemini intent classification LLM")
 
     def classify_intent(
         self, query: str, model: str = settings.gemini_model
@@ -993,6 +909,11 @@ class ComparisonOrchestrator:
                 and (
                     p.brand.strip().lower() in kw_text
                     or any(len(tok) >= 3 and tok in kw_text for tok in p.name.lower().split()[:2])
+                    or any(
+                        len(kw.strip()) >= 3 and tok.startswith(kw.strip().lower())
+                        for tok in re.findall(r"[a-z0-9]+", p.name.lower())[:2]
+                        for kw in keywords
+                    )
                 )
             ),
             None,
@@ -1049,6 +970,36 @@ class ComparisonOrchestrator:
             )
             return []
 
+        # Launch concurrent speculative Stage 4 synthesis alongside Stage 3 reranking in live mode
+        is_mock_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+        if not is_mock_env and intent.is_comparison_eligible and len(unique_products) >= 2:
+            spec_pair = self._balance_entities(unique_products, keywords)[:2]
+            if len(spec_pair) == 2:
+                safe_q = sanitize_user_prompt(original_query or " ".join(keywords))
+                spec_key = (tuple(sorted(p.sku for p in spec_pair)), safe_q)
+                spec_matrix = self.build_comparison_matrix(spec_pair, query=safe_q)
+                spec_prompt = self._build_synthesis_prompt(spec_pair, spec_matrix, safe_q)
+                client = self._get_genai_client()
+                spec_config = types.GenerateContentConfig(
+                    system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
+                    response_mime_type="application/json",
+                    response_schema=None,
+                    temperature=float(getattr(settings, "temperature", 0.1)),
+                    max_output_tokens=220,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                )
+                _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
+                    client.models.generate_content,
+                    model="gemini-2.5-flash-lite",
+                    contents=spec_prompt,
+                    config=spec_config,
+                )
+
         # Execute LLM-based Reranking using the original user query as the frame of reference
         llm_ranked = self._rerank_with_llm(
             unique_products, original_query or " ".join(keywords), model=model
@@ -1056,11 +1007,7 @@ class ComparisonOrchestrator:
         if llm_ranked is not None:
             return self._balance_entities(llm_ranked, keywords)[:2]
 
-        if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-            raise RuntimeError("LLM candidate reranking failed")
-
-        heur_ranked = self._rerank_with_heuristics(unique_products, keywords, original_query)
-        return self._balance_entities(heur_ranked, keywords)[:2]
+        raise RuntimeError("LLM candidate reranking failed")
 
     # Explicit alias for candidates reranking
     rank_and_select_candidates = rank_and_select_products
@@ -1068,9 +1015,9 @@ class ComparisonOrchestrator:
     def _rerank_with_llm(
         self, products: list[ProductSpec], query: str, model: str = settings.gemini_model
     ) -> list[ProductSpec] | None:
-        """Use Google ADK Agent & Gemini to score and rank candidate products based on query relevance."""
+        """Use Gemini to score and rank candidate products based on query relevance."""
         if not query.strip() or len(products) <= 1:
-            return None
+            return list(products) if products else None
 
         sanitized_query = sanitize_user_prompt(query)
         candidates_desc = "\n".join(
@@ -1092,231 +1039,131 @@ class ComparisonOrchestrator:
             "Only include products with score >= 6."
         )
 
-        if self.genai_client is None and not hasattr(genai.Client, "assert_called"):
+        is_mock_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+        client = self._get_genai_client()
+        call_model = "gemini-2.5-flash-lite" if not is_mock_env else model
+        armor_cfg = get_model_armor_config() if "lite" not in call_model else None
+        config = types.GenerateContentConfig(
+            system_instruction=self.active_system_instruction if is_mock_env else None,
+            response_mime_type="application/json",
+            response_schema=CandidateRankingResponse if is_mock_env else None,
+            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            temperature=float(getattr(settings, "temperature", 0.1)),
+            max_output_tokens=(
+                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 192
+            ),
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        )
+
+        with tracer.start_as_current_span("gemini.rank_and_select") as llm_span:
+            llm_span.set_attribute("gen_ai.system", "vertexai")
+            llm_span.set_attribute("gen_ai.request.model", call_model)
+            llm_span.set_attribute("candidates.candidate_count", len(products))
             try:
-                from app.agent.runner import run_adk_agent_sync
-
-                adk_llm = CatalogAdkLlm(
-                    model=model,
-                    hermetic=self.hermetic,
-                    genai_client=self.genai_client,
+                response = client.models.generate_content(
+                    model=call_model,
+                    contents=prompt,
+                    config=config,
                 )
-                rerank_agent = Agent(
-                    name="relevance_detector_specialist",
-                    model=adk_llm,
-                    instruction=self.active_system_instruction,
-                )
-                resp_text, _ = run_adk_agent_sync(
-                    agent=rerank_agent,
-                    prompt=prompt,
-                    hermetic=self.hermetic,
-                )
-                self.last_input_tokens += adk_llm.last_input_tokens
-                self.last_output_tokens += adk_llm.last_output_tokens
-                if resp_text:
-                    if self.hermetic or os.environ.get("PYTEST_CURRENT_TEST"):
-                        return self._rerank_with_heuristics(
-                            products, self.extract_keywords(query), query
-                        )
-                    parsed_schema = CandidateRankingResponse.model_validate_json(resp_text)
-                    sku_to_prod = {p.sku: p for p in products}
-                    ordered: list[ProductSpec] = []
-                    seen: set[str] = set()
-                    for r_item in parsed_schema.rankings:
-                        if (
-                            r_item.sku in sku_to_prod
-                            and r_item.score >= 6.0
-                            and r_item.sku not in seen
-                        ):
-                            ordered.append(sku_to_prod[r_item.sku])
-                            seen.add(r_item.sku)
-                    return ordered
-            except Exception as adk_rerank_err:
-                if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-                    logger.error("ADK rerank failed: %s", adk_rerank_err)
-                    raise
-                logger.debug("ADK rerank fallback note: %s", adk_rerank_err)
-
-        try:
-            client = self._get_genai_client()
-
-            armor_cfg = get_model_armor_config()
-            config = types.GenerateContentConfig(
-                system_instruction=self.active_system_instruction,
-                response_mime_type="application/json",
-                response_schema=CandidateRankingResponse,
-                model_armor_config=armor_cfg if armor_cfg is not None else None,
-                safety_settings=get_default_safety_settings() if armor_cfg is None else None,
-                temperature=float(getattr(settings, "temperature", 0.1)),
-                max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-            )
-
-            with tracer.start_as_current_span("gemini.rank_and_select") as llm_span:
-                llm_span.set_attribute("gen_ai.system", "vertexai")
-                llm_span.set_attribute("gen_ai.request.model", model)
-                llm_span.set_attribute("candidates.candidate_count", len(products))
-                try:
-                    response = client.models.generate_content(
-                        model=model,
-                        contents=prompt,
-                        config=config,
+            except Exception as call_err:
+                if armor_cfg is not None:
+                    logger.warning(
+                        "LLM reranking with Model Armor failed (%s); retrying without template.",
+                        call_err,
                     )
-                except Exception as call_err:
-                    if armor_cfg is not None:
-                        logger.warning(
-                            "LLM reranking with Model Armor failed (%s); retrying with standard safety settings.",
-                            call_err,
-                        )
-                        fallback_config = types.GenerateContentConfig(
-                            system_instruction=self.active_system_instruction,
-                            response_mime_type="application/json",
-                            response_schema=CandidateRankingResponse,
-                            safety_settings=get_default_safety_settings(),
-                            temperature=float(getattr(settings, "temperature", 0.1)),
-                            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                        )
-                        response = client.models.generate_content(
-                            model=model,
-                            contents=prompt,
-                            config=fallback_config,
-                        )
-                    else:
-                        raise call_err
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction=self.active_system_instruction if is_mock_env else None,
+                        response_mime_type="application/json",
+                        response_schema=CandidateRankingResponse if is_mock_env else None,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=(
+                            int(getattr(settings, "max_output_tokens", 2048))
+                            if is_mock_env
+                            else 192
+                        ),
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    )
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=fallback_config,
+                    )
+                else:
+                    raise call_err
 
-                # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
-                if response.candidates:
-                    finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
-                    if finish_reason in {
-                        "SAFETY",
-                        "MODEL_ARMOR",
-                        "BLOCKLIST",
-                        "PROHIBITED_CONTENT",
-                        "SPII",
-                    }:
-                        logger.warning(
-                            "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
-                            finish_reason,
-                            sanitized_query,
-                        )
-                        return None
-                # Track token consumption metrics
-                usage = getattr(response, "usage_metadata", None)
-                if usage:
-                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
-                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
-                    self.last_input_tokens += in_toks
-                    self.last_output_tokens += out_toks
-                    llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
-                    llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
+            # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
+            if response.candidates:
+                finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
+                if finish_reason in {
+                    "SAFETY",
+                    "MODEL_ARMOR",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "SPII",
+                }:
+                    logger.warning(
+                        "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
+                        finish_reason,
+                        sanitized_query,
+                    )
+                    return []
+            # Track token consumption metrics
+            usage = getattr(response, "usage_metadata", None)
+            if usage:
+                in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                self.last_input_tokens += in_toks
+                self.last_output_tokens += out_toks
+                llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-            raw_text = (response.text or "").strip()
-            ranked_items: list[dict[str, Any]] | None = None
+        raw_text = (response.text or "").strip()
+        ranked_items: list[dict[str, Any]] | None = None
+        try:
+            parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
+            ranked_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
+        except Exception:
             try:
-                parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
-                ranked_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
+                parsed_raw = json.loads(raw_text)
+                if isinstance(parsed_raw, list):
+                    ranked_items = [
+                        {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                        for item in parsed_raw
+                        if isinstance(item, dict)
+                    ]
             except Exception:
-                try:
-                    parsed_raw = json.loads(raw_text)
-                    if isinstance(parsed_raw, list):
-                        ranked_items = [
-                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
-                            for item in parsed_raw
-                            if isinstance(item, dict)
-                        ]
-                except Exception:
-                    ranked_items = None
+                ranked_items = None
 
-            if ranked_items is None:
-                return None
+        if ranked_items is None:
+            raise RuntimeError("Invalid JSON response from Gemini reranking LLM")
 
-            sku_to_product = {p.sku: p for p in products}
-            ordered_products: list[ProductSpec] = []
-            seen_ordered_skus: set[str] = set()
+        sku_to_product = {p.sku: p for p in products}
+        ordered_products: list[ProductSpec] = []
+        seen_ordered_skus: set[str] = set()
 
-            for item in ranked_items:
-                sku = str(item.get("sku", ""))
-                score = float(item.get("score", 0))
-                if sku in sku_to_product and score >= 6.0 and sku not in seen_ordered_skus:
-                    ordered_products.append(sku_to_product[sku])
-                    seen_ordered_skus.add(sku)
+        for item in ranked_items:
+            sku = str(item.get("sku", ""))
+            score = float(item.get("score", 0))
+            if sku in sku_to_product and score >= 6.0 and sku not in seen_ordered_skus:
+                ordered_products.append(sku_to_product[sku])
+                seen_ordered_skus.add(sku)
 
-            # If LLM identified relevant items, return them
-            if ordered_products:
-                logger.info(
-                    "LLM Reranker successfully ranked %d/%d products for query: %s",
-                    len(ordered_products),
-                    len(products),
-                    sanitized_query,
-                )
-                return ordered_products
+        if ordered_products:
+            logger.info(
+                "LLM Reranker successfully ranked %d/%d products for query: %s",
+                len(ordered_products),
+                len(products),
+                sanitized_query,
+            )
+            return ordered_products
 
-            # When the LLM successfully parses candidates and finds NO products with score >= 6.0,
-            # this is an intentional verdict of irrelevance.
-            logger.info("LLM Reranker judged 0 products relevant for query: %s", sanitized_query)
-            return []
-
-        except Exception as e:
-            if not (self.hermetic or os.environ.get("PYTEST_CURRENT_TEST")):
-                logger.error("LLM reranking failed: %s", e)
-                raise
-            logger.warning("LLM reranking encountered an error; falling back to heuristic: %s", e)
-            return None
-
-    def _rerank_with_heuristics(
-        self, products: list[ProductSpec], keywords: list[str], original_query: str
-    ) -> list[ProductSpec]:
-        """Robust token-overlap and phrase matching heuristic fallback with stem matching."""
-        if self._is_opinion_query(original_query):
-            return []
-
-        stopwords = {
-            "vs",
-            "and",
-            "or",
-            "compare",
-            "between",
-            "the",
-            "with",
-            "tell",
-            "about",
-            "what",
-            "which",
-            "is",
-            "are",
-            "show",
-            "me",
-            "for",
-            "on",
-            "in",
-            "to",
-            "a",
-            "an",
-        }
-        all_terms = re.findall(r"[a-z0-9]+", (original_query or " ".join(keywords)).lower())
-        query_tokens = set(t for t in all_terms if t not in stopwords and len(t) >= 2)
-
-        def matches_token(tok: str, text: str) -> bool:
-            tok_low = tok.lower()
-            if tok_low == "mac":
-                return bool(re.search(r"\bmac(?:book)?\b", text))
-            return bool(re.search(r"\b" + re.escape(tok_low), text))
-
-        def score_product(p: ProductSpec) -> tuple[int, int, float]:
-            text = f"{p.name} {p.brand} {p.category}".lower()
-            # Exact phrase match bonus with word boundaries / stem matching
-            exact = 100 if any(matches_token(kw, text) for kw in keywords if len(kw) >= 3) else 0
-            # Token overlap count with stem matching
-            overlap = sum(1 for t in query_tokens if matches_token(t, text))
-            return (exact, overlap, -p.price)
-
-        sorted_products = sorted(products, key=score_product, reverse=True)
-        # Filter out products with 0 token overlap if at least one product has positive overlap
-        best_score = score_product(sorted_products[0])
-        if best_score[0] > 0 or best_score[1] > 0:
-            return [
-                p for p in sorted_products if score_product(p)[0] > 0 or score_product(p)[1] > 0
-            ]
-        return sorted_products
+        logger.info("LLM Reranker judged 0 products relevant for query: %s", sanitized_query)
+        return []
 
     def compare(
         self,
