@@ -94,6 +94,7 @@ class QueryIntentAgent:
                 if active_model == self.model
                 else ComparisonOrchestrator(model=active_model)
             )
+            orchestrator._active_category_hint = state.detected_category
             intent_analysis = orchestrator.classify_intent(
                 state.sanitized_query, model=active_model
             )

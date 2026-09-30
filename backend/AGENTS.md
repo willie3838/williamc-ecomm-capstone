@@ -250,4 +250,6 @@ Never initiate network connections to Google Cloud services during unit tests. A
       - **Thematic Priority Sorting**: Thematic user preferences (`gaming`, `office`/`work`/`productivity`, `battery`/`portability`, `display`/`oled`, `audio`/`anc`) reorder high-signal specifications (e.g., GPU/RAM/Refresh Rate for gaming; CPU/RAM/Battery for office) to the top of the matrix.
     - `HermeticModelAdapter` and ADK synthesis prompts dynamically emphasize user query intent in summary overviews and winner recommendations while preserving full feature diffs for general queries.
 
-
+11. **Conversational Follow-Up Chat & Parallel Speculative Stage Pre-Launch**:
+    - `POST /api/chat` and `POST /api/v1/chat` (`ComparisonOrchestrator.chat_with_products`, `MultiAgentCoordinator.chat`) answer multi-turn customer follow-up questions grounded strictly in the active comparison's `ProductSpec` list and `MatrixRow` table, enforcing inline `[SKU: <sku>]` citation verification (`verify_and_scrub_sku_citations`) and returning 2–3 contextual `suggested_followups`.
+    - In live Vertex AI mode, `ComparisonOrchestrator._prelaunch_speculative_stages` launches speculative Stage 3 reranking (`_SPECULATIVE_RERANK_FUTURES`) and Stage 4 synthesis (`_SPECULATIVE_SYNTH_FUTURES`) concurrently with Stage 1 intent classification, collapsing pipeline latency below 1.0s while preserving strict Stage 1/3 gating.
