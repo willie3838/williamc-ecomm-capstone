@@ -160,6 +160,7 @@ export const App: React.FC = () => {
     setBrowseCategory(null);
     if (tagged !== undefined) {
       setTaggedProducts(tagged);
+      setSelectedProducts([]);
     }
     setSearchParams({ query, category });
   };
@@ -198,21 +199,12 @@ export const App: React.FC = () => {
 
   const handleRemoveTag = (sku: string) => {
     setTaggedProducts((prev) => prev.filter((p) => p.sku !== sku));
+    setSelectedProducts((prev) => prev.filter((p) => p.sku !== sku));
   };
 
   const handleClearTags = () => {
     setTaggedProducts([]);
-  };
-
-  const formatSelectedQuery = (products: ProductSpec[]): string => {
-    if (products.length === 0) return '';
-    if (products.length === 1) return `Compare ${products[0].name} vs `;
-    if (products.length === 2) {
-      return `Compare ${products[0].name} vs ${products[1].name}`;
-    }
-    const allExceptLast = products.slice(0, -1).map((p) => p.name).join(', ');
-    const last = products[products.length - 1].name;
-    return `Compare ${allExceptLast}, and ${last}`;
+    setSelectedProducts([]);
   };
 
   const handleCompareSelected = (products: ProductSpec[]) => {
@@ -300,15 +292,13 @@ export const App: React.FC = () => {
           onSearch={handleSearch}
           onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
-          taggedProducts={taggedProducts}
+          taggedProducts={selectedProducts.length > 0 ? selectedProducts : taggedProducts}
           onRemoveTag={handleRemoveTag}
           onClearTags={handleClearTags}
           initialQuery={
-            taggedProducts.length > 0
+            selectedProducts.length > 0 || taggedProducts.length > 0
               ? ''
-              : selectedProducts.length > 0
-                ? formatSelectedQuery(selectedProducts)
-                : searchParams?.query || ''
+              : searchParams?.query || ''
           }
           initialCategory={
             searchParams
