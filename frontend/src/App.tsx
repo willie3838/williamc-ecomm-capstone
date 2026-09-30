@@ -135,6 +135,15 @@ export const App: React.FC = () => {
   });
 
   const [taggedProducts, setTaggedProducts] = useState<ProductSpec[]>([]);
+  const [prevComparison, setPrevComparison] = useState(comparison);
+
+  // Auto-populate compared SKU tags in SearchBar whenever comparison completes and no tags currently set
+  if (comparison !== prevComparison) {
+    setPrevComparison(comparison);
+    if (comparison?.products && comparison.products.length > 0 && taggedProducts.length === 0) {
+      setTaggedProducts(comparison.products);
+    }
+  }
 
   const handleGoHome = () => {
     setSearchParams(null);

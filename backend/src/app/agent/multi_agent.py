@@ -96,11 +96,7 @@ class QueryIntentAgent:
 
             # Assign category and keywords directly from LLM QueryIntentAnalysis
             state.detected_category = state.detected_category or intent_analysis.detected_category
-            state.target_keywords = (
-                intent_analysis.target_keywords
-                if intent_analysis.target_keywords
-                else orchestrator.extract_keywords(state.sanitized_query)
-            )
+            state.target_keywords = list(intent_analysis.target_keywords or [])
 
             state.step_history.append(
                 {
@@ -372,7 +368,9 @@ class SpecComparisonAgent:
                 return state
 
             # Comparison is approved and 2+ products are verified relevant
-            matrix = self.orchestrator.build_comparison_matrix(state.ranked_products)
+            matrix = self.orchestrator.build_comparison_matrix(
+                state.ranked_products, query=safe_query
+            )
             summary, recommendations = self.orchestrator.synthesize_comparison_with_llm(
                 state.ranked_products,
                 matrix,

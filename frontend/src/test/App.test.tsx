@@ -290,6 +290,46 @@ describe('App Integration', () => {
     fireEvent.keyDown(window, { key: 'Escape', code: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('auto-populates compared SKU tags in SearchBar whenever any comparison completes, enabling immediate follow-up', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // Perform initial comparison via sample card
+    const sampleBtn = screen.getByText('MacBook Air M3 vs Dell XPS 13').closest('button');
+    fireEvent.click(sampleBtn!);
+
+    await waitFor(() => {
+      expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
+    });
+
+    // Verify SearchBar search form now displays auto-populated SKU chips
+    const searchForm = screen.getByRole('search');
+    expect(searchForm).toHaveTextContent(/SKU:\s*6534606/i);
+    expect(searchForm).toHaveTextContent(/SKU:\s*6573822/i);
+
+    // Verify placeholder now invites follow-up constraints
+    const searchInput = screen.getByRole('textbox');
+    expect(searchInput).toHaveAttribute(
+      'placeholder',
+      'Add follow-up requirements (e.g., "only price", "good for gaming", "battery life")...'
+    );
+
+    // Enter follow-up requirement: "good for gaming"
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+    fireEvent.change(searchInput, { target: { value: 'good for gaming' } });
+    fireEvent.submit(searchForm);
+
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+
+    const followUpCallArgs = vi.mocked(compareProducts).mock.calls[1][0];
+    expect(followUpCallArgs.query).toContain('User Focus / Follow-up: good for gaming');
+    expect(followUpCallArgs.query).toContain('[SKU: 6534606]');
+    expect(followUpCallArgs.query).toContain('[SKU: 6573822]');
+  });
 });
 
 
