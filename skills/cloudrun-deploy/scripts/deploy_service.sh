@@ -14,9 +14,10 @@ echo "=== [PRE-DEPLOY GATE] Verifying Live Vertex AI + BigQuery Latency (< 3.0s)
 env -u PYTEST_CURRENT_TEST -u HERMETIC_EVAL "${PYTHON_BIN}" "${REPO_ROOT}/backend/scripts/verify_live_latency.py" --threshold-ms 3000
 
 echo "=== Submitting Build to Google Cloud Build (Project: ${PROJECT_ID}) ==="
+SHORT_SHA="$(git -C "${REPO_ROOT}" rev-parse --short HEAD)"
 gcloud builds submit \
   --config="${REPO_ROOT}/deployment/cloudbuild.yaml" \
-  --substitutions=_REGION="${REGION}",_PROJECT_ID="${PROJECT_ID}" \
+  --substitutions=_REGION="${REGION}",_PROJECT_ID="${PROJECT_ID}",SHORT_SHA="${SHORT_SHA}" \
   "${REPO_ROOT}"
 
 echo "=== [POST-DEPLOY GATE] Verifying Live Deployed Environment Latency (< 3.0s) ==="

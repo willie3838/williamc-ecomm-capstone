@@ -70,8 +70,6 @@ steps:
           --current reports/ci_eval.json \
           --baseline evals/reports/baseline_results.json \
           --fail-on-regression
-        echo "=== [PRE-DEPLOY GATE] Verifying Live Vertex AI + BigQuery Latency (< 3.0s) ==="
-        env -u PYTEST_CURRENT_TEST -u HERMETIC_EVAL PYTHONPATH=backend/src python backend/scripts/verify_live_latency.py --threshold-ms 3000
 
   # Step 2.7: Build Frontend SPA Assets (Hermetic Fallback)
   - name: 'node:20-slim'
