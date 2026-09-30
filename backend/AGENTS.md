@@ -207,7 +207,8 @@ Never initiate network connections to Google Cloud services during unit tests. A
 
 10. **Follow-up Prompt Tailoring & Matrix Row Ordering/Filtering**:
     - `ComparisonOrchestrator.build_comparison_matrix(products, query)` and `SpecComparisonAgent.process` tailor feature comparison matrices to follow-up prompts:
-      - **Query Filtering**: Queries asking for specific dimensions (e.g. `'only price'`, `'price only'`, `'just price'`) isolate the relevant matrix rows (e.g. `Price`, `Sale Price`).
+      - **Query Filtering**: Queries asking for specific dimensions (e.g. `'only price'`, `'price only'`, `'just price'`, `'strictly price'`, `'only the price'`) isolate the relevant matrix rows (e.g. `Price`, `Sale Price`). Phrases like general product comparisons avoid triggering false-positive single-dimension filtering.
       - **Thematic Priority Sorting**: Thematic user preferences (`gaming`, `office`/`work`/`productivity`, `battery`/`portability`, `display`/`oled`, `audio`/`anc`) reorder high-signal specifications (e.g., GPU/RAM/Refresh Rate for gaming; CPU/RAM/Battery for office) to the top of the matrix.
-    - `HermeticModelAdapter` and ADK synthesis prompts dynamically emphasize user query intent in summary overviews and winner recommendations.
+    - `HermeticModelAdapter` and ADK synthesis prompts dynamically emphasize user query intent in summary overviews and winner recommendations while preserving full feature diffs for general queries.
+
 

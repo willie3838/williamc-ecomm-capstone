@@ -338,8 +338,8 @@ class ComparisonOrchestrator:
                 "only price",
                 "price only",
                 "just price",
-                "compare price",
                 "strictly price",
+                "only the price",
             )
         )
 
@@ -542,7 +542,7 @@ class ComparisonOrchestrator:
             "2. STRICT CITATIONS: Every claim, specification contrast, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>].\n"
             "3. TARGETED RECOMMENDATIONS: Provide 2-3 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
             "4. CONCISE SYNTHESIS: Keep 'summary' to 2-3 concise sentences (under 90 words) and 'recommendations' under 60 words.\n"
-            "5. USER INTENT FOCUS: If <user_query> specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
+            "5. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
             f"Comparison Matrix:\n{matrix_desc}\n\n"
@@ -978,7 +978,7 @@ class ComparisonOrchestrator:
     ) -> list[ProductSpec] | None:
         """Use Google ADK Agent & Gemini to score and rank candidate products based on query relevance."""
         if not query.strip() or len(products) <= 1:
-            return products if len(products) == 1 else None
+            return None
 
         sanitized_query = sanitize_user_prompt(query)
         candidates_desc = "\n".join(

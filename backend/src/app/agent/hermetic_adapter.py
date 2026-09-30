@@ -1020,8 +1020,8 @@ class HermeticModelAdapter:
                 "only price",
                 "price only",
                 "just price",
-                "compare price",
                 "strictly price",
+                "only the price",
             )
         )
         is_gaming = any(
