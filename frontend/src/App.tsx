@@ -21,6 +21,7 @@ import { CitationChip } from './components/CitationChip';
 import { LatencyBadge } from './components/LatencyBadge';
 import { SkeletonLoader } from './components/SkeletonLoader';
 import { ProductSpec } from './types/comparison';
+import { buildComparisonPrompt } from './utils/promptBuilder';
 
 const SAMPLE_COMPARISONS = [
   {
@@ -133,14 +134,24 @@ export const App: React.FC = () => {
     retry: false,
   });
 
+  const [taggedProducts, setTaggedProducts] = useState<ProductSpec[]>([]);
+
   const handleGoHome = () => {
     setSearchParams(null);
     setBrowseCategory(null);
     setSelectedProducts([]);
+    setTaggedProducts([]);
   };
 
-  const handleSearch = (query: string, category: string | null) => {
+  const handleSearch = (
+    query: string,
+    category: string | null,
+    tagged?: ProductSpec[]
+  ) => {
     setBrowseCategory(null);
+    if (tagged !== undefined) {
+      setTaggedProducts(tagged);
+    }
     setSearchParams({ query, category });
   };
 
@@ -151,6 +162,7 @@ export const App: React.FC = () => {
 
   const handleSampleClick = (sample: (typeof SAMPLE_COMPARISONS)[number]) => {
     setBrowseCategory(null);
+    setTaggedProducts([]);
     setSearchParams({ query: sample.query, category: sample.category });
   };
 
@@ -175,6 +187,14 @@ export const App: React.FC = () => {
     setSelectedProducts([]);
   };
 
+  const handleRemoveTag = (sku: string) => {
+    setTaggedProducts((prev) => prev.filter((p) => p.sku !== sku));
+  };
+
+  const handleClearTags = () => {
+    setTaggedProducts([]);
+  };
+
   const formatSelectedQuery = (products: ProductSpec[]): string => {
     if (products.length === 0) return '';
     if (products.length === 1) return `Compare ${products[0].name} vs `;
@@ -189,12 +209,14 @@ export const App: React.FC = () => {
   const handleCompareSelected = (products: ProductSpec[]) => {
     if (products.length < 2) return;
 
-    const constructedQuery = formatSelectedQuery(products);
+    // Build the rich prompt with all attributes implicitly
+    const prompt = buildComparisonPrompt(products);
     const category = products[0]?.category || browseCategory?.category || null;
 
     setBrowseCategory(null);
+    setTaggedProducts([...products]);
     setSelectedProducts([]);
-    setSearchParams({ query: constructedQuery, category });
+    setSearchParams({ query: prompt, category });
   };
 
   const browsedProducts = browseCategory
@@ -269,10 +291,15 @@ export const App: React.FC = () => {
           onSearch={handleSearch}
           onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
+          taggedProducts={taggedProducts}
+          onRemoveTag={handleRemoveTag}
+          onClearTags={handleClearTags}
           initialQuery={
-            selectedProducts.length > 0
-              ? formatSelectedQuery(selectedProducts)
-              : searchParams?.query || ''
+            taggedProducts.length > 0
+              ? ''
+              : selectedProducts.length > 0
+                ? formatSelectedQuery(selectedProducts)
+                : searchParams?.query || ''
           }
           initialCategory={
             searchParams

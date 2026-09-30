@@ -316,7 +316,7 @@ class ProductRecord(BaseModel):
 
 # API Request Envelope (backend/src/app/models/requests.py)
 class ComparisonRequest(BaseModel):
-    query: str = Field(..., min_length=3, max_length=500, description="Natural language product comparison query")
+    query: str = Field(..., min_length=3, max_length=4000, description="Natural language product comparison query or rich attribute prompt")
     category: str | None = Field(default=None, max_length=100, description="Optional category filter")
     top_k: int = Field(default=5, ge=1, le=10, description="Maximum number of candidate products to retrieve")
     session_id: str | None = Field(default=None, description="Optional client session identifier")

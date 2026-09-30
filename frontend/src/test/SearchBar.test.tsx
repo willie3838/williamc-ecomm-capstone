@@ -103,5 +103,223 @@ describe('SearchBar', () => {
     expect(input.value).toBe('');
     expect(screen.getByRole('button', { name: /all categories/i })).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('renders tagged SKU chips inside SearchBar when taggedProducts is provided', () => {
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air M3',
+        brand: 'Apple',
+        price: 1099,
+        specifications: { processor: 'Apple M3' },
+        in_stock: true,
+      },
+      {
+        sku: '6575132',
+        name: 'Dell XPS 13',
+        brand: 'Dell',
+        price: 1199,
+        specifications: { processor: 'Intel Core Ultra 7' },
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    expect(screen.getByText(/6534606/)).toBeInTheDocument();
+    expect(screen.getByText(/Apple MacBook Air M3/)).toBeInTheDocument();
+    expect(screen.getByText(/6575132/)).toBeInTheDocument();
+    expect(screen.getByText(/Dell XPS 13/)).toBeInTheDocument();
+  });
+
+  it('calls onRemoveTag when the remove button on a tagged SKU chip is clicked', () => {
+    const handleRemoveTag = vi.fn();
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air M3',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+        onRemoveTag={handleRemoveTag}
+      />
+    );
+
+    const removeBtn = screen.getByRole('button', {
+      name: /remove tag for apple macbook air m3/i,
+    });
+    fireEvent.click(removeBtn);
+
+    expect(handleRemoveTag).toHaveBeenCalledTimes(1);
+    expect(handleRemoveTag).toHaveBeenCalledWith('6534606');
+  });
+
+  it('implicitly builds rich comparison prompt with tagged SKUs and user follow-up prompt on submit', () => {
+    const handleSearch = vi.fn();
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air M3',
+        brand: 'Apple',
+        price: 1099,
+        specifications: { processor: 'Apple M3' },
+        in_stock: true,
+      },
+      {
+        sku: '6575132',
+        name: 'Dell XPS 13',
+        brand: 'Dell',
+        price: 1199,
+        specifications: { processor: 'Intel Core Ultra 7' },
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={handleSearch}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    // Type a follow-up prompt e.g. "only price"
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'only price' } });
+
+    // Submit form
+    fireEvent.submit(screen.getByRole('search'));
+
+    expect(handleSearch).toHaveBeenCalledTimes(1);
+    const [submittedQuery, submittedCategory, submittedTagged] = handleSearch.mock.calls[0];
+
+    expect(submittedQuery).toContain('[SKU: 6534606]');
+    expect(submittedQuery).toContain('Apple MacBook Air M3');
+    expect(submittedQuery).toContain('[SKU: 6575132]');
+    expect(submittedQuery).toContain('Dell XPS 13');
+    expect(submittedQuery).toContain('User Focus / Follow-up: only price');
+    expect(submittedCategory).toBeNull();
+    expect(submittedTagged).toEqual(mockProducts);
+  });
+
+  it('submits built comparison prompt with default follow-up instruction when user enters no follow-up text', () => {
+    const handleSearch = vi.fn();
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air M3',
+        brand: 'Apple',
+        price: 1099,
+        specifications: { processor: 'Apple M3' },
+        in_stock: true,
+      },
+      {
+        sku: '6575132',
+        name: 'Dell XPS 13',
+        brand: 'Dell',
+        price: 1199,
+        specifications: { processor: 'Intel Core Ultra 7' },
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={handleSearch}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    expect(submitBtn).not.toBeDisabled();
+    fireEvent.click(submitBtn);
+
+    expect(handleSearch).toHaveBeenCalledTimes(1);
+    const [submittedQuery] = handleSearch.mock.calls[0];
+    expect(submittedQuery).toContain('[SKU: 6534606]');
+    expect(submittedQuery).toContain('Compare specifications, trade-offs, and recommend the best option.');
+  });
+
+  it('removes the last tagged SKU when Backspace is pressed in an empty input', () => {
+    const handleRemoveTag = vi.fn();
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'MacBook Air',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+      {
+        sku: '6575132',
+        name: 'Dell XPS',
+        brand: 'Dell',
+        price: 1199,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+        onRemoveTag={handleRemoveTag}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    // Input is empty, press Backspace
+    fireEvent.keyDown(input, { key: 'Backspace' });
+
+    expect(handleRemoveTag).toHaveBeenCalledTimes(1);
+    expect(handleRemoveTag).toHaveBeenCalledWith('6575132');
+  });
+
+  it('calls onClearTags when clear search button is clicked with tagged products present', () => {
+    const handleClearTags = vi.fn();
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'MacBook Air',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+        onClearTags={handleClearTags}
+      />
+    );
+
+    const clearBtn = screen.getByRole('button', { name: /clear search input/i });
+    fireEvent.click(clearBtn);
+
+    expect(handleClearTags).toHaveBeenCalledTimes(1);
+  });
 });
 
