@@ -587,7 +587,7 @@ class ComparisonOrchestrator:
             "Analyze the side-by-side technical specifications and customer query to produce a grounded comparison narrative and persona buying recommendations.\n\n"
             "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
-            "2. STRICT CITATIONS: Every claim, specification contrast, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>].\n"
+            "2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). Do not omit citations or relegate them to the end.\n"
             "3. TARGETED RECOMMENDATIONS: Provide 2 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
             "4. CONCISE SYNTHESIS: Keep 'summary' to 2 concise sentences (under 45 words) and 'recommendations' under 25 words.\n"
             "5. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
@@ -612,6 +612,65 @@ class ComparisonOrchestrator:
         scrubbed = re.sub(r"\[SKU:\s*([^\]]+)\]", _check_sku, text)
         return re.sub(r"  +", " ", scrubbed).strip()
 
+    @staticmethod
+    def verify_and_align_claim_citations(
+        text: str | None, products: list[ProductSpec]
+    ) -> str | None:
+        """Deterministically verify, validate, and scrub claim-to-SKU citations.
+
+        Strict Rules:
+        1. Never artificially inject or append [SKU: ...] tags that the LLM did not generate.
+        2. Scrub any hallucinated [SKU: <id>] citation where <id> is not in the retrieved products.
+        3. Scrub/reject any [SKU: <id>] citation if the immediate clause directly contradicts
+           the cited product's identity (e.g. citing SKU X immediately following a competing
+           brand's distinct product name).
+        """
+        if not text:
+            return text
+        if not products:
+            return text
+
+        valid_skus = {p.sku for p in products if p.sku}
+        sku_to_prod = {p.sku: p for p in products if p.sku}
+
+        # Step 1: Scrub any hallucinated SKUs not in valid_skus
+        def _check_sku_membership(match: re.Match[str]) -> str:
+            cited_sku = match.group(1).strip()
+            if cited_sku in valid_skus:
+                return match.group(0)
+            return ""
+
+        scrubbed = re.sub(r"\[SKU:\s*([^\]]+)\]", _check_sku_membership, text)
+
+        # Step 2: Verify claim-to-SKU alignment across clauses
+        def _verify_clause_attribution(match: re.Match[str]) -> str:
+            cited_sku = match.group(1).strip()
+            prod = sku_to_prod.get(cited_sku)
+            if not prod:
+                return ""
+
+            start_pos = match.start()
+            preceding = scrubbed[max(0, start_pos - 60) : start_pos]
+            preceding_lower = preceding.lower()
+
+            prod_brand_lower = (prod.brand or "").strip().lower()
+            for other_p in products:
+                other_brand_lower = (other_p.brand or "").strip().lower()
+                if (
+                    other_brand_lower
+                    and other_brand_lower != prod_brand_lower
+                    and re.search(rf"\b{re.escape(other_brand_lower)}\b", preceding_lower)
+                    and not re.search(rf"\b{re.escape(prod_brand_lower)}\b", preceding_lower)
+                ):
+                    # Contradicting brand claim: cited prod brand does not match the named brand
+                    return ""
+
+            return match.group(0)
+
+        result = re.sub(r"\[SKU:\s*([^\]]+)\]", _verify_clause_attribution, scrubbed)
+        result = re.sub(r"  +", " ", result)
+        return result.strip()
+
     def synthesize_comparison_with_llm(
         self,
         products: list[ProductSpec],
@@ -631,7 +690,6 @@ class ComparisonOrchestrator:
                 None,
             )
 
-        valid_skus = {p.sku for p in products if p.sku}
         active_model = model or self.synthesis_model
         self.last_synthesis_model = active_model
 
@@ -712,14 +770,8 @@ class ComparisonOrchestrator:
 
         if response.text:
             synth = ComparisonSynthesis.model_validate_json(response.text)
-            summary_out = self.verify_and_scrub_sku_citations(synth.summary, valid_skus) or ""
-            recs_out = self.verify_and_scrub_sku_citations(synth.recommendations, valid_skus)
-            if "2.5" in active_model:
-                for p in products:
-                    if f"[SKU: {p.sku}]" not in summary_out:
-                        summary_out = (
-                            f"{summary_out.rstrip()} {p.name} [SKU: {p.sku}] (${p.price:,.2f})."
-                        )
+            summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
+            recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
             return summary_out, recs_out
         raise RuntimeError("Empty response from Gemini synthesis LLM")
 
@@ -1677,7 +1729,6 @@ class ComparisonOrchestrator:
         """Answer conversational follow-up questions grounded strictly in compared ProductSpecs and matrix."""
         start_time = time.perf_counter()
         clean_message = sanitize_user_prompt(message)
-        valid_skus = {p.sku for p in products if p.sku}
         active_model = synthesis_model or model or self.synthesis_model
         resolved_agent_version = agent_version or settings.agent_version
 
@@ -1985,10 +2036,8 @@ class ComparisonOrchestrator:
                     )
                     suggested = ["How do their specs compare?", "Which is better for travel?"]
 
-        # Ensure SKU scrub and citation validation
-        reply_scrubbed = self.verify_and_scrub_sku_citations(reply_text, valid_skus) or reply_text
-        if not any(f"[SKU: {p.sku}]" in reply_scrubbed for p in products):
-            reply_scrubbed += f" (Referencing: {', '.join(f'[SKU: {p.sku}]' for p in products)})"
+        # Ensure deterministic claim-to-SKU citation alignment
+        reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text
 
         latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
         trace_id = get_current_trace_id()
