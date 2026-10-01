@@ -243,3 +243,75 @@ def test_orchestrator_classify_intent_with_mocked_llm(monkeypatch):
     assert result.intent_type == "OPINION_OR_CHATTER"
     assert result.is_comparison_eligible is False
     assert result.reasoning == "Rant detected"
+
+
+def test_spec_comparison_agent_multi_product_synthesis():
+    """Verify SpecComparisonAgent handles 3, 4, and 5 products without truncating to 2."""
+    agent = SpecComparisonAgent()
+    prods = [
+        ProductSpec(
+            sku=f"SKU00{i}",
+            name=f"Laptop Model {i}",
+            price=999.0 + i * 100,
+            brand=f"Brand{i}",
+            category="Laptops",
+            specifications={
+                "ram_gb": 16,
+                "battery_life_hours": 10.0 + i,
+                "weight_lbs": 2.5 + i * 0.2,
+            },
+        )
+        for i in range(1, 6)
+    ]
+
+    for count in (3, 4, 5):
+        selected_prods = prods[:count]
+        state = ComparisonAgentState(
+            raw_query="Compare " + " and ".join(f"Model {i}" for i in range(1, count + 1)),
+            sanitized_query="Compare " + " and ".join(f"Model {i}" for i in range(1, count + 1)),
+            target_keywords=[f"Model {i}" for i in range(1, count + 1)],
+            retrieved_products=selected_prods,
+            ranked_products=selected_prods,
+            is_comparison_eligible=True,
+        )
+
+        updated = agent.process(state)
+        response = updated.comparison_response
+        assert response is not None
+        assert len(response.products) == count
+        assert len(response.comparison_matrix) > 0
+        assert response.summary is not None
+        assert response.recommendations is not None
+        for p in selected_prods:
+            assert f"[SKU: {p.sku}]" in response.summary or p.name in response.summary
+            assert (
+                f"[SKU: {p.sku}]" in response.recommendations or p.name in response.recommendations
+            )
+
+
+@patch("app.agent.multi_agent.query_catalog")
+def test_multi_agent_coordinator_multi_product_end_to_end(mock_query_catalog):
+    """Verify MultiAgentCoordinator handles 3, 4, and 5 product comparisons end-to-end."""
+    prods = [
+        {
+            "sku": f"SKU00{i}",
+            "name": f"Headphone Model {i}",
+            "price": 200.0 + i * 50,
+            "brand": f"Brand{i}",
+            "category": "Headphones",
+            "specifications": {"battery_life_hours": 20.0 + i},
+        }
+        for i in range(1, 6)
+    ]
+    mock_query_catalog.return_value = prods
+
+    coordinator = MultiAgentCoordinator()
+    query = "Compare " + " and ".join(f"Headphone Model {i} [SKU: SKU00{i}]" for i in range(1, 6))
+    response = coordinator.execute(query)
+
+    assert len(response.products) == 5
+    assert len(response.comparison_matrix) > 0
+    assert response.summary is not None
+    assert response.recommendations is not None
+    for item in prods:
+        assert f"[SKU: {item['sku']}]" in response.summary or item["name"] in response.summary

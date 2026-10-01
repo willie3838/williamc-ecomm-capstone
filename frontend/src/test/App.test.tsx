@@ -176,8 +176,8 @@ describe('App Integration', () => {
     });
     fireEvent.click(dellCheckbox);
 
-    // Verify tray shows ready state (2/4)
-    expect(screen.getByText('Ready to compare (2/4)')).toBeInTheDocument();
+    // Verify tray shows ready state (2/5)
+    expect(screen.getByText('Ready to compare (2/5)')).toBeInTheDocument();
 
     // 4. Click Compare Selected
     const compareSelectedBtn = screen.getByRole('button', {
@@ -453,6 +453,50 @@ describe('App Integration', () => {
     await waitFor(() => {
       expect(compareProducts).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('allows multiselecting up to 5 products in category browser and executing 5-way comparison', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce({
+      ...mockComparisonResponse,
+      products: [
+        mockComparisonResponse.products[0],
+        mockComparisonResponse.products[1],
+        { ...mockComparisonResponse.products[0], sku: 'SKU003', name: 'Laptop Model 3' },
+        { ...mockComparisonResponse.products[0], sku: 'SKU004', name: 'Laptop Model 4' },
+        { ...mockComparisonResponse.products[0], sku: 'SKU005', name: 'Laptop Model 5' },
+      ],
+    });
+
+    renderWithClient(<App />);
+
+    // Click Laptops category pill
+    fireEvent.click(screen.getByRole('button', { name: /laptops/i }));
+    expect(screen.getByText(/Laptops Catalog/i)).toBeInTheDocument();
+
+    // Select 5 products
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes.length).toBeGreaterThanOrEqual(5);
+
+    for (let i = 0; i < 5; i++) {
+      fireEvent.click(checkboxes[i]);
+    }
+
+    // Verify tray shows ready state (5/5)
+    expect(screen.getByText('Ready to compare (5/5)')).toBeInTheDocument();
+
+    // Click Compare Selected (5)
+    const compareSelectedBtn = screen.getByRole('button', {
+      name: /compare 5 selected products/i,
+    });
+    fireEvent.click(compareSelectedBtn);
+
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(1);
+    });
+
+    const callArgs = vi.mocked(compareProducts).mock.calls[0][0];
+    expect(callArgs.category).toBe('Laptops');
+    expect(callArgs.query).toContain('Compare the following products:');
   });
 });
 

@@ -252,7 +252,7 @@ class RelevanceDetectorAgent:
                 sku_map = {p.sku: p for p in state.retrieved_products}
                 matched_tagged = [sku_map[s] for s in tagged_skus if s in sku_map]
                 if len(matched_tagged) >= 2:
-                    ranked = matched_tagged[:2]
+                    ranked = matched_tagged[:5]
 
             if len(ranked) < 2:
                 state.is_comparison_eligible = False
@@ -260,7 +260,7 @@ class RelevanceDetectorAgent:
                 decision = "INSUFFICIENT_COMPARISON_CANDIDATES"
             else:
                 state.is_comparison_eligible = True
-                state.ranked_products = ranked[:2]
+                state.ranked_products = ranked[:5]
                 decision = (
                     "APPROVED_FOR_COMPARISON_TAGGED_SKUS"
                     if tagged_skus and len(matched_tagged) >= 2
@@ -327,7 +327,7 @@ class SpecComparisonAgent:
                     original_query=state.sanitized_query,
                     model=active_routing,
                 )
-                state.ranked_products = ranked[:2] if len(ranked) >= 2 else ranked
+                state.ranked_products = ranked[:5] if len(ranked) >= 2 else ranked
 
             # Check gate: If not eligible for comparison or fewer than 2 relevant products
             safe_query = state.sanitized_query or sanitize_user_prompt(state.raw_query)

@@ -19,7 +19,7 @@ export const ProductSelectionTray: React.FC<ProductSelectionTrayProps> = ({
   onClearSelection,
   onCompare,
   onAddProduct,
-  maxProducts = 4,
+  maxProducts = 5,
   className = '',
 }) => {
   const [isAddOpen, setIsAddOpen] = useState(false);

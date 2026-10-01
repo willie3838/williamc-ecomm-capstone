@@ -65,7 +65,7 @@ describe('ProductSelectionTray', () => {
       />
     );
 
-    expect(screen.getByText('Ready to compare (2/4)')).toBeInTheDocument();
+    expect(screen.getByText('Ready to compare (2/5)')).toBeInTheDocument();
 
     const compareBtn = screen.getByRole('button', {
       name: /compare 2 selected products/i,
@@ -180,6 +180,7 @@ describe('ProductSelectionTray', () => {
       mockDellXPS,
       { ...mockMacBook, sku: 'SKU3', name: 'Product 3' },
       { ...mockMacBook, sku: 'SKU4', name: 'Product 4' },
+      { ...mockMacBook, sku: 'SKU5', name: 'Product 5' },
     ];
 
     render(
@@ -189,11 +190,63 @@ describe('ProductSelectionTray', () => {
         onClearSelection={vi.fn()}
         onCompare={vi.fn()}
         onAddProduct={vi.fn()}
-        maxProducts={4}
       />
     );
 
     expect(screen.queryByRole('button', { name: /add product/i })).not.toBeInTheDocument();
+  });
+
+  it('supports selecting up to 5 products and triggers onCompare with all 5', () => {
+    const onCompare = vi.fn();
+    const fiveProducts = [
+      mockMacBook,
+      mockDellXPS,
+      { ...mockMacBook, sku: 'SKU3', name: 'Product 3' },
+      { ...mockMacBook, sku: 'SKU4', name: 'Product 4' },
+      { ...mockMacBook, sku: 'SKU5', name: 'Product 5' },
+    ];
+
+    render(
+      <ProductSelectionTray
+        selectedProducts={fiveProducts}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={vi.fn()}
+        onCompare={onCompare}
+      />
+    );
+
+    expect(screen.getByText('Ready to compare (5/5)')).toBeInTheDocument();
+
+    const compareBtn = screen.getByRole('button', {
+      name: /compare 5 selected products/i,
+    });
+    expect(compareBtn).not.toBeDisabled();
+    fireEvent.click(compareBtn);
+
+    expect(onCompare).toHaveBeenCalledTimes(1);
+    expect(onCompare).toHaveBeenCalledWith(fiveProducts);
+  });
+
+  it('still renders "+ Add Product" button when 4 products are selected with default maxProducts=5', () => {
+    const fourProducts = [
+      mockMacBook,
+      mockDellXPS,
+      { ...mockMacBook, sku: 'SKU3', name: 'Product 3' },
+      { ...mockMacBook, sku: 'SKU4', name: 'Product 4' },
+    ];
+
+    render(
+      <ProductSelectionTray
+        selectedProducts={fourProducts}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={vi.fn()}
+        onCompare={vi.fn()}
+        onAddProduct={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Ready to compare (4/5)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add product/i })).toBeInTheDocument();
   });
 });
 
