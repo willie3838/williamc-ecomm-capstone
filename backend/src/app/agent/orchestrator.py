@@ -1,3 +1,5 @@
+import asyncio
+import concurrent.futures
 import json
 import logging
 import os
@@ -8,6 +10,7 @@ from typing import Any
 
 from google import genai
 from google.adk.agents import Agent
+from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.cloud import bigquery
 from google.genai import types
 
@@ -140,19 +143,30 @@ def resolve_model_pair(
     return routing, synthesis, is_hybrid
 
 
+async def generate_memories_callback(callback_context: Any) -> None:
+    """ADK after_agent_callback to automatically ingest session events into Memory Bank."""
+    if hasattr(callback_context, "add_session_to_memory"):
+        try:
+            await callback_context.add_session_to_memory()
+        except Exception as exc:
+            logger.debug("add_session_to_memory callback note: %s", exc)
+    return None
+
+
 def create_adk_agent(
     model: str | None = None,
     synthesis_model: str | None = None,
     name: str = "catalog_comparison_orchestrator",
     instruction: str = SYSTEM_INSTRUCTION,
 ) -> Agent:
-    """Factory to instantiate a Google ADK Agent with dynamic model swappability."""
+    """Factory to instantiate a Google ADK Agent with dynamic model swappability and memory tools."""
     _, resolved_synthesis, _ = resolve_model_pair(model=model, synthesis_model=synthesis_model)
     return Agent(
         name=name,
         model=resolved_synthesis,
         instruction=instruction,
-        tools=[query_catalog],
+        tools=[query_catalog, PreloadMemoryTool()],
+        after_agent_callback=generate_memories_callback,
     )
 
 
@@ -2187,6 +2201,13 @@ class ComparisonOrchestrator:
         # Ensure deterministic claim-to-SKU citation alignment
         reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text
 
+        # Persist follow-up chat interaction in Vertex AI Session Service and Memory Bank
+        _persist_chat_session_and_memory(
+            session_id=session_id,
+            user_message=clean_message or message,
+            model_reply=reply_scrubbed,
+        )
+
         latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
         trace_id = get_current_trace_id()
 
@@ -2200,3 +2221,74 @@ class ComparisonOrchestrator:
             agent_version=resolved_agent_version,
             model_version=f"{active_model}@001",
         )
+
+
+def _run_async_safely(coro_fn: Any) -> Any:
+    """Execute an async coroutine function safely whether an event loop is active or not."""
+    try:
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(lambda: asyncio.run(coro_fn())).result(timeout=15.0)
+    except RuntimeError:
+        return asyncio.run(coro_fn())
+
+
+def _persist_chat_session_and_memory(
+    session_id: str | None,
+    user_message: str,
+    model_reply: str,
+    user_id: str = "user_default",
+) -> None:
+    """Persist follow-up chat turns in VertexAiSessionService and commit to VertexAiMemoryBankService."""
+    if not session_id:
+        return
+
+    async def _persist() -> None:
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        from app.agent.runner import (
+            get_default_memory_service,
+            get_default_session_service,
+        )
+
+        session_service = get_default_session_service()
+        memory_service = get_default_memory_service()
+
+        sess = await session_service.get_session(
+            app_name="app",
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if sess is None:
+            sess = await session_service.create_session(
+                app_name="app",
+                user_id=user_id,
+                session_id=session_id,
+                state={"last_query": user_message},
+            )
+
+        user_event = Event(
+            author="user",
+            content=genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text=user_message)],
+            ),
+        )
+        model_event = Event(
+            author="catalog_comparison_orchestrator",
+            content=genai_types.Content(
+                role="model",
+                parts=[genai_types.Part.from_text(text=model_reply)],
+            ),
+        )
+        await session_service.append_event(session=sess, event=user_event)
+        await session_service.append_event(session=sess, event=model_event)
+
+        # Ingest session into memory bank
+        await memory_service.add_session_to_memory(sess)
+
+    try:
+        _run_async_safely(_persist)
+    except Exception as exc:
+        logger.debug("Chat session and memory persistence note: %s", exc)
