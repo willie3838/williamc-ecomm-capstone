@@ -1,8 +1,10 @@
-"""Pytest configuration and global fixtures for backend tests."""
-
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# Ensure hermetic test execution without attempting remote cloud trace exports
+os.environ.setdefault("EXPORT_TRACES_TO_CLOUD", "false")
 
 
 @pytest.fixture
