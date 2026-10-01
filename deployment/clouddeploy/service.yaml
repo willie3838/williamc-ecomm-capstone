@@ -37,6 +37,8 @@ spec:
               value: query_telemetry
             - name: EXPORT_TRACES_TO_CLOUD
               value: "true"
+            - name: GOOGLE_CLOUD_AGENT_ENGINE_ID
+              value: "2445220951441276928"
             - name: AGENT_RUNTIME_RESOURCE_NAME
               value: "projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928"
             - name: ENABLE_MODEL_ARMOR

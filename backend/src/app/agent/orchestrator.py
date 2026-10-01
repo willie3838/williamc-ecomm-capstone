@@ -1577,7 +1577,7 @@ class ComparisonOrchestrator:
         session_id: str | None = None,
         user_id: str = "default_user",
     ) -> CompareResponse:
-        """Execute comparison integrated with Google ADK Runner and FirestoreSessionService."""
+        """Execute comparison integrated with Google ADK Runner and VertexAiSessionService."""
         target_session = session_id or f"sess_{int(time.time() * 1000)}"
         safe_query = sanitize_user_prompt(query)
 

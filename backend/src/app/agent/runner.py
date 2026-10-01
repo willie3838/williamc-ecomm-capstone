@@ -61,7 +61,9 @@ def _resolve_agent_engine_id(explicit_id: str | None = None) -> str | None:
         or os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID")
         or os.environ.get("AGENT_ENGINE_ID")
         or os.environ.get("REASONING_ENGINE_ID")
+        or os.environ.get("AGENT_RUNTIME_RESOURCE_NAME")
         or getattr(_settings, "agent_engine_id", None)
+        or getattr(_settings, "agent_runtime_resource_name", None)
     )
     if not raw:
         return None
@@ -257,10 +259,6 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             except Exception as exc:
                 logger.debug("VertexAiSessionService.append_event note: %s", exc)
         return updated
-
-
-# Alias for backward compatibility
-FirestoreSessionService = CatalogVertexAiSessionService
 
 
 class CatalogAdkRunner(InMemoryRunner):

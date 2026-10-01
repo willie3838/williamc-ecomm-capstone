@@ -97,6 +97,16 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
       }
 
       env {
+        name  = "GOOGLE_CLOUD_AGENT_ENGINE_ID"
+        value = "2445220951441276928"
+      }
+
+      env {
+        name  = "AGENT_RUNTIME_RESOURCE_NAME"
+        value = "projects/${var.project_number}/locations/${var.region}/reasoningEngines/2445220951441276928"
+      }
+
+      env {
         name  = "ENABLE_MODEL_ARMOR"
         value = "true"
       }
