@@ -277,13 +277,16 @@ def _call_real_vertex_gemini(
 ) -> tuple[str, int, int]:
     """Call live Vertex AI Gemini API directly (zero caching) using shared HTTP connection pool."""
     global _VERTEX_AUTH_UNAVAILABLE
-    if (
-        (_VERTEX_AUTH_UNAVAILABLE or os.environ.get("HERMETIC_EVAL", "").lower() == "true")
-        and not hasattr(genai.Client, "assert_called")
-        and not os.environ.get("PYTEST_CURRENT_TEST")
+    is_mocked_client = hasattr(genai.Client, "assert_called") or hasattr(
+        _get_shared_vertex_client, "assert_called"
+    )
+    if not is_mocked_client and (
+        _VERTEX_AUTH_UNAVAILABLE
+        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
+        or bool(os.environ.get("PYTEST_CURRENT_TEST"))
     ):
         raise RuntimeError(
-            "Hermetic eval or Vertex AI ADC unavailable; using deterministic adapter."
+            "Hermetic eval, pytest, or Vertex AI ADC unavailable; using deterministic adapter."
         )
 
     client = _get_shared_vertex_client()

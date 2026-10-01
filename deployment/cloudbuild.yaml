@@ -19,6 +19,7 @@ steps:
     entrypoint: 'bash'
     env:
       - 'EXPORT_TRACES_TO_CLOUD=false'
+      - 'HERMETIC_EVAL=true'
     args:
       - '-c'
       - |
@@ -34,6 +35,9 @@ steps:
   - name: 'python:3.11-slim'
     id: 'adk-eval'
     entrypoint: 'bash'
+    env:
+      - 'EXPORT_TRACES_TO_CLOUD=false'
+      - 'HERMETIC_EVAL=true'
     args:
       - '-c'
       - |
@@ -54,6 +58,9 @@ steps:
   - name: 'python:3.11-slim'
     id: 'eval-benchmark'
     entrypoint: 'bash'
+    env:
+      - 'EXPORT_TRACES_TO_CLOUD=false'
+      - 'HERMETIC_EVAL=true'
     args:
       - '-c'
       - |
