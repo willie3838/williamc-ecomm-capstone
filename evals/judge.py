@@ -193,8 +193,12 @@ def _deterministic_faithfulness_check(
             other_sku = other_skus[0]
             # If the higher price SKU is claimed as cheaper/more affordable
             if (
-                f"[sku: {other_sku}] is more affordable" in summary_lower
-                or f"{other_sku} is cheaper" in summary_lower
+                re.search(
+                    rf"(?:\[sku:\s*{re.escape(other_sku.lower())}\]|{re.escape(other_sku.lower())})\s+is\s+.*?\b(?:cheaper|more affordable|less expensive)\b",
+                    summary_lower,
+                )
+                or f"[sku: {other_sku.lower()}] is more affordable" in summary_lower
+                or f"{other_sku.lower()} is cheaper" in summary_lower
             ):
                 has_contradiction = True
                 reasons.append(

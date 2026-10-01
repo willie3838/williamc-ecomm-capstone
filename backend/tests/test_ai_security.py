@@ -775,8 +775,8 @@ def test_chat_with_products_template_not_found_retry_fails(mock_client_cls):
 
 
 @patch("google.genai.Client")
-def test_chat_with_products_appends_citations_when_uncited(mock_client_cls):
-    """Verify chat_with_products appends reference citation tags if LLM output omits them."""
+def test_chat_with_products_no_post_hoc_referencing_append(mock_client_cls):
+    """Verify chat_with_products does not artificially append '(Referencing: [SKU: ...])' when uncited."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
 
@@ -795,5 +795,5 @@ def test_chat_with_products_appends_citations_when_uncited(mock_client_cls):
 
     resp = orchestrator.chat_with_products(message="Compare laptops", products=products)
 
-    assert "[SKU: 111]" in resp.reply
-    assert "(Referencing:" in resp.reply
+    assert "(Referencing:" not in resp.reply
+    assert resp.reply == "Both laptops are very fast and reliable."
