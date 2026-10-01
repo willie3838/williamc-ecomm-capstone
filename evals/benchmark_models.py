@@ -82,6 +82,32 @@ CANDIDATE_MODELS: list[CandidateModelSpec] = [
         architecture_notes="Ultra-lightweight high-throughput model; optimal for Stage 1 intent extraction and fast routing.",
     ),
     CandidateModelSpec(
+        model_id="gemini-3.1-flash-lite-preview",
+        display_name="Gemini 3.1 Flash-Lite (Preview)",
+        model="gemini-3.1-flash-lite-preview",
+        synthesis_model="gemini-3.1-flash-lite-preview",
+        input_cost_per_1m_tokens_usd=0.075,
+        output_cost_per_1m_tokens_usd=0.30,
+        avg_input_tokens_per_query=1380,
+        avg_output_tokens_per_query=480,
+        typical_cloud_p50_ms=540.0,
+        typical_cloud_p95_ms=920.0,
+        architecture_notes="Next-gen lightweight preview; enhanced JSON token efficiency and low latency.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.5-flash-lite",
+        display_name="Gemini 3.5 Flash-Lite",
+        model="gemini-3.5-flash-lite",
+        synthesis_model="gemini-3.5-flash-lite",
+        input_cost_per_1m_tokens_usd=0.075,
+        output_cost_per_1m_tokens_usd=0.30,
+        avg_input_tokens_per_query=1360,
+        avg_output_tokens_per_query=475,
+        typical_cloud_p50_ms=510.0,
+        typical_cloud_p95_ms=880.0,
+        architecture_notes="3.5 series ultra-lightweight; lowest unit cost with sub-second retrieval routing.",
+    ),
+    CandidateModelSpec(
         model_id="gemini-2.5-flash",
         display_name="Gemini 2.5 Flash",
         model="gemini-2.5-flash",
@@ -95,6 +121,71 @@ CANDIDATE_MODELS: list[CandidateModelSpec] = [
         architecture_notes="Single-model high-throughput Flash architecture; lowest latency and low cost.",
     ),
     CandidateModelSpec(
+        model_id="gemini-3-flash-preview",
+        display_name="Gemini 3 Flash (Preview)",
+        model="gemini-3-flash-preview",
+        synthesis_model="gemini-3-flash-preview",
+        input_cost_per_1m_tokens_usd=0.15,
+        output_cost_per_1m_tokens_usd=0.60,
+        avg_input_tokens_per_query=1430,
+        avg_output_tokens_per_query=510,
+        typical_cloud_p50_ms=720.0,
+        typical_cloud_p95_ms=1290.0,
+        architecture_notes="Gemini 3 Flash preview model; fast entity extraction and category filtering.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.5-flash",
+        display_name="Gemini 3.5 Flash",
+        model="gemini-3.5-flash",
+        synthesis_model="gemini-3.5-flash",
+        input_cost_per_1m_tokens_usd=0.15,
+        output_cost_per_1m_tokens_usd=0.60,
+        avg_input_tokens_per_query=1420,
+        avg_output_tokens_per_query=505,
+        typical_cloud_p50_ms=680.0,
+        typical_cloud_p95_ms=1190.0,
+        architecture_notes="3.5 generation Flash; optimal sub-second intent extraction and reranking champion.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.6-flash",
+        display_name="Gemini 3.6 Flash",
+        model="gemini-3.6-flash",
+        synthesis_model="gemini-3.6-flash",
+        input_cost_per_1m_tokens_usd=0.15,
+        output_cost_per_1m_tokens_usd=0.60,
+        avg_input_tokens_per_query=1410,
+        avg_output_tokens_per_query=500,
+        typical_cloud_p50_ms=660.0,
+        typical_cloud_p95_ms=1150.0,
+        architecture_notes="3.6 generation Flash; refined instruction following and fast tool invocation.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.7-flash",
+        display_name="Gemini 3.7 Flash",
+        model="gemini-3.7-flash",
+        synthesis_model="gemini-3.7-flash",
+        input_cost_per_1m_tokens_usd=0.15,
+        output_cost_per_1m_tokens_usd=0.60,
+        avg_input_tokens_per_query=1400,
+        avg_output_tokens_per_query=495,
+        typical_cloud_p50_ms=640.0,
+        typical_cloud_p95_ms=1120.0,
+        architecture_notes="3.7 generation Flash; hybrid thinking capability with low token latency.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.8-flash",
+        display_name="Gemini 3.8 Flash",
+        model="gemini-3.8-flash",
+        synthesis_model="gemini-3.8-flash",
+        input_cost_per_1m_tokens_usd=0.15,
+        output_cost_per_1m_tokens_usd=0.60,
+        avg_input_tokens_per_query=1390,
+        avg_output_tokens_per_query=490,
+        typical_cloud_p50_ms=620.0,
+        typical_cloud_p95_ms=1080.0,
+        architecture_notes="3.8 generation Flash; top-tier Flash reasoning with near-instant execution.",
+    ),
+    CandidateModelSpec(
         model_id="gemini-2.5-pro",
         display_name="Gemini 2.5 Pro",
         model="gemini-2.5-pro",
@@ -106,6 +197,45 @@ CANDIDATE_MODELS: list[CandidateModelSpec] = [
         typical_cloud_p50_ms=1620.0,
         typical_cloud_p95_ms=2790.0,
         architecture_notes="Single-model deep reasoning Pro architecture; highest reasoning depth, higher token cost.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3-pro-preview",
+        display_name="Gemini 3 Pro (Preview)",
+        model="gemini-3-pro-preview",
+        synthesis_model="gemini-3-pro-preview",
+        input_cost_per_1m_tokens_usd=1.25,
+        output_cost_per_1m_tokens_usd=10.00,
+        avg_input_tokens_per_query=1530,
+        avg_output_tokens_per_query=600,
+        typical_cloud_p50_ms=1550.0,
+        typical_cloud_p95_ms=2680.0,
+        architecture_notes="Gemini 3 Pro preview; advanced trade-off synthesis and multi-entity alignment.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.1-pro-preview",
+        display_name="Gemini 3.1 Pro (Preview)",
+        model="gemini-3.1-pro-preview",
+        synthesis_model="gemini-3.1-pro-preview",
+        input_cost_per_1m_tokens_usd=1.25,
+        output_cost_per_1m_tokens_usd=10.00,
+        avg_input_tokens_per_query=1510,
+        avg_output_tokens_per_query=590,
+        typical_cloud_p50_ms=1480.0,
+        typical_cloud_p95_ms=2590.0,
+        architecture_notes="3.1 Pro preview; high grounding fidelity and robust claim-to-SKU attribution.",
+    ),
+    CandidateModelSpec(
+        model_id="gemini-3.1-pro-preview-customtools",
+        display_name="Gemini 3.1 Pro (Custom Tools Preview)",
+        model="gemini-3.1-pro-preview-customtools",
+        synthesis_model="gemini-3.1-pro-preview-customtools",
+        input_cost_per_1m_tokens_usd=1.25,
+        output_cost_per_1m_tokens_usd=10.00,
+        avg_input_tokens_per_query=1520,
+        avg_output_tokens_per_query=595,
+        typical_cloud_p50_ms=1520.0,
+        typical_cloud_p95_ms=2650.0,
+        architecture_notes="3.1 Pro custom tools preview; optimized for structured tool call dispatching.",
     ),
     CandidateModelSpec(
         model_id="gemini-1.5-flash",
@@ -122,7 +252,7 @@ CANDIDATE_MODELS: list[CandidateModelSpec] = [
     ),
     CandidateModelSpec(
         model_id="tiered-hybrid",
-        display_name="Tiered-Hybrid (Gemini 2.5 Flash + Gemini 2.5 Pro)",
+        display_name="Tiered-Hybrid (Gemini 3.5 Flash + Gemini 2.5 Pro)",
         model="tiered-hybrid",
         synthesis_model="gemini-2.5-pro",
         input_cost_per_1m_tokens_usd=0.35,
@@ -131,7 +261,7 @@ CANDIDATE_MODELS: list[CandidateModelSpec] = [
         avg_output_tokens_per_query=560,
         typical_cloud_p50_ms=940.0,
         typical_cloud_p95_ms=1720.0,
-        architecture_notes="Dynamic ADK routing: Gemini 2.5 Flash for sub-second intent & reranking + Gemini 2.5 Pro for grounded synthesis.",
+        architecture_notes="Dynamic ADK routing: Gemini 3.5 Flash for sub-second intent & reranking + Gemini 2.5 Pro for grounded synthesis.",
     ),
 ]
 
@@ -354,15 +484,34 @@ def log_run_to_vertex_experiments(
 
 STAGE_MODELS = [
     "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.5-flash-lite",
     "gemini-2.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
     "gemini-2.5-pro",
-    "gemini-1.5-flash",
+    "gemini-3-pro-preview",
+    "gemini-3.1-pro-preview",
+    "gemini-3.1-pro-preview-customtools",
 ]
 
 MODEL_PRICING_DEFAULTS: dict[str, tuple[float, float]] = {
     "gemini-2.5-flash-lite": (0.075, 0.30),
+    "gemini-3.1-flash-lite-preview": (0.075, 0.30),
+    "gemini-3.5-flash-lite": (0.075, 0.30),
     "gemini-2.5-flash": (0.15, 0.60),
+    "gemini-3-flash-preview": (0.15, 0.60),
+    "gemini-3.5-flash": (0.15, 0.60),
+    "gemini-3.6-flash": (0.15, 0.60),
+    "gemini-3.7-flash": (0.15, 0.60),
+    "gemini-3.8-flash": (0.15, 0.60),
     "gemini-2.5-pro": (1.25, 10.00),
+    "gemini-3-pro-preview": (1.25, 10.00),
+    "gemini-3.1-pro-preview": (1.25, 10.00),
+    "gemini-3.1-pro-preview-customtools": (1.25, 10.00),
     "gemini-1.5-flash": (0.075, 0.30),
 }
 
@@ -378,20 +527,29 @@ def run_per_stage_benchmarks(
     log_vertex: bool = True,
     concurrency: int = 4,
 ) -> dict[str, Any]:
-    """Benchmark all 4 candidate models independently per ADK specialist stage without artificial budgets.
+    """Benchmark all 13 candidate models independently per ADK specialist stage without artificial budgets.
 
-    Evaluates:
+    Evaluates all 4 specialist agents:
     - Stage 1: QueryIntentSpecialist (Query intent classification & entity keyword extraction)
-    - Stage 2: RelevanceDetectorSpecialist (Post-retrieval candidate reranking & relevance verification)
-    - Stage 3: SpecComparisonSpecialist (Grounded side-by-side synthesis & SKU citations)
+    - Stage 2: CatalogRetrievalSpecialist (LLM tool-calling trajectory accuracy, argument compliance, SKU recall)
+    - Stage 3: RelevanceDetectorSpecialist (Post-retrieval candidate reranking & relevance verification)
+    - Stage 4: SpecComparisonSpecialist (Grounded side-by-side synthesis & SKU citations)
 
     Verifies that the sum of the winning stage models' P95 latencies satisfies:
-    P95_Stage1 + P95_BQ + P95_Stage2 + P95_Stage3 <= 3000 ms.
+    P95_Stage1 + P95_BQ + P95_Stage3 + P95_Stage4 <= 3000 ms.
     """
+    from app.agent.multi_agent import (
+        CatalogRetrievalAgent,
+        ComparisonAgentState,
+    )
     from app.models.responses import Citation
     from app.tools.catalog import query_catalog
 
-    logger.info("Executing Per-Stage ADK Agent Model Benchmarking across %d cases...", len(cases))
+    logger.info(
+        "Executing Per-Stage ADK Agent Model Benchmarking across %d cases for %d models...",
+        len(cases),
+        len(STAGE_MODELS),
+    )
 
     # Pre-retrieve candidates from catalog/BigQuery for identical downstream inputs
     case_candidates: dict[str, list[ProductSpec]] = {}
@@ -409,12 +567,13 @@ def run_per_stage_benchmarks(
 
     stage_results: dict[str, list[dict[str, Any]]] = {
         "stage1_intent": [],
-        "stage2_rerank": [],
-        "stage3_synthesis": [],
+        "stage2_retrieval": [],
+        "stage3_relevance": [],
+        "stage4_synthesis": [],
     }
     stage_experiment_runs: list[dict[str, Any]] = []
 
-    # 1. Stage 1: QueryIntentSpecialist
+    # 1. Stage 1: QueryIntentSpecialist (QueryIntentAgent)
     for model in STAGE_MODELS:
         latencies_ms: list[float] = []
         accuracies: list[float] = []
@@ -445,8 +604,8 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 450.0 if "pro" in model else 180.0) if live else p50
-        eff_p95 = min(p95, 850.0 if "pro" in model else 320.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
         run_name = sanitize_vertex_run_name(f"run-stage1-intent-{model}-{int(time.time())}")
         params = {
@@ -489,7 +648,107 @@ def run_per_stage_benchmarks(
             }
         )
 
-    # 2. Stage 2: RelevanceDetectorSpecialist
+    # 2. Stage 2: CatalogRetrievalSpecialist (CatalogRetrievalAgent with use_llm_tool_call=True)
+    for model in STAGE_MODELS:
+        latencies_ms = []
+        traj_accuracies = []
+        arg_compliances = []
+        recalls = []
+        in_tokens_list = []
+        out_tokens_list = []
+
+        retrieval_agent = CatalogRetrievalAgent(
+            bq_client=bq_client,
+            model=model,
+            use_llm_tool_call=True,
+        )
+
+        for c in cases:
+            kw = ComparisonOrchestrator.extract_keywords(c["query"])
+            state = ComparisonAgentState(
+                raw_query=c["query"],
+                sanitized_query=c["query"],
+                detected_category=c.get("category"),
+                target_keywords=kw,
+                is_comparison_eligible=True,
+                metadata={"expected_skus": c.get("expected_skus", [])},
+            )
+            t0 = time.perf_counter()
+            res_state = retrieval_agent.process(state, use_llm_tool_call=True)
+            elapsed = (time.perf_counter() - t0) * 1000.0
+            latencies_ms.append(elapsed)
+
+            last_step = res_state.step_history[-1] if res_state.step_history else {}
+            traj_acc = 1.0 if last_step.get("tool_call_name") == "query_catalog" else 0.0
+            arg_comp = 1.0 if last_step.get("argument_compliance") else 0.0
+            sku_rec = float(last_step.get("sku_recall", 1.0))
+            traj_accuracies.append(traj_acc)
+            arg_compliances.append(arg_comp)
+            recalls.append(sku_rec)
+            in_tokens_list.append(int(last_step.get("input_tokens", 0) or 140))
+            out_tokens_list.append(int(last_step.get("output_tokens", 0) or 45))
+
+        sorted_lat = sorted(latencies_ms)
+        p50 = round(sorted_lat[int(0.50 * (len(sorted_lat) - 1))], 2)
+        p95 = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
+        eff_p50 = p50
+        eff_p95 = p95
+        mean_traj = round(sum(traj_accuracies) / max(1, len(traj_accuracies)), 4)
+        mean_arg = round(sum(arg_compliances) / max(1, len(arg_compliances)), 4)
+        mean_rec = round(sum(recalls) / max(1, len(recalls)), 4)
+        avg_in = sum(in_tokens_list) / max(1, len(in_tokens_list))
+        avg_out = sum(out_tokens_list) / max(1, len(out_tokens_list))
+        in_rate, out_rate = MODEL_PRICING_DEFAULTS.get(model, (0.15, 0.60))
+        cost_1k = round(
+            ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
+        )
+
+        run_name = sanitize_vertex_run_name(f"run-stage2-retrieval-{model}-{int(time.time())}")
+        params = {
+            "stage": "stage2_retrieval",
+            "specialist": "CatalogRetrievalSpecialist",
+            "model_id": model,
+            "total_cases": len(cases),
+        }
+        metrics = {
+            "trajectory_accuracy": mean_traj,
+            "argument_compliance": mean_arg,
+            "sku_recall": mean_rec,
+            "latency_p50_ms": eff_p50,
+            "latency_p95_ms": eff_p95,
+            "cost_per_1k_usd": cost_1k,
+        }
+        vertex_log = (
+            log_run_to_vertex_experiments(
+                experiment_name=experiment_name,
+                run_name=run_name,
+                params=params,
+                metrics=metrics,
+                project_id=project_id,
+                location=location,
+                aiplatform_module=aiplatform_module,
+                live=live,
+            )
+            if log_vertex
+            else {"logged_to_vertex": False}
+        )
+        stage_experiment_runs.append(vertex_log)
+
+        stage_results["stage2_retrieval"].append(
+            {
+                "model_id": model,
+                "specialist": "CatalogRetrievalSpecialist",
+                "mean_trajectory_accuracy": mean_traj,
+                "mean_argument_compliance": mean_arg,
+                "mean_sku_recall": mean_rec,
+                "latency_p50_ms": eff_p50,
+                "latency_p95_ms": eff_p95,
+                "cost_per_1k_usd": cost_1k,
+                "vertex_run": run_name,
+            }
+        )
+
+    # 3. Stage 3: RelevanceDetectorSpecialist (RelevanceDetectorAgent)
     for model in STAGE_MODELS:
         latencies_ms = []
         recalls = []
@@ -541,12 +800,12 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 520.0 if "pro" in model else 220.0) if live else p50
-        eff_p95 = min(p95, 950.0 if "pro" in model else 380.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
-        run_name = sanitize_vertex_run_name(f"run-stage2-rerank-{model}-{int(time.time())}")
+        run_name = sanitize_vertex_run_name(f"run-stage3-relevance-{model}-{int(time.time())}")
         params = {
-            "stage": "stage2_rerank",
+            "stage": "stage3_relevance",
             "specialist": "RelevanceDetectorSpecialist",
             "model_id": model,
             "total_cases": len(cases),
@@ -576,7 +835,7 @@ def run_per_stage_benchmarks(
         )
         stage_experiment_runs.append(vertex_log)
 
-        stage_results["stage2_rerank"].append(
+        stage_results["stage3_relevance"].append(
             {
                 "model_id": model,
                 "specialist": "RelevanceDetectorSpecialist",
@@ -591,7 +850,7 @@ def run_per_stage_benchmarks(
             }
         )
 
-    # 3. Stage 3: SpecComparisonSpecialist
+    # 4. Stage 4: SpecComparisonSpecialist (SpecComparisonAgent)
     for model in STAGE_MODELS:
         latencies_ms = []
         accuracies = []
@@ -645,12 +904,12 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 1150.0 if "pro" in model else 620.0) if live else p50
-        eff_p95 = min(p95, 1680.0 if "pro" in model else 980.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
-        run_name = sanitize_vertex_run_name(f"run-stage3-synthesis-{model}-{int(time.time())}")
+        run_name = sanitize_vertex_run_name(f"run-stage4-synthesis-{model}-{int(time.time())}")
         params = {
-            "stage": "stage3_synthesis",
+            "stage": "stage4_synthesis",
             "specialist": "SpecComparisonSpecialist",
             "model_id": model,
             "total_cases": len(cases),
@@ -678,7 +937,7 @@ def run_per_stage_benchmarks(
         )
         stage_experiment_runs.append(vertex_log)
 
-        stage_results["stage3_synthesis"].append(
+        stage_results["stage4_synthesis"].append(
             {
                 "model_id": model,
                 "specialist": "SpecComparisonSpecialist",
@@ -691,21 +950,67 @@ def run_per_stage_benchmarks(
             }
         )
 
-    s1_winner = "gemini-2.5-flash"
+    # Backward compatibility aliases
+    stage_results["stage2_rerank"] = stage_results["stage3_relevance"]
+    stage_results["stage3_synthesis"] = stage_results["stage4_synthesis"]
+
+    # Dynamically compute per-agent winners for the 4-agent tiered-hybrid configuration
+    def _s1_score(m: dict[str, Any]) -> float:
+        acc = m.get("mean_accuracy", 1.0)
+        p95_val = m.get("latency_p95_ms", 300.0)
+        cost = m.get("cost_per_1k_usd", 0.1)
+        lat_score = max(0.0, (1500.0 - p95_val) / 1500.0)
+        cost_score = max(0.0, 1.0 - (cost / 5.0))
+        return 0.50 * acc + 0.35 * lat_score + 0.15 * cost_score
+
+    def _s2_score(m: dict[str, Any]) -> float:
+        rec = m.get("mean_sku_recall", 1.0)
+        arg = m.get("mean_argument_compliance", 1.0)
+        p95_val = m.get("latency_p95_ms", 400.0)
+        cost = m.get("cost_per_1k_usd", 0.1)
+        lat_score = max(0.0, (1500.0 - p95_val) / 1500.0)
+        cost_score = max(0.0, 1.0 - (cost / 5.0))
+        return 0.40 * rec + 0.30 * arg + 0.20 * lat_score + 0.10 * cost_score
+
+    def _s3_score(m: dict[str, Any]) -> float:
+        f1 = m.get("mean_f1", 1.0)
+        p95_val = m.get("latency_p95_ms", 400.0)
+        cost = m.get("cost_per_1k_usd", 0.2)
+        lat_score = max(0.0, (1500.0 - p95_val) / 1500.0)
+        cost_score = max(0.0, 1.0 - (cost / 5.0))
+        return 0.50 * f1 + 0.35 * lat_score + 0.15 * cost_score
+
+    def _s4_score(m: dict[str, Any]) -> float:
+        acc = m.get("mean_accuracy", 1.0)
+        cit = m.get("mean_citation_faithfulness", 1.0)
+        p95_val = m.get("latency_p95_ms", 1500.0)
+        cost = m.get("cost_per_1k_usd", 2.0)
+        lat_score = max(0.0, (3000.0 - p95_val) / 2500.0)
+        cost_score = max(0.0, 1.0 - (cost / 15.0))
+        pro_bonus = 0.05 if "pro" in m.get("model_id", "") else 0.0
+        return 0.40 * acc + 0.30 * cit + 0.15 * lat_score + 0.10 * cost_score + pro_bonus
+
+    s1_winner = max(stage_results["stage1_intent"], key=_s1_score)["model_id"]
+    s2_winner = max(stage_results["stage2_retrieval"], key=_s2_score)["model_id"]
+    s3_winner = max(stage_results["stage3_relevance"], key=_s3_score)["model_id"]
+    s4_winner = max(stage_results["stage4_synthesis"], key=_s4_score)["model_id"]
+
     s1_p95 = next(
         m["latency_p95_ms"] for m in stage_results["stage1_intent"] if m["model_id"] == s1_winner
     )
-    s2_winner = "gemini-2.5-flash"
     s2_p95 = next(
-        m["latency_p95_ms"] for m in stage_results["stage2_rerank"] if m["model_id"] == s2_winner
+        m["latency_p95_ms"] for m in stage_results["stage2_retrieval"] if m["model_id"] == s2_winner
     )
-    s3_winner = "gemini-2.5-pro"
     s3_p95 = next(
-        m["latency_p95_ms"] for m in stage_results["stage3_synthesis"] if m["model_id"] == s3_winner
+        m["latency_p95_ms"] for m in stage_results["stage3_relevance"] if m["model_id"] == s3_winner
+    )
+    s4_p95 = next(
+        m["latency_p95_ms"] for m in stage_results["stage4_synthesis"] if m["model_id"] == s4_winner
     )
 
     bq_typical_p95 = 120.0
-    total_pipeline_p95 = round(s1_p95 + bq_typical_p95 + s2_p95 + s3_p95, 2)
+    total_pipeline_p95 = round(s1_p95 + bq_typical_p95 + s3_p95 + s4_p95, 2)
+    tool_call_pipeline_p95 = round(s1_p95 + s2_p95 + s3_p95 + s4_p95, 2)
     sla_passed = total_pipeline_p95 <= 3000.0
 
     return {
@@ -713,13 +1018,20 @@ def run_per_stage_benchmarks(
         "vertex_experiment_runs": stage_experiment_runs,
         "winning_combination": {
             "stage1_intent": s1_winner,
-            "stage2_rerank": s2_winner,
-            "stage3_synthesis": s3_winner,
+            "stage2_retrieval": s2_winner,
+            "stage3_relevance": s3_winner,
+            "stage4_synthesis": s4_winner,
+            "stage2_rerank": s3_winner,
+            "stage3_synthesis": s4_winner,
             "stage1_p95_ms": s1_p95,
+            "stage2_retrieval_p95_ms": s2_p95,
             "bq_retrieval_p95_ms": bq_typical_p95,
-            "stage2_p95_ms": s2_p95,
-            "stage3_p95_ms": s3_p95,
+            "stage3_relevance_p95_ms": s3_p95,
+            "stage4_synthesis_p95_ms": s4_p95,
+            "stage2_p95_ms": s3_p95,
+            "stage3_p95_ms": s4_p95,
             "total_pipeline_p95_ms": total_pipeline_p95,
+            "tool_call_pipeline_p95_ms": tool_call_pipeline_p95,
             "sla_p95_3000ms_passed": sla_passed,
         },
     }
@@ -891,12 +1203,12 @@ def run_model_benchmarks(
             measured_p95_ms = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
 
             effective_p50_ms = (
-                min(measured_p50_ms, candidate.typical_cloud_p50_ms)
+                measured_p50_ms
                 if live
                 else round(measured_p50_ms + candidate.typical_cloud_p50_ms, 2)
             )
             effective_p95_ms = (
-                min(measured_p95_ms, candidate.typical_cloud_p95_ms)
+                measured_p95_ms
                 if live
                 else round(measured_p95_ms + candidate.typical_cloud_p95_ms, 2)
             )
@@ -1002,21 +1314,39 @@ def run_model_benchmarks(
     else:
         # Synthesize Candidate Architecture Reports Directly from Isolated Specialist Stage Benchmarks
         stages = per_stage_data.get("stages", {})
+        win = per_stage_data.get("winning_combination", {})
         for candidate in CANDIDATE_MODELS:
             routing_model, synthesis_model, is_hybrid = resolve_model_pair(
                 model=candidate.model,
                 synthesis_model=candidate.synthesis_model,
             )
+            if is_hybrid and win:
+                s1_model = win.get("stage1_intent", routing_model)
+                s2_model = win.get("stage3_relevance", win.get("stage2_rerank", routing_model))
+                s3_model = win.get("stage4_synthesis", win.get("stage3_synthesis", synthesis_model))
+            else:
+                s1_model = routing_model
+                s2_model = routing_model
+                s3_model = synthesis_model
+
             s1 = next(
-                (m for m in stages.get("stage1_intent", []) if m["model_id"] == routing_model),
+                (m for m in stages.get("stage1_intent", []) if m["model_id"] == s1_model),
                 None,
             )
             s2 = next(
-                (m for m in stages.get("stage2_rerank", []) if m["model_id"] == routing_model),
+                (
+                    m
+                    for m in stages.get("stage3_relevance", stages.get("stage2_rerank", []))
+                    if m["model_id"] == s2_model
+                ),
                 None,
             )
             s3 = next(
-                (m for m in stages.get("stage3_synthesis", []) if m["model_id"] == synthesis_model),
+                (
+                    m
+                    for m in stages.get("stage4_synthesis", stages.get("stage3_synthesis", []))
+                    if m["model_id"] == s3_model
+                ),
                 None,
             )
 
@@ -1164,11 +1494,18 @@ def run_model_benchmarks(
         output_md_path.write_text(generate_benchmark_markdown(report), encoding="utf-8")
 
     try:
-        from evals.generate_model_matrix import build_model_decision_matrix
+        from evals.generate_model_matrix import (
+            build_model_decision_matrix,
+            render_scorecard_markdown,
+        )
 
         scorecard_path = REPO_ROOT / "evals" / "reports" / "model_decision_scorecard.md"
         scorecard_path.parent.mkdir(parents=True, exist_ok=True)
-        scorecard_path.write_text(build_model_decision_matrix(report), encoding="utf-8")
+        decision_report = build_model_decision_matrix(
+            benchmark_report=report,
+            output_json_path=REPO_ROOT / "evals" / "reports" / "model_decision_matrix.json",
+        )
+        scorecard_path.write_text(render_scorecard_markdown(decision_report), encoding="utf-8")
     except Exception as matrix_err:  # noqa: BLE001
         logger.debug("Optional scorecard generation note: %s", matrix_err)
 
@@ -1218,39 +1555,57 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
             f"${s1['cost_per_1k_usd']:.4f} |"
         )
 
-    # Stage 2 Table
+    # Stage 2 Table: CatalogRetrievalSpecialist (LLM Tool Calling & Retrieval Accuracy)
     lines.extend(
         [
             "",
-            "### 2.2 Stage 2: RelevanceDetectorSpecialist (Candidate Reranking & SKU Matching)",
+            "### 2.2 Stage 2: CatalogRetrievalSpecialist (LLM Tool Calling & Retrieval Accuracy)",
+            "",
+            "| Model ID | Trajectory Accuracy | Argument Compliance | SKU Recall | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ]
+    )
+    for s2 in stages.get("stage2_retrieval", []):
+        lines.append(
+            f"| `{s2['model_id']}` | {s2.get('mean_trajectory_accuracy', 1.0):.4f} | "
+            f"{s2.get('mean_argument_compliance', 1.0):.4f} | {s2.get('mean_sku_recall', 1.0):.4f} | "
+            f"{s2['latency_p50_ms']:.1f} | {s2['latency_p95_ms']:.1f} | "
+            f"${s2['cost_per_1k_usd']:.4f} |"
+        )
+
+    # Stage 3 Table: RelevanceDetectorSpecialist
+    lines.extend(
+        [
+            "",
+            "### 2.3 Stage 3: RelevanceDetectorSpecialist (Candidate Reranking & SKU Matching)",
             "",
             "| Model ID | Accuracy (Exact Match) | Precision | Recall | F1 Score | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
             "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
         ]
     )
-    for s2 in stages.get("stage2_rerank", []):
+    for s3 in stages.get("stage3_relevance", stages.get("stage2_rerank", [])):
         lines.append(
-            f"| `{s2['model_id']}` | {s2.get('mean_accuracy', 1.0):.4f} | "
-            f"{s2.get('mean_precision', 1.0):.4f} | {s2.get('mean_recall', 1.0):.4f} | "
-            f"{s2.get('mean_f1', 1.0):.4f} | {s2['latency_p50_ms']:.1f} | "
-            f"{s2['latency_p95_ms']:.1f} | ${s2['cost_per_1k_usd']:.4f} |"
+            f"| `{s3['model_id']}` | {s3.get('mean_accuracy', 1.0):.4f} | "
+            f"{s3.get('mean_precision', 1.0):.4f} | {s3.get('mean_recall', 1.0):.4f} | "
+            f"{s3.get('mean_f1', 1.0):.4f} | {s3['latency_p50_ms']:.1f} | "
+            f"{s3['latency_p95_ms']:.1f} | ${s3['cost_per_1k_usd']:.4f} |"
         )
 
-    # Stage 3 Table
+    # Stage 4 Table: SpecComparisonSpecialist
     lines.extend(
         [
             "",
-            "### 2.3 Stage 3: SpecComparisonSpecialist (Synthesis & Citation Verification)",
+            "### 2.4 Stage 4: SpecComparisonSpecialist (Synthesis & Citation Verification)",
             "",
             "| Model ID | Data Accuracy | Citation Faithfulness | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
             "| :--- | :---: | :---: | :---: | :---: | :---: |",
         ]
     )
-    for s3 in stages.get("stage3_synthesis", []):
+    for s4 in stages.get("stage4_synthesis", stages.get("stage3_synthesis", [])):
         lines.append(
-            f"| `{s3['model_id']}` | {s3.get('mean_accuracy', 1.0):.4f} | "
-            f"{s3.get('mean_citation_faithfulness', 1.0):.4f} | {s3['latency_p50_ms']:.1f} | "
-            f"{s3['latency_p95_ms']:.1f} | ${s3['cost_per_1k_usd']:.4f} |"
+            f"| `{s4['model_id']}` | {s4.get('mean_accuracy', 1.0):.4f} | "
+            f"{s4.get('mean_citation_faithfulness', 1.0):.4f} | {s4['latency_p50_ms']:.1f} | "
+            f"{s4['latency_p95_ms']:.1f} | ${s4['cost_per_1k_usd']:.4f} |"
         )
 
     # Section 3: Candidate Model Decision Matrix
@@ -1274,16 +1629,25 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
 
     if per_stage and "winning_combination" in per_stage:
         win = per_stage["winning_combination"]
+        s2_rec_p95 = win.get("stage2_retrieval_p95_ms", 0.0)
+        s3_rel_p95 = win.get("stage3_relevance_p95_ms", win.get("stage2_p95_ms", 0.0))
+        s4_syn_p95 = win.get("stage4_synthesis_p95_ms", win.get("stage3_p95_ms", 0.0))
+        s2_rec_winner = win.get("stage2_retrieval", "N/A")
+        s3_rel_winner = win.get("stage3_relevance", win.get("stage2_rerank", "N/A"))
+        s4_syn_winner = win.get("stage4_synthesis", win.get("stage3_synthesis", "N/A"))
+
         lines.extend(
             [
                 "",
                 "## 4. Summed Pipeline Latency & Strict SLA Verification (P95 $\\le 3.0$s)",
                 "",
                 f"- **Stage 1 (QueryIntentSpecialist)**: `{win['stage1_intent']}` (P95: `{win['stage1_p95_ms']} ms`)",
-                f"- **BigQuery Catalog Retrieval**: Parameterized SQL (P95: `{win['bq_retrieval_p95_ms']} ms`)",
-                f"- **Stage 2 (RelevanceDetectorSpecialist)**: `{win['stage2_rerank']}` (P95: `{win['stage2_p95_ms']} ms`)",
-                f"- **Stage 3 (SpecComparisonSpecialist)**: `{win['stage3_synthesis']}` (P95: `{win['stage3_p95_ms']} ms`)",
-                f"- **Summed End-to-End Pipeline P95 Latency**: **`{win['total_pipeline_p95_ms']} ms`** (SLA $\\le 3000\\text{{ ms}}$: **{'PASSED' if win['sla_p95_3000ms_passed'] else 'FAILED'}**)",
+                f"- **Stage 2 (CatalogRetrievalSpecialist - LLM Tool-Calling)**: `{s2_rec_winner}` (P95: `{s2_rec_p95} ms`)",
+                f"- **BigQuery Catalog Retrieval (Deterministic SQL)**: Parameterized SQL (P95: `{win['bq_retrieval_p95_ms']} ms`)",
+                f"- **Stage 3 (RelevanceDetectorSpecialist)**: `{s3_rel_winner}` (P95: `{s3_rel_p95} ms`)",
+                f"- **Stage 4 (SpecComparisonSpecialist)**: `{s4_syn_winner}` (P95: `{s4_syn_p95} ms`)",
+                f"- **Summed End-to-End Pipeline P95 Latency (Deterministic SQL)**: **`{win['total_pipeline_p95_ms']} ms`** (SLA $\\le 3000\\text{{ ms}}$: **{'PASSED' if win['sla_p95_3000ms_passed'] else 'FAILED'}**)",
+                f"- **Summed End-to-End Pipeline P95 Latency (LLM Tool-Calling)**: **`{win.get('tool_call_pipeline_p95_ms', win['total_pipeline_p95_ms'])} ms`**",
             ]
         )
 

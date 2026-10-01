@@ -33,20 +33,69 @@ _SHARED_VERTEX_CLIENT: genai.Client | None = None
 _VERTEX_AUTH_UNAVAILABLE: bool = False
 _VERTEX_AUTH_CHECKED: bool = False
 _CLIENT_LOCK = threading.Lock()
+_VERTEX_CLIENTS: dict[str, genai.Client] = {}
 
 
-def _get_shared_vertex_client() -> genai.Client:
-    """Return a shared Vertex AI genai.Client to reuse HTTP/2 TLS connections across agent hops."""
-    global _SHARED_VERTEX_CLIENT
+def _is_preview_or_3x_model(model: str | None) -> bool:
+    """Return True if model is a Gemini 3.x or preview model requiring global Vertex AI endpoint routing."""
+    if not model:
+        return False
+    m = model.lower().strip()
+    return "gemini-3" in m or "preview" in m
+
+
+def _get_shared_vertex_client(location: str = "us-central1") -> genai.Client:
+    """Return a shared Vertex AI genai.Client for the given location to reuse HTTP/2 TLS connections."""
+    global _SHARED_VERTEX_CLIENT, _VERTEX_CLIENTS
     with _CLIENT_LOCK:
-        if _SHARED_VERTEX_CLIENT is None:
+        if location not in _VERTEX_CLIENTS:
             os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            _SHARED_VERTEX_CLIENT = genai.Client(
+            _VERTEX_CLIENTS[location] = genai.Client(
                 vertexai=True,
                 project=settings.gcp_project,
-                location="us-central1",
+                location=location,
             )
-        return _SHARED_VERTEX_CLIENT
+        if location == "us-central1":
+            _SHARED_VERTEX_CLIENT = _VERTEX_CLIENTS[location]
+        return _VERTEX_CLIENTS[location]
+
+
+def _get_vertex_client_for_model(
+    model: str | None = None, allow_cache: bool = True
+) -> genai.Client:
+    """Return Vertex AI client routed to location='global' for preview/3.x models with us-central1 fallback."""
+    if _is_preview_or_3x_model(model):
+        try:
+            if not allow_cache:
+                os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+                return genai.Client(
+                    vertexai=True,
+                    project=settings.gcp_project,
+                    location="global",
+                )
+            return _get_shared_vertex_client(location="global")
+        except Exception as exc:
+            logger.info(
+                "Vertex AI global location client routing fallback to us-central1 for %s: %s",
+                model,
+                exc,
+            )
+            if not allow_cache:
+                os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+                return genai.Client(
+                    vertexai=True,
+                    project=settings.gcp_project,
+                    location="us-central1",
+                )
+            return _get_shared_vertex_client(location="us-central1")
+    if not allow_cache:
+        os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+        return genai.Client(
+            vertexai=True,
+            project=settings.gcp_project,
+            location="us-central1",
+        )
+    return _get_shared_vertex_client(location="us-central1")
 
 
 _SHARED_MA_SESSION: Any = None
@@ -289,12 +338,19 @@ def _call_real_vertex_gemini(
             "Hermetic eval, pytest, or Vertex AI ADC unavailable; using deterministic adapter."
         )
 
-    client = _get_shared_vertex_client()
-    target_model = (
-        "gemini-2.5-flash-lite"
-        if model in ("gemini-1.5-flash", "gemini-2.5-pro", "tiered-hybrid", "")
-        else model
-    )
+    is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+        "true",
+        "1",
+    ) or getattr(settings, "benchmark_actual_model", False)
+    if is_benchmark_actual:
+        target_model = model or "gemini-2.5-flash"
+    else:
+        target_model = (
+            "gemini-2.5-flash-lite"
+            if model in ("gemini-1.5-flash", "gemini-2.5-pro", "tiered-hybrid", "")
+            else model
+        )
+    client = _get_vertex_client_for_model(target_model)
     cfg_kwargs: dict[str, Any] = {
         "temperature": 0.1,
         "max_output_tokens": max_output_tokens,
@@ -317,11 +373,26 @@ def _call_real_vertex_gemini(
             cfg_kwargs["response_schema"] = schema_cls
 
     def _do_generate() -> Any:
-        return client.models.generate_content(
-            model=target_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(**cfg_kwargs),
-        )
+        try:
+            return client.models.generate_content(
+                model=target_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(**cfg_kwargs),
+            )
+        except Exception as call_err:
+            if _is_preview_or_3x_model(target_model):
+                logger.info(
+                    "Retrying %s with us-central1 fallback after error: %s",
+                    target_model,
+                    call_err,
+                )
+                fallback_client = _get_shared_vertex_client(location="us-central1")
+                return fallback_client.models.generate_content(
+                    model=target_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**cfg_kwargs),
+                )
+            raise call_err
 
     fut = _VERTEX_CALL_POOL.submit(_do_generate)
     try:
@@ -1494,7 +1565,7 @@ class CatalogAdkLlm(BaseLlm):
                     location="us-central1",
                 )
             else:
-                client = _get_shared_vertex_client()
+                client = _get_vertex_client_for_model(self.model)
 
             config = llm_request.config
             contents_payload: Any = (
@@ -1522,9 +1593,17 @@ class CatalogAdkLlm(BaseLlm):
                 ):
                     inferred_schema = ComparisonSynthesis
 
+            is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+                "true",
+                "1",
+            ) or getattr(settings, "benchmark_actual_model", False)
             target_model = self.model
             is_mocked_shared_client = hasattr(_get_shared_vertex_client, "assert_called")
-            if self._injected_client is None and not hasattr(genai.Client, "assert_called"):
+            if (
+                not is_benchmark_actual
+                and self._injected_client is None
+                and not hasattr(genai.Client, "assert_called")
+            ):
                 if (
                     has_catalog_tool
                     or inferred_schema in (QueryIntentAnalysis, CandidateRankingResponse)
