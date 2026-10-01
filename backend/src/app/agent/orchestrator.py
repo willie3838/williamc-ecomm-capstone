@@ -991,7 +991,7 @@ class ComparisonOrchestrator:
                         ),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
-                        client.models.generate_content,
+                        synth_client.models.generate_content,
                         model=self.synthesis_model,
                         contents=spec_prompt,
                         config=spec_config,
@@ -1287,7 +1287,7 @@ class ComparisonOrchestrator:
                         ),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
-                        client.models.generate_content,
+                        synth_client.models.generate_content,
                         model=self.synthesis_model,
                         contents=spec_prompt,
                         config=spec_config,
