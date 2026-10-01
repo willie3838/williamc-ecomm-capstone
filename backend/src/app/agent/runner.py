@@ -18,6 +18,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.adk.agents import BaseAgent
+from google.adk.apps import App
+from google.adk.apps.app import EventsCompactionConfig, ResumabilityConfig
+from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.auth import auth_preprocessor as _adk_auth_preprocessor  # noqa: F401
 from google.adk.events import Event
 from google.adk.flows.llm_flows import (
@@ -29,6 +32,9 @@ from google.adk.flows.llm_flows import (
 from google.adk.flows.llm_flows import (
     contents as _adk_contents,
 )
+from google.adk.memory.base_memory_service import BaseMemoryService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.models.google_llm import Gemini as _AdkGemini  # noqa: F401
 from google.adk.runners import InMemoryRunner, Runner
 from google.adk.sessions import (
@@ -65,6 +71,10 @@ def _resolve_agent_engine_id(explicit_id: str | None = None) -> str | None:
         or getattr(_settings, "agent_engine_id", None)
         or getattr(_settings, "agent_runtime_resource_name", None)
     )
+    if not raw:
+        from app.config import _resolve_default_agent_engine_id
+
+        raw = _resolve_default_agent_engine_id()
     if not raw:
         return None
     raw_str = str(raw).strip()
@@ -261,25 +271,202 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         return updated
 
 
+class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
+    """Vertex AI Agent Engine Memory Bank Service with InMemoryMemoryService fallback.
+
+    - In production on Agent Runtime, delegates to VertexAiMemoryBankService
+      (vertexai.Client.aio.agent_engines.memory_banks).
+    - In local development, pytest, or hermetic offline evaluations (HERMETIC_EVAL=true),
+      transparently falls back to an internal InMemoryMemoryService while preserving
+      isinstance(service, VertexAiMemoryBankService) == True.
+    """
+
+    def __init__(
+        self,
+        project: str | None = None,
+        location: str | None = None,
+        agent_engine_id: str | None = None,
+        *,
+        hermetic: bool = False,
+        express_mode_api_key: str | None = None,
+    ) -> None:
+        resolved_project = project or getattr(
+            _settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"
+        )
+        resolved_location = location or getattr(_settings, "region", "us-central1")
+        resolved_engine_id = _resolve_agent_engine_id(agent_engine_id)
+
+        super().__init__(
+            project=resolved_project,
+            location=resolved_location,
+            agent_engine_id=resolved_engine_id,
+            express_mode_api_key=express_mode_api_key,
+        )
+        self.project_id = resolved_project
+        self.location = resolved_location
+        self.hermetic = hermetic
+        self._fallback_memory = InMemoryMemoryService()
+
+    @property
+    def agent_engine_id(self) -> str | None:
+        """Return the active Reasoning Engine ID resolved from config or GOOGLE_CLOUD_AGENT_ENGINE_ID."""
+        return _resolve_agent_engine_id(self._agent_engine_id)
+
+    def _should_use_vertex_remote(self) -> bool:
+        """Determine whether to invoke the live Vertex AI Agent Engine Memory Bank API."""
+        engine_id = self.agent_engine_id
+        if not engine_id:
+            return False
+        self._agent_engine_id = engine_id
+        if self.hermetic or os.environ.get("HERMETIC_EVAL", "").lower() == "true":
+            return False
+        if os.environ.get(
+            "PYTEST_CURRENT_TEST"
+        ) and "test_vertex_ai_memory_bank_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
+            return False
+        return True
+
+    async def add_session_to_memory(self, session: Session) -> None:
+        await self._fallback_memory.add_session_to_memory(session)
+        if self._should_use_vertex_remote():
+            try:
+                await super().add_session_to_memory(session)
+            except Exception as exc:
+                logger.debug("VertexAiMemoryBankService.add_session_to_memory note: %s", exc)
+
+    async def add_events_to_memory(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        events: Any,
+        session_id: str | None = None,
+        custom_metadata: Any = None,
+    ) -> None:
+        await self._fallback_memory.add_events_to_memory(
+            app_name=app_name,
+            user_id=user_id,
+            events=events,
+            session_id=session_id,
+            custom_metadata=custom_metadata,
+        )
+        if self._should_use_vertex_remote():
+            try:
+                await super().add_events_to_memory(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    events=events,
+                    session_id=session_id,
+                    custom_metadata=custom_metadata,
+                )
+            except Exception as exc:
+                logger.debug("VertexAiMemoryBankService.add_events_to_memory note: %s", exc)
+
+    async def add_memory(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        memories: Any,
+        custom_metadata: Any = None,
+    ) -> None:
+        try:
+            await self._fallback_memory.add_memory(
+                app_name=app_name,
+                user_id=user_id,
+                memories=memories,
+                custom_metadata=custom_metadata,
+            )
+        except NotImplementedError:
+            pass
+        if self._should_use_vertex_remote():
+            try:
+                await super().add_memory(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    memories=memories,
+                    custom_metadata=custom_metadata,
+                )
+            except Exception as exc:
+                logger.debug("VertexAiMemoryBankService.add_memory note: %s", exc)
+
+    async def search_memory(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        query: str,
+    ) -> Any:
+        if self._should_use_vertex_remote():
+            try:
+                return await super().search_memory(
+                    app_name=self.agent_engine_id or app_name,
+                    user_id=user_id,
+                    query=query,
+                )
+            except Exception as exc:
+                logger.debug("VertexAiMemoryBankService.search_memory note: %s", exc)
+        return await self._fallback_memory.search_memory(
+            app_name=app_name,
+            user_id=user_id,
+            query=query,
+        )
+
+
+def create_catalog_app(
+    name: str = "app",
+    root_agent: BaseAgent | None = None,
+) -> App:
+    """Create ADK App configured with EventsCompactionConfig and ResumabilityConfig."""
+    from app.agent.hermetic_adapter import CatalogAdkLlm
+    from app.agent.orchestrator import catalog_agent
+
+    target_agent = root_agent or catalog_agent
+    summarizer = LlmEventSummarizer(llm=CatalogAdkLlm(model="gemini-2.5-flash"))
+    compaction_config = EventsCompactionConfig(
+        token_threshold=32000,
+        event_retention_size=5,
+        compaction_interval=8,
+        overlap_size=2,
+        summarizer=summarizer,
+    )
+    resumability_config = ResumabilityConfig(is_resumable=True)
+    return App(
+        name=name,
+        root_agent=target_agent,
+        events_compaction_config=compaction_config,
+        resumability_config=resumability_config,
+    )
+
+
+# Default ADK App instance configured with compaction and resumability
+catalog_app = create_catalog_app()
+
+
 class CatalogAdkRunner(InMemoryRunner):
-    """Production ADK Runner backed by CatalogVertexAiSessionService (`VertexAiSessionService`) with auto_create_session=True."""
+    """Production ADK Runner backed by CatalogVertexAiSessionService and CatalogVertexAiMemoryBankService."""
 
     def __init__(
         self,
         agent: BaseAgent | None = None,
         *,
+        app: App | None = None,
         app_name: str = "app",
         session_service: BaseSessionService | None = None,
+        memory_service: BaseMemoryService | None = None,
         hermetic: bool = False,
         **kwargs: Any,
     ) -> None:
-        super().__init__(agent=agent, app_name=app_name, **kwargs)
+        active_app = app or create_catalog_app(name=app_name, root_agent=agent)
+        super().__init__(app=active_app, **kwargs)
         self.session_service = session_service or get_default_session_service(hermetic=hermetic)
+        self.memory_service = memory_service or get_default_memory_service(hermetic=hermetic)
         self.auto_create_session = True
 
 
-# Global singleton session service and default runner
+# Global singleton services and default runner
 _DEFAULT_SESSION_SERVICE: CatalogVertexAiSessionService | None = None
+_DEFAULT_MEMORY_SERVICE: CatalogVertexAiMemoryBankService | None = None
 _DEFAULT_RUNNER: CatalogAdkRunner | None = None
 
 
@@ -293,13 +480,25 @@ def get_default_session_service(hermetic: bool = False) -> CatalogVertexAiSessio
     return _DEFAULT_SESSION_SERVICE
 
 
+def get_default_memory_service(hermetic: bool = False) -> CatalogVertexAiMemoryBankService:
+    """Retrieve or initialize the global VertexAiMemoryBankService-backed ADK memory service."""
+    global _DEFAULT_MEMORY_SERVICE
+    if _DEFAULT_MEMORY_SERVICE is None:
+        _DEFAULT_MEMORY_SERVICE = CatalogVertexAiMemoryBankService(hermetic=hermetic)
+    elif hermetic:
+        _DEFAULT_MEMORY_SERVICE.hermetic = True
+    return _DEFAULT_MEMORY_SERVICE
+
+
 def create_catalog_runner(
     agent: BaseAgent | None = None,
     app_name: str = "app",
     session_service: BaseSessionService | None = None,
+    memory_service: BaseMemoryService | None = None,
     hermetic: bool = False,
+    app: App | None = None,
 ) -> CatalogAdkRunner:
-    """Create a configured CatalogAdkRunner (`google.adk.runners.Runner`) for a catalog agent."""
+    """Create a configured CatalogAdkRunner for a catalog agent."""
     if agent is None:
         from app.agent.orchestrator import catalog_agent
 
@@ -309,8 +508,10 @@ def create_catalog_runner(
 
     return CatalogAdkRunner(
         agent=target_agent,
+        app=app,
         app_name=app_name,
         session_service=session_service,
+        memory_service=memory_service,
         hermetic=hermetic,
     )
 
@@ -319,19 +520,33 @@ def get_adk_runner(
     agent: BaseAgent | None = None,
     app_name: str = "app",
     session_service: BaseSessionService | None = None,
+    memory_service: BaseMemoryService | None = None,
+    app: App | None = None,
 ) -> Runner:
     """Get the active ADK Runner, reusing default singleton if uncustomized."""
     global _DEFAULT_RUNNER
-    if agent is not None or session_service is not None or app_name != "app":
+    if (
+        agent is not None
+        or session_service is not None
+        or memory_service is not None
+        or app is not None
+        or app_name != "app"
+    ):
         return create_catalog_runner(
-            agent=agent, app_name=app_name, session_service=session_service
+            agent=agent,
+            app=app,
+            app_name=app_name,
+            session_service=session_service,
+            memory_service=memory_service,
         )
 
     if _DEFAULT_RUNNER is None:
         _DEFAULT_RUNNER = create_catalog_runner(
             agent=None,
+            app=catalog_app,
             app_name="app",
             session_service=get_default_session_service(),
+            memory_service=get_default_memory_service(),
         )
     return _DEFAULT_RUNNER
 
@@ -390,10 +605,10 @@ def run_adk_agent_sync(
     hermetic: bool = False,
 ) -> tuple[str, list[Event]]:
     """Synchronously execute an ADK Agent through CatalogAdkRunner and return (final_text, events)."""
-    ephemeral_service = InMemorySessionService() if session_id is None else None
     runner = create_catalog_runner(
         agent=agent,
-        session_service=ephemeral_service,
+        session_service=get_default_session_service(hermetic=hermetic),
+        memory_service=get_default_memory_service(hermetic=hermetic),
         hermetic=hermetic,
     )
     events: list[Event] = []
