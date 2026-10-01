@@ -543,6 +543,8 @@ class SpecComparisonAgent:
 
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Build structured comparison matrix and generate recommendations or guidance."""
+        self.orchestrator.last_input_tokens = 0
+        self.orchestrator.last_output_tokens = 0
         with tracer.start_as_current_span("agent.stage_4.spec_synthesis") as span:
             active_synthesis = state.synthesis_model or self.synthesis_model
             active_routing = state.model or self.model
@@ -726,6 +728,13 @@ class MultiAgentCoordinator:
         from app.agent.prompts_service import get_active_prompt
         from app.agent.registry import default_registry
         from app.config import settings
+
+        self.intent_agent.orchestrator.last_input_tokens = 0
+        self.intent_agent.orchestrator.last_output_tokens = 0
+        self.relevance_agent.orchestrator.last_input_tokens = 0
+        self.relevance_agent.orchestrator.last_output_tokens = 0
+        self.comparison_agent.orchestrator.last_input_tokens = 0
+        self.comparison_agent.orchestrator.last_output_tokens = 0
 
         resolved_agent_ver = agent_version or settings.agent_version
         version_spec = default_registry.get_version(resolved_agent_ver)

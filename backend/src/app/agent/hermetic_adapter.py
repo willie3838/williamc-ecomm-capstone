@@ -133,6 +133,8 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_vertex() -> None:
             try:
+                from app.agent.orchestrator import get_model_armor_config
+
                 v_client.models.generate_content(
                     model="gemini-2.5-flash-lite",
                     contents="{}",
@@ -140,10 +142,18 @@ def _warm_vertex_client_and_auth() -> None:
                         response_mime_type="application/json",
                         max_output_tokens=8,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        model_armor_config=get_model_armor_config(),
                     ),
                 )
-            except Exception:
-                pass
+            except Exception as w_exc:
+                err_str = str(w_exc).lower()
+                if "template" in err_str or "not found" in err_str or "400" in err_str:
+                    try:
+                        import app.agent.orchestrator as orch
+
+                        orch._MODEL_ARMOR_AVAILABLE = False
+                    except Exception:
+                        pass
 
         def _warm_bq() -> None:
             try:

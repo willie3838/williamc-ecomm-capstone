@@ -5,15 +5,16 @@ import inspect
 import logging
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, ParamSpec, TypeVar
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     SimpleSpanProcessor,
+    SpanExportResult,
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanContext, StatusCode, TraceFlags
@@ -22,6 +23,27 @@ logger = logging.getLogger(__name__)
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+_MAX_IN_MEMORY_SPANS = 2000
+
+
+class _BoundedInMemorySpanExporter(InMemorySpanExporter):
+    """InMemorySpanExporter with a ring-buffer cap to prevent OOM during traffic spikes."""
+
+    def __init__(self, max_spans: int = _MAX_IN_MEMORY_SPANS) -> None:
+        super().__init__()
+        self._max_spans = max_spans
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        with self._lock:
+            if self._stopped:
+                return SpanExportResult.FAILURE
+            self._finished_spans.extend(spans)
+            excess = len(self._finished_spans) - self._max_spans
+            if excess > 0:
+                del self._finished_spans[:excess]
+            return SpanExportResult.SUCCESS
+
 
 _GLOBAL_IN_MEMORY_EXPORTER: InMemorySpanExporter | None = None
 _GLOBAL_TRACER_PROVIDER: TracerProvider | None = None
@@ -77,15 +99,15 @@ def setup_tracing(
             logger.info(
                 "Configured OpenTelemetry CloudTraceSpanExporter for project %s", project_id
             )
-            # Maintain in-memory exporter alongside cloud exporter for local diagnostics & analysis
-            memory_exporter = InMemorySpanExporter()
+            # Maintain bounded in-memory exporter alongside cloud exporter for local diagnostics & analysis
+            memory_exporter = _BoundedInMemorySpanExporter()
             provider.add_span_processor(SimpleSpanProcessor(memory_exporter))
         except Exception as e:
             logger.warning("CloudTraceSpanExporter unavailable; using memory exporter: %s", e)
-            memory_exporter = InMemorySpanExporter()
+            memory_exporter = _BoundedInMemorySpanExporter()
             provider.add_span_processor(SimpleSpanProcessor(memory_exporter))
     else:
-        memory_exporter = InMemorySpanExporter()
+        memory_exporter = _BoundedInMemorySpanExporter()
         provider.add_span_processor(SimpleSpanProcessor(memory_exporter))
 
     try:
