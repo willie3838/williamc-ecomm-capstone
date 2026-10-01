@@ -68,6 +68,7 @@ class TestADKRunnerIntegration:
         """Verify CatalogVertexAiSessionService resolves GOOGLE_CLOUD_AGENT_ENGINE_ID and delegates to VertexAiSessionService."""
         from unittest.mock import AsyncMock, MagicMock
 
+        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.setenv(
             "GOOGLE_CLOUD_AGENT_ENGINE_ID",
             "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/reasoningEngines/9876543210",
