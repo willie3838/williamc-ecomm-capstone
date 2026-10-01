@@ -22,7 +22,7 @@ backend/
 │       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation, AgentCard schemas
 │       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
 │       │   ├── __init__.py
-│       │   ├── agent.py       # Google ADK CLI / Playground entrypoint (exposes root_agent)
+│       │   ├── agent.py       # Google ADK CLI / Playground entrypoint (exposes root_agent; skips background warm under pytest)
 │       │   ├── reasoning_engine.py # Vertex AI Agent Runtime wrapper (ReasoningEngine contract)
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent, precomputed_intent deduplication & LLM reranker

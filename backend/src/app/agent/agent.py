@@ -234,9 +234,14 @@ def _register_reasoning_engine_query_method() -> None:
 
     try:
         import os
+        import sys
         import threading
 
-        if "PYTEST_CURRENT_TEST" not in os.environ and reasoning_engine._coordinator is None:
+        if (
+            "PYTEST_CURRENT_TEST" not in os.environ
+            and "pytest" not in sys.modules
+            and reasoning_engine._coordinator is None
+        ):
             threading.Thread(target=reasoning_engine.set_up, daemon=True).start()
     except Exception as exc:
         logger.debug("Could not background-warm reasoning_engine: %s", exc)

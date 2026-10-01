@@ -70,6 +70,10 @@ def format_matrix_differences(matrix: list[MatrixRow]) -> str:
 
 def get_gemini_judge_client() -> genai.Client | None:
     """Initialize Vertex AI GenAI client for LLM-as-a-judge evaluation."""
+    if os.environ.get("HERMETIC_EVAL", "").lower() == "true" or (
+        os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(genai.Client, "assert_called")
+    ):
+        return None
     if "GOOGLE_API_USE_CLIENT_CERTIFICATE" not in os.environ:
         os.environ["GOOGLE_API_USE_CLIENT_CERTIFICATE"] = "false"
 
