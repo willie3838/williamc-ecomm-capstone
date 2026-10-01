@@ -170,7 +170,7 @@ export const App: React.FC = () => {
       if (exists) {
         return prev.filter((p) => p.sku !== product.sku);
       }
-      if (prev.length >= 4) {
+      if (prev.length >= 5) {
         return prev;
       }
       return [...prev, product];
@@ -211,7 +211,7 @@ export const App: React.FC = () => {
   const handleAddProductToActiveComparison = (product: ProductSpec) => {
     if (!comparison?.products) return;
     if (comparison.products.some((p) => p.sku === product.sku)) return;
-    if (comparison.products.length >= 4) return;
+    if (comparison.products.length >= 5) return;
 
     const newProducts = [...comparison.products, product];
     setIsAddCompareOpen(false);
@@ -386,7 +386,7 @@ export const App: React.FC = () => {
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                         <h2 className="text-lg font-bold text-gray-900">Compared Products</h2>
                         <div className="flex items-center gap-2">
-                          {comparison.products.length < 4 && (
+                          {comparison.products.length < 5 && (
                             <div className="relative">
                               <button
                                 type="button"
@@ -496,7 +496,11 @@ export const App: React.FC = () => {
                         className={`grid gap-6 ${
                           comparison.products.length === 2
                             ? 'grid-cols-1 md:grid-cols-2'
-                            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                            : comparison.products.length === 3
+                            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                            : comparison.products.length === 4
+                            ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+                            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                         }`}
                       >
                         {comparison.products.map((product) => (

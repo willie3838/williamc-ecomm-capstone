@@ -807,12 +807,25 @@ class ComparisonOrchestrator:
                     config=rerank_cfg,
                 )
 
-            spec_pair = self._balance_entities(unique_products, fast_kw)[:2]
-            if len(spec_pair) == 2:
-                spec_key = (tuple(sorted(p.sku for p in spec_pair)), safe_q)
+            # Check tagged SKUs first
+            tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query or "")
+            if tagged_skus:
+                sku_to_prod = {p.sku: p for p in unique_products}
+                matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
+                if len(matched_tagged) >= 2:
+                    spec_products = matched_tagged[:5]
+                else:
+                    target_count = min(5, max(2, len(fast_kw)))
+                    spec_products = self._balance_entities(unique_products, fast_kw)[:target_count]
+            else:
+                target_count = min(5, max(2, len(fast_kw)))
+                spec_products = self._balance_entities(unique_products, fast_kw)[:target_count]
+
+            if 2 <= len(spec_products) <= 5:
+                spec_key = (tuple(sorted(p.sku for p in spec_products)), safe_q)
                 if spec_key not in _SPECULATIVE_SYNTH_FUTURES:
-                    spec_matrix = self.build_comparison_matrix(spec_pair, query=safe_q)
-                    spec_prompt = self._build_synthesis_prompt(spec_pair, spec_matrix, safe_q)
+                    spec_matrix = self.build_comparison_matrix(spec_products, query=safe_q)
+                    spec_prompt = self._build_synthesis_prompt(spec_products, spec_matrix, safe_q)
                     spec_config = types.GenerateContentConfig(
                         system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
                         response_mime_type="application/json",
@@ -1046,9 +1059,9 @@ class ComparisonOrchestrator:
                 logger.info(
                     "Locked rank_and_select onto %d tagged SKUs: %s",
                     len(matched_tagged),
-                    [p.sku for p in matched_tagged[:2]],
+                    [p.sku for p in matched_tagged[:5]],
                 )
-                return matched_tagged[:2]
+                return matched_tagged[:5]
             elif len(matched_tagged) == 1 and len(unique_products) > 1:
                 remaining = [p for p in unique_products if p.sku not in tagged_skus]
                 return [matched_tagged[0], remaining[0]]
@@ -1071,13 +1084,14 @@ class ComparisonOrchestrator:
             or hasattr(genai.Client, "assert_called")
         )
         if not is_mock_env and intent.is_comparison_eligible and len(unique_products) >= 2:
-            spec_pair = self._balance_entities(unique_products, keywords)[:2]
-            if len(spec_pair) == 2:
+            target_count = min(5, max(2, len(keywords)))
+            spec_prods = self._balance_entities(unique_products, keywords)[:target_count]
+            if 2 <= len(spec_prods) <= 5:
                 safe_q = sanitize_user_prompt(original_query or " ".join(keywords))
-                spec_key = (tuple(sorted(p.sku for p in spec_pair)), safe_q)
+                spec_key = (tuple(sorted(p.sku for p in spec_prods)), safe_q)
                 if spec_key not in _SPECULATIVE_SYNTH_FUTURES:
-                    spec_matrix = self.build_comparison_matrix(spec_pair, query=safe_q)
-                    spec_prompt = self._build_synthesis_prompt(spec_pair, spec_matrix, safe_q)
+                    spec_matrix = self.build_comparison_matrix(spec_prods, query=safe_q)
+                    spec_prompt = self._build_synthesis_prompt(spec_prods, spec_matrix, safe_q)
                     client = self._get_genai_client()
                     spec_config = types.GenerateContentConfig(
                         system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
@@ -1099,7 +1113,8 @@ class ComparisonOrchestrator:
             unique_products, original_query or " ".join(keywords), model=model
         )
         if llm_ranked is not None:
-            return self._balance_entities(llm_ranked, keywords)[:2]
+            target_count = min(5, max(2, len(keywords)))
+            return self._balance_entities(llm_ranked, keywords)[:target_count]
 
         raise RuntimeError("LLM candidate reranking failed")
 
@@ -1808,12 +1823,12 @@ class ComparisonOrchestrator:
                         f"([SKU: {cheapest_p.sku}])."
                     )
             else:
-                p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:2])
+                p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:5])
                 reply_text = (
-                    f"Based on the catalog specs for {p_names}, both offer distinct advantages. "
+                    f"Based on the catalog specs for {p_names}, each offers distinct advantages. "
                     + " ".join(
                         f"{p.name} [SKU: {p.sku}] is priced at ${p.price:,.2f}."
-                        for p in products[:2]
+                        for p in products[:5]
                     )
                 )
 
@@ -1966,7 +1981,7 @@ class ComparisonOrchestrator:
                         reply_text = resp.text
                 elif resp is None and not reply_text:
                     reply_text = f"Grounded response for {clean_message}: " + " ".join(
-                        f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:2]
+                        f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:5]
                     )
                     suggested = ["How do their specs compare?", "Which is better for travel?"]
 

@@ -53,7 +53,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   onAddTag,
   onRemoveTag,
   onClearTags,
-  maxTaggedProducts = 4,
+  maxTaggedProducts = 5,
   className = '',
 }) => {
   const [query, setQuery] = useState(initialQuery);

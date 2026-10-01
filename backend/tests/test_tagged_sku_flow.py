@@ -231,3 +231,122 @@ def test_app_agent_exports_relevance_reranker_agent():
     assert hasattr(agent_pkg, "RelevanceDetectorAgent")
     assert hasattr(agent_pkg, "RelevanceRerankerAgent")
     assert agent_pkg.RelevanceRerankerAgent is agent_pkg.RelevanceDetectorAgent
+
+
+def test_rank_and_select_supports_up_to_5_tagged_skus():
+    """Verify rank_and_select_products returns up to 5 tagged products without truncating to 2."""
+    orch = ComparisonOrchestrator()
+    prods = [
+        ProductSpec(
+            sku=f"SKU00{i}",
+            name=f"Laptop Model {i}",
+            brand=f"Brand{i}",
+            category="Laptops",
+            price=1000.0 + i * 100,
+        )
+        for i in range(1, 7)
+    ]
+    # 3 tagged SKUs
+    query_3 = "Compare: [SKU: SKU001] vs [SKU: SKU002] vs [SKU: SKU003]"
+    ranked_3 = orch.rank_and_select_products(
+        prods, ["Laptop Model 1", "Laptop Model 2", "Laptop Model 3"], original_query=query_3
+    )
+    assert len(ranked_3) == 3
+    assert [p.sku for p in ranked_3] == ["SKU001", "SKU002", "SKU003"]
+
+    # 4 tagged SKUs
+    query_4 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004]"
+    ranked_4 = orch.rank_and_select_products(
+        prods, ["Model 1", "Model 2", "Model 3", "Model 4"], original_query=query_4
+    )
+    assert len(ranked_4) == 4
+    assert [p.sku for p in ranked_4] == ["SKU001", "SKU002", "SKU003", "SKU004"]
+
+    # 5 tagged SKUs
+    query_5 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004], [SKU: SKU005]"
+    ranked_5 = orch.rank_and_select_products(
+        prods,
+        ["Model 1", "Model 2", "Model 3", "Model 4", "Model 5"],
+        original_query=query_5,
+    )
+    assert len(ranked_5) == 5
+    assert [p.sku for p in ranked_5] == ["SKU001", "SKU002", "SKU003", "SKU004", "SKU005"]
+
+    # 6 tagged SKUs -> capped at 5
+    query_6 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004], [SKU: SKU005], [SKU: SKU006]"
+    ranked_6 = orch.rank_and_select_products(
+        prods, ["1", "2", "3", "4", "5", "6"], original_query=query_6
+    )
+    assert len(ranked_6) == 5
+
+
+def test_rank_and_select_untagged_multi_product_queries():
+    """Verify untagged multi-product queries return min(5, max(2, len(keywords))) products."""
+    orch = ComparisonOrchestrator()
+    prods = [
+        ProductSpec(
+            sku=f"SKU00{i}",
+            name=f"Product {i}",
+            brand=f"Brand{i}",
+            category="Laptops",
+            price=1000.0 + i * 100,
+        )
+        for i in range(1, 7)
+    ]
+    # 2 keywords -> 2 products
+    kw_2 = ["Brand1", "Brand2"]
+    res_2 = orch.rank_and_select_products(prods, kw_2, original_query="Compare Brand1 and Brand2")
+    assert len(res_2) == 2
+
+    # 3 keywords -> 3 products
+    kw_3 = ["Brand1", "Brand2", "Brand3"]
+    res_3 = orch.rank_and_select_products(
+        prods, kw_3, original_query="Compare Brand1, Brand2, and Brand3"
+    )
+    assert len(res_3) == 3
+
+    # 4 keywords -> 4 products
+    kw_4 = ["Brand1", "Brand2", "Brand3", "Brand4"]
+    res_4 = orch.rank_and_select_products(
+        prods, kw_4, original_query="Compare Brand1, Brand2, Brand3, Brand4"
+    )
+    assert len(res_4) == 4
+
+    # 5 keywords -> 5 products
+    kw_5 = ["Brand1", "Brand2", "Brand3", "Brand4", "Brand5"]
+    res_5 = orch.rank_and_select_products(
+        prods, kw_5, original_query="Compare Brand1, Brand2, Brand3, Brand4, Brand5"
+    )
+    assert len(res_5) == 5
+
+
+def test_relevance_detector_agent_supports_3_4_5_tagged_skus():
+    """Verify RelevanceDetectorAgent locks onto 3, 4, and 5 tagged SKUs without truncation."""
+    agent = RelevanceDetectorAgent()
+    prods = [
+        ProductSpec(
+            sku=f"SKU00{i}",
+            name=f"Laptop Model {i}",
+            brand=f"Brand{i}",
+            category="Laptops",
+            price=1000.0 + i * 100,
+        )
+        for i in range(1, 6)
+    ]
+    for count in (3, 4, 5):
+        tagged_query = "Compare products: " + ", ".join(
+            f"Product {i} [SKU: SKU00{i}]" for i in range(1, count + 1)
+        )
+        state = ComparisonAgentState(
+            raw_query=tagged_query,
+            sanitized_query=tagged_query,
+            intent_type="COMPARISON",
+            is_comparison_eligible=True,
+            target_keywords=[f"Model {i}" for i in range(1, count + 1)],
+            retrieved_products=prods,
+        )
+        updated = agent.process(state)
+        assert len(updated.ranked_products) == count
+        assert [p.sku for p in updated.ranked_products] == [
+            f"SKU00{i}" for i in range(1, count + 1)
+        ]

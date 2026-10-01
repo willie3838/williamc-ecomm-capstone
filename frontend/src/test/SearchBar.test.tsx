@@ -590,12 +590,24 @@ describe('SearchBar', () => {
   });
 
   describe('Always-visible "+ Add Product to Compare" Picker', () => {
-    it('renders the "+ Add Product to Compare" button when fewer than 4 products are tagged', () => {
+    it('renders the "+ Add Product to Compare" button when fewer than 5 products are tagged', () => {
       render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={[]} />);
 
       const addBtn = screen.getByRole('button', { name: /add product to compare/i });
       expect(addBtn).toBeInTheDocument();
       expect(addBtn).toHaveTextContent(/add product to compare/i);
+    });
+
+    it('still renders "+ Add Product to Compare" button when 4 products are tagged', () => {
+      const fourProducts = [
+        { sku: '1', name: 'Product 1', brand: 'Brand', price: 100, specifications: {}, in_stock: true },
+        { sku: '2', name: 'Product 2', brand: 'Brand', price: 200, specifications: {}, in_stock: true },
+        { sku: '3', name: 'Product 3', brand: 'Brand', price: 300, specifications: {}, in_stock: true },
+        { sku: '4', name: 'Product 4', brand: 'Brand', price: 400, specifications: {}, in_stock: true },
+      ];
+
+      render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={fourProducts} />);
+      expect(screen.getByRole('button', { name: /add product to compare/i })).toBeInTheDocument();
     });
 
     it('opens catalog product picker dropdown with inline search input and initial suggestions on click', () => {
@@ -660,19 +672,20 @@ describe('SearchBar', () => {
       expect(screen.queryByRole('listbox', { name: /catalog product picker/i })).not.toBeInTheDocument();
     });
 
-    it('hides "+ Add Product to Compare" button when 4 products are tagged', () => {
-      const fourProducts = [
+    it('hides "+ Add Product to Compare" button when 5 products are tagged', () => {
+      const fiveProducts = [
         { sku: '1', name: 'Product 1', brand: 'Brand', price: 100, specifications: {}, in_stock: true },
         { sku: '2', name: 'Product 2', brand: 'Brand', price: 200, specifications: {}, in_stock: true },
         { sku: '3', name: 'Product 3', brand: 'Brand', price: 300, specifications: {}, in_stock: true },
         { sku: '4', name: 'Product 4', brand: 'Brand', price: 400, specifications: {}, in_stock: true },
+        { sku: '5', name: 'Product 5', brand: 'Brand', price: 500, specifications: {}, in_stock: true },
       ];
 
       render(
         <SearchBar
           onSearch={vi.fn()}
           isLoading={false}
-          taggedProducts={fourProducts}
+          taggedProducts={fiveProducts}
         />
       );
 

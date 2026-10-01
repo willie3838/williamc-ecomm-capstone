@@ -764,33 +764,51 @@ class HermeticModelAdapter:
                 recommendations=None,
             ).model_dump_json()
 
-        name1, sku1, brand1, price1_str, specs1_raw = prod_matches[0]
-        name2, sku2, brand2, price2_str, specs2_raw = prod_matches[1]
+        prod_matches = prod_matches[:5]
+        products_list: list[dict[str, Any]] = []
+        for p_match in prod_matches:
+            p_name, p_sku, p_brand, p_price_str, p_specs_raw = p_match
+            p_name = p_name.strip()
+            p_sku = p_sku.strip()
+            p_brand = p_brand.strip()
+            try:
+                p_price = float(p_price_str.replace(",", ""))
+            except Exception:
+                p_price = 0.0
+            try:
+                p_specs = json.loads(p_specs_raw)
+            except Exception:
+                p_specs = {}
+            products_list.append(
+                {
+                    "name": p_name,
+                    "sku": p_sku,
+                    "brand": p_brand,
+                    "price": p_price,
+                    "specs": p_specs,
+                }
+            )
 
-        name1 = name1.strip()
-        name2 = name2.strip()
-        sku1 = sku1.strip()
-        sku2 = sku2.strip()
-        price1 = float(price1_str.replace(",", ""))
-        price2 = float(price2_str.replace(",", ""))
+        name1 = products_list[0]["name"]
+        sku1 = products_list[0]["sku"]
+        price1 = products_list[0]["price"]
+        specs1 = products_list[0]["specs"]
 
-        try:
-            specs1 = json.loads(specs1_raw)
-        except Exception:
-            specs1 = {}
-        try:
-            specs2 = json.loads(specs2_raw)
-        except Exception:
-            specs2 = {}
+        name2 = products_list[1]["name"]
+        sku2 = products_list[1]["sku"]
+        price2 = products_list[1]["price"]
+        specs2 = products_list[1]["specs"]
 
         # Invoke real Vertex AI Gemini LLM for synthesis when not mocked
         if not skip_vertex_call and not hasattr(genai.Client, "assert_called"):
             try:
+                valid_skus = {p["sku"] for p in products_list}
+                citations_req = ", ".join(f"[SKU: {p['sku']}]" for p in products_list)
                 synth_sys = (
                     "You are an expert TechBuy Retailers Product Comparison Expert.\n"
-                    "Write a concise 2-sentence comparison summary and 1-sentence recommendation using ONLY the provided prices and specs.\n"
-                    f"You MUST cite both products inline using [SKU: {sku1}] and [SKU: {sku2}].\n"
-                    "State clearly which product is more affordable based on exact prices.\n"
+                    "Write a concise comparison summary and recommendations using ONLY the provided prices and specs.\n"
+                    f"You MUST cite all compared products inline using {citations_req}.\n"
+                    "State clearly which product is most affordable based on exact prices.\n"
                     'Return JSON: {"summary": "...", "recommendations": "..."}'
                 )
                 raw_synth, _, _ = _call_real_vertex_gemini(
@@ -798,14 +816,13 @@ class HermeticModelAdapter:
                     schema_cls=ComparisonSynthesis,
                     system_instruction=synth_sys,
                     model="gemini-2.5-flash-lite",
-                    max_output_tokens=256,
+                    max_output_tokens=320,
                     timeout_seconds=1.4,
                 )
                 if raw_synth:
                     llm_synth = ComparisonSynthesis.model_validate_json(raw_synth)
                     summary_txt = (llm_synth.summary or "").strip()
                     recs_txt = (llm_synth.recommendations or "").strip() or None
-                    valid_skus = {sku1, sku2}
                     # Scrub any unauthorized SKUs
                     summary_txt = re.sub(
                         r"\[SKU:\s*([A-Za-z0-9_-]+)\]",
@@ -818,61 +835,37 @@ class HermeticModelAdapter:
                             lambda m: m.group(0) if m.group(1) in valid_skus else "",
                             recs_txt,
                         )
-                    # Ensure both expected SKUs and product names appear in summary
-                    if (
-                        f"[SKU: {sku1}]" not in summary_txt
-                        or name1.lower() not in summary_txt.lower()
-                    ):
-                        summary_txt = (
-                            f"{summary_txt} {name1} [SKU: {sku1}] (${price1:,.2f}).".strip()
-                        )
-                    if (
-                        f"[SKU: {sku2}]" not in summary_txt
-                        or name2.lower() not in summary_txt.lower()
-                    ):
-                        summary_txt = (
-                            f"{summary_txt} {name2} [SKU: {sku2}] (${price2:,.2f}).".strip()
-                        )
+                    # Ensure all expected SKUs and product names appear in summary
+                    for p in products_list:
+                        if (
+                            f"[SKU: {p['sku']}]" not in summary_txt
+                            or p["name"].lower() not in summary_txt.lower()
+                        ):
+                            summary_txt = f"{summary_txt} {p['name']} [SKU: {p['sku']}] (${p['price']:,.2f}).".strip()
 
                     # Append grounded price & battery facts if omitted by free-form generation
-                    if price1 < price2:
-                        diff = price2 - price1
+                    sorted_by_price = sorted(products_list, key=lambda x: x["price"])
+                    cheapest = sorted_by_price[0]
+                    most_exp = sorted_by_price[-1]
+                    if cheapest["price"] < most_exp["price"]:
+                        diff = most_exp["price"] - cheapest["price"]
                         price_fact = (
-                            f"{name1} [SKU: {sku1}] is ${diff:,.2f} more affordable at ${price1:,.2f} "
-                            f"versus ${price2:,.2f} for {name2} [SKU: {sku2}]."
-                        )
-                        if f"${diff:,.2f} more affordable" not in summary_txt:
-                            summary_txt = f"{summary_txt}\n- Price: {price_fact}"
-                    elif price2 < price1:
-                        diff = price1 - price2
-                        price_fact = (
-                            f"{name2} [SKU: {sku2}] is ${diff:,.2f} more affordable at ${price2:,.2f} "
-                            f"versus ${price1:,.2f} for {name1} [SKU: {sku1}]."
+                            f"{cheapest['name']} [SKU: {cheapest['sku']}] is ${diff:,.2f} more affordable at ${cheapest['price']:,.2f} "
+                            f"versus ${most_exp['price']:,.2f} for {most_exp['name']} [SKU: {most_exp['sku']}]."
                         )
                         if f"${diff:,.2f} more affordable" not in summary_txt:
                             summary_txt = f"{summary_txt}\n- Price: {price_fact}"
                     else:
-                        tie_fact = f"Both products are priced identically at ${price1:,.2f}."
+                        tie_fact = f"All compared products are priced equally at ${cheapest['price']:,.2f}."
                         if tie_fact not in summary_txt:
                             summary_txt = f"{summary_txt}\n- Price: {tie_fact}"
 
-                    b1 = specs1.get("battery_life_hours")
-                    b2 = specs2.get("battery_life_hours")
-                    if b1 is not None and b2 is not None:
-                        if b1 > b2 and f"leads with up to {b1} hours" not in summary_txt:
-                            summary_txt = (
-                                f"{summary_txt}\n- Battery Life: {name1} [SKU: {sku1}] leads with up to "
-                                f"{b1} hours of battery life versus {b2} hours on {name2} [SKU: {sku2}]."
-                            )
-                        elif b2 > b1 and f"leads with up to {b2} hours" not in summary_txt:
-                            summary_txt = (
-                                f"{summary_txt}\n- Battery Life: {name2} [SKU: {sku2}] leads with up to "
-                                f"{b2} hours of battery life versus {b1} hours on {name1} [SKU: {sku1}]."
-                            )
-
-                    winner_name, winner_sku = (name1, sku1) if price1 <= price2 else (name2, sku2)
-                    if not recs_txt or f"[SKU: {winner_sku}]" not in recs_txt:
-                        recs_txt = f"{recs_txt or ''}\n- Best Value Recommendation: Choose {winner_name} [SKU: {winner_sku}].".strip()
+                    # Ensure all expected SKUs appear in recommendations
+                    if not recs_txt:
+                        recs_txt = f"Key Buying Recommendations:\n- Best Value Recommendation: Choose {cheapest['name']} [SKU: {cheapest['sku']}]."
+                    for p in products_list:
+                        if f"[SKU: {p['sku']}]" not in recs_txt:
+                            recs_txt = f"{recs_txt}\n- Recommendation: Consider {p['name']} [SKU: {p['sku']}]."
 
                     return ComparisonSynthesis(
                         summary=summary_txt,
@@ -880,6 +873,95 @@ class HermeticModelAdapter:
                     ).model_dump_json()
             except Exception as llm_err:
                 logger.debug("Vertex AI synthesis fallback note: %s", llm_err)
+
+        if len(products_list) > 2:
+            p_names = [f"{p['name']} [SKU: {p['sku']}]" for p in products_list]
+            summary_lines = [
+                f"Multi-product comparison across {len(products_list)} items: {', '.join(p_names[:-1])}, and {p_names[-1]}:",
+            ]
+            sorted_by_price = sorted(products_list, key=lambda x: x["price"])
+            cheapest = sorted_by_price[0]
+            most_expensive = sorted_by_price[-1]
+            diff = most_expensive["price"] - cheapest["price"]
+            if diff > 0:
+                summary_lines.append(
+                    f"- Price: {cheapest['name']} [SKU: {cheapest['sku']}] is the most affordable at ${cheapest['price']:,.2f} "
+                    f"(${diff:,.2f} less than {most_expensive['name']} [SKU: {most_expensive['sku']}] at ${most_expensive['price']:,.2f}). "
+                    + " ".join(
+                        f"{p['name']} [SKU: {p['sku']}] is ${p['price']:,.2f}."
+                        for p in products_list
+                    )
+                )
+            else:
+                summary_lines.append(
+                    f"- Price: All compared products are priced equally at ${cheapest['price']:,.2f}."
+                )
+
+            batt_items = [
+                (p, p["specs"].get("battery_life_hours"))
+                for p in products_list
+                if p["specs"].get("battery_life_hours") is not None
+            ]
+            if batt_items:
+                batt_items.sort(key=lambda x: x[1], reverse=True)
+                top_b_p, top_b_hrs = batt_items[0]
+                summary_lines.append(
+                    f"- Battery Life: {top_b_p['name']} [SKU: {top_b_p['sku']}] leads with up to {top_b_hrs} hours of battery life. "
+                    + " ".join(
+                        f"{p['name']} [SKU: {p['sku']}] provides {hrs} hours."
+                        for p, hrs in batt_items
+                    )
+                )
+
+            perf_items = [
+                f"{p['name']} [SKU: {p['sku']}]: {p['specs'].get('processor', 'N/A')} with {p['specs'].get('ram_gb', 'N/A')}GB RAM"
+                for p in products_list
+                if p["specs"].get("processor") or p["specs"].get("ram_gb")
+            ]
+            if perf_items:
+                summary_lines.append(f"- Performance: {'; '.join(perf_items)}.")
+
+            disp_items = []
+            for p in products_list:
+                disp = p["specs"].get("display_resolution") or p["specs"].get("resolution")
+                if not disp and p["specs"].get("display_size_in"):
+                    disp = f"{p['specs'].get('display_size_in')}-inch"
+                if disp:
+                    disp_items.append(f"{p['name']} [SKU: {p['sku']}] ({disp})")
+            if disp_items:
+                summary_lines.append(f"- Display: {'; '.join(disp_items)}.")
+
+            rec_parts = ["Key Buying Recommendations:"]
+            rec_parts.append(
+                f"- Best Value & Budget Option: Choose {cheapest['name']} [SKU: {cheapest['sku']}] (${cheapest['price']:,.2f})."
+            )
+            if batt_items:
+                rec_parts.append(
+                    f"- Best for Battery Life & Portability: Choose {batt_items[0][0]['name']} [SKU: {batt_items[0][0]['sku']}] with up to {batt_items[0][1]} hours."
+                )
+            for p in products_list:
+                if f"[SKU: {p['sku']}]" not in "\n".join(rec_parts):
+                    rec_parts.append(
+                        f"- Recommendation for {p['name']} [SKU: {p['sku']}]: Balanced {p['brand']} option at ${p['price']:,.2f}."
+                    )
+
+            # Ensure all products have names and SKU citations in summary
+            for p in products_list:
+                if (
+                    f"[SKU: {p['sku']}]" not in "\n".join(summary_lines)
+                    or p["name"].lower() not in "\n".join(summary_lines).lower()
+                ):
+                    summary_lines.append(
+                        f"- Product Reference: {p['name']} [SKU: {p['sku']}] (${p['price']:,.2f})."
+                    )
+            for p in products_list:
+                if f"[SKU: {p['sku']}]" not in "\n".join(rec_parts):
+                    rec_parts.append(f"- Also Consider: Choose {p['name']} [SKU: {p['sku']}].")
+
+            return ComparisonSynthesis(
+                summary="\n".join(summary_lines),
+                recommendations="\n".join(rec_parts),
+            ).model_dump_json()
 
         summary_lines = [
             f"Direct comparison between {name1} [SKU: {sku1}] and {name2} [SKU: {sku2}]:",
@@ -1152,6 +1234,19 @@ class HermeticModelAdapter:
             if price_rec:
                 rec_parts.append(price_rec)
 
+        for p in products_list:
+            if (
+                f"[SKU: {p['sku']}]" not in "\n".join(summary_lines)
+                or p["name"].lower() not in "\n".join(summary_lines).lower()
+            ):
+                summary_lines.append(
+                    f"- Product Reference: {p['name']} [SKU: {p['sku']}] (${p['price']:,.2f})."
+                )
+        if rec_parts and len(rec_parts) > 1:
+            for p in products_list:
+                if f"[SKU: {p['sku']}]" not in "\n".join(rec_parts):
+                    rec_parts.append(f"- Also Consider: Choose {p['name']} [SKU: {p['sku']}].")
+
         return ComparisonSynthesis(
             summary="\n".join(summary_lines),
             recommendations="\n".join(rec_parts) if len(rec_parts) > 1 else None,
@@ -1170,7 +1265,7 @@ class HermeticModelAdapter:
             f"- Product: {itm.get('name', 'Unknown')} [SKU: {itm.get('sku', 'N/A')}] | "
             f"Brand: {itm.get('brand', 'Unknown')} | Price: ${float(itm.get('price', 0.0)):,.2f} | "
             f"Specs: {json.dumps(itm.get('specifications', {})) if isinstance(itm.get('specifications'), dict) else str(itm.get('specifications', '{}'))}"
-            for itm in items[:2]
+            for itm in items[:5]
         )
         synthetic_prompt = (
             f"<user_query>{query}</user_query>\n\nRetrieved Catalog Products:\n{candidates_desc}\n"
