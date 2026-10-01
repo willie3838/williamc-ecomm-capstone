@@ -1,8 +1,10 @@
 """Versioned API router (/api/v1 and /api) for catalog comparison, agent registry, and analytics."""
 
 import asyncio
+import concurrent.futures
 import logging
 import os
+import threading
 import time
 from typing import Annotated, Any
 
@@ -29,6 +31,16 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _COORDINATOR_CACHE: dict[tuple[str | None, str | None], Any] = {}
+_COORDINATOR_LOCK = threading.Lock()
+_REQUEST_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=80, thread_name_prefix="api-worker"
+)
+_CATALOG_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=32, thread_name_prefix="catalog-worker"
+)
+_TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=4, thread_name_prefix="telemetry-bg"
+)
 
 
 def _get_coordinator(model: str | None, synthesis_model: str | None) -> Any:
@@ -46,8 +58,11 @@ def _get_coordinator(model: str | None, synthesis_model: str | None) -> Any:
     key = (model, synthesis_model)
     coord = _COORDINATOR_CACHE.get(key)
     if coord is None:
-        coord = coord_cls(model=model, synthesis_model=synthesis_model)
-        _COORDINATOR_CACHE[key] = coord
+        with _COORDINATOR_LOCK:
+            coord = _COORDINATOR_CACHE.get(key)
+            if coord is None:
+                coord = coord_cls(model=model, synthesis_model=synthesis_model)
+                _COORDINATOR_CACHE[key] = coord
     return coord
 
 
@@ -328,7 +343,8 @@ async def compare_products(
             detail="Query string must not be empty.",
         )
 
-    result = await asyncio.to_thread(_execute_comparison_sync, request)
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(_REQUEST_EXECUTOR, _execute_comparison_sync, request)
     latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
     result.latency_ms = latency_ms
 
@@ -366,10 +382,11 @@ async def compare_products(
         )
     else:
         if request.session_id:
-            result.session_comparison_count = (
-                analytics_service._local_session_counts.get(request.session_id, 0) + 1
-            )
-        asyncio.create_task(asyncio.to_thread(_record_telemetry_sync, request, result, latency_ms))
+            with analytics_service._session_lock:
+                result.session_comparison_count = (
+                    analytics_service._local_session_counts.get(request.session_id, 0) + 1
+                )
+        _TELEMETRY_EXECUTOR.submit(_record_telemetry_sync, request, result, latency_ms)
 
     return result
 
@@ -437,7 +454,8 @@ async def chat_products(
             detail="At least one product must be provided for conversational grounding.",
         )
 
-    return await asyncio.to_thread(_execute_chat_sync, request)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(_REQUEST_EXECUTOR, _execute_chat_sync, request)
 
 
 def _fetch_catalog_sync(
@@ -540,12 +558,14 @@ async def list_catalog(
     limit: int = 50,
 ) -> CatalogResponse:
     """Browse verified product catalog grounded in BigQuery with category and price filters."""
-    return await asyncio.to_thread(
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(
+        _CATALOG_EXECUTOR,
         _fetch_catalog_sync,
-        category=category,
-        min_price=min_price,
-        max_price=max_price,
-        limit=limit,
+        category,
+        min_price,
+        max_price,
+        limit,
     )
 
 
@@ -630,7 +650,10 @@ async def log_action(
     _app_settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
     """Log user behavior events such as copy markdown or sku click to Firestore."""
-    doc_id = await asyncio.to_thread(analytics_service.record_user_action, action)
+    if not analytics_service._is_client_mocked():
+        doc_id = analytics_service.record_user_action(action)
+    else:
+        doc_id = await asyncio.to_thread(analytics_service.record_user_action, action)
     return {"status": "recorded", "action_id": doc_id}
 
 
@@ -645,5 +668,8 @@ async def submit_feedback(
     _app_settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
     """Record thumbs-up / thumbs-down user evaluation feedback to Firestore."""
-    doc_id = await asyncio.to_thread(analytics_service.record_feedback, feedback)
+    if not analytics_service._is_client_mocked():
+        doc_id = analytics_service.record_feedback(feedback)
+    else:
+        doc_id = await asyncio.to_thread(analytics_service.record_feedback, feedback)
     return {"status": "recorded", "feedback_id": doc_id}

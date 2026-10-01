@@ -13,12 +13,15 @@ from typing import Any
 
 from app.agent.orchestrator import catalog_agent
 from app.agent.reasoning_engine import reasoning_engine
+from app.agent.runner import catalog_app
 
 logger = logging.getLogger(__name__)
 
-# Standard ADK Agent entrypoint symbol
+# Standard ADK Agent and App entrypoint symbols
 root_agent = catalog_agent
 agent = catalog_agent
+app = catalog_app
+adk_app = catalog_app
 
 
 def _extract_message_text(message: Any) -> str | None:
@@ -249,4 +252,12 @@ def _register_reasoning_engine_query_method() -> None:
 
 _register_reasoning_engine_query_method()
 
-__all__ = ["agent", "catalog_agent", "reasoning_engine", "root_agent"]
+__all__ = [
+    "adk_app",
+    "agent",
+    "app",
+    "catalog_agent",
+    "catalog_app",
+    "reasoning_engine",
+    "root_agent",
+]

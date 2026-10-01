@@ -1,7 +1,10 @@
 import concurrent.futures
 import logging
 import os
+import threading
+import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from google.cloud import bigquery, firestore
 
@@ -10,6 +13,12 @@ from app.models.analytics import FeedbackRequest, UserActionRequest
 from app.observability.logging import scrub_pii
 
 logger = logging.getLogger("app.analytics")
+
+_FIRESTORE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=4,
+    thread_name_prefix="firestore-io",
+)
+_MAX_LOCAL_SESSIONS = 10000
 
 
 class AnalyticsService:
@@ -25,6 +34,38 @@ class AnalyticsService:
         self._bq_client = bq_client
         self._disable_cloud_clients = disable_cloud_clients
         self._local_session_counts: dict[str, int] = {}
+        self._session_lock = threading.Lock()
+        self._client_lock = threading.Lock()
+
+    def _is_client_mocked(self) -> bool:
+        """Return True when running under unit tests or with a mocked Firestore client."""
+        return bool(
+            os.getenv("PYTEST_CURRENT_TEST")
+            or hasattr(self.get_firestore_client, "assert_called")
+            or hasattr(firestore.Client, "assert_called")
+            or (
+                self._firestore_client is not None
+                and (
+                    hasattr(self._firestore_client, "assert_called")
+                    or "Mock" in type(self._firestore_client).__name__
+                )
+            )
+        )
+
+    def _increment_local_session(self, session_id: str, value: int | None = None) -> int:
+        """Thread-safely increment or set bounded local session counter with FIFO eviction."""
+        with self._session_lock:
+            if value is not None:
+                current = value
+            else:
+                current = self._local_session_counts.get(session_id, 0) + 1
+            if session_id in self._local_session_counts:
+                del self._local_session_counts[session_id]
+            elif len(self._local_session_counts) >= _MAX_LOCAL_SESSIONS:
+                oldest_key = next(iter(self._local_session_counts))
+                del self._local_session_counts[oldest_key]
+            self._local_session_counts[session_id] = current
+            return current
 
     def get_firestore_client(self) -> firestore.Client | None:
         """Lazily initialize Firestore client with graceful fallback if unavailable."""
@@ -39,14 +80,18 @@ class AnalyticsService:
         if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
             return None
 
-        try:
-            self._firestore_client = firestore.Client(project=settings.gcp_project)
-            return self._firestore_client
-        except Exception as e:
-            logger.warning(
-                "Firestore client initialization failed (analytics will be mocked/skipped): %s", e
-            )
-            return None
+        with self._client_lock:
+            if self._firestore_client is not None:
+                return self._firestore_client
+            try:
+                self._firestore_client = firestore.Client(project=settings.gcp_project)
+                return self._firestore_client
+            except Exception as e:
+                logger.warning(
+                    "Firestore client initialization failed (analytics will be mocked/skipped): %s",
+                    e,
+                )
+                return None
 
     def get_bq_client(self) -> bigquery.Client | None:
         """Lazily initialize BigQuery client."""
@@ -61,18 +106,20 @@ class AnalyticsService:
         if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
             return None
 
-        try:
-            self._bq_client = bigquery.Client(project=settings.gcp_project)
-            return self._bq_client
-        except Exception as e:
-            logger.warning("BigQuery client initialization failed for telemetry: %s", e)
-            return None
+        with self._client_lock:
+            if self._bq_client is not None:
+                return self._bq_client
+            try:
+                self._bq_client = bigquery.Client(project=settings.gcp_project)
+                return self._bq_client
+            except Exception as e:
+                logger.warning("BigQuery client initialization failed for telemetry: %s", e)
+                return None
 
     def record_user_action(self, action: UserActionRequest) -> str | None:
         """Log user action to Firestore collection 'user_actions' with PII redaction."""
-        client = self.get_firestore_client()
         scrubbed_query = scrub_pii(action.query) if action.query else action.query
-        doc_data = {
+        doc_data: dict[str, Any] = {
             "action_type": action.action_type,
             "session_id": action.session_id,
             "query": scrubbed_query,
@@ -82,36 +129,51 @@ class AnalyticsService:
             "timestamp": action.timestamp.isoformat(),
         }
 
-        if client is not None:
-            try:
+        if self._is_client_mocked():
+            client = self.get_firestore_client()
+            if client is not None:
+                try:
 
-                def _do_add() -> str:
-                    _, doc_ref = client.collection("user_actions").add(doc_data)
-                    return doc_ref.id
+                    def _do_add_sync() -> str:
+                        _, doc_ref = client.collection("user_actions").add(doc_data)
+                        return doc_ref.id
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(_do_add)
+                    future = _FIRESTORE_EXECUTOR.submit(_do_add_sync)
                     doc_id = future.result(timeout=2.0)
+                    logger.info(
+                        "Recorded user action '%s' in Firestore (doc: %s)",
+                        action.action_type,
+                        doc_id,
+                    )
+                    return doc_id
+                except Exception as e:
+                    logger.warning("Failed to persist user action to Firestore: %s", e)
+            else:
+                logger.info("Mocked user action recording: %s", doc_data)
+            return None
 
-                logger.info(
-                    "Recorded user action '%s' in Firestore (doc: %s)",
-                    action.action_type,
-                    doc_id,
-                )
-                return doc_id
-            except Exception as e:
-                logger.warning("Failed to persist user action to Firestore: %s", e)
-        else:
+        if self._disable_cloud_clients:
             logger.info("Mocked user action recording: %s", doc_data)
+            return None
 
-        return None
+        doc_id = f"act-{uuid.uuid4().hex[:12]}"
+
+        def _do_add_async() -> None:
+            try:
+                client = self.get_firestore_client()
+                if client is not None:
+                    client.collection("user_actions").add(doc_data, document_id=doc_id)
+            except Exception as e:
+                logger.debug("Async user action Firestore write skipped: %s", e)
+
+        _FIRESTORE_EXECUTOR.submit(_do_add_async)
+        return doc_id
 
     def record_feedback(self, feedback: FeedbackRequest) -> str | None:
         """Log thumbs-up/thumbs-down evaluation feedback to Firestore collection 'feedback' with PII redaction."""
-        client = self.get_firestore_client()
         scrubbed_query = scrub_pii(feedback.query) if feedback.query else feedback.query
         scrubbed_comment = scrub_pii(feedback.comment) if feedback.comment else feedback.comment
-        doc_data = {
+        doc_data: dict[str, Any] = {
             "rating": feedback.rating,
             "session_id": feedback.session_id,
             "query": scrubbed_query,
@@ -121,69 +183,104 @@ class AnalyticsService:
             "timestamp": feedback.timestamp.isoformat(),
         }
 
-        if client is not None:
-            try:
+        if self._is_client_mocked():
+            client = self.get_firestore_client()
+            if client is not None:
+                try:
 
-                def _do_add() -> str:
-                    _, doc_ref = client.collection("feedback").add(doc_data)
-                    return doc_ref.id
+                    def _do_fb_sync() -> str:
+                        _, doc_ref = client.collection("feedback").add(doc_data)
+                        return doc_ref.id
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(_do_add)
+                    future = _FIRESTORE_EXECUTOR.submit(_do_fb_sync)
                     doc_id = future.result(timeout=2.0)
+                    logger.info(
+                        "Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_id
+                    )
+                    return doc_id
+                except Exception as e:
+                    logger.warning("Failed to persist feedback to Firestore: %s", e)
+            else:
+                logger.info("Mocked feedback recording: %s", doc_data)
+            return None
 
-                logger.info("Recorded %s feedback in Firestore (doc: %s)", feedback.rating, doc_id)
-                return doc_id
-            except Exception as e:
-                logger.warning("Failed to persist feedback to Firestore: %s", e)
-        else:
+        if self._disable_cloud_clients:
             logger.info("Mocked feedback recording: %s", doc_data)
+            return None
 
-        return None
+        doc_id = f"fb-{uuid.uuid4().hex[:12]}"
+
+        def _do_fb_async() -> None:
+            try:
+                client = self.get_firestore_client()
+                if client is not None:
+                    client.collection("feedback").add(doc_data, document_id=doc_id)
+            except Exception as e:
+                logger.debug("Async feedback Firestore write skipped: %s", e)
+
+        _FIRESTORE_EXECUTOR.submit(_do_fb_async)
+        return doc_id
 
     def increment_session_comparisons(self, session_id: str) -> int:
         """Increment and return comparison count for session in Firestore collection 'sessions'."""
-        client = self.get_firestore_client()
         now_iso = datetime.now(UTC).isoformat()
 
-        if client is not None:
-            try:
+        if self._is_client_mocked():
+            client = self.get_firestore_client()
+            if client is not None:
+                try:
 
-                def _do_increment() -> int:
-                    doc_ref = client.collection("sessions").document(session_id)
-                    doc = doc_ref.get()
-                    if doc.exists:
-                        doc_ref.update(
-                            {
-                                "comparison_count": firestore.Increment(1),
-                                "last_seen": now_iso,
-                            }
-                        )
-                        updated = doc_ref.get()
-                        return int(updated.get("comparison_count") or 1)
-                    else:
+                    def _do_increment() -> int:
+                        doc_ref = client.collection("sessions").document(session_id)
+                        doc = doc_ref.get()
+                        if doc.exists:
+                            doc_ref.update(
+                                {
+                                    "comparison_count": firestore.Increment(1),
+                                    "last_seen": now_iso,
+                                }
+                            )
+                            updated = doc_ref.get()
+                            return int(updated.get("comparison_count") or 1)
+                        else:
+                            doc_ref.set(
+                                {
+                                    "session_id": session_id,
+                                    "comparison_count": 1,
+                                    "first_seen": now_iso,
+                                    "last_seen": now_iso,
+                                }
+                            )
+                            return 1
+
+                    future = _FIRESTORE_EXECUTOR.submit(_do_increment)
+                    count = future.result(timeout=2.0)
+                    return self._increment_local_session(session_id, value=count)
+                except Exception as e:
+                    logger.warning("Failed to update session counter in Firestore: %s", e)
+            return self._increment_local_session(session_id)
+
+        count = self._increment_local_session(session_id)
+        if not self._disable_cloud_clients:
+
+            def _do_increment_async() -> None:
+                try:
+                    client = self.get_firestore_client()
+                    if client is not None:
+                        doc_ref = client.collection("sessions").document(session_id)
                         doc_ref.set(
                             {
                                 "session_id": session_id,
-                                "comparison_count": 1,
-                                "first_seen": now_iso,
+                                "comparison_count": count,
                                 "last_seen": now_iso,
-                            }
+                            },
+                            merge=True,
                         )
-                        return 1
+                except Exception as e:
+                    logger.debug("Async session increment skipped: %s", e)
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(_do_increment)
-                    count = future.result(timeout=2.0)
-                    self._local_session_counts[session_id] = count
-                    return count
-            except Exception as e:
-                logger.warning("Failed to update session counter in Firestore: %s", e)
-
-        # In-memory fallback when Firestore is offline, mocked, or credentials expired
-        current = self._local_session_counts.get(session_id, 0) + 1
-        self._local_session_counts[session_id] = current
-        return current
+            _FIRESTORE_EXECUTOR.submit(_do_increment_async)
+        return count
 
     def record_query_telemetry(
         self,

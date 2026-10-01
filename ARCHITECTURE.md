@@ -683,35 +683,43 @@ sequenceDiagram
     participant Caller as Caller (API / Eval Harness)
     participant RunnerMod as app.agent.runner
     participant Runner as google.adk.runners.InMemoryRunner
-    participant Session as google.adk.sessions.InMemorySessionService
-    participant Agent as catalog_agent (ADK Agent)
+    participant Session as CatalogVertexAiSessionService (VertexAiSessionService)
+    participant Memory as CatalogVertexAiMemoryBankService (VertexAiMemoryBankService)
+    participant Agent as catalog_agent (ADK Agent + PreloadMemoryTool)
 
     Caller->>RunnerMod: run_adk_agent(query, session_id="sess_123", user_id="shopper_1")
-    RunnerMod->>RunnerMod: get_adk_runner(agent=catalog_agent, session_service=session_service)
+    RunnerMod->>RunnerMod: get_adk_runner(agent=catalog_agent, session_service=session_service, memory_service=memory_service)
     RunnerMod->>Session: get_session(session_id="sess_123") / create_session(...)
+    RunnerMod->>Memory: PreloadMemoryTool search_memory()
     RunnerMod->>Runner: runner.run_async(user_id, session_id, message)
-    loop Event Streaming
+    loop Event Streaming & Compaction
         Runner->>Agent: Process message & execute tools (query_catalog)
         Agent-->>Runner: Stream ADK Events (Turn, ToolCall, ModelResponse)
         Runner-->>Caller: Yield Event
     end
+    Runner->>Memory: after_agent_callback -> generate_memories_callback (add_session_to_memory)
     Runner-->>Caller: Final Response Event (grounded comparison matrix)
 ```
 
 #### Core Components & Contracts
-1. **`get_adk_runner(agent=None, session_service=None) -> InMemoryRunner`**:
-   - Lazily instantiates and configures a `google.adk.runners.InMemoryRunner`.
-   - Defaults to `root_agent=catalog_agent`, `session_service=InMemorySessionService()`, and `app_name="app"`.
-2. **`catalog_runner` Singleton & `create_catalog_runner(agent=None)` Factory**:
-   - Provides ready-to-use ADK runner instances for both dependency-injected execution and singleton module exports.
-3. **`run_adk_agent(query, session_id, user_id, runner) -> AsyncGenerator`**:
-   - Asynchronous generator wrapping `runner.run_async`.
-   - Automatically provisions sessions via `session_service.create_session(...)` if not already present, ensuring seamless multi-turn conversation support.
-4. **`ComparisonOrchestrator.execute_with_adk_runner(...)`**:
-   - Bridges the structured Pydantic `CompareResponse` envelope with the canonical ADK `InMemoryRunner`.
-   - Invokes the ADK Runner event pipeline, extracts generated content, and runs Pydantic response normalization and matrix feature formatting.
-5. **Evaluation Harness Flag (`evals/runner.py --use-adk-runner`)**:
-   - Allows the 80-pair benchmark suite and CI/CD quality gates to execute evaluations directly through the native ADK runner pipeline.
+1. **`get_adk_runner(...) -> CatalogAdkRunner`**:
+   - Configures a `CatalogAdkRunner` (derived from `google.adk.runners.InMemoryRunner`).
+   - Injects `session_service=CatalogVertexAiSessionService()` and `memory_service=CatalogVertexAiMemoryBankService()`.
+   - Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2, summarizer=LlmEventSummarizer(CatalogAdkLlm('gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`.
+2. **`CatalogVertexAiSessionService` & `CatalogVertexAiMemoryBankService`**:
+   - Operates against Vertex AI Agent Engine (`projects/{project}/locations/{location}/reasoningEngines/{agent_engine_id}`).
+   - Automatically resolves `agent_engine_id` from `backend/deployment_metadata.json` (`2445220951441276928`) when `GOOGLE_CLOUD_AGENT_ENGINE_ID` is unset.
+   - Provides seamless in-memory fallback during offline testing and hermetic CI validation.
+3. **`PreloadMemoryTool` & `generate_memories_callback`**:
+   - `create_adk_agent()` equips `google.adk.tools.preload_memory_tool.PreloadMemoryTool` to inject relevant prior preferences.
+   - Configures `after_agent_callback=generate_memories_callback` invoking `callback_context.add_session_to_memory()` to auto-ingest user preferences into the memory bank.
+4. **`ReasoningEngineContextSpecMemoryBankConfig` (`app.agent.memory_config`)**:
+   - Declares native Vertex AI Reasoning Engine memory bank configuration for deployment via `cli_deploy.to_agent_engine`.
+5. **Follow-up Chat Persistence (`ComparisonOrchestrator.chat_with_products` / `MultiAgentCoordinator.chat`)**:
+   - Every `/api/chat` interaction appends turn events to `CatalogVertexAiSessionService` and commits updated session memories to `CatalogVertexAiMemoryBankService`.
+6. **Frontend Side-by-Side Follow-up Chat Matrix Layout**:
+   - `ConversationSidebar` defaults to open (`isChatOpen=true`) immediately after a product comparison finishes.
+   - `<RecommendationCard />` sits inside the left column flex-container beside the sidebar, giving shoppers an instant side-by-side conversational matrix exploration view.
 
 ### 10.2 Out-of-Distribution Generalization & Anti-Overfitting Protocol
 
@@ -1082,9 +1090,27 @@ flowchart LR
     Day30 --> Day60 --> Day90
 ```
 
+---
 
+## 15. Forensic Audit Integrity Remediations (5-Landmine Production Calibration)
 
+To preserve strict evaluation integrity, zero-hallucination guarantees, and SLA compliance:
 
+1. **Unclamped Empirical Latency Benchmarks (`evals/benchmark_models.py`)**:
+   - Removed all artificial `min(p50, ...)` and `min(p95, ...)` latency clamping across per-stage and candidate benchmarks.
+   - Hoisted `ComparisonOrchestrator` instantiation outside inner `for c in cases:` loops to measure pure inference and routing latencies.
 
+2. **Zero Model & Schema Spoofing (`orchestrator.py` & `hermetic_adapter.py`)**:
+   - Eliminated `call_model = "gemini-2.5-flash-lite" if not is_mock_env else ...` and conditional `response_schema` omissions.
+   - Configured `ThinkingConfig(thinking_budget=0)` on low-latency Flash stages (`gemini-2.5-flash`) to eliminate thinking token latency overhead and preserve `< 3.0s` warm live comparison latency.
 
+3. **Authentic ADK Sequential Execution & Session State (`multi_agent.py` & `orchestrator.py`)**:
+   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
+   - Honored `_final_text` in `execute_with_adk_runner()` with citation alignment and verification.
+
+4. **Uniform Parameterized BigQuery Catalog Access (`backend/src/app/tools/catalog.py`)**:
+   - Removed the `not os.environ.get("PYTEST_CURRENT_TEST")` snapshot bypass branch, ensuring `query_catalog()` uniformly uses parameterized BigQuery SQL and TTL caching (`catalog_cache`) across both test and live environments.
+
+5. **Prompt-Grounded Price Deltas & Claim Verification (`hermetic_adapter.py` & `orchestrator.py`)**:
+   - Removed post-LLM string concatenation (lines 850–880) by injecting precomputed price deltas into the synthesis prompt and validating via `verify_and_scrub_synthesis_claims()`.
 
