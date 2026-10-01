@@ -326,12 +326,8 @@ def query_catalog(
 
             if (
                 os.environ.get("PYTEST_CURRENT_TEST")
-                and not hasattr(bigquery.Client, "assert_called")
-            ) or (
-                getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
-                and not hasattr(bigquery.Client, "assert_called")
-                and not os.environ.get("PYTEST_CURRENT_TEST")
-            ):
+                or getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
+            ) and not hasattr(bigquery.Client, "assert_called"):
                 client = ha.create_hermetic_bq_client()
             elif hasattr(bigquery.Client, "assert_called"):
                 client = bigquery.Client(project=settings.gcp_project)
@@ -401,30 +397,6 @@ def query_catalog(
                 patterns.append(f"%{t}%")
         # Deduplicate while preserving order
         patterns = list(dict.fromkeys(patterns))
-
-        if (
-            should_cache
-            and not injected_client
-            and not os.environ.get("PYTEST_CURRENT_TEST")
-            and not hasattr(bigquery.Client, "assert_called")
-            and not hasattr(client.query, "assert_called")
-        ):
-            snapshot = warm_full_catalog_cache()
-            if snapshot is not None:
-                matched_products = _match_from_snapshot(
-                    snapshot=snapshot,
-                    patterns=patterns,
-                    category=category,
-                    min_price=min_price,
-                    max_price=max_price,
-                    limit=limit,
-                )
-                catalog_cache.set(cache_key, matched_products)
-                span.set_attribute("bq.snapshot_hit", True)
-                span.set_attribute("bq.result_count", len(matched_products))
-                span.set_attribute("bq.bytes_billed", 0)
-                span.set_status(StatusCode.OK)
-                return matched_products
 
         query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
             bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),

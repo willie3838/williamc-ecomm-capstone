@@ -127,8 +127,8 @@ def resolve_model_pair(
     Returns:
         tuple[str, str, bool]: (routing_model, synthesis_model, is_tiered_hybrid)
     """
-    fallback = default_model or getattr(settings, "gemini_model", "gemini-2.5-pro")
-    raw_model = (model or "").strip()
+    fallback = default_model or getattr(settings, "gemini_model", "gemini-2.5-flash")
+    raw_model = (model or fallback or "").strip()
 
     if raw_model.lower() == "tiered-hybrid":
         routing = "gemini-2.5-flash"
@@ -136,7 +136,7 @@ def resolve_model_pair(
         synthesis = syn if syn and syn.lower() != "tiered-hybrid" else "gemini-2.5-pro"
         return routing, synthesis, True
 
-    routing = raw_model or fallback
+    routing = raw_model or "gemini-2.5-flash"
     syn = (synthesis_model or "").strip()
     synthesis = syn if syn and syn.lower() != "tiered-hybrid" else routing
     is_hybrid = routing != synthesis
@@ -625,6 +625,20 @@ class ComparisonOrchestrator:
             + (f" (Winner: [SKU: {r.winner_sku}])" if r.winner_sku else "")
             for r in matrix
         )
+        price_grounding = ""
+        if len(products) >= 2:
+            sorted_by_price = sorted(products, key=lambda x: x.price)
+            cheapest = sorted_by_price[0]
+            most_exp = sorted_by_price[-1]
+            if cheapest.price < most_exp.price:
+                diff = most_exp.price - cheapest.price
+                price_grounding = (
+                    f"Precomputed Price Grounding: {cheapest.name} [SKU: {cheapest.sku}] is ${diff:,.2f} cheaper "
+                    f"at ${cheapest.price:,.2f} compared to {most_exp.name} [SKU: {most_exp.sku}] at ${most_exp.price:,.2f}."
+                )
+            else:
+                price_grounding = f"Precomputed Price Grounding: All compared products are priced equally at ${cheapest.price:,.2f}."
+
         return (
             "You are an expert Best Buy Catalog Product Comparison Specialist.\n"
             "Analyze the side-by-side technical specifications and customer query to produce a grounded comparison narrative and persona buying recommendations.\n\n"
@@ -637,7 +651,8 @@ class ComparisonOrchestrator:
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
             f"Comparison Matrix:\n{matrix_desc}\n\n"
-            'Return a valid JSON object matching the requested schema with exact keys: {"summary": "...", "recommendations": "..."}.'
+            + (f"{price_grounding}\n\n" if price_grounding else "")
+            + 'Return a valid JSON object matching the requested schema with exact keys: {"summary": "...", "recommendations": "..."}.'
         )
 
     @staticmethod
@@ -744,33 +759,20 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
-            "true",
-            "1",
-        ) or getattr(settings, "benchmark_actual_model", False)
-        call_model = (
-            active_model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
-        )
+        _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = (
-            get_model_armor_config()
-            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
-            else None
+        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
+        thinking_cfg = (
+            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
         )
         config = types.GenerateContentConfig(
-            system_instruction=(
-                self.active_system_instruction
-                if is_mock_env
-                else "You are an electronics catalog comparison specialist. Output valid JSON only."
-            ),
+            system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
-            response_schema=ComparisonSynthesis if is_mock_env else None,
+            response_schema=ComparisonSynthesis,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 220
-            ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            thinking_config=thinking_cfg,
         )
         spec_key = self._get_speculative_synth_key(products, query, active_model)
         spec_future = (
@@ -817,20 +819,12 @@ class ComparisonOrchestrator:
             except Exception as call_err:
                 if armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
-                        system_instruction=(
-                            self.active_system_instruction
-                            if is_mock_env
-                            else "You are an electronics catalog comparison specialist. Output valid JSON only."
-                        ),
+                        system_instruction=self.active_system_instruction,
                         response_mime_type="application/json",
-                        response_schema=ComparisonSynthesis if is_mock_env else None,
+                        response_schema=ComparisonSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=(
-                            int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 400
-                        ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        thinking_config=thinking_cfg,
                     )
                     response = client.models.generate_content(
                         model=call_model,
@@ -850,7 +844,19 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
         if response.text:
-            synth = ComparisonSynthesis.model_validate_json(response.text)
+            raw_text = (response.text or "").strip()
+            if "```" in raw_text:
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json", 1)[1].split("```", 1)[0].strip()
+                else:
+                    raw_text = raw_text.split("```", 1)[1].split("```", 1)[0].strip()
+            if "{" in raw_text and "}" in raw_text:
+                start_idx = raw_text.find("{")
+                end_idx = raw_text.rfind("}")
+                clean_json = raw_text[start_idx : end_idx + 1]
+            else:
+                clean_json = raw_text
+            synth = ComparisonSynthesis.model_validate_json(clean_json)
             summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
             recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
             return summary_out, recs_out
@@ -936,16 +942,18 @@ class ComparisonOrchestrator:
                     "Only include products with score >= 6."
                 )
                 rerank_cfg = types.GenerateContentConfig(
-                    system_instruction=None,
+                    system_instruction=self.active_system_instruction,
                     response_mime_type="application/json",
-                    response_schema=None,
+                    response_schema=CandidateRankingResponse,
                     temperature=float(getattr(settings, "temperature", 0.1)),
                     max_output_tokens=192,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config=types.ThinkingConfig(thinking_budget=0)
+                    if "flash" in self.model.lower()
+                    else None,
                 )
                 _SPECULATIVE_RERANK_FUTURES[rerank_key] = _SPECULATIVE_SYNTH_POOL.submit(
                     client.models.generate_content,
-                    model=spec_rerank_model,
+                    model=self.model,
                     contents=rerank_prompt,
                     config=rerank_cfg,
                 )
@@ -971,16 +979,20 @@ class ComparisonOrchestrator:
                     spec_prompt = self._build_synthesis_prompt(spec_products, spec_matrix, safe_q)
                     synth_client = self._get_genai_client(model=spec_synth_model)
                     spec_config = types.GenerateContentConfig(
-                        system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
+                        system_instruction=self.active_system_instruction,
                         response_mime_type="application/json",
-                        response_schema=None,
+                        response_schema=ComparisonSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=220,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=320,
+                        thinking_config=(
+                            types.ThinkingConfig(thinking_budget=0)
+                            if "flash" in self.synthesis_model.lower()
+                            else None
+                        ),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
                         synth_client.models.generate_content,
-                        model=spec_synth_model,
+                        model=self.synthesis_model,
                         contents=spec_prompt,
                         config=spec_config,
                     )
@@ -1036,27 +1048,20 @@ class ComparisonOrchestrator:
         )
         if not is_mock_env:
             _SPECULATIVE_SYNTH_POOL.submit(self._prelaunch_speculative_stages, query)
-        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
-            "true",
-            "1",
-        ) or getattr(settings, "benchmark_actual_model", False)
-        call_model = model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
+        call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = (
-            get_model_armor_config()
-            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
-            else None
+        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
+        thinking_cfg = (
+            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
         )
         config = types.GenerateContentConfig(
-            system_instruction=self.active_system_instruction if is_mock_env else None,
+            system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
-            response_schema=QueryIntentAnalysis if is_mock_env else None,
+            response_schema=QueryIntentAnalysis,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 110
-            ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            thinking_config=thinking_cfg,
         )
 
         with tracer.start_as_current_span("gemini.classify_intent") as llm_span:
@@ -1092,16 +1097,12 @@ class ComparisonOrchestrator:
             except Exception as call_err:
                 if armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction if is_mock_env else None,
+                        system_instruction=self.active_system_instruction,
                         response_mime_type="application/json",
-                        response_schema=QueryIntentAnalysis if is_mock_env else None,
+                        response_schema=QueryIntentAnalysis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=(
-                            int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 192
-                        ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        thinking_config=thinking_cfg,
                     )
                     response = client.models.generate_content(
                         model=call_model,
@@ -1276,14 +1277,18 @@ class ComparisonOrchestrator:
                     spec_config = types.GenerateContentConfig(
                         system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
                         response_mime_type="application/json",
-                        response_schema=None,
+                        response_schema=ComparisonSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=220,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=(
+                            types.ThinkingConfig(thinking_budget=0)
+                            if "flash" in self.synthesis_model.lower()
+                            else None
+                        ),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
                         synth_client.models.generate_content,
-                        model=spec_synth_model,
+                        model=self.synthesis_model,
                         contents=spec_prompt,
                         config=spec_config,
                     )
@@ -1334,27 +1339,20 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
-            "true",
-            "1",
-        ) or getattr(settings, "benchmark_actual_model", False)
-        call_model = model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
+        call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = (
-            get_model_armor_config()
-            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
-            else None
+        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
+        thinking_cfg = (
+            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
         )
         config = types.GenerateContentConfig(
-            system_instruction=self.active_system_instruction if is_mock_env else None,
+            system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
-            response_schema=CandidateRankingResponse if is_mock_env else None,
+            response_schema=CandidateRankingResponse,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 192
-            ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            thinking_config=thinking_cfg,
         )
         rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         rerank_future = (
@@ -1407,16 +1405,12 @@ class ComparisonOrchestrator:
                         call_err,
                     )
                     fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction if is_mock_env else None,
+                        system_instruction=self.active_system_instruction,
                         response_mime_type="application/json",
-                        response_schema=CandidateRankingResponse if is_mock_env else None,
+                        response_schema=CandidateRankingResponse,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=(
-                            int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 192
-                        ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        thinking_config=thinking_cfg,
                     )
                     response = client.models.generate_content(
                         model=call_model,
@@ -1826,6 +1820,13 @@ class ComparisonOrchestrator:
                                             seen_skus.add(sku_val)
                                             retrieved_prods.append(ProductSpec(**itm))
 
+            if not retrieved_prods:
+                catalog_rows = query_catalog(
+                    keywords=extracted_keywords or [query],
+                    category=effective_category,
+                )
+                retrieved_prods = [ProductSpec(**row) for row in catalog_rows]
+
             if retrieved_prods:
                 products = self.rank_and_select_products(
                     retrieved_prods,
@@ -1836,12 +1837,35 @@ class ComparisonOrchestrator:
                 )
                 if len(products) >= 2 and intent.is_comparison_eligible:
                     matrix = self.build_comparison_matrix(products)
-                    summary, recommendations = self.synthesize_comparison_with_llm(
-                        products,
-                        matrix,
-                        query=query,
-                        model=self.synthesis_model,
-                    )
+                    summary = None
+                    recommendations = None
+                    if _final_text and _final_text.strip():
+                        try:
+                            clean_text = _final_text.strip()
+                            if clean_text.startswith("```"):
+                                clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
+                                clean_text = re.sub(r"\n?```$", "", clean_text).strip()
+                            data = json.loads(clean_text)
+                            if isinstance(data, dict):
+                                summary = data.get("summary")
+                                recommendations = data.get("recommendations")
+                        except Exception:
+                            if len(_final_text.strip()) > 10:
+                                summary = _final_text.strip()
+
+                    if not summary:
+                        summary, recommendations = self.synthesize_comparison_with_llm(
+                            products,
+                            matrix,
+                            query=query,
+                            model=self.synthesis_model,
+                        )
+                    else:
+                        summary = self.verify_and_align_claim_citations(summary, products)
+                        if recommendations:
+                            recommendations = self.verify_and_align_claim_citations(
+                                recommendations, products
+                            )
                     citations = [
                         Citation(
                             sku=p.sku,

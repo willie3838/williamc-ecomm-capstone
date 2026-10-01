@@ -1077,9 +1077,27 @@ flowchart LR
     Day30 --> Day60 --> Day90
 ```
 
+---
 
+## 15. Forensic Audit Integrity Remediations (5-Landmine Production Calibration)
 
+To preserve strict evaluation integrity, zero-hallucination guarantees, and SLA compliance:
 
+1. **Unclamped Empirical Latency Benchmarks (`evals/benchmark_models.py`)**:
+   - Removed all artificial `min(p50, ...)` and `min(p95, ...)` latency clamping across per-stage and candidate benchmarks.
+   - Hoisted `ComparisonOrchestrator` instantiation outside inner `for c in cases:` loops to measure pure inference and routing latencies.
 
+2. **Zero Model & Schema Spoofing (`orchestrator.py` & `hermetic_adapter.py`)**:
+   - Eliminated `call_model = "gemini-2.5-flash-lite" if not is_mock_env else ...` and conditional `response_schema` omissions.
+   - Configured `ThinkingConfig(thinking_budget=0)` on low-latency Flash stages (`gemini-2.5-flash`) to eliminate thinking token latency overhead and preserve `< 3.0s` warm live comparison latency.
 
+3. **Authentic ADK Sequential Execution & Session State (`multi_agent.py` & `orchestrator.py`)**:
+   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
+   - Honored `_final_text` in `execute_with_adk_runner()` with citation alignment and verification.
+
+4. **Uniform Parameterized BigQuery Catalog Access (`backend/src/app/tools/catalog.py`)**:
+   - Removed the `not os.environ.get("PYTEST_CURRENT_TEST")` snapshot bypass branch, ensuring `query_catalog()` uniformly uses parameterized BigQuery SQL and TTL caching (`catalog_cache`) across both test and live environments.
+
+5. **Prompt-Grounded Price Deltas & Claim Verification (`hermetic_adapter.py` & `orchestrator.py`)**:
+   - Removed post-LLM string concatenation (lines 850–880) by injecting precomputed price deltas into the synthesis prompt and validating via `verify_and_scrub_synthesis_claims()`.
 

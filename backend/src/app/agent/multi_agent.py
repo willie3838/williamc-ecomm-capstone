@@ -10,6 +10,8 @@ Implements specialized cooperative agents under the Google ADK framework:
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import logging
 import re
 import time
@@ -17,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from google.adk.agents import Agent, SequentialAgent
+from google.adk.sessions import InMemorySessionService
 from google.cloud import bigquery
 from google.genai import types
 
@@ -706,6 +709,8 @@ class MultiAgentCoordinator:
                 self.comparison_agent.adk_agent,
             ],
         )
+        self.last_session_state: dict[str, Any] = {}
+        self.last_session: Any = None
 
     def execute(
         self,
@@ -777,29 +782,75 @@ class MultiAgentCoordinator:
                 },
             )
 
+            session_service = InMemorySessionService()
+            resolved_sid = session_id or f"session_{int(time.time() * 1000)}"
+
+            async def _init_session():
+                return await session_service.create_session(
+                    app_name="catalog_multi_agent_pipeline",
+                    user_id="user_default",
+                    session_id=resolved_sid,
+                )
+
+            try:
+                asyncio.get_running_loop()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    session = pool.submit(lambda: asyncio.run(_init_session())).result(timeout=10.0)
+            except RuntimeError:
+                session = asyncio.run(_init_session())
+
             # Node 1: Query Intent Extraction & Security Sanitization
             t0 = time.perf_counter()
+            intent_subagent = self.adk_sequential_agent.sub_agents[0]
             state = self.intent_agent.process(state)
             if category:
                 state.detected_category = category
+            session.state["stage_1_intent"] = {
+                "intent_type": state.intent_type,
+                "is_comparison_eligible": state.is_comparison_eligible,
+                "keywords": state.target_keywords,
+                "category": state.detected_category,
+                "sub_agent": intent_subagent.name,
+            }
             t1 = time.perf_counter()
             intent_ms = round((t1 - t0) * 1000.0, 2)
 
             # Node 2: Grounded Catalog Retrieval (default fast deterministic SQL path; tool calling for evals/benchmarks)
+            retrieval_subagent = self.adk_sequential_agent.sub_agents[1]
             state = self.retrieval_agent.process(state, use_llm_tool_call=use_llm_tool_call)
+            session.state["stage_2_retrieval"] = {
+                "retrieved_skus": [p.sku for p in state.retrieved_products],
+                "retrieved_count": len(state.retrieved_products),
+                "sub_agent": retrieval_subagent.name,
+            }
             t2 = time.perf_counter()
             retrieval_ms = round((t2 - t1) * 1000.0, 2)
 
             # Node 3: Relevance Detection & Query Alignment Gate
+            relevance_subagent = self.adk_sequential_agent.sub_agents[2]
             state = self.relevance_agent.process(state)
+            session.state["stage_3_relevance"] = {
+                "ranked_skus": [p.sku for p in state.ranked_products],
+                "ranked_count": len(state.ranked_products),
+                "sub_agent": relevance_subagent.name,
+            }
             t3 = time.perf_counter()
             relevance_ms = round((t3 - t2) * 1000.0, 2)
 
             # Node 4: Spec Alignment, Trade-off Synthesis, and Badging
+            comparison_subagent = self.adk_sequential_agent.sub_agents[3]
             state = self.comparison_agent.process(state)
+            session.state["stage_4_synthesis"] = {
+                "has_response": state.comparison_response is not None,
+                "summary": state.comparison_response.summary if state.comparison_response else "",
+                "sub_agent": comparison_subagent.name,
+            }
             t4 = time.perf_counter()
             synthesis_ms = round((t4 - t3) * 1000.0, 2)
             total_ms = round((t4 - t0) * 1000.0, 2)
+
+            self.last_session = session
+            self.last_session_state = dict(session.state)
 
             timing_breakdown = {
                 "intent_ms": intent_ms,

@@ -106,7 +106,7 @@ class Settings(BaseSettings):
         description="TTL in seconds for in-memory LRU catalog/comparison response cache",
     )
     gemini_model: str = Field(
-        default="tiered-hybrid",
+        default="gemini-2.5-flash",
         alias="GEMINI_MODEL",
         description="Gemini LLM model name for agent synthesis",
     )
