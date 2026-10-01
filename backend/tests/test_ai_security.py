@@ -370,6 +370,7 @@ async def test_catalog_adk_llm_runs_concurrent_model_armor_on_live_flash_lite_tu
     monkeypatch.delenv("HERMETIC_EVAL", raising=False)
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
+    monkeypatch.setattr(ha, "_VERTEX_AUTH_CHECKED", True, raising=False)
 
     class _FakeClient:
         def __init__(self) -> None:

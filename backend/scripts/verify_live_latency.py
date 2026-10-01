@@ -60,7 +60,9 @@ def verify_local_code_against_live_gcp(threshold_ms: float = 3000.0) -> bool:
         err_str = str(warm_err).lower()
         if "reauth" in err_str or "login" in err_str or "refresherror" in err_str:
             print(f"    [!] GCP ADC requires user reauthentication: {warm_err}")
-            print("    [*] Skipping live latency test because local credentials require user SSO reauth.")
+            print(
+                "    [*] Skipping live latency test because local credentials require user SSO reauth."
+            )
             return True
         raise
     warm_ms = (time.perf_counter() - t_warm) * 1000.0
@@ -83,7 +85,9 @@ def verify_local_code_against_live_gcp(threshold_ms: float = 3000.0) -> bool:
             err_str = str(q_err).lower()
             if "reauth" in err_str or "login" in err_str or "refresherror" in err_str:
                 print(f"  [!] GCP ADC requires user reauthentication: {q_err}")
-                print("  [*] Skipping live latency test because local credentials require user SSO reauth.")
+                print(
+                    "  [*] Skipping live latency test because local credentials require user SSO reauth."
+                )
                 return True
             raise
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
