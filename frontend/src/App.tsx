@@ -51,7 +51,7 @@ export const App: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(true);
 
 
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
@@ -129,6 +129,9 @@ export const App: React.FC = () => {
     if (comparison?.products && comparison.products.length > 0 && taggedProducts.length === 0) {
       setTaggedProducts(comparison.products);
     }
+    if (comparison?.products && comparison.products.length > 0) {
+      setIsChatOpen(true);
+    }
   }
 
   const handleGoHome = () => {
@@ -153,6 +156,7 @@ export const App: React.FC = () => {
       setTaggedProducts(tagged);
       setSelectedProducts([]);
     }
+    setIsChatOpen(true);
     setSearchParams({ query, category });
   };
 
@@ -205,6 +209,7 @@ export const App: React.FC = () => {
     setBrowseCategory(null);
     setTaggedProducts([...products]);
     setSelectedProducts([]);
+    setIsChatOpen(true);
     setSearchParams({ query: prompt, category });
   };
 
@@ -365,20 +370,20 @@ export const App: React.FC = () => {
               <LatencyBadge latencyMs={comparison.latency_ms} />
             </div>
 
-            {/* AI Recommendation Narrative */}
-            <RecommendationCard
-              summary={comparison.summary}
-              recommendations={comparison.recommendations}
-              query={searchParams?.query || ''}
-              targetSkus={comparison.products.map((p) => p.sku)}
-              sessionId={sessionId}
-              traceId={comparison.trace_id || ''}
-              onOpenChat={() => setIsChatOpen(true)}
-            />
-
             {/* Layout with Main Comparison Details and Conversational Sidebar */}
             <div className="flex flex-col lg:flex-row items-start gap-8">
               <div className="flex-1 w-full space-y-8 min-w-0">
+                {/* AI Recommendation Narrative */}
+                <RecommendationCard
+                  summary={comparison.summary}
+                  recommendations={comparison.recommendations}
+                  query={searchParams?.query || ''}
+                  targetSkus={comparison.products.map((p) => p.sku)}
+                  sessionId={sessionId}
+                  traceId={comparison.trace_id || ''}
+                  onOpenChat={() => setIsChatOpen(true)}
+                />
+
                 {/* Product Summary Cards & Matrix Table (Only if products found) */}
                 {comparison.products.length > 0 ? (
                   <>

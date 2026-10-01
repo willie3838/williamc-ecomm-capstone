@@ -268,3 +268,44 @@ class TestAgentEntrypoint:
             async for ev in gen:
                 results.append(ev)
             assert len(results) == 1
+
+    def test_agent_exports_app_and_compaction_and_resumability(self):
+        """Verify agent.py exports app and adk_app with EventsCompactionConfig and ResumabilityConfig."""
+        from google.adk.apps.app import App, EventsCompactionConfig, ResumabilityConfig
+
+        from app.agent.agent import adk_app, app
+
+        assert app is not None
+        assert isinstance(app, App)
+        assert adk_app is app
+
+        assert app.events_compaction_config is not None
+        assert isinstance(app.events_compaction_config, EventsCompactionConfig)
+        assert app.events_compaction_config.token_threshold == 32000
+        assert app.events_compaction_config.event_retention_size == 5
+        assert app.events_compaction_config.compaction_interval == 8
+        assert app.events_compaction_config.overlap_size == 2
+
+        assert app.resumability_config is not None
+        assert isinstance(app.resumability_config, ResumabilityConfig)
+        assert app.resumability_config.is_resumable is True
+
+    @pytest.mark.asyncio
+    async def test_create_adk_agent_memory_tool_and_callback(self):
+        """Verify create_adk_agent equips PreloadMemoryTool and after_agent_callback."""
+        from unittest.mock import AsyncMock
+
+        from google.adk.tools.preload_memory_tool import PreloadMemoryTool
+
+        from app.agent.orchestrator import create_adk_agent, generate_memories_callback
+
+        agent = create_adk_agent()
+        tool_types = [type(t) for t in agent.tools]
+        assert PreloadMemoryTool in tool_types
+        assert agent.after_agent_callback is generate_memories_callback
+
+        # Verify generate_memories_callback calls add_session_to_memory
+        mock_ctx = AsyncMock()
+        mock_ctx.add_session_to_memory = AsyncMock(return_value=None)
+        await generate_memories_callback(mock_ctx)
+        mock_ctx.add_session_to_memory.assert_awaited_once()

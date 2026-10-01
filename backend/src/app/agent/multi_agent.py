@@ -21,6 +21,7 @@ from typing import Any
 from google.adk.agents import Agent, SequentialAgent
 from google.adk.sessions import InMemorySessionService
 from google.cloud import bigquery
+from google.genai import types
 
 from app.agent.orchestrator import (
     ComparisonOrchestrator,
@@ -131,9 +132,15 @@ class QueryIntentAgent:
 class CatalogRetrievalAgent:
     """Specialist agent responsible for grounded catalog querying and schema validation."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None, model: str | None = None) -> None:
+    def __init__(
+        self,
+        bq_client: bigquery.Client | None = None,
+        model: str | None = None,
+        use_llm_tool_call: bool = False,
+    ) -> None:
         self.bq_client = bq_client
         self.model, _, _ = resolve_model_pair(model=model)
+        self.use_llm_tool_call = use_llm_tool_call
         self.adk_agent = Agent(
             name="catalog_retrieval_specialist",
             model=self.model,
@@ -141,8 +148,27 @@ class CatalogRetrievalAgent:
             tools=[query_catalog],
         )
 
-    def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
-        """Query BigQuery catalog using extracted keywords."""
+    def _get_genai_client(self) -> Any:
+        from app.agent.orchestrator import ComparisonOrchestrator
+
+        return ComparisonOrchestrator(
+            model=self.model,
+            bq_client=self.bq_client,
+        )._get_genai_client(model=self.model)
+
+    def process(
+        self,
+        state: ComparisonAgentState,
+        use_llm_tool_call: bool | None = None,
+    ) -> ComparisonAgentState:
+        """Query BigQuery catalog using extracted keywords or via LLM tool-calling."""
+        active_use_llm = (
+            self.use_llm_tool_call if use_llm_tool_call is None else use_llm_tool_call
+        ) or state.metadata.get("use_llm_tool_call", False)
+
+        if active_use_llm:
+            return self.process_with_llm_tool_call(state)
+
         with tracer.start_as_current_span("agent.stage_2.catalog_retrieval") as span:
             if not state.is_comparison_eligible:
                 # Bypass catalog retrieval for non-comparison opinion rants to save latency & database load
@@ -188,6 +214,208 @@ class CatalogRetrievalAgent:
                 }
             )
             span.set_attribute("agent.retrieved_products_count", len(products))
+            return state
+
+    def process_with_llm_tool_call(self, state: ComparisonAgentState) -> ComparisonAgentState:
+        """Execute grounded retrieval using LLM tool-calling on catalog_retrieval_specialist.
+
+        Evaluates:
+        1. Tool trajectory and function calling invocation accuracy
+        2. Argument compliance (keywords array and optional category)
+        3. SKU recall against expected products
+        4. Token usage and latency
+        """
+        with tracer.start_as_current_span("agent.stage_2.catalog_retrieval_tool_call") as span:
+            if not state.is_comparison_eligible:
+                state.retrieved_products = []
+                state.step_history.append(
+                    {
+                        "agent": "CatalogRetrievalAgent",
+                        "status": "SKIPPED",
+                        "reason": "NON_COMPARATIVE_QUERY",
+                        "products_retrieved": 0,
+                    }
+                )
+                span.set_attribute("agent.retrieved_products_count", 0)
+                return state
+
+            active_model = state.model or self.model
+            span.set_attribute("ai.model.name", active_model)
+            span.set_attribute("adk.runner.name", "CatalogAdkRunner")
+            span.set_attribute("adk.agent.name", self.adk_agent.name)
+
+            prompt_text = (
+                f"<user_query>{state.sanitized_query or state.raw_query}</user_query>\n"
+                f"Target Keywords: {state.target_keywords}\n"
+                f"Category Hint: {state.detected_category or 'None'}\n\n"
+                "Call the 'query_catalog' tool with the extracted keywords and optional category to find candidate products for comparison."
+            )
+
+            client = self._get_genai_client()
+            clean_catalog_tools = [
+                types.Tool(
+                    function_declarations=[
+                        types.FunctionDeclaration(
+                            name="query_catalog",
+                            description="Query the Best Buy BigQuery product catalog by product keywords.",
+                            parameters=types.Schema(
+                                type=types.Type.OBJECT,
+                                properties={
+                                    "keywords": types.Schema(
+                                        type=types.Type.ARRAY,
+                                        items=types.Schema(type=types.Type.STRING),
+                                        description="List of product names, brands, or models to search in a single call.",
+                                    ),
+                                    "category": types.Schema(
+                                        type=types.Type.STRING,
+                                        description="Optional category filter (Laptops, Tablets, Headphones, Smart Home, TVs).",
+                                    ),
+                                },
+                                required=["keywords"],
+                            ),
+                        )
+                    ]
+                )
+            ]
+
+            config = types.GenerateContentConfig(
+                system_instruction=(
+                    "You are a Product Catalog Retrieval Specialist. Call the 'query_catalog' tool with "
+                    "relevant keywords and optional category extracted from the user query."
+                ),
+                tools=clean_catalog_tools,
+                tool_config=types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(
+                        mode=types.FunctionCallingConfigMode.ANY,
+                        allowed_function_names=["query_catalog"],
+                    )
+                ),
+                temperature=0.0,
+                max_output_tokens=160,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            )
+
+            t0 = time.perf_counter()
+            tool_call_found = False
+            tool_name = ""
+            tool_args: dict[str, Any] = {}
+            arg_compliance = False
+            fallback_used = False
+            in_toks = 0
+            out_toks = 0
+
+            try:
+                response = client.models.generate_content(
+                    model=active_model,
+                    contents=prompt_text,
+                    config=config,
+                )
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                    out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+
+                # Extract function call from response
+                calls = getattr(response, "function_calls", None)
+                if calls:
+                    for call in calls:
+                        if getattr(call, "name", "") == "query_catalog":
+                            tool_call_found = True
+                            tool_name = "query_catalog"
+                            tool_args = getattr(call, "args", {}) or {}
+                            break
+                elif getattr(response, "candidates", None):
+                    for cand in response.candidates:
+                        content = getattr(cand, "content", None)
+                        if content and getattr(content, "parts", None):
+                            for part in content.parts:
+                                func_call = getattr(part, "function_call", None)
+                                if func_call and getattr(func_call, "name", "") == "query_catalog":
+                                    tool_call_found = True
+                                    tool_name = "query_catalog"
+                                    tool_args = getattr(func_call, "args", {}) or {}
+                                    break
+                            if tool_call_found:
+                                break
+            except Exception as exc:
+                logger.warning(
+                    "LLM tool call generation failed (%s); falling back to deterministic parameters.",
+                    exc,
+                )
+                fallback_used = True
+
+            t1 = time.perf_counter()
+            tool_latency_ms = round((t1 - t0) * 1000.0, 2)
+
+            # Evaluate argument compliance
+            call_keywords = tool_args.get("keywords") if tool_call_found else None
+            call_category = tool_args.get("category") if tool_call_found else None
+
+            if (
+                tool_call_found
+                and call_keywords
+                and isinstance(call_keywords, list)
+                and len(call_keywords) > 0
+            ):
+                arg_compliance = True
+                search_kw = [str(k) for k in call_keywords]
+                search_cat = str(call_category) if call_category else state.detected_category
+            else:
+                fallback_used = True
+                search_kw = state.target_keywords
+                search_cat = state.detected_category
+
+            # Execute BigQuery catalog query with extracted tool arguments
+            raw_results = query_catalog(
+                keywords=search_kw,
+                category=search_cat,
+                limit=10,
+                client=self.bq_client,
+            )
+
+            # Convert to ProductSpec schemas with SKU deduplication
+            products: list[ProductSpec] = []
+            seen_skus: set[str] = set()
+            for item in raw_results:
+                try:
+                    spec = ProductSpec(**item)
+                    if spec.sku not in seen_skus:
+                        products.append(spec)
+                        seen_skus.add(spec.sku)
+                except Exception as e:
+                    logger.warning("Failed to validate product spec schema: %s", e)
+
+            # Compute SKU recall if expected_skus metadata is provided
+            expected_skus = set(state.metadata.get("expected_skus", []))
+            retrieved_skus = {p.sku for p in products}
+            sku_recall = (
+                len(expected_skus & retrieved_skus) / max(1, len(expected_skus))
+                if expected_skus
+                else 1.0
+            )
+
+            state.retrieved_products = products
+            state.step_history.append(
+                {
+                    "agent": "CatalogRetrievalAgent",
+                    "adk_agent": self.adk_agent.name,
+                    "adk_runner": "CatalogAdkRunner",
+                    "status": "COMPLETED",
+                    "execution_mode": "llm_tool_call",
+                    "tool_call_name": tool_name or "query_catalog",
+                    "tool_call_args": {"keywords": search_kw, "category": search_cat},
+                    "argument_compliance": arg_compliance,
+                    "sku_recall": sku_recall,
+                    "tool_call_latency_ms": tool_latency_ms,
+                    "input_tokens": in_toks,
+                    "output_tokens": out_toks,
+                    "products_retrieved": len(products),
+                    "fallback_used": fallback_used,
+                }
+            )
+            span.set_attribute("agent.retrieved_products_count", len(products))
+            span.set_attribute("agent.tool_call_latency_ms", tool_latency_ms)
+            span.set_attribute("agent.argument_compliance", arg_compliance)
             return state
 
 
@@ -492,6 +720,7 @@ class MultiAgentCoordinator:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        use_llm_tool_call: bool = False,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline."""
         from app.agent.prompts_service import get_active_prompt
@@ -549,6 +778,7 @@ class MultiAgentCoordinator:
                     "agent_version": resolved_agent_ver,
                     "model_version": effective_model_version,
                     "prompt_version": resolved_prompt_ver,
+                    "use_llm_tool_call": use_llm_tool_call,
                 },
             )
 
@@ -585,9 +815,9 @@ class MultiAgentCoordinator:
             t1 = time.perf_counter()
             intent_ms = round((t1 - t0) * 1000.0, 2)
 
-            # Node 2: Grounded Catalog Retrieval
+            # Node 2: Grounded Catalog Retrieval (default fast deterministic SQL path; tool calling for evals/benchmarks)
             retrieval_subagent = self.adk_sequential_agent.sub_agents[1]
-            state = self.retrieval_agent.process(state)
+            state = self.retrieval_agent.process(state, use_llm_tool_call=use_llm_tool_call)
             session.state["stage_2_retrieval"] = {
                 "retrieved_skus": [p.sku for p in state.retrieved_products],
                 "retrieved_count": len(state.retrieved_products),

@@ -195,3 +195,20 @@ def test_chat_endpoint_history_sanitization(mock_bq_client: MagicMock) -> None:
     data = response.json()
     assert "reply" in data
     assert "developer mode" not in data["reply"].lower()
+
+
+def test_chat_endpoint_persists_session_and_memory(mock_bq_client: MagicMock) -> None:
+    """Verify POST /api/chat persists conversation events to VertexAiSessionService and VertexAiMemoryBankService."""
+    p1 = _make_sample_product("6534606", "Apple MacBook Air M3", "Apple", 1099.0, 18.0, 16)
+    payload = {
+        "message": "Which has more battery life?",
+        "products": [p1.model_dump()],
+        "session_id": "test-chat-persist-session-999",
+    }
+    with patch("app.agent.orchestrator._persist_chat_session_and_memory") as mock_persist:
+        response = client.post("/api/chat", json=payload)
+        assert response.status_code == 200
+        mock_persist.assert_called_once()
+        call_kwargs = mock_persist.call_args.kwargs
+        assert call_kwargs.get("session_id") == "test-chat-persist-session-999"
+        assert call_kwargs.get("user_message") == "Which has more battery life?"

@@ -498,6 +498,61 @@ describe('App Integration', () => {
     expect(callArgs.category).toBe('Laptops');
     expect(callArgs.query).toContain('Compare the following products:');
   });
+
+  it('renders ConversationSidebar immediately open to the right after comparison completes and supports toggle', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    // Wait for comparison to render
+    await waitFor(() => {
+      expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
+    });
+
+    // 1. Follow-up chat sidebar should be open immediately
+    expect(screen.getByText('Comparison Assistant')).toBeInTheDocument();
+    expect(screen.getByText('Ask about these products')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Ask a follow-up question...')
+    ).toBeInTheDocument();
+
+    // 2. Close the sidebar via close button
+    const closeBtn = screen.getByRole('button', {
+      name: /close conversation sidebar/i,
+    });
+    fireEvent.click(closeBtn);
+
+    // Sidebar should be closed and "Open Follow-up Chat" button appears
+    expect(screen.queryByText('Comparison Assistant')).not.toBeInTheDocument();
+    const openChatBtn = screen.getByRole('button', {
+      name: /open follow-up chat/i,
+    });
+    expect(openChatBtn).toBeInTheDocument();
+
+    // 3. Re-open via button
+    fireEvent.click(openChatBtn);
+    expect(screen.getByText('Comparison Assistant')).toBeInTheDocument();
+
+    // 4. Close again and trigger new comparison via search -> should auto-reopen
+    fireEvent.click(screen.getByRole('button', { name: /close conversation sidebar/i }));
+    expect(screen.queryByText('Comparison Assistant')).not.toBeInTheDocument();
+
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare headphones' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Comparison Assistant')).toBeInTheDocument();
+    });
+  });
 });
 
 

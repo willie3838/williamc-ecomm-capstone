@@ -1,9 +1,31 @@
+import json
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Self
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_default_agent_engine_id() -> str | None:
+    """Resolve default agent_engine_id from deployment_metadata.json when unset."""
+    for candidate_path in [
+        Path(__file__).resolve().parent.parent.parent / "deployment_metadata.json",
+        Path.cwd() / "deployment_metadata.json",
+        Path.cwd() / "backend" / "deployment_metadata.json",
+    ]:
+        if candidate_path.exists():
+            try:
+                data = json.loads(candidate_path.read_text(encoding="utf-8"))
+                remote_id = str(data.get("remote_agent_runtime_id") or "").strip()
+                if remote_id:
+                    if "/" in remote_id:
+                        return remote_id.split("/")[-1]
+                    return remote_id
+            except Exception:
+                pass
+    return None
 
 
 class Settings(BaseSettings):
@@ -197,10 +219,12 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def _validate_trace_export(self) -> Self:
+    def _validate_settings(self) -> Self:
         # In production Cloud Run environment, default trace export to True unless explicitly overridden
         if self.environment == "production" and "EXPORT_TRACES_TO_CLOUD" not in os.environ:
             self.export_traces_to_cloud = True
+        if not self.agent_engine_id:
+            self.agent_engine_id = _resolve_default_agent_engine_id()
         return self
 
     @property

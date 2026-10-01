@@ -142,8 +142,11 @@ backend/
    - Use `bigquery.ScalarQueryParameter` and `bigquery.ArrayQueryParameter`.
 3. **Structured JSON Output**:
    - The model must output responses validated against Pydantic schemas.
-4. **Multi-Node Architecture & Relevance Gating**:
+4. **Multi-Node Architecture, Relevance Gating & Retrieval Tool-Calling**:
    - The `/api/compare` endpoint executes through `MultiAgentCoordinator` across 4 specialist nodes: `QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
+   - `CatalogRetrievalAgent` supports two execution modalities:
+     - **Deterministic SQL (Production Default)**: `MultiAgentCoordinator.execute(..., use_llm_tool_call=False)` queries BigQuery directly using parameterized SQL with pattern-matched relevance ordering. This zero-LLM retrieval path preserves production sub-3.0s P95 latency.
+     - **LLM Tool-Calling (`use_llm_tool_call=True` / `process_with_llm_tool_call`)**: Invokes `catalog_retrieval_specialist` with `tools=[query_catalog]` and `ToolConfig(mode=ANY)`. Used during benchmark evaluations to rigorously evaluate function-calling trajectories, tool argument compliance (valid non-empty `keywords` list and optional `category`), SKU recall against expected products, retrieval latency, and token consumption across foundation models.
    - `QueryIntentAgent` and `ComparisonOrchestrator` semantically classify query intent using Gemini structured JSON generation (`QueryIntentAnalysis`), eliminating brittle hardcoded regex word lists.
    - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are classified as `OPINION_OR_CHATTER` with `is_comparison_eligible=False` and suppressed.
    - Early opinion query gating: Non-comparative rants and opinions are rejected immediately before BigQuery catalog querying to eliminate unnecessary database load and guarantee fast matrix suppression.
@@ -159,9 +162,11 @@ backend/
     - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) and abstract device models ("Model Alpha", "Model Beta") to prevent data leakage and benchmark memorization.
     - Category classification leverages semantic Gemini structured classification (`QueryIntentAnalysis`) while supporting fast-path taxonomy aliases across all primary consumer electronics categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`).
     - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
-7. **Google ADK Runner & `VertexAiSessionService` Integration (`app.agent.runner`, `app.agent.hermetic_adapter`)**:
-    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`) and `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`).
-    - `CatalogVertexAiSessionService` automatically resolves `GOOGLE_CLOUD_AGENT_ENGINE_ID` injected at runtime by Agent Runtime (Vertex AI Agent Engine) to persist sessions via `vertexai.Client.aio.agent_engines.sessions`, while transparently falling back to `InMemorySessionService` during local development, `pytest`, and offline evaluations.
+7. **Google ADK Runner, `VertexAiSessionService`, `VertexAiMemoryBankService` & Events Compaction (`app.agent.runner`, `app.agent.memory_config`, `app.agent.hermetic_adapter`)**:
+    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`), `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`), and `CatalogVertexAiMemoryBankService` (`google.adk.memory.VertexAiMemoryBankService`).
+    - `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` automatically resolve `GOOGLE_CLOUD_AGENT_ENGINE_ID` injected at runtime by Agent Runtime (Vertex AI Agent Engine) or fallback to `backend/deployment_metadata.json` (`2445220951441276928`), while transparently falling back to `InMemorySessionService`/`InMemoryMemoryService` during local development, `pytest`, and offline evaluations.
+    - Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2, summarizer=LlmEventSummarizer(llm=CatalogAdkLlm('gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`.
+    - `create_adk_agent()` equips `PreloadMemoryTool` and `after_agent_callback=generate_memories_callback` (calling `callback_context.add_session_to_memory()`) to persist session memories automatically into Vertex AI Memory Bank.
     - `CatalogAdkLlm(BaseLlm)` is registered in `LLMRegistry` for `gemini-*` models, unifying live Vertex AI Gemini execution (with Google Cloud Model Armor `locations/us/templates/catalog-prompt-guard` and `catalog-resp-guard` guardrails, concurrent zero-added-latency `locations/us-central1/templates/catalog-prompt-guard:sanitizeUserPrompt` inspection via pre-warmed keep-alive `_SHARED_MA_SESSION` on `gemini-2.5-flash-lite` user entry turns, per-RPC straggler timeout guards (`1.2s`/`1.75s`), and structured security refusal responses via `_build_model_armor_refusal_response`) and offline hermetic execution (`HermeticModelAdapter`), including multi-turn ADK `FunctionCall(query_catalog)` -> `FunctionResponse` -> `ComparisonSynthesis` trajectories.
     - `MultiAgentCoordinator` specialists (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) and `ComparisonOrchestrator.execute_with_adk_runner` execute through `CatalogAdkRunner`.
 8. **Tagged SKU Flow, Reranker Locking & Focus Ordering Decoupling**:
@@ -185,13 +190,21 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
 2. **Stateless A2A Discovery (`app.agent.agent_card`) & Google Cloud Agent Registry**:
    - Serves the standard Agent-to-Agent (A2A) JSON manifest at `GET /.well-known/agent-card.json` (`build_a2a_agent_card`).
    - Provisioned in Terraform (`deployment/terraform/agent_registry.tf` enabling `agentregistry.googleapis.com`) so `gcloud agent-registry services` and Gemini Enterprise can discover our Cloud Run service's endpoints, skills (`spec-comparison`, `intent-classification`, `catalog-retrieval`), and active model/prompt metadata.
-3. **Dynamic Model Swappability & Tiered-Hybrid Architecture**:
+3. **Dynamic Model Swappability, 13-Model Fleet Benchmarking & Tiered-Hybrid Architecture**:
    - `ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair`.
    - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
+   - **13-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across all 4 specialist agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) supports:
+     - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3.5-flash-lite`
+     - Flash models: `gemini-2.5-flash`, `gemini-3-flash-preview`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`
+     - Pro models: `gemini-2.5-pro`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`
+   - **`BENCHMARK_ACTUAL_MODEL=true` Execution & Global Routing**:
+     - `CatalogAdkLlm` and `ComparisonOrchestrator` evaluate the exact specified candidate model without forcing fallbacks to `gemini-2.5-flash-lite` when `BENCHMARK_ACTUAL_MODEL=true` or `EVAL_MODE=live` is configured.
+     - Supports `location='global'` Vertex AI client routing (`_get_vertex_client_for_model`) for preview and 3.x generation models with transparent fallback to `us-central1`.
+     - Speculative pre-launch cache keys incorporate the candidate model (`(skus, query, model)`) to prevent cross-model cache collisions while preserving backward compatibility with 2-tuple keys.
 4. **Traceability**:
    - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
-5. **Google ADK Runner Execution & Robust Keyword Extraction**:
-   - `app.agent.runner` provisions an `InMemoryRunner` with `InMemorySessionService` bound to `catalog_agent`. `ComparisonOrchestrator.execute_with_adk_runner` executes queries through ADK's native runner lifecycle, collecting tool calls (`query_catalog`) and synthesized grounded narrative responses.
+5. **Google ADK Runner Execution, Vertex AI Memory Bank & Session Governance**:
+   - `app.agent.runner` provisions `CatalogAdkRunner` with `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` bound to `catalog_agent`. Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2)` and `ResumabilityConfig(is_resumable=True)`. `ComparisonOrchestrator.execute_with_adk_runner` executes queries through ADK's native runner lifecycle, collecting tool calls (`query_catalog`) and synthesized grounded narrative responses.
    - `ComparisonOrchestrator.extract_keywords` implements robust brand-agnostic entity parsing that accurately isolates product models from question-colon lead-ins (`Which ... is better: Model A or Model B?`), chip comparison prefixes (`Chip X vs Chip Y: Model A vs Model B`), and trailing spec/attribute comparison phrases without discarding target products.
 6. **Vertex AI Agent Runtime (Reasoning Engine Contract) & Decoupled Architecture (`app.agent.reasoning_engine`)**:
    - The agent core conforms to Google Cloud's Vertex AI Reasoning Engine contract (`set_up()`, `query()`, `stream_query()`) in `CatalogComparisonReasoningEngine`.
@@ -216,9 +229,9 @@ pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 ```
 
 ### Model Swappability & Benchmark Testing
-Run dynamic model swappability and pairwise evaluation test suites:
+Run dynamic model swappability, retrieval tool calling, and per-agent benchmark test suites:
 ```bash
-pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py -v
+pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py tests/test_multi_agent_tool_calling.py tests/test_benchmark_actual_model.py tests/test_per_agent_model_benchmarks.py -v
 ```
 
 ### Mocking Guidelines

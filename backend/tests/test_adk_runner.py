@@ -5,12 +5,14 @@ from unittest.mock import patch
 
 import pytest
 from google.adk.agents import Agent
+from google.adk.memory import VertexAiMemoryBankService
 from google.adk.runners import InMemoryRunner
 from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.agent.runner import (
     CatalogAdkRunner,
+    CatalogVertexAiMemoryBankService,
     CatalogVertexAiSessionService,
     create_catalog_runner,
     get_adk_runner,
@@ -303,8 +305,95 @@ class TestADKRunnerIntegration:
                     agent=q_agent.adk_agent, prompt="test", session_id=None, hermetic=True
                 )
                 passed_service = mock_create.call_args.kwargs.get("session_service")
-                assert isinstance(passed_service, InMemorySessionService)
-                assert not isinstance(passed_service, CatalogVertexAiSessionService)
+                assert isinstance(passed_service, CatalogVertexAiSessionService)
+                passed_memory_service = mock_create.call_args.kwargs.get("memory_service")
+                assert isinstance(passed_memory_service, CatalogVertexAiMemoryBankService)
+
+    @pytest.mark.asyncio
+    async def test_catalog_vertex_ai_memory_bank_service(self):
+        """Verify CatalogVertexAiMemoryBankService works in hermetic mode with in-memory fallback."""
+        service = CatalogVertexAiMemoryBankService(
+            project="fde-bestbuy-sandbox-dev-508321",
+            location="us-central1",
+            agent_engine_id="2445220951441276928",
+            hermetic=True,
+        )
+        assert isinstance(service, VertexAiMemoryBankService)
+        assert service.hermetic is True
+
+        # Test add_session_to_memory
+        from google.adk.sessions import Session
+
+        session = Session(
+            app_name="app",
+            user_id="user_test_1",
+            id="test_session_mem_1",
+        )
+        await service.add_session_to_memory(session=session)
+
+        # Test add_events_to_memory
+        await service.add_events_to_memory(
+            app_name="app",
+            user_id="user_test_1",
+            session_id="test_session_mem_1",
+            events=[],
+        )
+
+        # Test add_memory and search_memory
+        await service.add_memory(
+            app_name="app",
+            user_id="user_test_1",
+            memories=["Customer prefers lightweight 13-inch laptops with high battery life."],
+        )
+
+        search_res = await service.search_memory(
+            app_name="app",
+            user_id="user_test_1",
+            query="battery life laptop",
+        )
+        assert search_res is not None
+
+    def test_resolve_default_agent_engine_id_from_deployment_metadata(self):
+        """Verify agent_engine_id resolves to deployment_metadata.json default when env is unset."""
+        from app.agent.runner import _resolve_agent_engine_id
+        from app.config import Settings
+
+        resolved = _resolve_agent_engine_id(None)
+        assert resolved == "2445220951441276928"
+
+        settings = Settings(
+            gcp_project="fde-bestbuy-sandbox-dev-508321",
+            google_cloud_agent_engine_id=None,
+        )
+        assert settings.agent_engine_id == "2445220951441276928"
+
+    def test_catalog_adk_runner_with_compaction_and_resumability(self):
+        """Verify CatalogAdkRunner wires EventsCompactionConfig and ResumabilityConfig."""
+        from google.adk.apps.app import EventsCompactionConfig, ResumabilityConfig
+
+        runner = get_adk_runner()
+        assert runner.app is not None
+        assert runner.app.events_compaction_config is not None
+        assert isinstance(runner.app.events_compaction_config, EventsCompactionConfig)
+        assert runner.app.events_compaction_config.token_threshold == 32000
+        assert runner.app.events_compaction_config.event_retention_size == 5
+        assert runner.app.events_compaction_config.compaction_interval == 8
+        assert runner.app.events_compaction_config.overlap_size == 2
+
+        assert runner.app.resumability_config is not None
+        assert isinstance(runner.app.resumability_config, ResumabilityConfig)
+        assert runner.app.resumability_config.is_resumable is True
+
+    def test_reasoning_engine_context_spec_memory_bank_config(self):
+        """Verify memory_config exports ReasoningEngineContextSpecMemoryBankConfig helper."""
+        from app.agent.memory_config import (
+            ReasoningEngineContextSpecMemoryBankConfig,
+            get_default_memory_bank_config,
+        )
+
+        cfg = get_default_memory_bank_config()
+        assert cfg is not None
+        assert ReasoningEngineContextSpecMemoryBankConfig is not None
 
     def test_category_disambiguation_and_category_specific_synthesis(self, monkeypatch):
         """Verify tablet-004/011 category priority and rich synthesis for Headphones, TVs, and Smart Home."""
