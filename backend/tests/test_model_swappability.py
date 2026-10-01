@@ -145,7 +145,6 @@ def test_multi_agent_coordinator_dynamic_model_swapping() -> None:
         synthesis_model="gemini-2.5-pro",
     )
     assert coordinator.intent_agent.model == "gemini-2.5-flash"
-    assert coordinator.retrieval_agent.model == "gemini-2.5-flash"
     assert coordinator.relevance_agent.model == "gemini-2.5-flash"
     assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
 

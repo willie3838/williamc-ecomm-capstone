@@ -193,7 +193,9 @@ def test_multi_agent_coordinator_uses_adk_sequential_agent_and_session_state():
 
     coordinator = MultiAgentCoordinator(bq_client=mock_bq, model="gemini-2.5-flash")
     assert hasattr(coordinator, "adk_sequential_agent"), "adk_sequential_agent missing"
-    assert len(coordinator.adk_sequential_agent.sub_agents) == 4, "Expected 4 specialist sub-agents"
+    assert len(coordinator.adk_sequential_agent.sub_agents) == 3, (
+        "Expected 3 specialist sub-agents (QueryIntent, RelevanceDetector, SpecComparison)"
+    )
 
     # Execute pipeline
     resp = coordinator.execute("MacBook Air vs Dell XPS 13", category="Laptops")

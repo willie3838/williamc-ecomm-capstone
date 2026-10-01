@@ -7,6 +7,7 @@ from app.agent.multi_agent import (
     ComparisonAgentState,
     MultiAgentCoordinator,
     QueryIntentAgent,
+    RelevanceDetectorAgent,
     SpecComparisonAgent,
 )
 from app.models.responses import ProductSpec
@@ -73,7 +74,7 @@ def test_catalog_retrieval_agent(mock_query_catalog):
     assert updated.retrieved_products[0].sku == "6534606"
     assert updated.retrieved_products[1].sku == "6575132"
     assert len(updated.step_history) == 1
-    assert updated.step_history[0]["agent"] == "CatalogRetrievalAgent"
+    assert updated.step_history[0]["agent"] in ("CatalogRetrievalStep", "CatalogRetrievalAgent")
 
 
 def test_spec_comparison_agent_synthesis():
@@ -315,3 +316,102 @@ def test_multi_agent_coordinator_multi_product_end_to_end(mock_query_catalog):
     assert response.recommendations is not None
     for item in prods:
         assert f"[SKU: {item['sku']}]" in response.summary or item["name"] in response.summary
+
+
+@patch("app.agent.multi_agent.query_catalog")
+def test_catalog_retrieval_agent_invalid_spec_handling(mock_query_catalog):
+    """Verify CatalogRetrievalStep gracefully skips malformed product dictionaries."""
+    mock_query_catalog.return_value = [
+        {"invalid": "no_sku_or_price"},
+        {
+            "sku": "VALID01",
+            "name": "Valid Product",
+            "brand": "Brand",
+            "category": "Laptops",
+            "price": 999.0,
+            "specifications": {},
+        },
+    ]
+    agent = CatalogRetrievalAgent()
+    state = ComparisonAgentState(
+        raw_query="Find laptop", sanitized_query="Find laptop", target_keywords=["laptop"]
+    )
+    updated = agent.process(state)
+    assert len(updated.retrieved_products) == 1
+    assert updated.retrieved_products[0].sku == "VALID01"
+
+
+def test_relevance_detector_insufficient_candidates():
+    """Verify RelevanceDetectorAgent flags insufficient candidates when fewer than 2 products exist."""
+    agent = RelevanceDetectorAgent()
+    p1 = ProductSpec(
+        sku="6534606",
+        name="MacBook Air 15",
+        price=1299.0,
+        brand="Apple",
+        category="Laptops",
+        specifications={"ram_gb": 16},
+    )
+    state = ComparisonAgentState(
+        raw_query="MacBook Air",
+        sanitized_query="MacBook Air",
+        retrieved_products=[p1],
+    )
+    updated = agent.process(state)
+    assert updated.is_comparison_eligible is False
+    assert len(updated.ranked_products) == 1
+    assert updated.step_history[-1]["decision"] == "INSUFFICIENT_COMPARISON_CANDIDATES"
+
+
+def test_spec_comparison_single_product_handling():
+    """Verify SpecComparisonAgent handles single product candidate state."""
+    agent = SpecComparisonAgent()
+    p1 = ProductSpec(
+        sku="6534606",
+        name="MacBook Air 15",
+        price=1299.0,
+        brand="Apple",
+        category="Laptops",
+        specifications={"ram_gb": 16},
+    )
+    state = ComparisonAgentState(
+        raw_query="MacBook Air",
+        sanitized_query="MacBook Air",
+        ranked_products=[p1],
+        is_comparison_eligible=False,
+    )
+    updated = agent.process(state)
+    assert len(updated.ranked_products) == 1
+    assert updated.comparison_response is not None
+    assert updated.comparison_response.summary is not None
+
+
+@patch("app.agent.multi_agent.query_catalog")
+def test_multi_agent_coordinator_session_and_category(mock_query_catalog):
+    """Verify MultiAgentCoordinator propagates session_id and category attributes."""
+    mock_query_catalog.return_value = [
+        {
+            "sku": "SKU1",
+            "name": "Product 1",
+            "price": 100.0,
+            "brand": "BrandA",
+            "category": "Laptops",
+            "specifications": {},
+        },
+        {
+            "sku": "SKU2",
+            "name": "Product 2",
+            "price": 200.0,
+            "brand": "BrandB",
+            "category": "Laptops",
+            "specifications": {},
+        },
+    ]
+    coordinator = MultiAgentCoordinator()
+    response = coordinator.execute(
+        raw_query="Compare SKU1 and SKU2",
+        category="Laptops",
+        session_id="session-trace-123",
+    )
+    assert response is not None
+    assert len(response.products) == 2

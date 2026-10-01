@@ -129,6 +129,50 @@ def _pop_speculative_future(
         return store.pop(key, None)
 
 
+def _build_thinking_config(model_id: str | None) -> types.ThinkingConfig | None:
+    """Construct ThinkingConfig for Gemini models that support setting thinking_budget=0.
+
+    Models such as gemini-3.x (e.g. gemini-3.5-flash, gemini-3.7-flash), gemini-2.5-pro,
+    gemini-1.5, or flash-lite models either do not support thinking_budget=0 or reject
+    disabling thinking via budget=0 with 400 INVALID_ARGUMENT.
+    Only gemini-2.5-flash and gemini-2.0-flash permit setting thinking_budget=0.
+    """
+    if not model_id:
+        return None
+    m = model_id.lower()
+    if any(k in m for k in ("3.", "pro", "1.5", "flash-lite", "lite")):
+        return None
+    if "2.5-flash" in m or "2.0-flash" in m:
+        return types.ThinkingConfig(thinking_budget=0)
+    return None
+
+
+def _extract_json_snippet(text: str) -> str:
+    """Robustly extract a JSON object or array from LLM response text that may contain markdown code fences or conversational text."""
+    if not text:
+        return ""
+    cleaned = text.strip()
+    if "```" in cleaned:
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+        if match:
+            cleaned = match.group(1).strip()
+    first_brace = cleaned.find("{")
+    first_bracket = cleaned.find("[")
+    start_idx = -1
+    end_idx = -1
+    if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+        start_idx = first_brace
+        end_idx = cleaned.rfind("}")
+    elif first_bracket != -1:
+        start_idx = first_bracket
+        end_idx = cleaned.rfind("]")
+
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        return cleaned[start_idx : end_idx + 1]
+
+    return cleaned
+
+
 # Declarative domain specification registry covering all 5 catalog categories:
 # Laptops, Tablets, Headphones, Smart Home, TVs (s2_05, s2_32).
 # Polarity: "higher" (larger numeric value wins), "lower" (smaller numeric value wins), "none" (qualitative).
@@ -891,9 +935,7 @@ class ComparisonOrchestrator:
         _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
-        thinking_cfg = (
-            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
-        )
+        thinking_cfg = _build_thinking_config(call_model)
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
@@ -903,6 +945,7 @@ class ComparisonOrchestrator:
             max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             thinking_config=thinking_cfg,
         )
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         spec_key = self._get_speculative_synth_key(products, query, active_model)
         legacy_spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
         spec_future = (
@@ -910,7 +953,7 @@ class ComparisonOrchestrator:
                 _get_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
                 or _get_speculative_future(_SPECULATIVE_SYNTH_FUTURES, legacy_spec_key)
             )
-            if not is_mock_env
+            if not is_mock_env and not is_benchmark_actual
             else None
         )
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
@@ -927,7 +970,7 @@ class ComparisonOrchestrator:
                         response = None
                 if response is None:
                     try:
-                        if not is_mock_env:
+                        if not is_mock_env and not is_benchmark_actual:
                             synth_fut = _get_or_create_speculative_future(
                                 _SPECULATIVE_SYNTH_FUTURES,
                                 spec_key,
@@ -1048,6 +1091,8 @@ class ComparisonOrchestrator:
     ) -> None:
         """Speculatively launch Stage 3 reranking and Stage 4 synthesis concurrently with Stage 1 intent classification."""
         try:
+            if os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True"):
+                return
             if self._is_opinion_query(query):
                 return
             fast_kw = self.extract_keywords(query)
@@ -1544,9 +1589,7 @@ class ComparisonOrchestrator:
         call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
-        thinking_cfg = (
-            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
-        )
+        thinking_cfg = _build_thinking_config(call_model)
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
@@ -1556,6 +1599,7 @@ class ComparisonOrchestrator:
             max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             thinking_config=thinking_cfg,
         )
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         legacy_rerank_key = (tuple(sorted(p.sku for p in products[:10])), sanitized_query)
         rerank_future = (
@@ -1563,7 +1607,7 @@ class ComparisonOrchestrator:
                 _get_speculative_future(_SPECULATIVE_RERANK_FUTURES, rerank_key)
                 or _get_speculative_future(_SPECULATIVE_RERANK_FUTURES, legacy_rerank_key)
             )
-            if not is_mock_env
+            if not is_mock_env and not is_benchmark_actual
             else None
         )
 
@@ -1582,7 +1626,7 @@ class ComparisonOrchestrator:
                         response = None
                 if response is None:
                     try:
-                        if not is_mock_env:
+                        if not is_mock_env and not is_benchmark_actual:
                             in_flight_rerank = _get_or_create_speculative_future(
                                 _SPECULATIVE_RERANK_FUTURES,
                                 rerank_key,
@@ -1672,7 +1716,20 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-        raw_text = (response.text or "").strip()
+        resp_text = ""
+        try:
+            resp_text = (response.text or "").strip()
+        except Exception:
+            pass
+        if not resp_text and getattr(response, "candidates", None):
+            for cand in response.candidates:
+                content = getattr(cand, "content", None)
+                if content and getattr(content, "parts", None):
+                    for part in content.parts:
+                        txt = getattr(part, "text", None)
+                        if txt:
+                            resp_text += txt
+        raw_text = _extract_json_snippet(resp_text)
         ranked_items: list[dict[str, Any]] | None = None
         try:
             parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
@@ -1684,6 +1741,12 @@ class ComparisonOrchestrator:
                     ranked_items = [
                         {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
                         for item in parsed_raw
+                        if isinstance(item, dict)
+                    ]
+                elif isinstance(parsed_raw, dict) and "rankings" in parsed_raw:
+                    ranked_items = [
+                        {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                        for item in parsed_raw["rankings"]
                         if isinstance(item, dict)
                     ]
             except Exception:

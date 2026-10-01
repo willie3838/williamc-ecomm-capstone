@@ -24,6 +24,7 @@ def test_agent_components_documented_in_architecture():
     required_agent_nodes = [
         "QueryIntentAgent",
         "CatalogRetrievalAgent",
+        "CatalogRetrievalStep",
         "RelevanceDetectorAgent",
         "SpecComparisonAgent",
         "MultiAgentCoordinator",

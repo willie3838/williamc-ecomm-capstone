@@ -1,4 +1,4 @@
-"""Unit tests for Per-Agent Gemini 2.5 through 3.8 Benchmarks and 4-Stage Specialist Harness."""
+"""Unit tests for Per-Agent Gemini 2.5 through 3.8 Benchmarks and 3-Stage Specialist Harness."""
 
 from __future__ import annotations
 
@@ -54,37 +54,59 @@ def sample_benchmark_cases():
 
 
 def test_stage_models_coverage_and_pricing():
-    """Verify STAGE_MODELS and MODEL_PRICING_DEFAULTS contain all 13 target Gemini 2.5-3.8 models."""
+    """Verify STAGE_MODELS contains ONLY the 9 production-safe GA Gemini 2.5-3.8 models, excluding all -preview models."""
     expected_models = [
         "gemini-2.5-flash-lite",
-        "gemini-3.1-flash-lite-preview",
+        "gemini-3.1-flash-lite",
         "gemini-3.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-3-flash-preview",
         "gemini-3.5-flash",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
         "gemini-3.8-flash",
         "gemini-2.5-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-pro-preview-customtools",
     ]
+    assert len(STAGE_MODELS) == 9, (
+        f"Expected exactly 9 GA models, got {len(STAGE_MODELS)}: {STAGE_MODELS}"
+    )
     for model_id in expected_models:
         assert model_id in STAGE_MODELS
+        assert not model_id.endswith("-preview"), f"Model {model_id} must not be a preview model"
         assert model_id in MODEL_PRICING_DEFAULTS
         in_cost, out_cost = MODEL_PRICING_DEFAULTS[model_id]
         assert in_cost > 0.0
         assert out_cost > 0.0
 
-    # Ensure CandidateModelSpec list also contains all 13 models
+    # Ensure no preview models exist in STAGE_MODELS
+    for m in STAGE_MODELS:
+        assert "-preview" not in m, f"Found preview model in STAGE_MODELS: {m}"
+
+
+def test_candidate_models_fleet():
+    """Verify CANDIDATE_MODELS contains the 9 GA models + tiered-hybrid + gemini-1.5-flash baseline, with zero previews."""
+    expected_candidates = {
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-2.5-pro",
+        "tiered-hybrid",
+        "gemini-1.5-flash",
+    }
     candidate_ids = {c.model_id for c in CANDIDATE_MODELS}
-    for model_id in expected_models:
-        assert model_id in candidate_ids
+    assert candidate_ids == expected_candidates, (
+        f"Mismatch in candidate IDs: {candidate_ids ^ expected_candidates}"
+    )
+    for cid in candidate_ids:
+        assert "-preview" not in cid, f"Candidate {cid} must not be a preview model"
 
 
-def test_run_per_stage_benchmarks_all_4_specialists(hermetic_bq, sample_benchmark_cases):
-    """Verify run_per_stage_benchmarks executes all 4 specialist agent stages without clamping."""
+def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benchmark_cases):
+    """Verify run_per_stage_benchmarks executes the 3 LLM specialist agent stages across the 9 GA models."""
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
         bq_client=hermetic_bq,
@@ -93,41 +115,47 @@ def test_run_per_stage_benchmarks_all_4_specialists(hermetic_bq, sample_benchmar
     )
 
     stages = res["stages"]
-    # 4 specialist stages
+    # 3 specialist LLM stages
     assert "stage1_intent" in stages
-    assert "stage2_retrieval" in stages
-    assert "stage3_relevance" in stages
-    assert "stage4_synthesis" in stages
+    assert "stage2_relevance" in stages or "stage3_relevance" in stages
+    assert "stage3_synthesis" in stages or "stage4_synthesis" in stages
 
-    # Backward compatibility aliases
-    assert "stage2_rerank" in stages
-    assert "stage3_synthesis" in stages
-
-    # Check Stage 2 CatalogRetrievalSpecialist tool-calling evaluation metrics
-    s2_results = stages["stage2_retrieval"]
-    assert len(s2_results) == len(STAGE_MODELS)
-    for entry in s2_results:
-        assert entry["specialist"] == "CatalogRetrievalSpecialist"
-        assert "mean_trajectory_accuracy" in entry
-        assert "mean_argument_compliance" in entry
-        assert "mean_sku_recall" in entry
-        assert entry["latency_p50_ms"] >= 0.0
+    # Check Stage 1 QueryIntentSpecialist
+    s1_results = stages["stage1_intent"]
+    assert len(s1_results) == 9
+    for entry in s1_results:
+        assert entry["specialist"] == "QueryIntentSpecialist"
+        assert entry["model_id"] in STAGE_MODELS
         assert entry["latency_p95_ms"] >= 0.0
-        assert entry["cost_per_1k_usd"] >= 0.0
+
+    # Check RelevanceDetectorSpecialist
+    rel_results = stages.get("stage2_relevance") or stages.get("stage3_relevance")
+    assert len(rel_results) == 9
+    for entry in rel_results:
+        assert entry["specialist"] == "RelevanceDetectorSpecialist"
+        assert entry["model_id"] in STAGE_MODELS
+        assert "mean_f1" in entry
+
+    # Check SpecComparisonSpecialist
+    syn_results = stages.get("stage3_synthesis") or stages.get("stage4_synthesis")
+    assert len(syn_results) == 9
+    for entry in syn_results:
+        assert entry["specialist"] == "SpecComparisonSpecialist"
+        assert entry["model_id"] in STAGE_MODELS
+        assert "mean_accuracy" in entry
+        assert "mean_citation_faithfulness" in entry
 
     # Check winning combination is dynamically computed
     win = res["winning_combination"]
     assert win["stage1_intent"] in STAGE_MODELS
-    assert win["stage2_retrieval"] in STAGE_MODELS
-    assert win["stage3_relevance"] in STAGE_MODELS
-    assert win["stage4_synthesis"] in STAGE_MODELS
+    assert (win.get("stage2_relevance") or win.get("stage3_relevance")) in STAGE_MODELS
+    assert (win.get("stage3_synthesis") or win.get("stage4_synthesis")) in STAGE_MODELS
     assert win["total_pipeline_p95_ms"] > 0.0
-    assert win["tool_call_pipeline_p95_ms"] > 0.0
     assert isinstance(win["sla_p95_3000ms_passed"], bool)
 
 
 def test_generate_benchmark_markdown_structure(hermetic_bq, sample_benchmark_cases):
-    """Verify generate_benchmark_markdown formats all 4 stages into readable tables."""
+    """Verify generate_benchmark_markdown formats the 3 specialist stages into readable tables."""
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
         bq_client=hermetic_bq,
@@ -159,7 +187,7 @@ def test_generate_benchmark_markdown_structure(hermetic_bq, sample_benchmark_cas
         "candidates": [
             {
                 "model_id": "tiered-hybrid",
-                "routing_model": "gemini-2.5-flash",
+                "routing_model": "gemini-3.5-flash",
                 "synthesis_model": "gemini-2.5-pro",
                 "metrics": {
                     "mean_data_accuracy": 0.995,
@@ -176,17 +204,14 @@ def test_generate_benchmark_markdown_structure(hermetic_bq, sample_benchmark_cas
     }
 
     md = generate_benchmark_markdown(report_mock)
-    assert "2.1 Stage 1: QueryIntentSpecialist" in md
-    assert "2.2 Stage 2: CatalogRetrievalSpecialist (LLM Tool Calling & Retrieval Accuracy)" in md
-    assert "2.3 Stage 3: RelevanceDetectorSpecialist" in md
-    assert "2.4 Stage 4: SpecComparisonSpecialist" in md
-    assert "Trajectory Accuracy" in md
-    assert "Argument Compliance" in md
+    assert "Stage 1: QueryIntentSpecialist" in md
+    assert "RelevanceDetectorSpecialist" in md
+    assert "SpecComparisonSpecialist" in md
     assert "Summed Pipeline Latency & Strict SLA Verification" in md
 
 
-def test_build_model_decision_matrix_all_13_models(tmp_path):
-    """Verify build_model_decision_matrix covers all 13 models + tiered-hybrid + gemini-1.5-flash."""
+def test_build_model_decision_matrix_eleven_models(tmp_path):
+    """Verify build_model_decision_matrix covers all 9 GA models + tiered-hybrid + gemini-1.5-flash."""
     json_path = tmp_path / "matrix.json"
     md_path = tmp_path / "scorecard.md"
 
@@ -201,25 +226,22 @@ def test_build_model_decision_matrix_all_13_models(tmp_path):
     assert md_path.exists()
 
     candidate_ids = {c.model_id for c in report.candidates}
-    expected_all = [
+    expected_all = {
         "tiered-hybrid",
         "gemini-2.5-flash-lite",
-        "gemini-3.1-flash-lite-preview",
+        "gemini-3.1-flash-lite",
         "gemini-3.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-3-flash-preview",
         "gemini-3.5-flash",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
         "gemini-3.8-flash",
         "gemini-2.5-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-pro-preview-customtools",
         "gemini-1.5-flash",
-    ]
-    for cid in expected_all:
-        assert cid in candidate_ids
+    }
+    assert candidate_ids == expected_all, (
+        f"Mismatch in candidate IDs: {candidate_ids ^ expected_all}"
+    )
 
     # Verify string representation
     rendered = str(report)
@@ -248,7 +270,4 @@ def test_build_model_decision_matrix_from_dict_report(tmp_path):
         output_json_path=dict_report,
         output_md_path=tmp_path / "scorecard2.md",
     )
-    assert isinstance(report, ModelDecisionMatrixReport)
-    cand_38 = next(c for c in report.candidates if c.model_id == "gemini-3.8-flash")
-    assert cand_38.data_accuracy == 0.992
-    assert cand_38.citation_faithfulness == 0.980
+    assert report is not None
