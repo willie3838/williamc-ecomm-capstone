@@ -60,7 +60,7 @@ The end-to-end topology connects the Client Layer, Ingress & Identity, Applicati
 ```mermaid
 graph TB
     subgraph ClientLayer ["1. Client Presentation Layer"]
-        UI["React 18 + TypeScript Web UI<br/>(Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips)"]
+        UI["React 18 + TypeScript Web UI<br/>(Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips,<br/>Interactive Typeahead Search & Compare Picker Popovers)"]
     end
 
     subgraph IngressSecurity ["2. Ingress & Perimeter Security"]
@@ -505,6 +505,7 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 - **Consequences**:
   - *Positive*: Sub-second local development HMR (Hot Module Replacement); simple static build artifacts; decoupled client-server architecture.
   - *Trade-off*: Initial bundle load requires client-side execution; mitigated by Vite code-splitting and asset minification.
+  - *Client-Side Search & Autocomplete*: Implements zero-latency client-side catalog search (`searchCatalogProducts`) with multi-token case-insensitive matching across product names, brands, SKUs, categories, and technical specification values (including unit-suffix token aliases such as `16gb`, `120hz`). Powers interactive typeahead autocomplete in `SearchBar`, live catalog grid filtering in `App`, and the floating `ProductSelectionTray` popover picker without backend round-trip overhead.
 
 ### ADR-004: Foundation Model Selection, Two-Turn ADK Reasoning Cycle & Empirical Tiered Routing Justification
 - **Status**: ACCEPTED
@@ -898,12 +899,14 @@ To serve as the single point of reference across all domains, the tables below m
 
 | File Path | Component / Hook | Architectural Responsibility |
 | :--- | :--- | :--- |
-| `frontend/src/App.tsx` & `main.tsx` | `App` | Main retail comparison workspace, category filter bar (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`), quick-compare prompt pills, and state management. |
+| `frontend/src/App.tsx` & `main.tsx` | `App` | Main retail comparison workspace, category filter bar, quick-compare prompt pills, live catalog search input with match count badge, dynamic '+ Add Product to Compare Against' popover, and state management. |
+| `frontend/src/components/SearchBar.tsx` & `SkeletonLoader.tsx` | `SearchBar`, `SkeletonLoader` | Accessible natural-language comparison input bar with category pills, animated loading skeleton state, interactive product search autocomplete/typeahead dropdown, keyboard navigation, and product tagging/picker (up to 4 products). |
+| `frontend/src/components/ProductSelectionTray.tsx` | `ProductSelectionTray` | Floating product selection and comparison tray, allowing users to inspect selected items, trigger multi-item comparisons, and dynamically add products via the search popover picker. |
 | `frontend/src/components/ComparisonTable.tsx` | `ComparisonTable` | Side-by-side specification matrix with winner highlight badges, dynamic attribute alignment, and responsive horizontal scrolling. |
 | `frontend/src/components/ProductCard.tsx` | `ProductCard` | Product summary card displaying retail price, star ratings, stock status, and clickable `[SKU: ...]` citation chips. |
 | `frontend/src/components/RecommendationCard.tsx` | `RecommendationCard` | Executive buyer trade-off narrative card with Copy Markdown action (`sendUserAction`) and Thumbs-Up / Thumbs-Down feedback (`sendFeedback`). |
 | `frontend/src/components/CitationChip.tsx` & `LatencyBadge.tsx` | `CitationChip`, `LatencyBadge` | Interactive SKU citation badge (`[SKU: ...]`) with deep-link/action tracking and real-time SLA latency badge (`<= 3.0s`). |
-| `frontend/src/components/SearchBar.tsx` & `SkeletonLoader.tsx` | `SearchBar`, `SkeletonLoader` | Accessible natural-language comparison input bar with category pills and animated loading skeleton state. |
+| `frontend/src/data/catalogProducts.ts` | `CATALOG_PRODUCTS`, `searchCatalogProducts()` | Static verified catalog dataset and client-side multi-token search engine filtering products across name, brand, SKU, category, and technical specifications with unit-suffix aliases (e.g. `16gb`, `120hz`). |
 | `frontend/src/api/client.ts` & `frontend/src/types/comparison.ts` | `compareProducts()`, `sendUserAction()`, `sendFeedback()`, `checkHealth()`, `ComparisonResponse` | Typed HTTP client communicating with `/api/compare`, `/api/actions`, `/api/feedback`, and `/health` with session ID propagation and strict TypeScript interfaces. |
 
 ### 12.3 Infrastructure-as-Code & Deployment Automation (`deployment/`)

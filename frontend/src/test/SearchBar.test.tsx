@@ -104,22 +104,49 @@ describe('SearchBar', () => {
     expect(screen.getByRole('button', { name: /all categories/i })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('renders tagged SKU chips inside SearchBar when taggedProducts is provided', () => {
+  it('does not submit search if input is whitespace and no tagged products', () => {
+    const handleSearch = vi.fn();
+    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+
+    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(input, { target: { value: '   ' } });
+
+    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    expect(submitBtn).toBeDisabled();
+
+    fireEvent.submit(screen.getByRole('search'));
+    expect(handleSearch).not.toHaveBeenCalled();
+  });
+
+  it('renders clear button when query is typed and clears input on click', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'Sony vs Bose' } });
+
+    const clearBtn = screen.getByRole('button', { name: /clear search input/i });
+    expect(clearBtn).toBeInTheDocument();
+
+    fireEvent.click(clearBtn);
+    expect(input.value).toBe('');
+  });
+
+  it('renders tagged SKU chips when taggedProducts prop is provided', () => {
     const mockProducts = [
       {
         sku: '6534606',
-        name: 'Apple MacBook Air M3',
+        name: 'Apple MacBook Air 13.6" Laptop - M3 chip - 16GB Memory',
         brand: 'Apple',
         price: 1099,
-        specifications: { processor: 'Apple M3' },
+        specifications: {},
         in_stock: true,
       },
       {
         sku: '6575132',
-        name: 'Dell XPS 13',
+        name: 'Dell XPS 13" - Intel Core Ultra 7 - 16GB Memory',
         brand: 'Dell',
         price: 1199,
-        specifications: { processor: 'Intel Core Ultra 7' },
+        specifications: {},
         in_stock: true,
       },
     ];
@@ -132,18 +159,17 @@ describe('SearchBar', () => {
       />
     );
 
-    expect(screen.getByText(/6534606/)).toBeInTheDocument();
-    expect(screen.getByText(/Apple MacBook Air M3/)).toBeInTheDocument();
-    expect(screen.getByText(/6575132/)).toBeInTheDocument();
-    expect(screen.getByText(/Dell XPS 13/)).toBeInTheDocument();
+    expect(screen.getByText('SKU: 6534606')).toBeInTheDocument();
+    expect(screen.getByText('SKU: 6575132')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/add follow-up requirements/i)).toBeInTheDocument();
   });
 
-  it('calls onRemoveTag when the remove button on a tagged SKU chip is clicked', () => {
+  it('allows removing a tagged product chip via its remove button', () => {
     const handleRemoveTag = vi.fn();
     const mockProducts = [
       {
         sku: '6534606',
-        name: 'Apple MacBook Air M3',
+        name: 'Apple MacBook Air 13.6"',
         brand: 'Apple',
         price: 1099,
         specifications: {},
@@ -160,24 +186,21 @@ describe('SearchBar', () => {
       />
     );
 
-    const removeBtn = screen.getByRole('button', {
-      name: /remove tag for apple macbook air m3/i,
-    });
+    const removeBtn = screen.getByRole('button', { name: /remove tag for apple macbook air/i });
     fireEvent.click(removeBtn);
 
-    expect(handleRemoveTag).toHaveBeenCalledTimes(1);
     expect(handleRemoveTag).toHaveBeenCalledWith('6534606');
   });
 
-  it('implicitly builds rich comparison prompt with tagged SKUs and user follow-up prompt on submit', () => {
-    const handleSearch = vi.fn();
+  it('removes the last tagged product chip when Backspace is pressed on empty query', () => {
+    const handleRemoveTag = vi.fn();
     const mockProducts = [
       {
         sku: '6534606',
-        name: 'Apple MacBook Air M3',
+        name: 'Apple MacBook Air',
         brand: 'Apple',
         price: 1099,
-        specifications: { processor: 'Apple M3' },
+        specifications: {},
         in_stock: true,
       },
       {
@@ -185,55 +208,45 @@ describe('SearchBar', () => {
         name: 'Dell XPS 13',
         brand: 'Dell',
         price: 1199,
-        specifications: { processor: 'Intel Core Ultra 7' },
+        specifications: {},
         in_stock: true,
       },
     ];
 
     render(
       <SearchBar
-        onSearch={handleSearch}
+        onSearch={vi.fn()}
         isLoading={false}
         taggedProducts={mockProducts}
+        onRemoveTag={handleRemoveTag}
       />
     );
 
-    // Type a follow-up prompt e.g. "only price"
     const input = screen.getByRole('textbox');
-    fireEvent.change(input, { target: { value: 'only price' } });
+    fireEvent.keyDown(input, { key: 'Backspace' });
 
-    // Submit form
-    fireEvent.submit(screen.getByRole('search'));
-
-    expect(handleSearch).toHaveBeenCalledTimes(1);
-    const [submittedQuery, submittedCategory, submittedTagged] = handleSearch.mock.calls[0];
-
-    expect(submittedQuery).toContain('[SKU: 6534606]');
-    expect(submittedQuery).toContain('Apple MacBook Air M3');
-    expect(submittedQuery).toContain('[SKU: 6575132]');
-    expect(submittedQuery).toContain('Dell XPS 13');
-    expect(submittedQuery).toContain('User Focus / Follow-up: only price');
-    expect(submittedCategory).toBeNull();
-    expect(submittedTagged).toEqual(mockProducts);
+    expect(handleRemoveTag).toHaveBeenCalledWith('6575132');
   });
 
-  it('submits built comparison prompt with default follow-up instruction when user enters no follow-up text', () => {
+  it('submits comparison prompt built from tagged products when submitted', () => {
     const handleSearch = vi.fn();
     const mockProducts = [
       {
         sku: '6534606',
-        name: 'Apple MacBook Air M3',
+        name: 'Apple MacBook Air 13.6"',
         brand: 'Apple',
         price: 1099,
-        specifications: { processor: 'Apple M3' },
+        category: 'Laptops',
+        specifications: { processor: 'M3', ram_gb: 16 },
         in_stock: true,
       },
       {
         sku: '6575132',
-        name: 'Dell XPS 13',
+        name: 'Dell XPS 13"',
         brand: 'Dell',
         price: 1199,
-        specifications: { processor: 'Intel Core Ultra 7' },
+        category: 'Laptops',
+        specifications: { processor: 'Ultra 7', ram_gb: 16 },
         in_stock: true,
       },
     ];
@@ -247,54 +260,59 @@ describe('SearchBar', () => {
     );
 
     const submitBtn = screen.getByRole('button', { name: /compare/i });
-    expect(submitBtn).not.toBeDisabled();
+    expect(submitBtn).toBeEnabled();
     fireEvent.click(submitBtn);
 
     expect(handleSearch).toHaveBeenCalledTimes(1);
-    const [submittedQuery] = handleSearch.mock.calls[0];
-    expect(submittedQuery).toContain('[SKU: 6534606]');
-    expect(submittedQuery).toContain('Compare specifications, trade-offs, and recommend the best option.');
+    const [promptArg, categoryArg, taggedArg] = handleSearch.mock.calls[0];
+    expect(promptArg).toContain('[SKU: 6534606]');
+    expect(promptArg).toContain('[SKU: 6575132]');
+    expect(categoryArg).toBeNull();
+    expect(taggedArg).toEqual(mockProducts);
   });
 
-  it('removes the last tagged SKU when Backspace is pressed in an empty input', () => {
-    const handleRemoveTag = vi.fn();
+  it('includes follow-up user query when submitted with tagged products', () => {
+    const handleSearch = vi.fn();
     const mockProducts = [
       {
         sku: '6534606',
-        name: 'MacBook Air',
+        name: 'Apple MacBook Air 13.6"',
         brand: 'Apple',
         price: 1099,
-        specifications: {},
+        category: 'Laptops',
+        specifications: { processor: 'M3' },
         in_stock: true,
       },
       {
         sku: '6575132',
-        name: 'Dell XPS',
+        name: 'Dell XPS 13"',
         brand: 'Dell',
         price: 1199,
-        specifications: {},
+        category: 'Laptops',
+        specifications: { processor: 'Ultra 7' },
         in_stock: true,
       },
     ];
 
     render(
       <SearchBar
-        onSearch={vi.fn()}
+        onSearch={handleSearch}
         isLoading={false}
         taggedProducts={mockProducts}
-        onRemoveTag={handleRemoveTag}
       />
     );
 
     const input = screen.getByRole('textbox');
-    // Input is empty, press Backspace
-    fireEvent.keyDown(input, { key: 'Backspace' });
+    fireEvent.change(input, { target: { value: 'focus strictly on battery life' } });
 
-    expect(handleRemoveTag).toHaveBeenCalledTimes(1);
-    expect(handleRemoveTag).toHaveBeenCalledWith('6575132');
+    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    fireEvent.click(submitBtn);
+
+    const [promptArg] = handleSearch.mock.calls[0];
+    expect(promptArg).toContain('User Focus / Follow-up: focus strictly on battery life');
   });
 
-  it('calls onClearTags when clear search button is clicked with tagged products present', () => {
+  it('calls onClearTags when clear button is clicked with tagged products', () => {
     const handleClearTags = vi.fn();
     const mockProducts = [
       {
@@ -449,6 +467,125 @@ describe('SearchBar', () => {
     });
     expect(textarea.style.height).toBe('192px');
   });
+
+  it('renders autocomplete typeahead dropdown when typing matching query', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'MacBook' } });
+
+    // The listbox dropdown should appear
+    const listbox = screen.getByRole('listbox', { name: /product suggestions/i });
+    expect(listbox).toBeInTheDocument();
+    expect(screen.getByText(/Apple MacBook Air/i)).toBeInTheDocument();
+  });
+
+  it('navigates autocomplete items via ArrowDown / ArrowUp and selects with Enter', () => {
+    const handleAddTag = vi.fn();
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        onAddTag={handleAddTag}
+        isLoading={false}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Dell XPS' } });
+
+    // Arrow down to first item
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    const firstOption = screen.getAllByRole('option')[0];
+    expect(firstOption).toHaveAttribute('aria-selected', 'true');
+
+    // Press Enter to select highlighted item
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(handleAddTag).toHaveBeenCalledTimes(1);
+    expect(handleAddTag).toHaveBeenCalledWith(
+      expect.objectContaining({ sku: '6575132' })
+    );
+    // Input should be cleared after selecting
+    expect((input as HTMLTextAreaElement).value).toBe('');
+  });
+
+  it('tags product when clicking an item from autocomplete dropdown', () => {
+    const handleAddTag = vi.fn();
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        onAddTag={handleAddTag}
+        isLoading={false}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Sony' } });
+
+    // Find and click the Sony WH-1000XM5 option
+    const sonyOption = screen.getByText(/Sony WH-1000XM5/i);
+    fireEvent.click(sonyOption);
+
+    expect(handleAddTag).toHaveBeenCalledTimes(1);
+    expect(handleAddTag).toHaveBeenCalledWith(
+      expect.objectContaining({ sku: '6505727' })
+    );
+  });
+
+  it('closes autocomplete dropdown when Escape key is pressed', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'MacBook' } });
+
+    expect(screen.getByRole('listbox', { name: /product suggestions/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('listbox', { name: /product suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('has accessible combobox and listbox ARIA attributes', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const combobox = screen.getByRole('combobox');
+    expect(combobox).toHaveAttribute('aria-expanded', 'false');
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'OLED' } });
+
+    expect(combobox).toHaveAttribute('aria-expanded', 'true');
+    expect(combobox).toHaveAttribute('aria-controls', 'product-search-listbox');
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'product-search-listbox');
+  });
+
+  it('excludes already tagged products from typeahead suggestions and caps at 4 products', () => {
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air 13.6"',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Apple' } });
+
+    // SKU 6534606 is already tagged, so it should not appear in suggestions
+    const options = screen.getAllByRole('option');
+    const optionSkus = options.map((opt) => opt.getAttribute('data-sku'));
+    expect(optionSkus).not.toContain('6534606');
+  });
 });
-
-

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -7,10 +7,13 @@ import {
   Layers,
   Database,
   Activity,
+  Search,
+  Plus,
+  X,
 } from 'lucide-react';
 import { compareProducts } from './api/client';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
-import { CATALOG_PRODUCTS, getCatalogProducts } from './data/catalogProducts';
+import { CATALOG_PRODUCTS, getCatalogProducts, searchCatalogProducts } from './data/catalogProducts';
 import { SearchBar } from './components/SearchBar';
 import { ComparisonTable } from './components/ComparisonTable';
 import { RecommendationCard } from './components/RecommendationCard';
@@ -41,10 +44,15 @@ export const App: React.FC = () => {
     category: string | null;
   } | null>({ category: null });
 
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [isAddCompareOpen, setIsAddCompareOpen] = useState(false);
+  const [addCompareQuery, setAddCompareQuery] = useState('');
+
   const [selectedProducts, setSelectedProducts] = useState<ProductSpec[]>([]);
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
 
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
     if (typeof productOrSku === 'object' && productOrSku !== null) {
@@ -126,6 +134,9 @@ export const App: React.FC = () => {
   const handleGoHome = () => {
     setSearchParams(null);
     setBrowseCategory({ category: null });
+    setCatalogSearchQuery('');
+    setIsAddCompareOpen(false);
+    setAddCompareQuery('');
     setSelectedProducts([]);
     setTaggedProducts([]);
   };
@@ -136,6 +147,8 @@ export const App: React.FC = () => {
     tagged?: ProductSpec[]
   ) => {
     setBrowseCategory(null);
+    setIsAddCompareOpen(false);
+    setAddCompareQuery('');
     if (tagged !== undefined) {
       setTaggedProducts(tagged);
       setSelectedProducts([]);
@@ -145,6 +158,9 @@ export const App: React.FC = () => {
 
   const handleCategorySelect = (category: string | null) => {
     setSearchParams(null);
+    setCatalogSearchQuery('');
+    setIsAddCompareOpen(false);
+    setAddCompareQuery('');
     setBrowseCategory({ category });
   };
 
@@ -192,9 +208,27 @@ export const App: React.FC = () => {
     setSearchParams({ query: prompt, category });
   };
 
-  const browsedProducts = browseCategory
-    ? getCatalogProducts(browseCategory.category)
-    : [];
+  const handleAddProductToActiveComparison = (product: ProductSpec) => {
+    if (!comparison?.products) return;
+    if (comparison.products.some((p) => p.sku === product.sku)) return;
+    if (comparison.products.length >= 4) return;
+
+    const newProducts = [...comparison.products, product];
+    setIsAddCompareOpen(false);
+    setAddCompareQuery('');
+    handleCompareSelected(newProducts);
+  };
+
+  const totalCategoryProducts = useMemo(() => {
+    if (!browseCategory) return [];
+    return getCatalogProducts(browseCategory.category);
+  }, [browseCategory]);
+
+  const browsedProducts = useMemo(() => {
+    if (!browseCategory) return [];
+    return searchCatalogProducts(catalogSearchQuery, browseCategory.category);
+  }, [browseCategory, catalogSearchQuery]);
+
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-gray-900 selection:bg-bb-yellow selection:text-bb-slate">
@@ -265,6 +299,7 @@ export const App: React.FC = () => {
           onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
           taggedProducts={selectedProducts.length > 0 ? selectedProducts : taggedProducts}
+          onAddTag={handleToggleSelectProduct}
           onRemoveTag={handleRemoveTag}
           onClearTags={handleClearTags}
           initialQuery={
@@ -348,16 +383,114 @@ export const App: React.FC = () => {
                 {comparison.products.length > 0 ? (
                   <>
                     <div>
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                         <h2 className="text-lg font-bold text-gray-900">Compared Products</h2>
-                        {!isChatOpen && (
-                          <button
-                            onClick={() => setIsChatOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-bb-blue bg-blue-50 hover:bg-bb-yellow hover:text-bb-slate border border-blue-200 rounded-lg transition-all"
-                          >
-                            <span>Open Follow-up Chat</span>
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {comparison.products.length < 4 && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setIsAddCompareOpen((prev) => !prev)}
+                                aria-label="+ Add Product to Compare Against"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-bb-blue bg-blue-50 hover:bg-bb-yellow hover:text-bb-slate border border-blue-200 rounded-lg transition-all"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ Add Product to Compare Against</span>
+                              </button>
+
+                              {isAddCompareOpen && (
+                                <div
+                                  role="dialog"
+                                  aria-label="Add product to active comparison"
+                                  className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 p-3 z-40 space-y-2 animate-fadeIn"
+                                >
+                                  <div className="flex items-center justify-between pb-1 border-b border-gray-100">
+                                    <span className="text-xs font-bold text-gray-800">
+                                      Add Product to Compare Against
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setIsAddCompareOpen(false);
+                                        setAddCompareQuery('');
+                                      }}
+                                      aria-label="Close add comparison popover"
+                                      className="text-gray-400 hover:text-gray-600 p-0.5 rounded transition-colors"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  <div className="relative">
+                                    <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      value={addCompareQuery}
+                                      onChange={(e) => setAddCompareQuery(e.target.value)}
+                                      placeholder="Search product by name, brand, SKU..."
+                                      aria-label="Search catalog products to add to comparison"
+                                      className="w-full bg-gray-50 border border-gray-200 rounded-lg py-1.5 pl-8 pr-3 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:border-bb-blue focus:bg-white"
+                                      autoFocus
+                                    />
+                                  </div>
+                                  <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-gray-100">
+                                    {searchCatalogProducts(addCompareQuery, searchParams?.category)
+                                      .filter((p) => !comparison.products.some((cp) => cp.sku === p.sku))
+                                      .slice(0, 6)
+                                      .map((prod) => (
+                                        <div
+                                          key={prod.sku}
+                                          onClick={() => handleAddProductToActiveComparison(prod)}
+                                          className="flex items-center justify-between p-2 hover:bg-blue-50/60 rounded-lg cursor-pointer transition-colors"
+                                        >
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            {prod.image_url ? (
+                                              <img
+                                                src={prod.image_url}
+                                                alt=""
+                                                aria-hidden="true"
+                                                className="w-6 h-6 object-contain rounded bg-white p-0.5 flex-shrink-0"
+                                              />
+                                            ) : null}
+                                            <div className="min-w-0 text-left">
+                                              <span className="text-xs font-semibold block truncate max-w-[180px] sm:max-w-[220px] text-gray-900">
+                                                {prod.name}
+                                              </span>
+                                              <span className="text-[10px] text-gray-500 block">
+                                                SKU: {prod.sku} • {prod.brand}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                            <span className="text-xs font-bold text-gray-900">
+                                              ${prod.price.toFixed(2)}
+                                            </span>
+                                            <span className="px-1.5 py-0.5 rounded bg-bb-yellow text-bb-slate text-[10px] font-extrabold">
+                                              + Add
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    {searchCatalogProducts(addCompareQuery, searchParams?.category).filter(
+                                      (p) => !comparison.products.some((cp) => cp.sku === p.sku)
+                                    ).length === 0 && (
+                                      <div className="p-3 text-center text-xs text-gray-500">
+                                        No additional products found.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {!isChatOpen && (
+                            <button
+                              onClick={() => setIsChatOpen(true)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-bb-blue bg-blue-50 hover:bg-bb-yellow hover:text-bb-slate border border-blue-200 rounded-lg transition-all"
+                            >
+                              <span>Open Follow-up Chat</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div
                         className={`grid gap-6 ${
@@ -489,21 +622,62 @@ export const App: React.FC = () => {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {browsedProducts.map((product) => {
-                const isSelected = selectedProducts.some((p) => p.sku === product.sku);
-                return (
-                  <ProductCard
-                    key={product.sku}
-                    product={product}
-                    selectable={true}
-                    isSelected={isSelected}
-                    onToggleSelect={handleToggleSelectProduct}
-                    onViewDetails={handleOpenProductDetails}
-                  />
-                );
-              })}
+            {/* Live Catalog Search Input with Clear Button and Match Count */}
+            <div className="relative flex items-center bg-white rounded-xl border border-gray-200 shadow-2xs p-2 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-bb-blue transition-all">
+              <Search className="w-4 h-4 text-gray-400 ml-2 mr-2 flex-shrink-0" />
+              <input
+                type="text"
+                value={catalogSearchQuery}
+                onChange={(e) => setCatalogSearchQuery(e.target.value)}
+                placeholder="Search products by name, brand, SKU, or spec to compare..."
+                aria-label="Search products in catalog"
+                className="flex-1 bg-transparent py-1 px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
+              />
+              {catalogSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setCatalogSearchQuery('')}
+                  aria-label="Clear catalog search"
+                  className="p-1 text-gray-400 hover:text-gray-600 transition-colors mr-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <div className="px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 font-semibold text-xs flex-shrink-0">
+                {browsedProducts.length} of {totalCategoryProducts.length} matching
+              </div>
             </div>
+
+            {browsedProducts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {browsedProducts.map((product) => {
+                  const isSelected = selectedProducts.some((p) => p.sku === product.sku);
+                  return (
+                    <ProductCard
+                      key={product.sku}
+                      product={product}
+                      selectable={true}
+                      isSelected={isSelected}
+                      onToggleSelect={handleToggleSelectProduct}
+                      onViewDetails={handleOpenProductDetails}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-3">
+                <p className="text-gray-600 font-medium text-sm">
+                  No products matching "{catalogSearchQuery}".
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCatalogSearchQuery('')}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-bb-blue text-white hover:bg-bb-blue-light transition-all"
+                >
+                  Clear search
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -513,6 +687,7 @@ export const App: React.FC = () => {
           onRemoveProduct={handleRemoveSelectedProduct}
           onClearSelection={handleClearSelectedProducts}
           onCompare={handleCompareSelected}
+          onAddProduct={handleToggleSelectProduct}
         />
 
         {/* Product Specifications & Details Modal */}
