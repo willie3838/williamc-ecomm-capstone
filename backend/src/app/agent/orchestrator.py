@@ -202,7 +202,7 @@ class ComparisonOrchestrator:
             _get_shared_vertex_client()
             _warm_vertex_client_and_auth()
 
-    def _get_genai_client(self) -> Any:
+    def _get_genai_client(self, model: str | None = None) -> Any:
         """Return injected genai_client if provided, or return the shared Vertex AI genai.Client."""
         if self.genai_client is not None:
             return self.genai_client
@@ -219,9 +219,38 @@ class ComparisonOrchestrator:
                 project=settings.gcp_project,
                 location="us-central1",
             )
-        from app.agent.hermetic_adapter import _get_shared_vertex_client
+        from app.agent.hermetic_adapter import _get_vertex_client_for_model
 
-        return _get_shared_vertex_client()
+        target_model = model or self.model
+        return _get_vertex_client_for_model(target_model)
+
+    def _get_speculative_synth_key(
+        self,
+        products: list[ProductSpec],
+        query: str,
+        model: str | None = None,
+    ) -> tuple[tuple[str, ...], str, str]:
+        """Generate model-specific cache key for speculative stage 4 synthesis."""
+        target_model = model or self.synthesis_model or ""
+        return (
+            tuple(sorted(p.sku for p in products)),
+            sanitize_user_prompt(query),
+            target_model,
+        )
+
+    def _get_speculative_rerank_key(
+        self,
+        products: list[ProductSpec],
+        query: str,
+        model: str | None = None,
+    ) -> tuple[tuple[str, ...], str, str]:
+        """Generate model-specific cache key for speculative stage 3 reranking."""
+        target_model = model or self.model or ""
+        return (
+            tuple(sorted(p.sku for p in products[:10])),
+            sanitize_user_prompt(query),
+            target_model,
+        )
 
     @staticmethod
     def extract_tagged_products(query: str) -> list[tuple[str, str]]:
@@ -701,9 +730,19 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        client = self._get_genai_client()
-        call_model = "gemini-2.5-flash-lite" if not is_mock_env else active_model
-        armor_cfg = get_model_armor_config() if is_mock_env else None
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+            "true",
+            "1",
+        ) or getattr(settings, "benchmark_actual_model", False)
+        call_model = (
+            active_model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
+        )
+        client = self._get_genai_client(model=call_model)
+        armor_cfg = (
+            get_model_armor_config()
+            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
+            else None
+        )
         config = types.GenerateContentConfig(
             system_instruction=(
                 self.active_system_instruction
@@ -719,8 +758,15 @@ class ComparisonOrchestrator:
             ),
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
-        spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
-        spec_future = _SPECULATIVE_SYNTH_FUTURES.pop(spec_key, None) if not is_mock_env else None
+        spec_key = self._get_speculative_synth_key(products, query, active_model)
+        spec_future = (
+            _SPECULATIVE_SYNTH_FUTURES.pop(spec_key, None)
+            or _SPECULATIVE_SYNTH_FUTURES.pop(
+                (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query)), None
+            )
+            if not is_mock_env
+            else None
+        )
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
             llm_span.set_attribute("gen_ai.system", "vertexai")
             llm_span.set_attribute("gen_ai.request.model", call_model)
@@ -728,11 +774,32 @@ class ComparisonOrchestrator:
                 if spec_future is not None:
                     response = spec_future.result(timeout=4.0)
                 else:
-                    response = client.models.generate_content(
-                        model=call_model,
-                        contents=prompt,
-                        config=config,
-                    )
+                    try:
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=config,
+                        )
+                    except Exception as gen_err:
+                        from app.agent.hermetic_adapter import (
+                            _get_shared_vertex_client,
+                            _is_preview_or_3x_model,
+                        )
+
+                        if _is_preview_or_3x_model(call_model):
+                            logger.info(
+                                "Retrying synthesis %s with us-central1 fallback: %s",
+                                call_model,
+                                gen_err,
+                            )
+                            fb_client = _get_shared_vertex_client(location="us-central1")
+                            response = fb_client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=config,
+                            )
+                        else:
+                            raise gen_err
             except Exception as call_err:
                 if armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
@@ -823,9 +890,19 @@ class ComparisonOrchestrator:
             if len(unique_products) < 2:
                 return
             safe_q = sanitize_user_prompt(query)
-            client = self._get_genai_client()
+            is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+                "true",
+                "1",
+            ) or getattr(settings, "benchmark_actual_model", False)
+            spec_rerank_model = self.model if is_benchmark_actual else "gemini-2.5-flash-lite"
+            spec_synth_model = (
+                self.synthesis_model if is_benchmark_actual else "gemini-2.5-flash-lite"
+            )
+            client = self._get_genai_client(model=spec_rerank_model)
 
-            rerank_key = (tuple(sorted(p.sku for p in unique_products[:10])), safe_q)
+            rerank_key = self._get_speculative_rerank_key(
+                unique_products, safe_q, spec_rerank_model
+            )
             if rerank_key not in _SPECULATIVE_RERANK_FUTURES:
                 candidates_desc = "\n".join(
                     f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
@@ -854,7 +931,7 @@ class ComparisonOrchestrator:
                 )
                 _SPECULATIVE_RERANK_FUTURES[rerank_key] = _SPECULATIVE_SYNTH_POOL.submit(
                     client.models.generate_content,
-                    model="gemini-2.5-flash-lite",
+                    model=spec_rerank_model,
                     contents=rerank_prompt,
                     config=rerank_cfg,
                 )
@@ -874,10 +951,11 @@ class ComparisonOrchestrator:
                 spec_products = self._balance_entities(unique_products, fast_kw)[:target_count]
 
             if 2 <= len(spec_products) <= 5:
-                spec_key = (tuple(sorted(p.sku for p in spec_products)), safe_q)
+                spec_key = self._get_speculative_synth_key(spec_products, safe_q, spec_synth_model)
                 if spec_key not in _SPECULATIVE_SYNTH_FUTURES:
                     spec_matrix = self.build_comparison_matrix(spec_products, query=safe_q)
                     spec_prompt = self._build_synthesis_prompt(spec_products, spec_matrix, safe_q)
+                    synth_client = self._get_genai_client(model=spec_synth_model)
                     spec_config = types.GenerateContentConfig(
                         system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
                         response_mime_type="application/json",
@@ -887,8 +965,8 @@ class ComparisonOrchestrator:
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
-                        client.models.generate_content,
-                        model="gemini-2.5-flash-lite",
+                        synth_client.models.generate_content,
+                        model=spec_synth_model,
                         contents=spec_prompt,
                         config=spec_config,
                     )
@@ -944,9 +1022,17 @@ class ComparisonOrchestrator:
         )
         if not is_mock_env:
             _SPECULATIVE_SYNTH_POOL.submit(self._prelaunch_speculative_stages, query)
-        client = self._get_genai_client()
-        call_model = "gemini-2.5-flash-lite" if not is_mock_env else model
-        armor_cfg = get_model_armor_config() if "lite" not in call_model else None
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+            "true",
+            "1",
+        ) or getattr(settings, "benchmark_actual_model", False)
+        call_model = model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
+        client = self._get_genai_client(model=call_model)
+        armor_cfg = (
+            get_model_armor_config()
+            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
+            else None
+        )
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction if is_mock_env else None,
             response_mime_type="application/json",
@@ -963,11 +1049,32 @@ class ComparisonOrchestrator:
             llm_span.set_attribute("gen_ai.system", "vertexai")
             llm_span.set_attribute("gen_ai.request.model", call_model)
             try:
-                response = client.models.generate_content(
-                    model=call_model,
-                    contents=prompt,
-                    config=config,
-                )
+                try:
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                except Exception as gen_err:
+                    from app.agent.hermetic_adapter import (
+                        _get_shared_vertex_client,
+                        _is_preview_or_3x_model,
+                    )
+
+                    if _is_preview_or_3x_model(call_model):
+                        logger.info(
+                            "Retrying intent classification %s with us-central1 fallback: %s",
+                            call_model,
+                            gen_err,
+                        )
+                        fb_client = _get_shared_vertex_client(location="us-central1")
+                        response = fb_client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=config,
+                        )
+                    else:
+                        raise gen_err
             except Exception as call_err:
                 if armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
@@ -1140,11 +1247,18 @@ class ComparisonOrchestrator:
             spec_prods = self._balance_entities(unique_products, keywords)[:target_count]
             if 2 <= len(spec_prods) <= 5:
                 safe_q = sanitize_user_prompt(original_query or " ".join(keywords))
-                spec_key = (tuple(sorted(p.sku for p in spec_prods)), safe_q)
+                is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+                    "true",
+                    "1",
+                ) or getattr(settings, "benchmark_actual_model", False)
+                spec_synth_model = (
+                    self.synthesis_model if is_benchmark_actual else "gemini-2.5-flash-lite"
+                )
+                spec_key = self._get_speculative_synth_key(spec_prods, safe_q, spec_synth_model)
                 if spec_key not in _SPECULATIVE_SYNTH_FUTURES:
                     spec_matrix = self.build_comparison_matrix(spec_prods, query=safe_q)
                     spec_prompt = self._build_synthesis_prompt(spec_prods, spec_matrix, safe_q)
-                    client = self._get_genai_client()
+                    synth_client = self._get_genai_client(model=spec_synth_model)
                     spec_config = types.GenerateContentConfig(
                         system_instruction="You are an electronics catalog comparison specialist. Output valid JSON only.",
                         response_mime_type="application/json",
@@ -1154,8 +1268,8 @@ class ComparisonOrchestrator:
                         thinking_config=types.ThinkingConfig(thinking_budget=0),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
-                        client.models.generate_content,
-                        model="gemini-2.5-flash-lite",
+                        synth_client.models.generate_content,
+                        model=spec_synth_model,
                         contents=spec_prompt,
                         config=spec_config,
                     )
@@ -1206,9 +1320,17 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        client = self._get_genai_client()
-        call_model = "gemini-2.5-flash-lite" if not is_mock_env else model
-        armor_cfg = get_model_armor_config() if "lite" not in call_model else None
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+            "true",
+            "1",
+        ) or getattr(settings, "benchmark_actual_model", False)
+        call_model = model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
+        client = self._get_genai_client(model=call_model)
+        armor_cfg = (
+            get_model_armor_config()
+            if (is_mock_env or is_benchmark_actual) and "lite" not in call_model
+            else None
+        )
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction if is_mock_env else None,
             response_mime_type="application/json",
@@ -1220,9 +1342,14 @@ class ComparisonOrchestrator:
             ),
             thinking_config=types.ThinkingConfig(thinking_budget=0),
         )
-        rerank_key = (tuple(sorted(p.sku for p in products[:10])), sanitized_query)
+        rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         rerank_future = (
-            _SPECULATIVE_RERANK_FUTURES.pop(rerank_key, None) if not is_mock_env else None
+            _SPECULATIVE_RERANK_FUTURES.pop(rerank_key, None)
+            or _SPECULATIVE_RERANK_FUTURES.pop(
+                (tuple(sorted(p.sku for p in products[:10])), sanitized_query), None
+            )
+            if not is_mock_env
+            else None
         )
 
         with tracer.start_as_current_span("gemini.rank_and_select") as llm_span:
@@ -1233,11 +1360,32 @@ class ComparisonOrchestrator:
                 if rerank_future is not None:
                     response = rerank_future.result(timeout=4.0)
                 else:
-                    response = client.models.generate_content(
-                        model=call_model,
-                        contents=prompt,
-                        config=config,
-                    )
+                    try:
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=config,
+                        )
+                    except Exception as gen_err:
+                        from app.agent.hermetic_adapter import (
+                            _get_shared_vertex_client,
+                            _is_preview_or_3x_model,
+                        )
+
+                        if _is_preview_or_3x_model(call_model):
+                            logger.info(
+                                "Retrying reranking %s with us-central1 fallback: %s",
+                                call_model,
+                                gen_err,
+                            )
+                            fb_client = _get_shared_vertex_client(location="us-central1")
+                            response = fb_client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=config,
+                            )
+                        else:
+                            raise gen_err
             except Exception as call_err:
                 if armor_cfg is not None:
                     logger.warning(

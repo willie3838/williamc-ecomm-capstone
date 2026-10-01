@@ -142,8 +142,11 @@ backend/
    - Use `bigquery.ScalarQueryParameter` and `bigquery.ArrayQueryParameter`.
 3. **Structured JSON Output**:
    - The model must output responses validated against Pydantic schemas.
-4. **Multi-Node Architecture & Relevance Gating**:
+4. **Multi-Node Architecture, Relevance Gating & Retrieval Tool-Calling**:
    - The `/api/compare` endpoint executes through `MultiAgentCoordinator` across 4 specialist nodes: `QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
+   - `CatalogRetrievalAgent` supports two execution modalities:
+     - **Deterministic SQL (Production Default)**: `MultiAgentCoordinator.execute(..., use_llm_tool_call=False)` queries BigQuery directly using parameterized SQL with pattern-matched relevance ordering. This zero-LLM retrieval path preserves production sub-3.0s P95 latency.
+     - **LLM Tool-Calling (`use_llm_tool_call=True` / `process_with_llm_tool_call`)**: Invokes `catalog_retrieval_specialist` with `tools=[query_catalog]` and `ToolConfig(mode=ANY)`. Used during benchmark evaluations to rigorously evaluate function-calling trajectories, tool argument compliance (valid non-empty `keywords` list and optional `category`), SKU recall against expected products, retrieval latency, and token consumption across foundation models.
    - `QueryIntentAgent` and `ComparisonOrchestrator` semantically classify query intent using Gemini structured JSON generation (`QueryIntentAnalysis`), eliminating brittle hardcoded regex word lists.
    - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are classified as `OPINION_OR_CHATTER` with `is_comparison_eligible=False` and suppressed.
    - Early opinion query gating: Non-comparative rants and opinions are rejected immediately before BigQuery catalog querying to eliminate unnecessary database load and guarantee fast matrix suppression.
@@ -185,9 +188,17 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
 2. **Stateless A2A Discovery (`app.agent.agent_card`) & Google Cloud Agent Registry**:
    - Serves the standard Agent-to-Agent (A2A) JSON manifest at `GET /.well-known/agent-card.json` (`build_a2a_agent_card`).
    - Provisioned in Terraform (`deployment/terraform/agent_registry.tf` enabling `agentregistry.googleapis.com`) so `gcloud agent-registry services` and Gemini Enterprise can discover our Cloud Run service's endpoints, skills (`spec-comparison`, `intent-classification`, `catalog-retrieval`), and active model/prompt metadata.
-3. **Dynamic Model Swappability & Tiered-Hybrid Architecture**:
+3. **Dynamic Model Swappability, 13-Model Fleet Benchmarking & Tiered-Hybrid Architecture**:
    - `ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair`.
    - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
+   - **13-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across all 4 specialist agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) supports:
+     - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3.5-flash-lite`
+     - Flash models: `gemini-2.5-flash`, `gemini-3-flash-preview`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`
+     - Pro models: `gemini-2.5-pro`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`
+   - **`BENCHMARK_ACTUAL_MODEL=true` Execution & Global Routing**:
+     - `CatalogAdkLlm` and `ComparisonOrchestrator` evaluate the exact specified candidate model without forcing fallbacks to `gemini-2.5-flash-lite` when `BENCHMARK_ACTUAL_MODEL=true` or `EVAL_MODE=live` is configured.
+     - Supports `location='global'` Vertex AI client routing (`_get_vertex_client_for_model`) for preview and 3.x generation models with transparent fallback to `us-central1`.
+     - Speculative pre-launch cache keys incorporate the candidate model (`(skus, query, model)`) to prevent cross-model cache collisions while preserving backward compatibility with 2-tuple keys.
 4. **Traceability**:
    - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
 5. **Google ADK Runner Execution & Robust Keyword Extraction**:
@@ -216,9 +227,9 @@ pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
 ```
 
 ### Model Swappability & Benchmark Testing
-Run dynamic model swappability and pairwise evaluation test suites:
+Run dynamic model swappability, retrieval tool calling, and per-agent benchmark test suites:
 ```bash
-pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py -v
+pytest tests/test_model_swappability.py tests/test_model_matrix_and_pairwise.py tests/test_multi_agent_tool_calling.py tests/test_benchmark_actual_model.py tests/test_per_agent_model_benchmarks.py -v
 ```
 
 ### Mocking Guidelines

@@ -308,7 +308,7 @@ def test_build_model_decision_matrix_and_markdown_rendering(tmp_path: Path) -> N
 
     assert isinstance(report, ModelDecisionMatrixReport)
     assert report.selected_winner == "tiered-hybrid"
-    assert len(report.candidates) == 4
+    assert len(report.candidates) >= 4
     assert len(report.pairwise_tournaments) >= 3
     assert json_out.exists()
     assert md_out.exists()
