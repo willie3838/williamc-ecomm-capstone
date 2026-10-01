@@ -11,7 +11,7 @@ from google.adk.agents import Agent
 from google.cloud import bigquery
 from google.genai import types
 
-from app.agent.hermetic_adapter import CatalogAdkLlm
+from app.agent.hermetic_adapter import CatalogAdkLlm, _check_model_armor_prompt_guard
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.prompts_service import get_active_prompt
 from app.agent.registry import default_registry
@@ -1676,6 +1676,54 @@ class ComparisonOrchestrator:
             for p in products
         ]
 
+        def _make_refusal(detail_msg: str, verdict: str = "MODEL_ARMOR") -> ChatResponse:
+            clean_detail = (
+                detail_msg.strip()
+                if detail_msg
+                else "The request violated safety or security guardrails."
+            )
+            tmpl_id = settings.model_armor_prompt_template.split("/")[-1]
+            refusal_text = (
+                f"[Model Armor Security Guardrail Activated — Template: {tmpl_id}]\n"
+                f"Request blocked by Google Cloud Model Armor (verdict: {verdict}). {clean_detail} "
+                "No catalog tools or database queries were executed. Please submit a valid consumer electronics comparison query."
+            )
+            return ChatResponse(
+                reply=refusal_text,
+                citations=citations,
+                suggested_followups=[
+                    "Which laptops have the best battery life?",
+                    "Compare lightweight tablets under $500",
+                ],
+                latency_ms=round((time.perf_counter() - start_time) * 1000.0, 2),
+                session_id=session_id,
+                trace_id=get_current_trace_id(),
+                agent_version=resolved_agent_version,
+                model_version=f"{active_model}@001",
+            )
+
+        # (2) Run _check_model_armor_prompt_guard on message and user history turns
+        is_ma_blocked = False
+        ma_block_detail = ""
+
+        blocked, reason = _check_model_armor_prompt_guard(clean_message or message)
+        if blocked:
+            is_ma_blocked = True
+            ma_block_detail = reason or "The prompt violated Model Armor security filters."
+        elif conversation_history:
+            for msg in conversation_history:
+                if msg.role.lower() in ("user", "customer"):
+                    b_hist, r_hist = _check_model_armor_prompt_guard(msg.content)
+                    if b_hist:
+                        is_ma_blocked = True
+                        ma_block_detail = (
+                            r_hist or "The prompt violated Model Armor security filters."
+                        )
+                        break
+
+        if is_ma_blocked:
+            return _make_refusal(ma_block_detail)
+
         # Context lines for products
         product_blocks: list[str] = []
         for p in products:
@@ -1692,22 +1740,23 @@ class ComparisonOrchestrator:
                 f"- Feature '{row.feature}': {vals} (Winner: {row.winner_sku or 'Tie/None'})"
             )
 
+        # (1) Sanitize all conversation_history message contents with sanitize_user_prompt
         history_lines: list[str] = []
         for msg in conversation_history or []:
-            history_lines.append(f"{msg.role.upper()}: {msg.content}")
+            sanitized_content = sanitize_user_prompt(msg.content or "")
+            history_lines.append(f"{msg.role.upper()}: {sanitized_content}")
 
         # Check hermetic / mock mode
-        is_mock_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
+        use_offline_mock = (
+            (self.hermetic or bool(os.environ.get("PYTEST_CURRENT_TEST")))
+            and self.genai_client is None
+            and not hasattr(genai.Client, "assert_called")
         )
 
         reply_text = ""
         suggested: list[str] = []
 
-        if is_mock_env:
+        if use_offline_mock:
             # Deterministic, grounded offline response generator
             lower_msg = clean_message.lower()
             if "battery" in lower_msg:
@@ -1805,30 +1854,117 @@ class ComparisonOrchestrator:
 
             client = self._get_genai_client()
             call_model = "gemini-2.5-flash-lite"
+            # (3) Attach model_armor_config=get_model_armor_config() to types.GenerateContentConfig
+            armor_cfg = get_model_armor_config()
             config = types.GenerateContentConfig(
                 system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
                 response_mime_type="application/json",
                 temperature=0.2,
                 max_output_tokens=500,
+                model_armor_config=armor_cfg,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
             with tracer.start_as_current_span("gemini.chat_followup") as chat_span:
                 chat_span.set_attribute("gen_ai.system", "vertexai")
                 chat_span.set_attribute("gen_ai.request.model", call_model)
+                resp = None
                 try:
                     resp = client.models.generate_content(
                         model=call_model,
                         contents=prompt,
                         config=config,
                     )
-                    if resp.text:
+                except Exception as call_err:
+                    err_msg = str(call_err).lower()
+                    if armor_cfg is not None and (
+                        "model_armor" in err_msg
+                        or "template" in err_msg
+                        or "not found" in err_msg
+                        or "400" in err_msg
+                    ):
+                        logger.warning(
+                            "Model Armor template lookup failed in region (%s); retrying without template.",
+                            call_err,
+                        )
+                        ma_blocked, ma_reason = _check_model_armor_prompt_guard(
+                            clean_message or message
+                        )
+                        if ma_blocked:
+                            return _make_refusal(
+                                ma_reason or "The prompt violated Model Armor security filters."
+                            )
+                        fallback_config = types.GenerateContentConfig(
+                            system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
+                            response_mime_type="application/json",
+                            temperature=0.2,
+                            max_output_tokens=500,
+                            thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        )
+                        try:
+                            resp = client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=fallback_config,
+                            )
+                        except Exception as retry_err:
+                            logger.warning("Fallback chat generation failed: %s", retry_err)
+                            resp = None
+                    else:
+                        logger.warning(
+                            "Live chat generation failed; using grounded template fallback: %s",
+                            call_err,
+                        )
+                        resp = None
+
+                # (4) Inspect resp.prompt_feedback.block_reason and resp.candidates[0].finish_reason
+                blocked_reasons = {
+                    "MODEL_ARMOR",
+                    "SAFETY",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "SPII",
+                }
+                is_resp_blocked = False
+                resp_block_detail = ""
+                resp_verdict = "MODEL_ARMOR"
+
+                if resp is not None:
+                    prompt_feedback = getattr(resp, "prompt_feedback", None)
+                    if prompt_feedback is not None:
+                        fb_reason = str(getattr(prompt_feedback, "block_reason", "") or "")
+                        if fb_reason in blocked_reasons:
+                            is_resp_blocked = True
+                            resp_verdict = fb_reason
+                            fb_msg = getattr(prompt_feedback, "block_reason_message", "")
+                            resp_block_detail = (
+                                f"Blocked by {fb_reason}: {fb_msg}"
+                                if fb_msg
+                                else f"Blocked by {fb_reason}."
+                            )
+
+                    if not is_resp_blocked and getattr(resp, "candidates", None):
+                        cand = resp.candidates[0]
+                        finish_reason = str(getattr(cand, "finish_reason", "") or "")
+                        if finish_reason in blocked_reasons:
+                            is_resp_blocked = True
+                            resp_verdict = finish_reason
+                            resp_block_detail = f"Blocked by {finish_reason}."
+
+                if is_resp_blocked:
+                    logger.warning(
+                        "Chat generation blocked by Model Armor / Safety filter: %s",
+                        resp_block_detail,
+                    )
+                    return _make_refusal(resp_block_detail, verdict=resp_verdict)
+
+                if resp is not None and getattr(resp, "text", None):
+                    try:
                         parsed = json.loads(resp.text)
                         reply_text = parsed.get("reply", "")
                         suggested = parsed.get("suggested_followups", [])
-                except Exception as exc:
-                    logger.warning(
-                        "Live chat generation failed; using grounded template fallback: %s", exc
-                    )
+                    except Exception:
+                        reply_text = resp.text
+                elif resp is None and not reply_text:
                     reply_text = f"Grounded response for {clean_message}: " + " ".join(
                         f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:2]
                     )
