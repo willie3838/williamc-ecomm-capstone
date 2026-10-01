@@ -321,5 +321,134 @@ describe('SearchBar', () => {
 
     expect(handleClearTags).toHaveBeenCalledTimes(1);
   });
+
+  it('widens the container with max-w-5xl for spacious layout', () => {
+    const { container } = render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+    const outerContainer = container.firstChild as HTMLElement;
+    expect(outerContainer).toHaveClass('max-w-5xl');
+  });
+
+  it('renders tagged SKU chips in their own dedicated row above the text input area inside the search container', () => {
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air M3',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    const dedicatedRow = screen.getByTestId('tagged-products-row');
+    expect(dedicatedRow).toBeInTheDocument();
+    expect(dedicatedRow).toHaveTextContent('SKU: 6534606');
+    expect(dedicatedRow).toHaveTextContent('Apple MacBook Air M3');
+
+    // The textarea should be in a separate element below the dedicated row
+    const textarea = screen.getByRole('textbox');
+    expect(dedicatedRow).not.toContainElement(textarea);
+  });
+
+  it('renders a textarea with rows=1 and role=textbox that auto-expands on input', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea.tagName).toBe('TEXTAREA');
+    expect(textarea).toHaveAttribute('rows', '1');
+    expect(textarea).toHaveClass('max-h-48');
+    expect(textarea).toHaveClass('overflow-y-auto');
+
+    // Simulate input and verify height adjustment
+    fireEvent.change(textarea, { target: { value: 'Compare MacBook Air vs Pro with detailed specs\nand battery comparison\nand pricing' } });
+    expect((textarea as HTMLTextAreaElement).value).toContain('\n');
+  });
+
+  it('submits search when Enter key without Shift is pressed', () => {
+    const handleSearch = vi.fn();
+    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: 'Compare iPhone vs Pixel' } });
+
+    const event = fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', shiftKey: false });
+    // Default newline insertion should be prevented
+    expect(event).toBe(false);
+    expect(handleSearch).toHaveBeenCalledTimes(1);
+    expect(handleSearch).toHaveBeenCalledWith('Compare iPhone vs Pixel', null);
+  });
+
+  it('does not submit when Enter key is pressed if input is empty and no tagged products', () => {
+    const handleSearch = vi.fn();
+    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+
+    const textarea = screen.getByRole('textbox');
+    const event = fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', shiftKey: false });
+
+    // Should prevent default newline but not trigger search
+    expect(event).toBe(false);
+    expect(handleSearch).not.toHaveBeenCalled();
+  });
+
+  it('allows newline and does not submit search when Shift+Enter is pressed', () => {
+    const handleSearch = vi.fn();
+    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: 'Compare iPhone' } });
+
+    const event = fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', shiftKey: true });
+    // Should NOT prevent default (allowing newline) and should NOT submit
+    expect(event).toBe(true);
+    expect(handleSearch).not.toHaveBeenCalled();
+  });
+
+  it('resets textarea height when search input is cleared', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} initialQuery="Initial query" />);
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Initial query');
+
+    const clearBtn = screen.getByRole('button', { name: /clear search input/i });
+    fireEvent.click(clearBtn);
+
+    expect(textarea.value).toBe('');
+    expect(textarea.style.height).toBe('auto');
+  });
+
+  it('dynamically resizes height up to max 192px as content overflows', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+    // Mock scrollHeight to 120px
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      value: 120,
+    });
+
+    fireEvent.change(textarea, { target: { value: 'Multiline\nquery\ntext' } });
+    expect(textarea.style.height).toBe('120px');
+
+    // Mock scrollHeight exceeding max-h-48 (192px)
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      value: 250,
+    });
+
+    fireEvent.change(textarea, {
+      target: { value: 'Even longer\nmultiline\nquery\ntext\nwith\nmany\nlines' },
+    });
+    expect(textarea.style.height).toBe('192px');
+  });
 });
+
 
