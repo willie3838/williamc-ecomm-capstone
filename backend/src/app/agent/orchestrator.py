@@ -114,6 +114,50 @@ def get_model_armor_config() -> types.ModelArmorConfig | None:
     )
 
 
+def _build_thinking_config(model_id: str | None) -> types.ThinkingConfig | None:
+    """Construct ThinkingConfig for Gemini models that support setting thinking_budget=0.
+
+    Models such as gemini-3.x (e.g. gemini-3.5-flash, gemini-3.7-flash), gemini-2.5-pro,
+    gemini-1.5, or flash-lite models either do not support thinking_budget=0 or reject
+    disabling thinking via budget=0 with 400 INVALID_ARGUMENT.
+    Only gemini-2.5-flash and gemini-2.0-flash permit setting thinking_budget=0.
+    """
+    if not model_id:
+        return None
+    m = model_id.lower()
+    if any(k in m for k in ("3.", "pro", "1.5", "flash-lite", "lite")):
+        return None
+    if "2.5-flash" in m or "2.0-flash" in m:
+        return types.ThinkingConfig(thinking_budget=0)
+    return None
+
+
+def _extract_json_snippet(text: str) -> str:
+    """Robustly extract a JSON object or array from LLM response text that may contain markdown code fences or conversational text."""
+    if not text:
+        return ""
+    cleaned = text.strip()
+    if "```" in cleaned:
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+        if match:
+            cleaned = match.group(1).strip()
+    first_brace = cleaned.find("{")
+    first_bracket = cleaned.find("[")
+    start_idx = -1
+    end_idx = -1
+    if first_brace != -1 and (first_bracket == -1 or first_brace < first_bracket):
+        start_idx = first_brace
+        end_idx = cleaned.rfind("}")
+    elif first_bracket != -1:
+        start_idx = first_bracket
+        end_idx = cleaned.rfind("]")
+
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        return cleaned[start_idx : end_idx + 1]
+
+    return cleaned
+
+
 def resolve_model_pair(
     model: str | None = None,
     synthesis_model: str | None = None,
@@ -754,9 +798,11 @@ class ComparisonOrchestrator:
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
             max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 220
+                int(getattr(settings, "max_output_tokens", 2048))
+                if (is_mock_env or is_benchmark_actual)
+                else 512
             ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config=_build_thinking_config(call_model),
         )
         spec_key = self._get_speculative_synth_key(products, query, active_model)
         spec_future = (
@@ -764,7 +810,7 @@ class ComparisonOrchestrator:
             or _SPECULATIVE_SYNTH_FUTURES.pop(
                 (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query)), None
             )
-            if not is_mock_env
+            if not is_mock_env and not is_benchmark_actual
             else None
         )
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
@@ -781,27 +827,49 @@ class ComparisonOrchestrator:
                             config=config,
                         )
                     except Exception as gen_err:
-                        from app.agent.hermetic_adapter import (
-                            _get_shared_vertex_client,
-                            _is_preview_or_3x_model,
-                        )
-
-                        if _is_preview_or_3x_model(call_model):
-                            logger.info(
-                                "Retrying synthesis %s with us-central1 fallback: %s",
+                        err_str = str(gen_err).lower()
+                        if "thinking" in err_str and config.thinking_config is not None:
+                            logger.warning(
+                                "Model %s failed with thinking_config (%s); retrying with thinking disabled.",
                                 call_model,
                                 gen_err,
                             )
-                            fb_client = _get_shared_vertex_client(location="us-central1")
-                            response = fb_client.models.generate_content(
+                            config.thinking_config = None
+                            response = client.models.generate_content(
                                 model=call_model,
                                 contents=prompt,
                                 config=config,
                             )
                         else:
-                            raise gen_err
+                            from app.agent.hermetic_adapter import (
+                                _get_shared_vertex_client,
+                                _is_preview_or_3x_model,
+                            )
+
+                            if _is_preview_or_3x_model(call_model):
+                                logger.info(
+                                    "Retrying synthesis %s with us-central1 fallback: %s",
+                                    call_model,
+                                    gen_err,
+                                )
+                                fb_client = _get_shared_vertex_client(location="us-central1")
+                                response = fb_client.models.generate_content(
+                                    model=call_model,
+                                    contents=prompt,
+                                    config=config,
+                                )
+                            else:
+                                raise gen_err
             except Exception as call_err:
-                if armor_cfg is not None:
+                err_str = str(call_err).lower()
+                if "thinking" in err_str and getattr(config, "thinking_config", None) is not None:
+                    config.thinking_config = None
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                elif armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
                         system_instruction=(
                             self.active_system_instruction
@@ -813,16 +881,30 @@ class ComparisonOrchestrator:
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=(
                             int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 400
+                            if (is_mock_env or is_benchmark_actual)
+                            else 512
                         ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=_build_thinking_config(call_model),
                     )
-                    response = client.models.generate_content(
-                        model=call_model,
-                        contents=prompt,
-                        config=fallback_config,
-                    )
+                    try:
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    except Exception as fb_err:
+                        if (
+                            "thinking" in str(fb_err).lower()
+                            and fallback_config.thinking_config is not None
+                        ):
+                            fallback_config.thinking_config = None
+                            response = client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=fallback_config,
+                            )
+                        else:
+                            raise fb_err
                 else:
                     raise call_err
 
@@ -835,12 +917,46 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-        if response.text:
-            synth = ComparisonSynthesis.model_validate_json(response.text)
-            summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
-            recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
-            return summary_out, recs_out
-        raise RuntimeError("Empty response from Gemini synthesis LLM")
+        resp_text = ""
+        try:
+            resp_text = (response.text or "").strip()
+        except Exception:
+            pass
+        if not resp_text and getattr(response, "candidates", None):
+            for cand in response.candidates:
+                content = getattr(cand, "content", None)
+                if content and getattr(content, "parts", None):
+                    for part in content.parts:
+                        txt = getattr(part, "text", None)
+                        if txt:
+                            resp_text += txt
+
+        synth: ComparisonSynthesis | None = None
+        if resp_text:
+            json_str = _extract_json_snippet(resp_text)
+            try:
+                synth = ComparisonSynthesis.model_validate_json(json_str)
+            except Exception:
+                try:
+                    data = json.loads(json_str)
+                    if isinstance(data, dict):
+                        synth = ComparisonSynthesis.model_validate(data)
+                except Exception as parse_err:
+                    logger.warning(
+                        "Failed to parse ComparisonSynthesis JSON from model %s: %s; falling back to text narrative.",
+                        call_model,
+                        parse_err,
+                    )
+        if synth is None:
+            p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:5])
+            fallback_narrative = f"Comparing {p_names}. " + " ".join(
+                f"{p.name} [SKU: {p.sku}] is priced at ${p.price:,.2f}." for p in products[:5]
+            )
+            synth = ComparisonSynthesis(summary=fallback_narrative, recommendations=[])
+
+        summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
+        recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
+        return summary_out, recs_out
 
     def synthesize_summary(
         self,
@@ -869,6 +985,12 @@ class ComparisonOrchestrator:
     def _prelaunch_speculative_stages(self, query: str) -> None:
         """Speculatively launch Stage 3 reranking and Stage 4 synthesis concurrently with Stage 1 intent classification."""
         try:
+            is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+                "true",
+                "1",
+            ) or getattr(settings, "benchmark_actual_model", False)
+            if is_benchmark_actual:
+                return
             if self._is_opinion_query(query):
                 return
             fast_kw = self.extract_keywords(query)
@@ -927,7 +1049,7 @@ class ComparisonOrchestrator:
                     response_schema=None,
                     temperature=float(getattr(settings, "temperature", 0.1)),
                     max_output_tokens=192,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config=_build_thinking_config(spec_rerank_model),
                 )
                 _SPECULATIVE_RERANK_FUTURES[rerank_key] = _SPECULATIVE_SYNTH_POOL.submit(
                     client.models.generate_content,
@@ -962,7 +1084,7 @@ class ComparisonOrchestrator:
                         response_schema=None,
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=220,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=_build_thinking_config(spec_synth_model),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
                         synth_client.models.generate_content,
@@ -1020,12 +1142,12 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        if not is_mock_env:
-            _SPECULATIVE_SYNTH_POOL.submit(self._prelaunch_speculative_stages, query)
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
             "true",
             "1",
         ) or getattr(settings, "benchmark_actual_model", False)
+        if not is_mock_env and not is_benchmark_actual:
+            _SPECULATIVE_SYNTH_POOL.submit(self._prelaunch_speculative_stages, query)
         call_model = model if (is_mock_env or is_benchmark_actual) else "gemini-2.5-flash-lite"
         client = self._get_genai_client(model=call_model)
         armor_cfg = (
@@ -1040,9 +1162,11 @@ class ComparisonOrchestrator:
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
             max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 110
+                int(getattr(settings, "max_output_tokens", 2048))
+                if (is_mock_env or is_benchmark_actual)
+                else 256
             ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config=_build_thinking_config(call_model),
         )
 
         with tracer.start_as_current_span("gemini.classify_intent") as llm_span:
@@ -1056,27 +1180,49 @@ class ComparisonOrchestrator:
                         config=config,
                     )
                 except Exception as gen_err:
-                    from app.agent.hermetic_adapter import (
-                        _get_shared_vertex_client,
-                        _is_preview_or_3x_model,
-                    )
-
-                    if _is_preview_or_3x_model(call_model):
-                        logger.info(
-                            "Retrying intent classification %s with us-central1 fallback: %s",
+                    err_str = str(gen_err).lower()
+                    if "thinking" in err_str and config.thinking_config is not None:
+                        logger.warning(
+                            "Model %s failed with thinking_config (%s); retrying with thinking disabled.",
                             call_model,
                             gen_err,
                         )
-                        fb_client = _get_shared_vertex_client(location="us-central1")
-                        response = fb_client.models.generate_content(
+                        config.thinking_config = None
+                        response = client.models.generate_content(
                             model=call_model,
                             contents=prompt,
                             config=config,
                         )
                     else:
-                        raise gen_err
+                        from app.agent.hermetic_adapter import (
+                            _get_shared_vertex_client,
+                            _is_preview_or_3x_model,
+                        )
+
+                        if _is_preview_or_3x_model(call_model):
+                            logger.info(
+                                "Retrying intent classification %s with us-central1 fallback: %s",
+                                call_model,
+                                gen_err,
+                            )
+                            fb_client = _get_shared_vertex_client(location="us-central1")
+                            response = fb_client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=config,
+                            )
+                        else:
+                            raise gen_err
             except Exception as call_err:
-                if armor_cfg is not None:
+                err_str = str(call_err).lower()
+                if "thinking" in err_str and getattr(config, "thinking_config", None) is not None:
+                    config.thinking_config = None
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                elif armor_cfg is not None:
                     fallback_config = types.GenerateContentConfig(
                         system_instruction=self.active_system_instruction if is_mock_env else None,
                         response_mime_type="application/json",
@@ -1084,16 +1230,30 @@ class ComparisonOrchestrator:
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=(
                             int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 192
+                            if (is_mock_env or is_benchmark_actual)
+                            else 256
                         ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=_build_thinking_config(call_model),
                     )
-                    response = client.models.generate_content(
-                        model=call_model,
-                        contents=prompt,
-                        config=fallback_config,
-                    )
+                    try:
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    except Exception as fb_err:
+                        if (
+                            "thinking" in str(fb_err).lower()
+                            and fallback_config.thinking_config is not None
+                        ):
+                            fallback_config.thinking_config = None
+                            response = client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=fallback_config,
+                            )
+                        else:
+                            raise fb_err
                 else:
                     raise call_err
 
@@ -1106,9 +1266,46 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-            if response.text:
-                return QueryIntentAnalysis.model_validate_json(response.text)
-            raise RuntimeError("Empty response from Gemini intent classification LLM")
+            resp_text = ""
+            try:
+                resp_text = (response.text or "").strip()
+            except Exception:
+                pass
+            if not resp_text and getattr(response, "candidates", None):
+                for cand in response.candidates:
+                    content = getattr(cand, "content", None)
+                    if content and getattr(content, "parts", None):
+                        for part in content.parts:
+                            txt = getattr(part, "text", None)
+                            if txt:
+                                resp_text += txt
+
+            if resp_text:
+                json_str = _extract_json_snippet(resp_text)
+                try:
+                    return QueryIntentAnalysis.model_validate_json(json_str)
+                except Exception:
+                    try:
+                        data = json.loads(json_str)
+                        if isinstance(data, dict):
+                            return QueryIntentAnalysis.model_validate(data)
+                    except Exception as parse_err:
+                        logger.warning(
+                            "Failed to parse JSON intent from model %s: %s (raw=%r); using heuristic fallback.",
+                            call_model,
+                            parse_err,
+                            resp_text,
+                        )
+            is_comp = any(
+                w in query.lower() for w in ("vs", "compare", "better", "difference", "or")
+            )
+            return QueryIntentAnalysis(
+                intent_type="COMPARISON" if is_comp else "PRODUCT_SEARCH",
+                is_comparison_eligible=is_comp,
+                detected_category=None,
+                target_keywords=[w for w in re.findall(r"\w+", query) if len(w) > 2],
+                reasoning="Heuristic fallback",
+            )
 
     def classify_intent(
         self, query: str, model: str = settings.gemini_model
@@ -1242,18 +1439,21 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
-        if not is_mock_env and intent.is_comparison_eligible and len(unique_products) >= 2:
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
+            "true",
+            "1",
+        ) or getattr(settings, "benchmark_actual_model", False)
+        if (
+            not is_mock_env
+            and not is_benchmark_actual
+            and intent.is_comparison_eligible
+            and len(unique_products) >= 2
+        ):
             target_count = min(5, max(2, len(keywords)))
             spec_prods = self._balance_entities(unique_products, keywords)[:target_count]
             if 2 <= len(spec_prods) <= 5:
                 safe_q = sanitize_user_prompt(original_query or " ".join(keywords))
-                is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL", "").lower() in (
-                    "true",
-                    "1",
-                ) or getattr(settings, "benchmark_actual_model", False)
-                spec_synth_model = (
-                    self.synthesis_model if is_benchmark_actual else "gemini-2.5-flash-lite"
-                )
+                spec_synth_model = self.synthesis_model
                 spec_key = self._get_speculative_synth_key(spec_prods, safe_q, spec_synth_model)
                 if spec_key not in _SPECULATIVE_SYNTH_FUTURES:
                     spec_matrix = self.build_comparison_matrix(spec_prods, query=safe_q)
@@ -1265,7 +1465,7 @@ class ComparisonOrchestrator:
                         response_schema=None,
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=220,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=_build_thinking_config(spec_synth_model),
                     )
                     _SPECULATIVE_SYNTH_FUTURES[spec_key] = _SPECULATIVE_SYNTH_POOL.submit(
                         synth_client.models.generate_content,
@@ -1338,9 +1538,11 @@ class ComparisonOrchestrator:
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
             max_output_tokens=(
-                int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 192
+                int(getattr(settings, "max_output_tokens", 2048))
+                if (is_mock_env or is_benchmark_actual)
+                else 384
             ),
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            thinking_config=_build_thinking_config(call_model),
         )
         rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         rerank_future = (
@@ -1348,7 +1550,7 @@ class ComparisonOrchestrator:
             or _SPECULATIVE_RERANK_FUTURES.pop(
                 (tuple(sorted(p.sku for p in products[:10])), sanitized_query), None
             )
-            if not is_mock_env
+            if not is_mock_env and not is_benchmark_actual
             else None
         )
 
@@ -1367,27 +1569,49 @@ class ComparisonOrchestrator:
                             config=config,
                         )
                     except Exception as gen_err:
-                        from app.agent.hermetic_adapter import (
-                            _get_shared_vertex_client,
-                            _is_preview_or_3x_model,
-                        )
-
-                        if _is_preview_or_3x_model(call_model):
-                            logger.info(
-                                "Retrying reranking %s with us-central1 fallback: %s",
+                        err_str = str(gen_err).lower()
+                        if "thinking" in err_str and config.thinking_config is not None:
+                            logger.warning(
+                                "Model %s reranking failed with thinking_config (%s); retrying with thinking disabled.",
                                 call_model,
                                 gen_err,
                             )
-                            fb_client = _get_shared_vertex_client(location="us-central1")
-                            response = fb_client.models.generate_content(
+                            config.thinking_config = None
+                            response = client.models.generate_content(
                                 model=call_model,
                                 contents=prompt,
                                 config=config,
                             )
                         else:
-                            raise gen_err
+                            from app.agent.hermetic_adapter import (
+                                _get_shared_vertex_client,
+                                _is_preview_or_3x_model,
+                            )
+
+                            if _is_preview_or_3x_model(call_model):
+                                logger.info(
+                                    "Retrying reranking %s with us-central1 fallback: %s",
+                                    call_model,
+                                    gen_err,
+                                )
+                                fb_client = _get_shared_vertex_client(location="us-central1")
+                                response = fb_client.models.generate_content(
+                                    model=call_model,
+                                    contents=prompt,
+                                    config=config,
+                                )
+                            else:
+                                raise gen_err
             except Exception as call_err:
-                if armor_cfg is not None:
+                err_str = str(call_err).lower()
+                if "thinking" in err_str and getattr(config, "thinking_config", None) is not None:
+                    config.thinking_config = None
+                    response = client.models.generate_content(
+                        model=call_model,
+                        contents=prompt,
+                        config=config,
+                    )
+                elif armor_cfg is not None:
                     logger.warning(
                         "LLM reranking with Model Armor failed (%s); retrying without template.",
                         call_err,
@@ -1399,16 +1623,30 @@ class ComparisonOrchestrator:
                         temperature=float(getattr(settings, "temperature", 0.1)),
                         max_output_tokens=(
                             int(getattr(settings, "max_output_tokens", 2048))
-                            if is_mock_env
-                            else 192
+                            if (is_mock_env or is_benchmark_actual)
+                            else 384
                         ),
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=_build_thinking_config(call_model),
                     )
-                    response = client.models.generate_content(
-                        model=call_model,
-                        contents=prompt,
-                        config=fallback_config,
-                    )
+                    try:
+                        response = client.models.generate_content(
+                            model=call_model,
+                            contents=prompt,
+                            config=fallback_config,
+                        )
+                    except Exception as fb_err:
+                        if (
+                            "thinking" in str(fb_err).lower()
+                            and fallback_config.thinking_config is not None
+                        ):
+                            fallback_config.thinking_config = None
+                            response = client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=fallback_config,
+                            )
+                        else:
+                            raise fb_err
                 else:
                     raise call_err
 
@@ -1438,7 +1676,20 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-        raw_text = (response.text or "").strip()
+        resp_text = ""
+        try:
+            resp_text = (response.text or "").strip()
+        except Exception:
+            pass
+        if not resp_text and getattr(response, "candidates", None):
+            for cand in response.candidates:
+                content = getattr(cand, "content", None)
+                if content and getattr(content, "parts", None):
+                    for part in content.parts:
+                        txt = getattr(part, "text", None)
+                        if txt:
+                            resp_text += txt
+        raw_text = _extract_json_snippet(resp_text)
         ranked_items: list[dict[str, Any]] | None = None
         try:
             parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
@@ -1450,6 +1701,12 @@ class ComparisonOrchestrator:
                     ranked_items = [
                         {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
                         for item in parsed_raw
+                        if isinstance(item, dict)
+                    ]
+                elif isinstance(parsed_raw, dict) and "rankings" in parsed_raw:
+                    ranked_items = [
+                        {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                        for item in parsed_raw["rankings"]
                         if isinstance(item, dict)
                     ]
             except Exception:
@@ -2076,7 +2333,7 @@ class ComparisonOrchestrator:
                 temperature=0.2,
                 max_output_tokens=500,
                 model_armor_config=armor_cfg,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                thinking_config=_build_thinking_config(call_model),
             )
             with tracer.start_as_current_span("gemini.chat_followup") as chat_span:
                 chat_span.set_attribute("gen_ai.system", "vertexai")
@@ -2090,11 +2347,26 @@ class ComparisonOrchestrator:
                     )
                 except Exception as call_err:
                     err_msg = str(call_err).lower()
-                    if armor_cfg is not None and (
-                        "model_armor" in err_msg
-                        or "template" in err_msg
-                        or "not found" in err_msg
-                        or "400" in err_msg
+                    if "thinking" in err_msg and config.thinking_config is not None:
+                        config.thinking_config = None
+                        try:
+                            resp = client.models.generate_content(
+                                model=call_model,
+                                contents=prompt,
+                                config=config,
+                            )
+                        except Exception as no_think_err:
+                            call_err = no_think_err
+                            err_msg = str(call_err).lower()
+                    if (
+                        resp is None
+                        and armor_cfg is not None
+                        and (
+                            "model_armor" in err_msg
+                            or "template" in err_msg
+                            or "not found" in err_msg
+                            or "400" in err_msg
+                        )
                     ):
                         logger.warning(
                             "Model Armor template lookup failed in region (%s); retrying without template.",
@@ -2112,7 +2384,7 @@ class ComparisonOrchestrator:
                             response_mime_type="application/json",
                             temperature=0.2,
                             max_output_tokens=500,
-                            thinking_config=types.ThinkingConfig(thinking_budget=0),
+                            thinking_config=_build_thinking_config(call_model),
                         )
                         try:
                             resp = client.models.generate_content(

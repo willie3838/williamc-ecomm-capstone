@@ -397,26 +397,22 @@ def build_model_decision_matrix(
             weights=w,
         ),
         evaluate_candidate_profile(
-            model_id="gemini-3.1-flash-lite-preview",
-            display_name="Gemini 3.1 Flash-Lite (Preview Single-Tier)",
-            routing_strategy="Turn 1: gemini-3.1-flash-lite-preview (temp=0.0) -> Turn 2: gemini-3.1-flash-lite-preview (temp=0.1)",
-            turn1_model="gemini-3.1-flash-lite-preview",
-            turn2_model="gemini-3.1-flash-lite-preview",
-            data_accuracy=_m("gemini-3.1-flash-lite-preview", "mean_data_accuracy", 0.983),
-            citation_faithfulness=_m(
-                "gemini-3.1-flash-lite-preview", "mean_citation_faithfulness", 0.956
-            ),
-            schema_validity=_m(
-                "gemini-3.1-flash-lite-preview", "structured_output_validity", 1.000
-            ),
+            model_id="gemini-3.1-flash-lite",
+            display_name="Gemini 3.1 Flash-Lite (Single-Tier)",
+            routing_strategy="Turn 1: gemini-3.1-flash-lite (temp=0.0) -> Turn 2: gemini-3.1-flash-lite (temp=0.1)",
+            turn1_model="gemini-3.1-flash-lite",
+            turn2_model="gemini-3.1-flash-lite",
+            data_accuracy=_m("gemini-3.1-flash-lite", "mean_data_accuracy", 0.983),
+            citation_faithfulness=_m("gemini-3.1-flash-lite", "mean_citation_faithfulness", 0.956),
+            schema_validity=_m("gemini-3.1-flash-lite", "structured_output_validity", 1.000),
             latency_p50_seconds=round(
-                _m("gemini-3.1-flash-lite-preview", "latency_p50_ms", 580.0) / 1000.0, 2
+                _m("gemini-3.1-flash-lite", "latency_p50_ms", 580.0) / 1000.0, 2
             ),
             latency_p95_seconds=round(
-                _m("gemini-3.1-flash-lite-preview", "latency_p95_ms", 980.0) / 1000.0, 2
+                _m("gemini-3.1-flash-lite", "latency_p95_ms", 980.0) / 1000.0, 2
             ),
             cost_per_1k_queries_usd=_m(
-                "gemini-3.1-flash-lite-preview", "estimated_cost_per_1k_queries_usd", 0.11
+                "gemini-3.1-flash-lite", "estimated_cost_per_1k_queries_usd", 0.11
             ),
             avg_prompt_tokens=1090,
             avg_output_tokens=490,
@@ -466,30 +462,6 @@ def build_model_decision_matrix(
             avg_output_tokens=540,
             synthesis_quality_score=4.35,
             pairwise_win_rate_vs_baseline=0.825,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3-flash-preview",
-            display_name="Gemini 3 Flash (Preview Single-Tier)",
-            routing_strategy="Turn 1: gemini-3-flash-preview (temp=0.0) -> Turn 2: gemini-3-flash-preview (temp=0.1)",
-            turn1_model="gemini-3-flash-preview",
-            turn2_model="gemini-3-flash-preview",
-            data_accuracy=_m("gemini-3-flash-preview", "mean_data_accuracy", 0.986),
-            citation_faithfulness=_m("gemini-3-flash-preview", "mean_citation_faithfulness", 0.965),
-            schema_validity=_m("gemini-3-flash-preview", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-3-flash-preview", "latency_p50_ms", 780.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3-flash-preview", "latency_p95_ms", 1340.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3-flash-preview", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1140,
-            avg_output_tokens=535,
-            synthesis_quality_score=4.40,
-            pairwise_win_rate_vs_baseline=0.840,
             weights=w,
         ),
         evaluate_candidate_profile(
@@ -588,82 +560,6 @@ def build_model_decision_matrix(
             avg_output_tokens=640,
             synthesis_quality_score=4.88,
             pairwise_win_rate_vs_baseline=0.950,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3-pro-preview",
-            display_name="Gemini 3 Pro (Preview Single-Tier)",
-            routing_strategy="Turn 1: gemini-3-pro-preview (temp=0.0) -> Turn 2: gemini-3-pro-preview (temp=0.1)",
-            turn1_model="gemini-3-pro-preview",
-            turn2_model="gemini-3-pro-preview",
-            data_accuracy=_m("gemini-3-pro-preview", "mean_data_accuracy", 0.996),
-            citation_faithfulness=_m("gemini-3-pro-preview", "mean_citation_faithfulness", 0.992),
-            schema_validity=_m("gemini-3-pro-preview", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-3-pro-preview", "latency_p50_ms", 1880.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3-pro-preview", "latency_p95_ms", 3350.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3-pro-preview", "estimated_cost_per_1k_queries_usd", 2.45
-            ),
-            avg_prompt_tokens=1230,
-            avg_output_tokens=630,
-            synthesis_quality_score=4.90,
-            pairwise_win_rate_vs_baseline=0.955,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.1-pro-preview",
-            display_name="Gemini 3.1 Pro (Preview Single-Tier)",
-            routing_strategy="Turn 1: gemini-3.1-pro-preview (temp=0.0) -> Turn 2: gemini-3.1-pro-preview (temp=0.1)",
-            turn1_model="gemini-3.1-pro-preview",
-            turn2_model="gemini-3.1-pro-preview",
-            data_accuracy=_m("gemini-3.1-pro-preview", "mean_data_accuracy", 0.997),
-            citation_faithfulness=_m("gemini-3.1-pro-preview", "mean_citation_faithfulness", 0.993),
-            schema_validity=_m("gemini-3.1-pro-preview", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-3.1-pro-preview", "latency_p50_ms", 1800.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3.1-pro-preview", "latency_p95_ms", 3250.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.1-pro-preview", "estimated_cost_per_1k_queries_usd", 2.45
-            ),
-            avg_prompt_tokens=1220,
-            avg_output_tokens=625,
-            synthesis_quality_score=4.92,
-            pairwise_win_rate_vs_baseline=0.960,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.1-pro-preview-customtools",
-            display_name="Gemini 3.1 Pro (Custom Tools Preview)",
-            routing_strategy="Turn 1: gemini-3.1-pro-preview-customtools (temp=0.0) -> Turn 2: gemini-3.1-pro-preview-customtools (temp=0.1)",
-            turn1_model="gemini-3.1-pro-preview-customtools",
-            turn2_model="gemini-3.1-pro-preview-customtools",
-            data_accuracy=_m("gemini-3.1-pro-preview-customtools", "mean_data_accuracy", 0.997),
-            citation_faithfulness=_m(
-                "gemini-3.1-pro-preview-customtools", "mean_citation_faithfulness", 0.993
-            ),
-            schema_validity=_m(
-                "gemini-3.1-pro-preview-customtools", "structured_output_validity", 1.000
-            ),
-            latency_p50_seconds=round(
-                _m("gemini-3.1-pro-preview-customtools", "latency_p50_ms", 1820.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3.1-pro-preview-customtools", "latency_p95_ms", 3280.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.1-pro-preview-customtools", "estimated_cost_per_1k_queries_usd", 2.45
-            ),
-            avg_prompt_tokens=1225,
-            avg_output_tokens=625,
-            synthesis_quality_score=4.92,
-            pairwise_win_rate_vs_baseline=0.960,
             weights=w,
         ),
         evaluate_candidate_profile(
@@ -786,7 +682,7 @@ def render_scorecard_markdown(report: ModelDecisionMatrixReport) -> str:
             "## 3. Architectural Trade-Off & Disqualification Analysis (ADR-004)",
             "",
             "1. **Why Pure Pro Models Were Rejected (`SLA_VIOLATION_LATENCY`)**:",
-            "   - Running Pro models (`gemini-2.5-pro`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`) across both Turn 1 (intent/entity extraction) and Turn 2 (comparative synthesis) yields P95 latencies between **`3.25s`** and **`3.48s`**, violating the non-negotiable **`<= 3.0s`** retail conversion SLA (`RUBRIC.md` North Star #3). Furthermore, their token cost (`$2.45 / 1,000 queries`) is **2.88x more expensive** than `tiered-hybrid` (`$0.85 / 1,000 queries`) for a negligible `+0.001` accuracy delta.",
+            "   - Running Pro models (`gemini-2.5-pro`) across both Turn 1 (intent/entity extraction) and Turn 2 (comparative synthesis) yields P95 latencies between **`3.25s`** and **`3.48s`**, violating the non-negotiable **`<= 3.0s`** retail conversion SLA (`RUBRIC.md` North Star #3). Furthermore, their token cost (`$2.45 / 1,000 queries`) is **2.88x more expensive** than `tiered-hybrid` (`$0.85 / 1,000 queries`) for a negligible `+0.001` accuracy delta.",
             "2. **Why `gemini-1.5-flash` Was Rejected (`SLA_VIOLATION_QUALITY`)**:",
             "   - Legacy `gemini-1.5-flash` drops to **`0.938` Data Accuracy** (`< 0.98` gate) and **`0.912` Citation Faithfulness** (`< 0.95` gate), occasionally omitting inline `[SKU: ...]` brackets on multi-brand comparisons and exhibiting a `4.0%` Pydantic schema validation failure rate.",
             "3. **Why `tiered-hybrid` Is Optimal (`PRODUCTION_SELECTED`)**:",
@@ -795,7 +691,7 @@ def render_scorecard_markdown(report: ModelDecisionMatrixReport) -> str:
             "4. **Role of `gemini-2.5-flash` Canary (`VIABLE_FALLBACK`)**:",
             "   - Registered in Google Cloud Agent Registry as `1.1.0-flash`. Satisfies all hard SLA gates (`0.985` accuracy, `1.42s` P95 latency, `$0.22 / 1k` cost) and serves as the automated fallback/canary tier during regional `gemini-2.5-pro` quota pressure or 10x Black Friday traffic bursts.",
             "5. **Specialist Agent Stage Allocation across Gemini 2.5 through 3.8 Fleet**:",
-            "   - Benchmarks confirm `gemini-3.5-flash` and `gemini-2.5-flash` lead Stage 1 (QueryIntentAgent) and Stage 3 (RelevanceDetectorAgent), while `gemini-2.5-pro` anchors Stage 4 (SpecComparisonAgent) synthesis grounding, achieving the optimal Pareto frontier across latency, cost, and spec accuracy.",
+            "   - Benchmarks confirm `gemini-3.5-flash` and `gemini-2.5-flash` lead Stage 1 (QueryIntentAgent) and Stage 2 (RelevanceDetectorAgent), while `gemini-2.5-pro` anchors Stage 3 (SpecComparisonAgent) synthesis grounding, achieving the optimal Pareto frontier across latency, cost, and spec accuracy.",
             "",
         ]
     )

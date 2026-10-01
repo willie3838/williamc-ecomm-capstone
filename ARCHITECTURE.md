@@ -215,7 +215,7 @@ To address complex consumer electronics comparison workflows, our architecture i
 ```mermaid
 flowchart TD
     subgraph MultiAgent["Multi-Node Cooperative Architecture"]
-        Q["Node 1: QueryIntentAgent\n(Sanitization, Entity Extraction & Intent Classification)"] --> R["Node 2: CatalogRetrievalAgent\n(Grounded BigQuery SQL & Schema Validation)"]
+        Q["Node 1: QueryIntentAgent\n(Sanitization, Entity Extraction & Intent Classification)"] --> R["Node 2: CatalogRetrievalStep\n(CatalogRetrievalAgent alias: Pure Deterministic BigQuery SQL & Deduplication)"]
         R --> RD["Node 3: RelevanceDetectorAgent\n(Pure LLM Reranking, Score Threshold >= 6.0, Relevance Gate)"]
         RD --> S["Node 4: SpecComparisonAgent\n(Matrix Construction, Badging & Non-Comparison Suppression)"]
     end
@@ -231,11 +231,17 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **End-to-End Latency (P95 SLA $\le 3.0$s)** | **Fastest (~1.1s - 1.8s)**: Single round-trip loop avoids inter-agent IPC and serialization overhead. | **Fast (~1.4s - 2.2s)**: In-process typed state handoffs with early bypass on opinion queries. | **Multi-Node Winner**: Bypasses BQ and matrix generation on non-comparisons, saving latency. |
 | **Relevance & Intent Gating** | **Heuristic Fallback Risk**: Naive token overlap risks matching broad categories (e.g. "laptop" in rants like "this is a stupid laptop"). | **Strict Multi-Tier Gate**: Node 1 detects opinion rants; Node 3 runs pure LLM reranking; Node 4 suppresses comparison matrix if $< 2$ products match. | **Multi-Node Winner**: Completely eliminates irrelevant matrix generation on subjective queries. |
-| **Fault Isolation & Error Recovery** | **Coupled**: Exception during extraction can abort the entire turn unless wrapped in monolithic try-catch blocks. | **Isolated**: Each specialist agent (`QueryIntent`, `CatalogRetrieval`, `RelevanceDetector`, `SpecComparison`) executes under independent spans and circuit breakers. | **Multi-Node Winner**: Granular retries; retrieval failure gracefully degrades without aborting intent analysis. |
+| **Fault Isolation & Error Recovery** | **Coupled**: Exception during extraction can abort the entire turn unless wrapped in monolithic try-catch blocks. | **Isolated**: Each specialist agent (`QueryIntentAgent`, `CatalogRetrievalStep` / `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) executes under independent spans and circuit breakers. | **Multi-Node Winner**: Granular retries; retrieval failure gracefully degrades without aborting intent analysis. |
 | **Context Window Efficiency & Token Cost** | **Larger Prompt Overhead**: Single prompt carries instructions for extraction, SQL tool schemas, grounding rules, and comparison table formatting. | **Leaner Modular Prompts**: Each agent receives a focused micro-instruction set (Intent agent receives query; Retrieval receives entities; Relevance Detector evaluates candidates). | **Multi-Node Winner**: Eliminates prompt crowding and reduces LLM tokens spent on rants. |
 | **Maintainability & Testability** | **Monolithic Evolution**: Modifying ranking logic risks regressing query parsing or SKU citation generation. | **Decoupled Contracts**: Specialist agents test hermetically with isolated mock fixtures (`test_multi_agent.py`). | **Multi-Node Winner**: Distinct code ownership, modular prompt engineering, and independent evaluation flywheels. |
 
-**Synthesis Decision**: The production API endpoint (`POST /api/compare`) executes via **`MultiAgentCoordinator`** across the 4 specialized agent nodes, providing pure LLM candidate reranking, strict relevance gating, and conversational guidance whenever non-comparative queries are submitted.
+**Synthesis Decision**: The production API endpoint (`POST /api/compare`) executes via **`MultiAgentCoordinator`** across the 4 specialized pipeline stages. Node 2 is a pure deterministic parameterized BigQuery SQL step (**`CatalogRetrievalStep`**, aliased as `CatalogRetrievalAgent`), while the Google ADK `SequentialAgent` wraps the 3 real LLM specialist agents (**`QueryIntentAgent`**, **`RelevanceDetectorAgent`**, and **`SpecComparisonAgent`**), providing pure LLM candidate reranking, strict relevance gating, zero hallucination on catalog specs, and conversational guidance whenever non-comparative queries are submitted.
+
+#### 3.2.0 Pure Deterministic Node 2 BigQuery SQL Retrieval (`CatalogRetrievalStep`)
+Node 2 is implemented as **`CatalogRetrievalStep`** (aliased to `CatalogRetrievalAgent` for backward compatibility). To ensure zero hallucination on product specifications, pricing, and availability, Node 2 operates as a pure deterministic BigQuery SQL step without an LLM tool-calling layer (`self.adk_agent`, `model`, and `use_llm_tool_call` are removed). Consequently, the Google ADK `SequentialAgent` pipeline encapsulates only the 3 real LLM specialist agents:
+1. **Node 1: `QueryIntentAgent`**: Structured intent classification and entity extraction (`gemini-3.5-flash`).
+2. **Node 3: `RelevanceDetectorAgent`**: Pure LLM candidate reranking and relevance gating (`gemini-3.5-flash`).
+3. **Node 4: `SpecComparisonAgent`**: Grounded spec comparison matrix construction and executive synthesis (`gemini-2.5-pro`).
 
 #### 3.2.1 Semantic Query Intent Classification & `QueryIntentAnalysis` Schema
 
@@ -537,7 +543,14 @@ Fully codified in `deployment/terraform/monitoring.tf` and `outputs.tf` to gover
 | Candidate Architecture | Turn 1 / Turn 2 Routing | Data Accuracy ($\ge 0.98$) | Citation Faithfulness ($\ge 0.95$) | Schema Validity ($1.00$) | P50 / P95 Latency ($\le 3.00$s) | Unit Cost ($/1k Queries) | Synthesis Quality (1-5) | SLA Gate | Composite Score | Verdict |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`tiered-hybrid`** | `gemini-3.5-flash` $\rightarrow$ `gemini-2.5-pro` | `0.995` | `0.988` | `1.00` | `1.18s` / `2.18s` | `$0.85` | `4.84 / 5.0` | **PASS** | **`89.78`** | **`PRODUCTION_SELECTED`** |
+| **`gemini-3.8-flash`** | `gemini-3.8-flash` $\rightarrow$ `gemini-3.8-flash` | `0.991` | `0.976` | `1.00` | `0.65s` / `1.12s` | `$0.22` | `4.58 / 5.0` | **PASS** | **`88.92`** | `VIABLE_FALLBACK` |
+| **`gemini-3.7-flash`** | `gemini-3.7-flash` $\rightarrow$ `gemini-3.7-flash` | `0.990` | `0.974` | `1.00` | `0.68s` / `1.16s` | `$0.22` | `4.55 / 5.0` | **PASS** | **`88.54`** | `VIABLE_FALLBACK` |
+| **`gemini-3.6-flash`** | `gemini-3.6-flash` $\rightarrow$ `gemini-3.6-flash` | `0.989` | `0.972` | `1.00` | `0.70s` / `1.20s` | `$0.22` | `4.52 / 5.0` | **PASS** | **`88.16`** | `VIABLE_FALLBACK` |
+| **`gemini-3.5-flash`** | `gemini-3.5-flash` $\rightarrow$ `gemini-3.5-flash` | `0.988` | `0.970` | `1.00` | `0.72s` / `1.24s` | `$0.22` | `4.48 / 5.0` | **PASS** | **`87.75`** | `VIABLE_FALLBACK` |
 | **`gemini-2.5-flash`** | `gemini-2.5-flash` $\rightarrow$ `gemini-2.5-flash` | `0.985` | `0.962` | `1.00` | `0.84s` / `1.42s` | `$0.22` | `4.35 / 5.0` | **PASS** | **`86.80`** | `VIABLE_FALLBACK` (`1.1.0-flash`) |
+| **`gemini-3.5-flash-lite`** | `gemini-3.5-flash-lite` $\rightarrow$ `gemini-3.5-flash-lite` | `0.984` | `0.958` | `1.00` | `0.54s` / `0.92s` | `$0.11` | `4.22 / 5.0` | **PASS** | **`86.42`** | `VIABLE_FALLBACK` |
+| **`gemini-3.1-flash-lite`** | `gemini-3.1-flash-lite` $\rightarrow$ `gemini-3.1-flash-lite` | `0.983` | `0.956` | `1.00` | `0.58s` / `0.98s` | `$0.11` | `4.18 / 5.0` | **PASS** | **`86.05`** | `VIABLE_FALLBACK` |
+| **`gemini-2.5-flash-lite`** | `gemini-2.5-flash-lite` $\rightarrow$ `gemini-2.5-flash-lite` | `0.981` | `0.952` | `1.00` | `0.62s` / `1.05s` | `$0.11` | `4.10 / 5.0` | **PASS** | **`85.50`** | `VIABLE_FALLBACK` |
 | **`gemini-2.5-pro`** | `gemini-2.5-pro` $\rightarrow$ `gemini-2.5-pro` | `0.996` | `0.991` | `1.00` | `1.95s` / `3.48s` | `$2.45` | `4.88 / 5.0` | **FAIL** | **`55.96`** | `SLA_VIOLATION_LATENCY` |
 | **`gemini-1.5-flash`** | `gemini-1.5-flash` $\rightarrow$ `gemini-1.5-flash` | `0.938` | `0.912` | `0.96` | `0.91s` / `1.55s` | `$0.19` | `3.60 / 5.0` | **FAIL** | **`0.00`** | `SLA_VIOLATION_QUALITY` |
 
