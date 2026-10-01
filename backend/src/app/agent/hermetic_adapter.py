@@ -290,16 +290,13 @@ def _call_real_vertex_gemini(
         )
 
     client = _get_shared_vertex_client()
-    target_model = (
-        "gemini-2.5-flash-lite"
-        if model in ("gemini-1.5-flash", "gemini-2.5-pro", "tiered-hybrid", "")
-        else model
-    )
+    target_model = "gemini-2.5-flash" if model in ("tiered-hybrid", "") else model
     cfg_kwargs: dict[str, Any] = {
         "temperature": 0.1,
         "max_output_tokens": max_output_tokens,
-        "thinking_config": types.ThinkingConfig(thinking_budget=0),
     }
+    if "flash" in target_model.lower():
+        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
     if (
         getattr(settings, "enable_model_armor", True)
         and "lite" not in target_model
@@ -313,8 +310,7 @@ def _call_real_vertex_gemini(
         cfg_kwargs["system_instruction"] = system_instruction
     if schema_cls is not None:
         cfg_kwargs["response_mime_type"] = "application/json"
-        if hasattr(genai.Client, "assert_called") or os.environ.get("PYTEST_CURRENT_TEST"):
-            cfg_kwargs["response_schema"] = schema_cls
+        cfg_kwargs["response_schema"] = schema_cls
 
     def _do_generate() -> Any:
         return client.models.generate_content(
@@ -340,6 +336,43 @@ def _call_real_vertex_gemini(
     in_toks = int(getattr(usage, "prompt_token_count", 120) or 120) if usage else 120
     out_toks = int(getattr(usage, "candidates_token_count", 180) or 180) if usage else 180
     return raw_text, in_toks, out_toks
+
+
+def verify_and_scrub_synthesis_claims(
+    summary: str | None,
+    recommendations: str | None,
+    products: list[Any],
+) -> tuple[str | None, str | None]:
+    """Deterministically scrub invalid or hallucinated [SKU: ...] citations from LLM synthesis.
+
+    Never artificially inject, concatenate, or append missing SKUs, prices, or bullets.
+    Only allows valid SKUs matching retrieved products.
+    """
+    if not products:
+        return summary, recommendations
+
+    valid_skus: set[str] = set()
+    for p in products:
+        if hasattr(p, "sku") and p.sku:
+            valid_skus.add(str(p.sku).strip())
+        elif isinstance(p, dict) and p.get("sku"):
+            valid_skus.add(str(p["sku"]).strip())
+
+    def _scrub(text: str | None) -> str | None:
+        if not text:
+            return text
+
+        def _replace_sku(m: re.Match[str]) -> str:
+            cited_sku = m.group(1).strip()
+            return m.group(0) if cited_sku in valid_skus else ""
+
+        cleaned = re.sub(r"\[SKU:\s*([^\]]+)\]", _replace_sku, text)
+        cleaned = re.sub(r"  +", " ", cleaned).strip()
+        return cleaned
+
+    scrubbed_summary = _scrub(summary)
+    scrubbed_recommendations = _scrub(recommendations)
+    return scrubbed_summary, scrubbed_recommendations
 
 
 class HermeticModelAdapter:
@@ -802,12 +835,25 @@ class HermeticModelAdapter:
         # Invoke real Vertex AI Gemini LLM for synthesis when not mocked
         if not skip_vertex_call and not hasattr(genai.Client, "assert_called"):
             try:
-                valid_skus = {p["sku"] for p in products_list}
                 citations_req = ", ".join(f"[SKU: {p['sku']}]" for p in products_list)
+
+                sorted_by_price = sorted(products_list, key=lambda x: x["price"])
+                cheapest = sorted_by_price[0]
+                most_exp = sorted_by_price[-1]
+                if cheapest["price"] < most_exp["price"]:
+                    diff = most_exp["price"] - cheapest["price"]
+                    price_delta_info = (
+                        f"Price comparison: {cheapest['name']} [SKU: {cheapest['sku']}] is ${diff:,.2f} more affordable at "
+                        f"${cheapest['price']:,.2f} versus ${most_exp['price']:,.2f} for {most_exp['name']} [SKU: {most_exp['sku']}]."
+                    )
+                else:
+                    price_delta_info = f"Price comparison: All compared products are priced equally at ${cheapest['price']:,.2f}."
+
                 synth_sys = (
                     "You are an expert TechBuy Retailers Product Comparison Expert.\n"
                     "Write a concise comparison summary and recommendations using ONLY the provided prices and specs.\n"
                     f"You MUST cite all compared products inline using {citations_req}.\n"
+                    f"{price_delta_info}\n"
                     "State clearly which product is most affordable based on exact prices.\n"
                     'Return JSON: {"summary": "...", "recommendations": "..."}'
                 )
@@ -815,58 +861,15 @@ class HermeticModelAdapter:
                     prompt=prompt,
                     schema_cls=ComparisonSynthesis,
                     system_instruction=synth_sys,
-                    model="gemini-2.5-flash-lite",
+                    model=getattr(settings, "gemini_model", "gemini-2.5-flash"),
                     max_output_tokens=320,
                     timeout_seconds=1.4,
                 )
                 if raw_synth:
                     llm_synth = ComparisonSynthesis.model_validate_json(raw_synth)
-                    summary_txt = (llm_synth.summary or "").strip()
-                    recs_txt = (llm_synth.recommendations or "").strip() or None
-                    # Scrub any unauthorized SKUs
-                    summary_txt = re.sub(
-                        r"\[SKU:\s*([A-Za-z0-9_-]+)\]",
-                        lambda m: m.group(0) if m.group(1) in valid_skus else "",
-                        summary_txt,
+                    summary_txt, recs_txt = verify_and_scrub_synthesis_claims(
+                        llm_synth.summary, llm_synth.recommendations, products_list
                     )
-                    if recs_txt:
-                        recs_txt = re.sub(
-                            r"\[SKU:\s*([A-Za-z0-9_-]+)\]",
-                            lambda m: m.group(0) if m.group(1) in valid_skus else "",
-                            recs_txt,
-                        )
-                    # Ensure all expected SKUs and product names appear in summary
-                    for p in products_list:
-                        if (
-                            f"[SKU: {p['sku']}]" not in summary_txt
-                            or p["name"].lower() not in summary_txt.lower()
-                        ):
-                            summary_txt = f"{summary_txt} {p['name']} [SKU: {p['sku']}] (${p['price']:,.2f}).".strip()
-
-                    # Append grounded price & battery facts if omitted by free-form generation
-                    sorted_by_price = sorted(products_list, key=lambda x: x["price"])
-                    cheapest = sorted_by_price[0]
-                    most_exp = sorted_by_price[-1]
-                    if cheapest["price"] < most_exp["price"]:
-                        diff = most_exp["price"] - cheapest["price"]
-                        price_fact = (
-                            f"{cheapest['name']} [SKU: {cheapest['sku']}] is ${diff:,.2f} more affordable at ${cheapest['price']:,.2f} "
-                            f"versus ${most_exp['price']:,.2f} for {most_exp['name']} [SKU: {most_exp['sku']}]."
-                        )
-                        if f"${diff:,.2f} more affordable" not in summary_txt:
-                            summary_txt = f"{summary_txt}\n- Price: {price_fact}"
-                    else:
-                        tie_fact = f"All compared products are priced equally at ${cheapest['price']:,.2f}."
-                        if tie_fact not in summary_txt:
-                            summary_txt = f"{summary_txt}\n- Price: {tie_fact}"
-
-                    # Ensure all expected SKUs appear in recommendations
-                    if not recs_txt:
-                        recs_txt = f"Key Buying Recommendations:\n- Best Value Recommendation: Choose {cheapest['name']} [SKU: {cheapest['sku']}]."
-                    for p in products_list:
-                        if f"[SKU: {p['sku']}]" not in recs_txt:
-                            recs_txt = f"{recs_txt}\n- Recommendation: Consider {p['name']} [SKU: {p['sku']}]."
-
                     return ComparisonSynthesis(
                         summary=summary_txt,
                         recommendations=recs_txt,
@@ -1587,29 +1590,38 @@ class CatalogAdkLlm(BaseLlm):
             ):
                 effective_config = types.GenerateContentConfig(
                     system_instruction=(
-                        getattr(config, "system_instruction", None)
-                        if (config and is_test_env)
-                        else None
+                        getattr(config, "system_instruction", None) if config else None
                     ),
                     response_mime_type="application/json",
-                    response_schema=inferred_schema if is_test_env else None,
+                    response_schema=inferred_schema,
                     safety_settings=getattr(config, "safety_settings", None) if config else None,
                     temperature=float(getattr(config, "temperature", 0.1) or 0.1)
                     if config
                     else 0.1,
                     max_output_tokens=effective_max_tokens,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config=(
+                        types.ThinkingConfig(thinking_budget=0)
+                        if "flash" in target_model.lower()
+                        else None
+                    ),
                 )
             elif config is None:
                 effective_config = types.GenerateContentConfig(
                     temperature=0.1,
                     max_output_tokens=effective_max_tokens,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    thinking_config=(
+                        types.ThinkingConfig(thinking_budget=0)
+                        if "flash" in target_model.lower()
+                        else None
+                    ),
                 )
             else:
                 effective_config = config
                 try:
-                    if getattr(effective_config, "thinking_config", None) is None:
+                    if (
+                        getattr(effective_config, "thinking_config", None) is None
+                        and "flash" in target_model.lower()
+                    ):
                         effective_config.thinking_config = types.ThinkingConfig(thinking_budget=0)
                     if not getattr(effective_config, "max_output_tokens", None):
                         effective_config.max_output_tokens = effective_max_tokens
@@ -1663,7 +1675,11 @@ class CatalogAdkLlm(BaseLlm):
                         ),
                         temperature=float(getattr(config, "temperature", 0.1) or 0.1),
                         max_output_tokens=effective_max_tokens,
-                        thinking_config=types.ThinkingConfig(thinking_budget=0),
+                        thinking_config=(
+                            types.ThinkingConfig(thinking_budget=0)
+                            if "flash" in target_model.lower()
+                            else None
+                        ),
                     )
 
             use_concurrent_ma = (

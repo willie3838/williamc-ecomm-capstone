@@ -420,9 +420,9 @@ def run_per_stage_benchmarks(
         accuracies: list[float] = []
         in_tokens_list: list[int] = []
         out_tokens_list: list[int] = []
+        orch = ComparisonOrchestrator(model=model, hermetic=not live)
 
         for c in cases:
-            orch = ComparisonOrchestrator(model=model, hermetic=not live)
             t0 = time.perf_counter()
             intent = orch.classify_intent_with_llm(c["query"], model=model)
             elapsed = (time.perf_counter() - t0) * 1000.0
@@ -445,8 +445,8 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 450.0 if "pro" in model else 180.0) if live else p50
-        eff_p95 = min(p95, 850.0 if "pro" in model else 320.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
         run_name = sanitize_vertex_run_name(f"run-stage1-intent-{model}-{int(time.time())}")
         params = {
@@ -497,9 +497,9 @@ def run_per_stage_benchmarks(
         accuracies = []
         in_tokens_list = []
         out_tokens_list = []
+        orch = ComparisonOrchestrator(model=model, hermetic=not live)
 
         for c in cases:
-            orch = ComparisonOrchestrator(model=model, hermetic=not live)
             candidates = case_candidates.get(str(c["id"]), [])
             kw = ComparisonOrchestrator.extract_keywords(c["query"])
             t0 = time.perf_counter()
@@ -541,8 +541,8 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 520.0 if "pro" in model else 220.0) if live else p50
-        eff_p95 = min(p95, 950.0 if "pro" in model else 380.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
         run_name = sanitize_vertex_run_name(f"run-stage2-rerank-{model}-{int(time.time())}")
         params = {
@@ -598,9 +598,9 @@ def run_per_stage_benchmarks(
         citations = []
         in_tokens_list = []
         out_tokens_list = []
+        orch = ComparisonOrchestrator(model=model, hermetic=not live)
 
         for c in cases:
-            orch = ComparisonOrchestrator(model=model, hermetic=not live)
             candidates = case_candidates.get(str(c["id"]), [])[:2]
             matrix = orch.build_comparison_matrix(candidates)
             t0 = time.perf_counter()
@@ -645,8 +645,8 @@ def run_per_stage_benchmarks(
             ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
         )
 
-        eff_p50 = min(p50, 1150.0 if "pro" in model else 620.0) if live else p50
-        eff_p95 = min(p95, 1680.0 if "pro" in model else 980.0) if live else p95
+        eff_p50 = p50
+        eff_p95 = p95
 
         run_name = sanitize_vertex_run_name(f"run-stage3-synthesis-{model}-{int(time.time())}")
         params = {
@@ -822,16 +822,18 @@ def run_model_benchmarks(
             output_tokens_list: list[int] = []
             valid_schemas = 0
 
+            cand_orchestrator = ComparisonOrchestrator(
+                bq_client=bq_client,
+                model=candidate.model,
+                synthesis_model=candidate.synthesis_model,
+                hermetic=not live,
+            )
+
             def _evaluate_single_case(
                 case_item: dict[str, Any],
                 _cand: CandidateModelSpec = candidate,
+                case_orchestrator: ComparisonOrchestrator = cand_orchestrator,
             ) -> tuple[float, float, float, float, bool, int, int]:
-                case_orchestrator = ComparisonOrchestrator(
-                    bq_client=bq_client,
-                    model=_cand.model,
-                    synthesis_model=_cand.synthesis_model,
-                    hermetic=not live,
-                )
                 t0 = time.perf_counter()
                 resp = case_orchestrator.compare(
                     query=case_item["query"],
@@ -890,16 +892,8 @@ def run_model_benchmarks(
             measured_p50_ms = round(sorted_lat[int(0.50 * (len(sorted_lat) - 1))], 2)
             measured_p95_ms = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
 
-            effective_p50_ms = (
-                min(measured_p50_ms, candidate.typical_cloud_p50_ms)
-                if live
-                else round(measured_p50_ms + candidate.typical_cloud_p50_ms, 2)
-            )
-            effective_p95_ms = (
-                min(measured_p95_ms, candidate.typical_cloud_p95_ms)
-                if live
-                else round(measured_p95_ms + candidate.typical_cloud_p95_ms, 2)
-            )
+            effective_p50_ms = measured_p50_ms
+            effective_p95_ms = measured_p95_ms
 
             mean_in_tokens = (
                 round(sum(input_tokens_list) / len(input_tokens_list), 1)
