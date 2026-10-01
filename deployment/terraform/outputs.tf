@@ -90,4 +90,44 @@ output "looker_studio_linking_urls" {
   }
 }
 
+output "monitoring_custom_service_id" {
+  description = "The resource ID of the custom Cloud Monitoring service for the catalog agent"
+  value       = google_monitoring_custom_service.catalog_agent_service.service_id
+}
+
+output "monitoring_latency_slo_id" {
+  description = "The resource ID of the 99% latency SLO (<= 3000ms)"
+  value       = google_monitoring_slo.latency_slo.slo_id
+}
+
+output "monitoring_token_slo_id" {
+  description = "The resource ID of the 99% per-query tokens SLO (<= 2500 tokens)"
+  value       = google_monitoring_slo.token_slo.slo_id
+}
+
+output "logging_metric_latency_ms" {
+  description = "The log-based metric name for query latency in milliseconds"
+  value       = google_logging_metric.catalog_agent_latency_ms.name
+}
+
+output "logging_metric_total_tokens" {
+  description = "The log-based metric name for total per-query tokens"
+  value       = google_logging_metric.catalog_agent_total_tokens.name
+}
+
+output "alert_policy_latency_burn_rate_id" {
+  description = "The Cloud Monitoring alert policy ID for latency SLO burn rate"
+  value       = google_monitoring_alert_policy.latency_slo_burn_rate.id
+}
+
+output "alert_policy_token_burn_rate_id" {
+  description = "The Cloud Monitoring alert policy ID for token SLO burn rate"
+  value       = google_monitoring_alert_policy.token_slo_burn_rate.id
+}
+
+output "alert_policy_finops_token_burn_rate_id" {
+  description = "The Cloud Monitoring alert policy ID for FinOps token quota hourly burn rate"
+  value       = google_monitoring_alert_policy.finops_token_quota_burn_rate.id
+}
+
 

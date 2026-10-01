@@ -362,6 +362,14 @@ def test_outputs_coverage():
         "model_armor_response_template",
         "monitoring_dashboard_id",
         "looker_studio_linking_urls",
+        "monitoring_custom_service_id",
+        "monitoring_latency_slo_id",
+        "monitoring_token_slo_id",
+        "logging_metric_latency_ms",
+        "logging_metric_total_tokens",
+        "alert_policy_latency_burn_rate_id",
+        "alert_policy_token_burn_rate_id",
+        "alert_policy_finops_token_burn_rate_id",
     ]
     for output_name in expected_outputs:
         pattern = rf'output\s+"{output_name}"\s+{{'
@@ -566,10 +574,86 @@ def test_model_armor_terraform():
     assert "catalog-resp-guard" in content
     assert "var.project_id" in content
 
+    # Verify both 'us' multi-region and regional 'var.region'
+    assert '"us"' in content
+    assert "var.region" in content
+
+    # Verify all 4 RAI filters configured at MEDIUM_AND_ABOVE
+    assert "HATE_SPEECH" in content
+    assert "HARASSMENT" in content
+    assert "SEXUALLY_EXPLICIT" in content
+    assert "DANGEROUS" in content
+    assert "MEDIUM_AND_ABOVE" in content
+
+    # Verify Prompt Injection and Jailbreak settings
+    assert "piAndJailbreakFilterSettings" in content
+
+    # Verify Sensitive Data Protection basicConfig
+    assert "sdpSettings" in content
+    assert "basicConfig" in content
+
+    # Verify Malicious URI filter settings
+    assert "maliciousUriFilterSettings" in content
+
+    # Verify Template metadata with compliance and operations logging
+    assert "templateMetadata" in content
+    assert "logTemplateOperations" in content
+    assert "logSanitizeOperations" in content
+    assert "dataResidencyCompliant" in content
+
+    # Verify idempotent REST API provisioning via local-exec
+    assert 'provisioner "local-exec"' in content
+    assert "modelarmor.googleapis.com" in content
+
+    # Verify providers.tf remains ~> 5.15
+    providers_tf = (TERRAFORM_DIR / "providers.tf").read_text()
+    assert "~> 5.15" in providers_tf
+
     cloudrun_tf = (TERRAFORM_DIR / "cloudrun.tf").read_text()
     assert "ENABLE_MODEL_ARMOR" in cloudrun_tf
     assert "MODEL_ARMOR_PROMPT_TEMPLATE" in cloudrun_tf
     assert "MODEL_ARMOR_RESPONSE_TEMPLATE" in cloudrun_tf
+
+
+def test_slo_monitoring_and_alert_policies_terraform():
+    """Verify log-based distribution metrics, custom service, SLOs, and multi-window burn rate alert policies."""
+    mon_tf = TERRAFORM_DIR / "monitoring.tf"
+    assert mon_tf.exists(), "monitoring.tf missing"
+    content = mon_tf.read_text()
+
+    # 1. Log-based distribution metrics for latency_ms and total_tokens
+    assert 'resource "google_logging_metric" "catalog_agent_latency_ms"' in content
+    assert 'resource "google_logging_metric" "catalog_agent_total_tokens"' in content
+    assert "DISTRIBUTION" in content
+    assert "exponential_buckets" in content
+    assert "EXTRACT(jsonPayload.latency_ms)" in content
+    assert "EXTRACT(jsonPayload.total_tokens)" in content
+
+    # 2. Custom monitoring service
+    assert 'resource "google_monitoring_custom_service" "catalog_agent_service"' in content
+    assert "catalog-agent-service" in content
+
+    # 3. Two 99% SLA SLO resources (latency <= 3000ms and tokens <= 2500)
+    assert 'resource "google_monitoring_slo" "latency_slo"' in content
+    assert 'resource "google_monitoring_slo" "token_slo"' in content
+    assert "goal                = 0.99" in content
+    assert "rolling_period_days = 30" in content
+    assert "3000" in content
+    assert "2500" in content
+
+    # 4. Multi-window burn-rate alert policies using select_slo_burn_rate
+    assert 'resource "google_monitoring_alert_policy" "latency_slo_burn_rate"' in content
+    assert 'resource "google_monitoring_alert_policy" "token_slo_burn_rate"' in content
+    assert "select_slo_burn_rate(" in content
+    assert "3600s" in content  # 1h fast burn
+    assert "21600s" in content  # 6h slow burn
+    assert "14.4" in content  # 14.4x fast burn factor
+    assert "6" in content  # 6x slow burn factor
+
+    # 5. Hourly FinOps token quota burn rate alert policy (Slide 4: 206M tokens/month = 286,111 tokens/hr)
+    assert 'resource "google_monitoring_alert_policy" "finops_token_quota_burn_rate"' in content
+    assert "858333" in content  # 3x slow-burn (858,333 tokens/hr)
+    assert "2861110" in content  # 10x Black Friday fast-burn (2,861,110 tokens/hr)
 
 
 def test_monitoring_and_looker_automation_terraform():

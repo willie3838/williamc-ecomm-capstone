@@ -226,13 +226,15 @@ class AnalyticsService:
         est_model_cost = ((input_tokens or 0) / 1e6 * 0.075) + ((output_tokens or 0) / 1e6 * 0.30)
         total_est_cost = round(est_bq_cost + est_model_cost, 6)
 
+        total_tokens = (input_tokens or 0) + (output_tokens or 0)
         logger.info(
-            "Query telemetry: query_id=%s latency=%.2fms bq_bytes=%s tokens=(in:%s, out:%s) est_cost=$%.6f",
+            "Query telemetry: query_id=%s latency=%.2fms bq_bytes=%s tokens=(in:%s, out:%s, total:%s) est_cost=$%.6f",
             query_id,
             latency_ms,
             bq_bytes_billed,
             input_tokens,
             output_tokens,
+            total_tokens,
             total_est_cost,
             extra={
                 "telemetry_query_id": query_id,
@@ -240,6 +242,7 @@ class AnalyticsService:
                 "latency_ms": latency_ms,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
                 "bq_bytes_billed": bq_bytes_billed,
                 "estimated_cost_usd": total_est_cost,
             },
