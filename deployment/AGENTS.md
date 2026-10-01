@@ -69,6 +69,36 @@ deployment/
 2. **Weekly Foundation Model Benchmark Job**:
    - `google_cloud_run_v2_job.model_benchmark_job`: Executes the 4-candidate foundation model benchmark and per-stage ADK agent sweep (`python -m evals.benchmark_models --live`) weekly on Sunday at 03:00 UTC (`0 3 * * 0`) via `google_cloud_scheduler_job.weekly_model_benchmark`.
 
+### 3.6 Google Cloud Model Armor IaC Guardrails (`model_armor.tf`)
+1. **Templates & Topologies**:
+   - Codifies `catalog-prompt-guard` and `catalog-resp-guard` across multi-region `'us'` (for Vertex AI Groot multi-region dataplane) and regional `'us-central1'`.
+   - Maintains exact `terraform_data.model_armor_prompt_template` and `terraform_data.model_armor_response_template` interfaces and `outputs.tf` compatibility.
+2. **Canonical Guardrail Configuration**:
+   - **Responsible AI (`raiSettings.raiFilters`)**: All 4 filters (`HATE_SPEECH`, `HARASSMENT`, `SEXUALLY_EXPLICIT`, `DANGEROUS`) strictly configured at `MEDIUM_AND_ABOVE`.
+   - **Prompt Injection & Jailbreak (`piAndJailbreakFilterSettings`)**: `filterEnforcement = "ENABLED"`, `confidenceLevel = "MEDIUM_AND_ABOVE"`.
+   - **Sensitive Data Protection (`sdpSettings`)**: `basicConfig = { filterEnforcement = "ENABLED" }`.
+   - **Malicious URI Defense (`maliciousUriFilterSettings`)**: `filterEnforcement = "ENABLED"`.
+   - **Audit & Compliance Metadata (`templateMetadata`)**: `logTemplateOperations = true`, `logSanitizeOperations = true`, and `dataResidencyCompliant = true`.
+3. **Idempotent REST API Provisioning (`provisioner "local-exec"`)**:
+   - Uses `modelarmor.googleapis.com/v1/projects/{project}/locations/{location}/templates` with GET status check: executes `PATCH` if existing (HTTP 200) or `POST` if new (HTTP 404).
+   - Preserves `providers.tf` (`~> 5.15`) without provider version churn.
+
+### 3.7 Cloud Monitoring Service Level Objectives (SLOs) & FinOps Alert Policies (`monitoring.tf`)
+1. **Log-Based Distribution Metrics**:
+   - `catalog_agent_latency_ms`: Extracts `jsonPayload.latency_ms` from `cloud_run_revision` into an exponential distribution histogram (64 buckets, growth factor 1.4, scale 10.0ms).
+   - `catalog_agent_total_tokens`: Extracts `jsonPayload.total_tokens` from `cloud_run_revision` into an exponential distribution histogram (64 buckets, growth factor 1.4, scale 10.0).
+2. **Custom Monitoring Service & 99% SLAs (`google_monitoring_slo`)**:
+   - `catalog_agent_service`: Custom service (`catalog-agent-service`).
+   - `latency_slo`: 99% SLA (`goal = 0.99`, `rolling_period_days = 30`), latency $\le 3,000$ms limit from Slide 1 & 7.
+   - `token_slo`: 99% SLA (`goal = 0.99`, `rolling_period_days = 30`), per-query tokens $\le 2,500$ (anchored to Slide 4's 2,060 avg).
+3. **Multi-Window Burn-Rate Alert Policies (`select_slo_burn_rate`)**:
+   - `latency_slo_burn_rate`: Fast burn ($14.4\times$ over 1h = 2% budget consumed) OR Slow burn ($6.0\times$ over 6h = 5% budget consumed).
+   - `token_slo_burn_rate`: Fast burn ($14.4\times$ over 1h) OR Slow burn ($6.0\times$ over 6h).
+4. **Hourly FinOps Token Quota Burn Rate (`finops_token_quota_burn_rate`)**:
+   - Anchored to Slide 4's 206M tokens/month ($286,111\text{ tokens/hr}$ baseline):
+     - Fast Burn: $10\times$ Black Friday burst $\ge 2,861,110\text{ tokens/hr}$.
+     - Slow Burn: $3\times$ drift threshold $\ge 858,333\text{ tokens/hr}$.
+
 ---
 
 ## 4. Cloud Build CI & Cloud Deploy CD Protocol (Rubric 6.1 Compliance)

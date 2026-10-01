@@ -475,8 +475,29 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 
 ### 6.3 OpenTelemetry & Cloud Operations Tracing
 - **Tracing**: Instrumenting FastAPI middleware and Google ADK tool calls with OpenTelemetry SDK, exporting spans to Google Cloud Trace. Every trace carries `session_id`, `query`, `target_skus`, and `bq_bytes_billed`.
-- **Structured JSON Logging**: Every log entry includes trace context (`logging.googleapis.com/trace`), severity levels, and execution timings.
+- **Structured JSON Logging**: Every log entry includes trace context (`logging.googleapis.com/trace`), severity levels, execution timings, and token metrics (`total_tokens`, `input_tokens`, `output_tokens`).
 - **Error Handling & Circuit Breakers**: BigQuery calls are wrapped with a 2.5-second timeout and exponential backoff retry (max 2 retries). If BigQuery is unavailable, the agent gracefully responds with a degraded error response rather than crashing.
+
+### 6.4 Cloud Monitoring Service Level Objectives (SLOs), Multi-Window Burn Rate & FinOps Quota Alerting
+Fully codified in `deployment/terraform/monitoring.tf` and `outputs.tf` to govern production health and cloud financial engineering:
+1. **Google Cloud Logging Log-Based Distribution Metrics**:
+   - `catalog_agent/latency_ms` (`google_logging_metric.catalog_agent_latency_ms`): Extracts `jsonPayload.latency_ms` from `cloud_run_revision` into an exponential distribution histogram (64 buckets, growth factor 1.4, scale 10.0ms).
+   - `catalog_agent/total_tokens` (`google_logging_metric.catalog_agent_total_tokens`): Extracts `jsonPayload.total_tokens` from `cloud_run_revision` into an exponential distribution histogram (64 buckets, growth factor 1.4, scale 10.0).
+2. **Custom Monitoring Service & Unforgiving 99% SLAs (`google_monitoring_slo`)**:
+   - `catalog_agent_service` (`google_monitoring_custom_service.catalog_agent_service`): Service ID `catalog-agent-service`, Display Name `TechBuy Catalog Comparison Agent`.
+   - **Latency SLO (`google_monitoring_slo.latency_slo`)**: 99% SLA (`goal = 0.99`, `rolling_period_days = 30`), request-based distribution cut on `catalog_agent/latency_ms` with `range.max = 3000.0` (Slide 1/7 North Star SLA).
+   - **Per-Query Token SLO (`google_monitoring_slo.token_slo`)**: 99% SLA (`goal = 0.99`, `rolling_period_days = 30`), request-based distribution cut on `catalog_agent/total_tokens` with `range.max = 2500.0` (anchored to Slide 4's 2,060 avg per-query tokens).
+3. **Multi-Window Multi-Burn-Rate Alert Policies (`select_slo_burn_rate`)**:
+   - `latency_slo_burn_rate` (`google_monitoring_alert_policy.latency_slo_burn_rate`):
+     - Fast Burn: `select_slo_burn_rate(latency_slo, "3600s") > 14.4` (burns 2% of budget in 1 hour; exhausts 30d budget in 2 days).
+     - Slow Burn: `select_slo_burn_rate(latency_slo, "21600s") > 6.0` (burns 5% of budget in 6 hours).
+   - `token_slo_burn_rate` (`google_monitoring_alert_policy.token_slo_burn_rate`):
+     - Fast Burn: `select_slo_burn_rate(token_slo, "3600s") > 14.4`.
+     - Slow Burn: `select_slo_burn_rate(token_slo, "21600s") > 6.0`.
+4. **Hourly FinOps Token Quota Burn Rate (`finops_token_quota_burn_rate`)**:
+   - Anchored to Slide 4's 206M tokens/month baseline ($286,111\text{ tokens/hr}$):
+     - Fast Burn: $10\times$ Black Friday burst $\ge 2,861,110\text{ tokens/hr}$ (`ALIGN_SUM`, `REDUCE_SUM` over 1h window).
+     - Slow Burn: $3\times$ drift threshold $\ge 858,333\text{ tokens/hr}$ (`ALIGN_SUM`, `REDUCE_SUM` over 1h window).
 
 ---
 
