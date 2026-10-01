@@ -321,5 +321,127 @@ describe('SearchBar', () => {
 
     expect(handleClearTags).toHaveBeenCalledTimes(1);
   });
+
+  it('renders autocomplete typeahead dropdown when typing matching query', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'MacBook' } });
+
+    // The listbox dropdown should appear
+    const listbox = screen.getByRole('listbox', { name: /product suggestions/i });
+    expect(listbox).toBeInTheDocument();
+    expect(screen.getByText(/Apple MacBook Air/i)).toBeInTheDocument();
+  });
+
+  it('navigates autocomplete items via ArrowDown / ArrowUp and selects with Enter', () => {
+    const handleAddTag = vi.fn();
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        onAddTag={handleAddTag}
+        isLoading={false}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Dell XPS' } });
+
+    // Arrow down to first item
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    const firstOption = screen.getAllByRole('option')[0];
+    expect(firstOption).toHaveAttribute('aria-selected', 'true');
+
+    // Press Enter to select highlighted item
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(handleAddTag).toHaveBeenCalledTimes(1);
+    expect(handleAddTag).toHaveBeenCalledWith(
+      expect.objectContaining({ sku: '6575132' })
+    );
+    // Input should be cleared after selecting
+    expect((input as HTMLInputElement).value).toBe('');
+  });
+
+  it('tags product when clicking an item from autocomplete dropdown', () => {
+    const handleAddTag = vi.fn();
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        onAddTag={handleAddTag}
+        isLoading={false}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Sony' } });
+
+    // Find and click the Sony WH-1000XM5 option
+    const sonyOption = screen.getByText(/Sony WH-1000XM5/i);
+    fireEvent.click(sonyOption);
+
+    expect(handleAddTag).toHaveBeenCalledTimes(1);
+    expect(handleAddTag).toHaveBeenCalledWith(
+      expect.objectContaining({ sku: '6505727' })
+    );
+  });
+
+  it('closes autocomplete dropdown when Escape key is pressed', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'MacBook' } });
+
+    expect(screen.getByRole('listbox', { name: /product suggestions/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(screen.queryByRole('listbox', { name: /product suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('has accessible combobox and listbox ARIA attributes', () => {
+    render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
+
+    const combobox = screen.getByRole('combobox');
+    expect(combobox).toHaveAttribute('aria-expanded', 'false');
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'OLED' } });
+
+    expect(combobox).toHaveAttribute('aria-expanded', 'true');
+    expect(combobox).toHaveAttribute('aria-controls', 'product-search-listbox');
+    expect(screen.getByRole('listbox')).toHaveAttribute('id', 'product-search-listbox');
+  });
+
+  it('excludes already tagged products from typeahead suggestions and caps at 4 products', () => {
+    const mockProducts = [
+      {
+        sku: '6534606',
+        name: 'Apple MacBook Air 13.6"',
+        brand: 'Apple',
+        price: 1099,
+        specifications: {},
+        in_stock: true,
+      },
+    ];
+
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={false}
+        taggedProducts={mockProducts}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Apple' } });
+
+    // SKU 6534606 is already tagged, so it should not appear in suggestions
+    const options = screen.getAllByRole('option');
+    const optionSkus = options.map((opt) => opt.getAttribute('data-sku'));
+    expect(optionSkus).not.toContain('6534606');
+  });
 });
+
 

@@ -122,7 +122,7 @@ describe('App Integration', () => {
     renderWithClient(<App />);
 
     // Navigate into a comparison view via SearchBar
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
     fireEvent.change(searchInput, {
       target: { value: 'Compare MacBook Air and Dell XPS 13' },
     });
@@ -209,7 +209,9 @@ describe('App Integration', () => {
 
     // 6. Test submitting user follow-up prompt (e.g., "only price") retains tagged SKUs
     vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = screen.getByRole('textbox', {
+      name: /natural language product comparison query/i,
+    });
     fireEvent.change(searchInput, { target: { value: 'only price' } });
     fireEvent.submit(screen.getByRole('search'));
 
@@ -228,7 +230,7 @@ describe('App Integration', () => {
     renderWithClient(<App />);
 
     // Perform a search to populate compared products
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
     fireEvent.change(searchInput, {
       target: { value: 'MacBook Air M3 vs Dell XPS 13' },
     });
@@ -263,7 +265,7 @@ describe('App Integration', () => {
 
     renderWithClient(<App />);
 
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
     fireEvent.change(searchInput, {
       target: { value: 'MacBook Air M3 vs Dell XPS 13' },
     });
@@ -296,7 +298,9 @@ describe('App Integration', () => {
     renderWithClient(<App />);
 
     // Perform initial comparison via search
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = screen.getByRole('textbox', {
+      name: /natural language product comparison query/i,
+    });
     fireEvent.change(searchInput, {
       target: { value: 'MacBook Air M3 vs Dell XPS 13' },
     });
@@ -353,7 +357,9 @@ describe('App Integration', () => {
     expect(searchForm).toHaveTextContent(/Apple MacBook Air/i);
 
     // Textbox should NOT contain raw query text like "Compare Apple MacBook Air..."
-    const searchInput = screen.getByRole('textbox') as HTMLInputElement;
+    const searchInput = screen.getByRole('textbox', {
+      name: /natural language product comparison query/i,
+    }) as HTMLInputElement;
     expect(searchInput.value).toBe('');
     expect(searchInput).toHaveAttribute(
       'placeholder',
@@ -385,7 +391,71 @@ describe('App Integration', () => {
     expect(macbookCheckbox).not.toBeChecked();
     expect(dellCheckbox).toBeChecked();
   });
+
+  it('filters catalog products in browsing view via live catalog search input and clear button', () => {
+    renderWithClient(<App />);
+
+    // Check placeholder
+    const liveSearchInput = screen.getByPlaceholderText(
+      'Search products by name, brand, SKU, or spec to compare...'
+    );
+    expect(liveSearchInput).toBeInTheDocument();
+
+    // Default shows 40 products
+    expect(screen.getByText(/40 of 40 matching/i)).toBeInTheDocument();
+
+    // Type "Bose" into live search input
+    fireEvent.change(liveSearchInput, { target: { value: 'Bose' } });
+
+    // Should filter to Bose products
+    expect(screen.getByText(/Bose QuietComfort Ultra/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Dell XPS 13/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/1 of 40 matching/i)).toBeInTheDocument();
+
+    // Clear button should appear and reset search
+    const clearBtn = screen.getByRole('button', { name: /clear catalog search/i });
+    expect(clearBtn).toBeInTheDocument();
+    fireEvent.click(clearBtn);
+
+    expect(screen.getByText(/40 of 40 matching/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dell XPS 13/i)).toBeInTheDocument();
+  });
+
+  it('renders "+ Add Product to Compare Against" in Compared Products header and adds product', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    const addCompareBtn = screen.getByRole('button', {
+      name: /\+ Add Product to Compare Against/i,
+    });
+    expect(addCompareBtn).toBeInTheDocument();
+    fireEvent.click(addCompareBtn);
+
+    const popoverSearch = screen.getByPlaceholderText(/search product by name, brand, sku/i);
+    expect(popoverSearch).toBeInTheDocument();
+
+    fireEvent.change(popoverSearch, { target: { value: 'Lenovo ThinkPad' } });
+    const lenovoOption = screen.getByText(/Lenovo ThinkPad X1 Carbon/i);
+    fireEvent.click(lenovoOption);
+
+    // Should trigger new comparison query with Lenovo included
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+  });
 });
+
 
 
 

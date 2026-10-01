@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CATALOG_PRODUCTS } from '../data/catalogProducts';
+import { CATALOG_PRODUCTS, searchCatalogProducts, getCatalogProducts } from '../data/catalogProducts';
 
 describe('CATALOG_PRODUCTS specifications and image URLs', () => {
   it('contains exactly 40 catalog products', () => {
@@ -46,3 +46,83 @@ describe('CATALOG_PRODUCTS specifications and image URLs', () => {
     expect(categories).toContain('TVs');
   });
 });
+
+describe('searchCatalogProducts', () => {
+  it('returns all products when query is empty or whitespace with no category', () => {
+    const emptyResults = searchCatalogProducts('');
+    expect(emptyResults).toHaveLength(40);
+
+    const whitespaceResults = searchCatalogProducts('   ');
+    expect(whitespaceResults).toHaveLength(40);
+  });
+
+  it('returns all category products when query is empty or whitespace with a category', () => {
+    const laptopResults = searchCatalogProducts('', 'Laptops');
+    const expectedLaptops = getCatalogProducts('Laptops');
+    expect(laptopResults).toHaveLength(expectedLaptops.length);
+    expect(laptopResults.every((p) => p.category === 'Laptops')).toBe(true);
+
+    const tvResults = searchCatalogProducts('  ', 'TVs');
+    expect(tvResults).toHaveLength(getCatalogProducts('TVs').length);
+    expect(tvResults.every((p) => p.category === 'TVs')).toBe(true);
+  });
+
+  it('filters by exact SKU match', () => {
+    const results = searchCatalogProducts('6534606');
+    expect(results).toHaveLength(1);
+    expect(results[0].sku).toBe('6534606');
+    expect(results[0].name).toContain('MacBook Air');
+  });
+
+  it('filters by brand name case-insensitively', () => {
+    const results = searchCatalogProducts('apple');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((p) => p.brand === 'Apple')).toBe(true);
+    expect(
+      results.every(
+        (p) =>
+          p.brand.toLowerCase().includes('apple') ||
+          p.name.toLowerCase().includes('apple') ||
+          JSON.stringify(p.specifications).toLowerCase().includes('apple')
+      )
+    ).toBe(true);
+  });
+
+  it('filters by specification values like processor or resolution', () => {
+    const m3Results = searchCatalogProducts('M3 chip');
+    expect(m3Results.length).toBeGreaterThan(0);
+    expect(m3Results.some((p) => p.sku === '6534606')).toBe(true);
+
+    const snapdragonResults = searchCatalogProducts('Snapdragon X Elite');
+    expect(snapdragonResults.length).toBeGreaterThan(0);
+    expect(snapdragonResults.some((p) => p.sku === '6581910')).toBe(true);
+  });
+
+  it('performs multi-word token matching across different fields', () => {
+    // "Dell 16GB" -> Brand is Dell, spec RAM is 16
+    const results = searchCatalogProducts('Dell 16GB');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.some((p) => p.brand === 'Dell' && p.specifications.ram_gb === 16)).toBe(true);
+
+    // "Sony 120Hz" -> Sony TVs with 120Hz refresh rate
+    const sonyResults = searchCatalogProducts('Sony 120Hz');
+    expect(sonyResults.length).toBeGreaterThan(0);
+    expect(sonyResults.some((p) => p.brand === 'Sony' && p.specifications.refresh_rate_hz === 120)).toBe(true);
+  });
+
+  it('respects category constraint when searching', () => {
+    // Search for Apple in Tablets only
+    const results = searchCatalogProducts('Apple', 'Tablets');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((p) => p.category === 'Tablets')).toBe(true);
+    expect(results.some((p) => p.sku === '6579601')).toBe(true); // iPad Pro
+    // Should NOT contain MacBook
+    expect(results.some((p) => p.category === 'Laptops')).toBe(false);
+  });
+
+  it('returns empty array when query does not match any products', () => {
+    const results = searchCatalogProducts('NonExistentProductZ999X');
+    expect(results).toHaveLength(0);
+  });
+});
+

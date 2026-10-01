@@ -130,5 +130,71 @@ describe('ProductSelectionTray', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onClear).toHaveBeenCalledTimes(1);
   });
+
+  it('renders "+ Add Product" button when onAddProduct is provided and slots are available', () => {
+    const onAddProduct = vi.fn();
+    render(
+      <ProductSelectionTray
+        selectedProducts={[mockMacBook]}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={vi.fn()}
+        onCompare={vi.fn()}
+        onAddProduct={onAddProduct}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /add product/i })).toBeInTheDocument();
+  });
+
+  it('opens search popover, searches catalog, and adds selected product', () => {
+    const onAddProduct = vi.fn();
+    render(
+      <ProductSelectionTray
+        selectedProducts={[mockMacBook]}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={vi.fn()}
+        onCompare={vi.fn()}
+        onAddProduct={onAddProduct}
+      />
+    );
+
+    const addBtn = screen.getByRole('button', { name: /add product/i });
+    fireEvent.click(addBtn);
+
+    const searchInput = screen.getByPlaceholderText(/search product to add/i);
+    expect(searchInput).toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: 'Dell XPS' } });
+    const resultItem = screen.getByText(/Dell XPS 13/i);
+    fireEvent.click(resultItem);
+
+    expect(onAddProduct).toHaveBeenCalledTimes(1);
+    expect(onAddProduct).toHaveBeenCalledWith(
+      expect.objectContaining({ sku: '6575132' })
+    );
+  });
+
+  it('does not render "+ Add Product" button when max products are selected', () => {
+    const mockProducts = [
+      mockMacBook,
+      mockDellXPS,
+      { ...mockMacBook, sku: 'SKU3', name: 'Product 3' },
+      { ...mockMacBook, sku: 'SKU4', name: 'Product 4' },
+    ];
+
+    render(
+      <ProductSelectionTray
+        selectedProducts={mockProducts}
+        onRemoveProduct={vi.fn()}
+        onClearSelection={vi.fn()}
+        onCompare={vi.fn()}
+        onAddProduct={vi.fn()}
+        maxProducts={4}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /add product/i })).not.toBeInTheDocument();
+  });
 });
+
 

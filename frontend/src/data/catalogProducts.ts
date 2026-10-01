@@ -977,3 +977,54 @@ export function getCatalogProducts(category?: string | null): ProductSpec[] {
     (product) => product.category?.toLowerCase() === category.toLowerCase()
   );
 }
+
+/**
+ * Searches the catalog products matching query across name, brand, SKU, category, and specifications.
+ * Supports case-insensitive multi-word token matching and optional category filtering.
+ */
+export function searchCatalogProducts(
+  query: string,
+  category?: string | null
+): ProductSpec[] {
+  const baseProducts = getCatalogProducts(category);
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) {
+    return baseProducts;
+  }
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+
+  return baseProducts.filter((product) => {
+    const specParts: string[] = [];
+    if (product.specifications) {
+      for (const [key, val] of Object.entries(product.specifications)) {
+        if (val === null || val === undefined) continue;
+        specParts.push(key.replace(/_/g, ' '));
+        specParts.push(String(val));
+        if (typeof val === 'number') {
+          if (key.endsWith('_gb')) specParts.push(`${val}gb`);
+          if (key.endsWith('_hz')) specParts.push(`${val}hz`);
+          if (key.endsWith('_hours')) specParts.push(`${val}h`, `${val}hours`);
+          if (key.endsWith('_lbs')) specParts.push(`${val}lbs`);
+          if (key.endsWith('_in')) specParts.push(`${val}"`, `${val}in`, `${val}inch`);
+          if (key.endsWith('_oz')) specParts.push(`${val}oz`);
+          if (key.endsWith('_mm')) specParts.push(`${val}mm`);
+        }
+      }
+    }
+
+    const searchableText = [
+      product.name,
+      product.brand,
+      product.sku,
+      product.category ?? '',
+      specParts.join(' '),
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return tokens.every((token) => searchableText.includes(token));
+  });
+}
+
+
