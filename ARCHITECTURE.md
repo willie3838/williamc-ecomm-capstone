@@ -60,7 +60,7 @@ The end-to-end topology connects the Client Layer, Ingress & Identity, Applicati
 ```mermaid
 graph TB
     subgraph ClientLayer ["1. Client Presentation Layer"]
-        UI["React 18 + TypeScript Web UI<br/>(Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips,<br/>Interactive Typeahead Search & Compare Picker Popovers)"]
+        UI["React 18 + TypeScript Web UI<br/>(Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips,<br/>Interactive Typeahead Search, '+ Add Product to Compare' Picker & Compare Popovers)"]
     end
 
     subgraph IngressSecurity ["2. Ingress & Perimeter Security"]

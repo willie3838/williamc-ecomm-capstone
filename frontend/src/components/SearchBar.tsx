@@ -62,9 +62,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const [prevInitialCategory, setPrevInitialCategory] = useState<string | null>(initialCategory);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerHighlightedIndex, setPickerHighlightedIndex] = useState(-1);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pickerInputRef = useRef<HTMLInputElement>(null);
 
   const adjustTextareaHeight = () => {
     const textarea = textareaRef.current;
@@ -78,6 +82,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   useEffect(() => {
     adjustTextareaHeight();
   }, [query]);
+
+  useEffect(() => {
+    if (isPickerOpen && pickerInputRef.current) {
+      pickerInputRef.current.focus();
+    }
+  }, [isPickerOpen]);
 
   if (initialQuery !== prevInitialQuery) {
     setPrevInitialQuery(initialQuery);
@@ -99,12 +109,21 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     return matches.filter((p) => !taggedProducts.some((t) => t.sku === p.sku));
   }, [query, selectedCategory, taggedProducts]);
 
-  // Click outside listener to dismiss autocomplete dropdown
+  // Catalog picker matches (shows initial suggestions if pickerQuery is empty)
+  const pickerMatches = useMemo(() => {
+    const trimmed = pickerQuery.trim();
+    const matches = searchCatalogProducts(trimmed, selectedCategory);
+    return matches.filter((p) => !taggedProducts.some((t) => t.sku === p.sku));
+  }, [pickerQuery, selectedCategory, taggedProducts]);
+
+  // Click outside listener to dismiss autocomplete dropdown and picker dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
         setHighlightedIndex(-1);
+        setIsPickerOpen(false);
+        setPickerHighlightedIndex(-1);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -122,6 +141,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }
     setIsDropdownOpen(false);
     setHighlightedIndex(-1);
+  };
+
+  const handleSelectPickerProduct = (product: ProductSpec) => {
+    handleSelectProduct(product);
+    setIsPickerOpen(false);
+    setPickerQuery('');
+    setPickerHighlightedIndex(-1);
   };
 
   const canSubmit = !isLoading && (query.trim().length > 0 || hasTaggedProducts);
@@ -224,9 +250,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       <div
         ref={containerRef}
         role="combobox"
-        aria-expanded={isDropdownOpen && availableMatches.length > 0}
+        aria-expanded={(isDropdownOpen && availableMatches.length > 0) || isPickerOpen}
         aria-haspopup="listbox"
-        aria-controls="product-search-listbox"
+        aria-controls={isPickerOpen ? 'catalog-product-picker-listbox' : 'product-search-listbox'}
         className="relative"
       >
         {/* Search Input Box */}
@@ -268,6 +294,30 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </div>
           )}
 
+          {/* Always-visible '+ Add Product to Compare' search trigger button/bar (when < maxTaggedProducts) */}
+          {taggedProducts.length < maxTaggedProducts && (
+            <div className="flex items-center justify-between px-2.5 pt-1 pb-1.5 border-b border-gray-100/80">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPickerOpen((prev) => !prev);
+                  setIsDropdownOpen(false);
+                }}
+                aria-label="Add product to compare"
+                aria-expanded={isPickerOpen}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold text-bb-blue bg-blue-50/80 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 text-bb-blue" aria-hidden="true" />
+                <span>+ Add Product to Compare</span>
+              </button>
+              <span className="text-[11px] text-gray-500 font-medium hidden sm:inline">
+                {taggedProducts.length === 0
+                  ? 'Browse catalog & pick products to compare'
+                  : `${taggedProducts.length} of ${maxTaggedProducts} tagged`}
+              </span>
+            </div>
+          )}
+
           {/* Text Input Row */}
           <div className="flex items-center gap-2 w-full pt-1">
             <div className="pl-2 pr-1 text-bb-blue flex-shrink-0 flex items-center self-center">
@@ -282,11 +332,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onChange={(e) => {
                 setQuery(e.target.value);
                 setIsDropdownOpen(true);
+                setIsPickerOpen(false);
                 setHighlightedIndex(-1);
               }}
               onFocus={() => {
                 if (query.trim() && availableMatches.length > 0) {
                   setIsDropdownOpen(true);
+                  setIsPickerOpen(false);
                 }
               }}
               onKeyDown={handleKeyDown}
@@ -333,6 +385,129 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             </button>
           </div>
         </form>
+
+        {/* Catalog Product Picker Dropdown Listbox */}
+        {isPickerOpen && (
+          <div
+            id="catalog-product-picker-listbox"
+            role="listbox"
+            aria-label="Catalog product picker"
+            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 divide-y divide-gray-100 max-h-96 overflow-hidden z-50 flex flex-col"
+          >
+            {/* Inline Search Input in Dropdown Header */}
+            <div className="p-3 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+              <Search className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true" />
+              <input
+                ref={pickerInputRef}
+                type="text"
+                value={pickerQuery}
+                onChange={(e) => {
+                  setPickerQuery(e.target.value);
+                  setPickerHighlightedIndex(-1);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsPickerOpen(false);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (pickerMatches.length > 0) {
+                      setPickerHighlightedIndex((prev) => (prev + 1) % pickerMatches.length);
+                    }
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (pickerMatches.length > 0) {
+                      setPickerHighlightedIndex((prev) => (prev <= 0 ? pickerMatches.length - 1 : prev - 1));
+                    }
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (pickerHighlightedIndex >= 0 && pickerMatches[pickerHighlightedIndex]) {
+                      handleSelectPickerProduct(pickerMatches[pickerHighlightedIndex]);
+                    }
+                  }
+                }}
+                placeholder="Search products by name, brand, or SKU..."
+                aria-label="Search products to compare"
+                className="w-full bg-white text-sm text-gray-900 placeholder-gray-400 rounded-lg px-3 py-1.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-bb-blue"
+              />
+              {pickerQuery && (
+                <button
+                  type="button"
+                  onClick={() => setPickerQuery('')}
+                  aria-label="Clear picker search"
+                  className="p-1 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Suggestions list */}
+            <div className="overflow-y-auto max-h-72 divide-y divide-gray-100 custom-scrollbar">
+              {pickerMatches.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-500">
+                  No catalog products found matching &ldquo;{pickerQuery}&rdquo;.
+                </div>
+              ) : (
+                pickerMatches.slice(0, 8).map((product, idx) => {
+                  const isHighlighted = idx === pickerHighlightedIndex;
+                  return (
+                    <div
+                      key={product.sku}
+                      id={`picker-opt-${product.sku}`}
+                      role="option"
+                      data-sku={product.sku}
+                      aria-selected={isHighlighted}
+                      onClick={() => handleSelectPickerProduct(product)}
+                      onMouseEnter={() => setPickerHighlightedIndex(idx)}
+                      className={`flex items-center justify-between p-3 cursor-pointer transition-colors ${
+                        isHighlighted
+                          ? 'bg-blue-50 text-bb-blue'
+                          : 'hover:bg-gray-50 text-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt=""
+                            aria-hidden="true"
+                            className="w-10 h-10 object-contain rounded bg-white p-1 border border-gray-100 flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                            <Tag className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-mono font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              SKU: {product.sku}
+                            </span>
+                            <span className="text-xs text-gray-500 font-medium">
+                              {product.brand} • {product.category}
+                            </span>
+                          </div>
+                          <div className="font-semibold text-sm truncate max-w-sm sm:max-w-md text-gray-900">
+                            {product.name}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                        <span className="font-bold text-sm text-gray-900">
+                          ${product.price.toFixed(2)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-bb-yellow text-bb-slate shadow-2xs hover:bg-bb-yellow-hover">
+                          <Plus className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Add to compare</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Autocomplete Dropdown Listbox */}
         {isDropdownOpen && availableMatches.length > 0 && (

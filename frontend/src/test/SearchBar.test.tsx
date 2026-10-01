@@ -7,7 +7,7 @@ describe('SearchBar', () => {
     render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
 
     expect(screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /compare/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^compare$/i })).toBeInTheDocument();
   });
 
   it('renders category quick-filter pills', () => {
@@ -28,7 +28,7 @@ describe('SearchBar', () => {
     const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
     fireEvent.change(input, { target: { value: 'Compare iPad Pro vs Galaxy Tab' } });
 
-    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    const submitBtn = screen.getByRole('button', { name: /^compare$/i });
     fireEvent.click(submitBtn);
 
     expect(handleSearch).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ describe('SearchBar', () => {
     const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
     fireEvent.change(input, { target: { value: '   ' } });
 
-    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    const submitBtn = screen.getByRole('button', { name: /^compare$/i });
     expect(submitBtn).toBeDisabled();
 
     fireEvent.submit(screen.getByRole('search'));
@@ -259,7 +259,7 @@ describe('SearchBar', () => {
       />
     );
 
-    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    const submitBtn = screen.getByRole('button', { name: /^compare$/i });
     expect(submitBtn).toBeEnabled();
     fireEvent.click(submitBtn);
 
@@ -305,7 +305,7 @@ describe('SearchBar', () => {
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'focus strictly on battery life' } });
 
-    const submitBtn = screen.getByRole('button', { name: /compare/i });
+    const submitBtn = screen.getByRole('button', { name: /^compare$/i });
     fireEvent.click(submitBtn);
 
     const [promptArg] = handleSearch.mock.calls[0];
@@ -588,4 +588,105 @@ describe('SearchBar', () => {
     const optionSkus = options.map((opt) => opt.getAttribute('data-sku'));
     expect(optionSkus).not.toContain('6534606');
   });
+
+  describe('Always-visible "+ Add Product to Compare" Picker', () => {
+    it('renders the "+ Add Product to Compare" button when fewer than 4 products are tagged', () => {
+      render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={[]} />);
+
+      const addBtn = screen.getByRole('button', { name: /add product to compare/i });
+      expect(addBtn).toBeInTheDocument();
+      expect(addBtn).toHaveTextContent(/add product to compare/i);
+    });
+
+    it('opens catalog product picker dropdown with inline search input and initial suggestions on click', () => {
+      render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={[]} />);
+
+      const addBtn = screen.getByRole('button', { name: /add product to compare/i });
+      fireEvent.click(addBtn);
+
+      // Picker dropdown listbox should be open
+      const picker = screen.getByRole('listbox', { name: /catalog product picker/i });
+      expect(picker).toBeInTheDocument();
+
+      // Inline search input should be present inside the picker
+      const pickerSearch = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+      expect(pickerSearch).toBeInTheDocument();
+
+      // Initial suggestions should appear immediately without typing in the main textarea
+      const options = screen.getAllByRole('option');
+      expect(options.length).toBeGreaterThan(0);
+    });
+
+    it('filters suggestions when typing in the picker inline search input', () => {
+      render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={[]} />);
+
+      const addBtn = screen.getByRole('button', { name: /add product to compare/i });
+      fireEvent.click(addBtn);
+
+      const pickerSearch = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+      fireEvent.change(pickerSearch, { target: { value: 'Bose' } });
+
+      const options = screen.getAllByRole('option');
+      expect(options.length).toBeGreaterThan(0);
+      expect(options[0]).toHaveTextContent(/bose/i);
+    });
+
+    it('calls onAddTag and closes picker when a product suggestion is clicked', () => {
+      const handleAddTag = vi.fn();
+      render(
+        <SearchBar
+          onSearch={vi.fn()}
+          onAddTag={handleAddTag}
+          isLoading={false}
+          taggedProducts={[]}
+        />
+      );
+
+      const addBtn = screen.getByRole('button', { name: /add product to compare/i });
+      fireEvent.click(addBtn);
+
+      const pickerSearch = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+      fireEvent.change(pickerSearch, { target: { value: 'Apple MacBook Air 13.6"' } });
+
+      const macbookOption = screen.getByText(/Apple MacBook Air 13.6"/i);
+      fireEvent.click(macbookOption);
+
+      expect(handleAddTag).toHaveBeenCalledTimes(1);
+      expect(handleAddTag).toHaveBeenCalledWith(
+        expect.objectContaining({ sku: '6534606' })
+      );
+
+      // Picker should close
+      expect(screen.queryByRole('listbox', { name: /catalog product picker/i })).not.toBeInTheDocument();
+    });
+
+    it('hides "+ Add Product to Compare" button when 4 products are tagged', () => {
+      const fourProducts = [
+        { sku: '1', name: 'Product 1', brand: 'Brand', price: 100, specifications: {}, in_stock: true },
+        { sku: '2', name: 'Product 2', brand: 'Brand', price: 200, specifications: {}, in_stock: true },
+        { sku: '3', name: 'Product 3', brand: 'Brand', price: 300, specifications: {}, in_stock: true },
+        { sku: '4', name: 'Product 4', brand: 'Brand', price: 400, specifications: {}, in_stock: true },
+      ];
+
+      render(
+        <SearchBar
+          onSearch={vi.fn()}
+          isLoading={false}
+          taggedProducts={fourProducts}
+        />
+      );
+
+      expect(screen.queryByRole('button', { name: /add product to compare/i })).not.toBeInTheDocument();
+    });
+
+    it('keeps typeahead autocomplete functioning on the main textarea', () => {
+      render(<SearchBar onSearch={vi.fn()} isLoading={false} taggedProducts={[]} />);
+
+      const textarea = screen.getByRole('textbox');
+      fireEvent.change(textarea, { target: { value: 'Dell' } });
+
+      expect(screen.getByRole('listbox', { name: /product suggestions/i })).toBeInTheDocument();
+    });
+  });
 });
+
