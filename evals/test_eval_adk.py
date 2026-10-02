@@ -55,8 +55,8 @@ def test_evalset_ground_truth_completeness():
         assert inv.intermediate_data.tool_uses[0].name == "query_catalog"
         assert inv.final_response is not None
         assert len(inv.final_response.parts[0].text) > 20
-        assert len(case.expected_skus) == 2
-        assert len(case.ground_truth_specs) == 2
+        assert 2 <= len(case.expected_skus) <= 5
+        assert len(case.ground_truth_specs) == len(case.expected_skus)
 
     with open(SIMPLE_TEST_EVALSET, encoding="utf-8") as f:
         simple_data = json.load(f)
