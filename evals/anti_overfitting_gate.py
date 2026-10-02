@@ -359,6 +359,103 @@ class AntiOverfittingGate:
         logger.info("Saved anti-overfitting report to %s", path)
 
 
+def run_holdout_evaluation(
+    dataset_path: Path,
+    base_catalog_path: Path | None = None,
+) -> dict[str, Any]:
+    """Execute holdout evaluation across comparisons, counterfactual mutations, and negative queries."""
+    import copy
+    from evals.runner import run_benchmark
+
+    resolved_base_catalog = base_catalog_path or (
+        REPO_ROOT / "backend" / "src" / "app" / "data" / "catalog_seed.json"
+    )
+
+    with open(dataset_path, encoding="utf-8") as f:
+        holdout_raw = json.load(f)
+
+    all_cases = holdout_raw.get("eval_cases", [])
+    standard_cases = [c for c in all_cases if c.get("archetype") != "counterfactual_spec"]
+    cf_cases = [c for c in all_cases if c.get("archetype") == "counterfactual_spec"]
+
+    fixtures_dir = REPO_ROOT / "evals" / "dataset" / "fixtures"
+    fixtures_dir.mkdir(parents=True, exist_ok=True)
+
+    details = []
+
+    # 1. Run standard cases against base catalog
+    if standard_cases:
+        std_evalset = {"eval_cases": standard_cases}
+        std_path = fixtures_dir / "holdout_standard_temp.evalset.json"
+        with open(std_path, "w", encoding="utf-8") as f:
+            json.dump(std_evalset, f, indent=2)
+        try:
+            std_report = run_benchmark(
+                dataset_path=std_path,
+                catalog_path=resolved_base_catalog,
+                live=False,
+            )
+            details.extend(std_report.get("details", []))
+        finally:
+            if std_path.exists():
+                std_path.unlink()
+
+    # 2. Run counterfactual cases against perturbed catalog reflecting ground truth specs
+    with open(resolved_base_catalog, encoding="utf-8") as f:
+        base_catalog = json.load(f)
+
+    for idx, cf in enumerate(cf_cases):
+        perturbed_catalog = copy.deepcopy(base_catalog)
+        gt_specs = cf.get("ground_truth_specs", {})
+        for item in perturbed_catalog:
+            sku = str(item.get("sku"))
+            if sku in gt_specs:
+                for k, v in gt_specs[sku].items():
+                    if k in item:
+                        item[k] = v
+                    elif "specifications" in item and isinstance(item["specifications"], dict):
+                        item["specifications"][k] = v
+
+        cf_catalog_path = fixtures_dir / f"cf_catalog_temp_{idx}.json"
+        cf_path = fixtures_dir / f"cf_case_temp_{idx}.evalset.json"
+        with open(cf_catalog_path, "w", encoding="utf-8") as f:
+            json.dump(perturbed_catalog, f, indent=2)
+        with open(cf_path, "w", encoding="utf-8") as f:
+            json.dump({"eval_cases": [cf]}, f, indent=2)
+
+        try:
+            cf_report = run_benchmark(
+                dataset_path=cf_path,
+                catalog_path=cf_catalog_path,
+                live=False,
+            )
+            details.extend(cf_report.get("details", []))
+        finally:
+            if cf_catalog_path.exists():
+                cf_catalog_path.unlink()
+            if cf_path.exists():
+                cf_path.unlink()
+
+    n = max(1, len(details))
+    mean_acc = round(sum(d.get("data_accuracy", 1.0) for d in details) / n, 4)
+    mean_cit = round(sum(d.get("citation_faithfulness", 1.0) for d in details) / n, 4)
+    latencies = [d.get("latency_seconds", 0.01) for d in details]
+    sorted_lat = sorted(latencies)
+    p95_lat = sorted_lat[int(0.95 * (len(sorted_lat) - 1))] if sorted_lat else 0.02
+
+    holdout_summary = {
+        "total_cases": len(details),
+        "passed_cases": sum(1 for d in details if d.get("status") == "PASS"),
+        "mean_data_accuracy": mean_acc,
+        "mean_citation_faithfulness": mean_cit,
+        "latency_p95_seconds": round(p95_lat, 4),
+    }
+    return {
+        "summary": holdout_summary,
+        "details": details,
+    }
+
+
 def main() -> int:
     """CLI runner for the Anti-Overfitting Gate."""
     parser = argparse.ArgumentParser(
@@ -427,7 +524,7 @@ def main() -> int:
             hold_summary = hold_data.get("summary", {})
     else:
         logger.info("Running holdout evaluation...")
-        hold_data = run_benchmark(dataset_path=args.holdout_dataset, live=False)
+        hold_data = run_holdout_evaluation(dataset_path=args.holdout_dataset)
         hold_summary = hold_data.get("summary", {})
 
     # Evaluate counterfactual & negative chatter cases in holdout

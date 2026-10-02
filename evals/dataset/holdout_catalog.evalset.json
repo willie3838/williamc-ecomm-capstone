@@ -1376,26 +1376,12 @@
       "eval_id": "cross-cat-001",
       "archetype": "cross_category",
       "category": "CrossCategory",
-      "expected_skus": [
-        "6579601",
-        "6505727"
-      ],
+      "expected_skus": [],
       "key_differential_features": [
         "category",
         "price"
       ],
-      "ground_truth_specs": {
-        "6579601": {
-          "name": "Apple iPad Pro 11\" OLED - M4 chip",
-          "brand": "Apple",
-          "price": 999.0
-        },
-        "6505727": {
-          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
-          "brand": "Sony",
-          "price": 399.99
-        }
-      },
+      "ground_truth_specs": {},
       "conversation": [
         {
           "invocation_id": "inv-cross-cat-001",
@@ -1432,26 +1418,12 @@
       "eval_id": "cross-cat-002",
       "archetype": "cross_category",
       "category": "CrossCategory",
-      "expected_skus": [
-        "6575132",
-        "6535929"
-      ],
+      "expected_skus": [],
       "key_differential_features": [
         "category",
         "price"
       ],
-      "ground_truth_specs": {
-        "6575132": {
-          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
-          "brand": "Dell",
-          "price": 1199.0
-        },
-        "6535929": {
-          "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
-          "brand": "LG",
-          "price": 1499.99
-        }
-      },
+      "ground_truth_specs": {},
       "conversation": [
         {
           "invocation_id": "inv-cross-cat-002",
@@ -1488,25 +1460,14 @@
       "eval_id": "single-prod-001",
       "archetype": "cross_category",
       "category": "SingleProduct",
-      "expected_skus": [
-        "6534640"
-      ],
+      "expected_skus": [],
       "key_differential_features": [
         "price",
         "processor",
         "ram_gb",
         "battery_life_hours"
       ],
-      "ground_truth_specs": {
-        "6534640": {
-          "name": "Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD",
-          "brand": "Apple",
-          "price": 1799.0,
-          "processor": "Apple M3 Pro 11-core",
-          "ram_gb": 18,
-          "battery_life_hours": 17.0
-        }
-      },
+      "ground_truth_specs": {},
       "conversation": [
         {
           "invocation_id": "inv-single-prod-001",

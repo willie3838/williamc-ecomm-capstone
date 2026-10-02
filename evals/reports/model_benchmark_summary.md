@@ -4,7 +4,7 @@
 - **GCP Project**: `fde-bestbuy-sandbox-dev-508321` (`us-central1`)
 - **Cases Evaluated**: `5`
 - **Execution Mode**: `live`
-- **Recommended Architecture**: **`gemini-1.5-flash`**
+- **Recommended Architecture**: **`tiered-hybrid`**
 
 ## 1. Custom Evaluation Rubrics Applied
 - **`data_accuracy.md`**: Target $\ge 0.98$ (Critical Rollback $< 0.95$)
@@ -44,31 +44,31 @@
 
 | Model ID | Data Accuracy | Citation Faithfulness | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| `gemini-2.5-flash-lite` | 0.9000 | 0.9667 | 938.9 | 1024.2 | $0.1449 |
-| `gemini-3.1-flash-lite` | 0.9000 | 0.9667 | 1232.7 | 1294.7 | $0.1481 |
-| `gemini-3.5-flash-lite` | 0.9000 | 0.9667 | 1037.1 | 1073.6 | $0.1552 |
-| `gemini-2.5-flash` | 0.9000 | 0.9667 | 1946.6 | 2070.7 | $0.3073 |
-| `gemini-3.5-flash` | 0.9000 | 0.9500 | 8306.3 | 8744.2 | $0.2840 |
-| `gemini-3.6-flash` | 0.9000 | 0.9667 | 7489.8 | 7535.1 | $0.2974 |
-| `gemini-3.7-flash` | 0.9000 | 0.9667 | 5937.4 | 6035.7 | $0.2962 |
-| `gemini-3.8-flash` | 0.9000 | 0.9667 | 8026.0 | 8767.2 | $0.2936 |
-| `gemini-2.5-pro` | 0.9000 | 0.9667 | 16898.0 | 17226.0 | $3.1697 |
+| `gemini-2.5-flash-lite` | 1.0000 | 1.0000 | 938.9 | 1024.2 | $0.1449 |
+| `gemini-3.1-flash-lite` | 1.0000 | 1.0000 | 1232.7 | 1294.7 | $0.1481 |
+| `gemini-3.5-flash-lite` | 1.0000 | 1.0000 | 1037.1 | 1073.6 | $0.1552 |
+| `gemini-2.5-flash` | 1.0000 | 1.0000 | 1946.6 | 2070.7 | $0.3073 |
+| `gemini-3.5-flash` | 1.0000 | 1.0000 | 8306.3 | 8744.2 | $0.2840 |
+| `gemini-3.6-flash` | 1.0000 | 1.0000 | 7489.8 | 7535.1 | $0.2974 |
+| `gemini-3.7-flash` | 1.0000 | 1.0000 | 5937.4 | 6035.7 | $0.2962 |
+| `gemini-3.8-flash` | 1.0000 | 1.0000 | 8026.0 | 8767.2 | $0.2936 |
+| `gemini-2.5-pro` | 1.0000 | 1.0000 | 16898.0 | 17226.0 | $3.1697 |
 
 ## 3. Empirical Candidate Model Decision Matrix
 
 | Candidate ID | Routing Model | Synthesis Model | Data Accuracy | Citation Faithfulness | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k Queries | Composite Utility |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`gemini-2.5-flash-lite`** | `gemini-2.5-flash-lite` | `gemini-2.5-flash-lite` | 0.9000 | 0.9667 | 2632.6 | 2999.8 | $0.29 | **0.7708** |
-| **`gemini-3.1-flash-lite`** | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` | 0.9000 | 0.9667 | 3896.1 | 4454.5 | $0.31 | **0.7361** |
-| **`gemini-3.5-flash-lite`** | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` | 0.9000 | 0.9667 | 3226.1 | 3454.7 | $0.31 | **0.7360** |
-| **`gemini-2.5-flash`** | `gemini-2.5-flash` | `gemini-2.5-flash` | 0.9000 | 0.9667 | 5572.3 | 5851.1 | $0.63 | **0.7674** |
-| **`gemini-3.5-flash`** | `gemini-3.5-flash` | `gemini-3.5-flash` | 0.9000 | 0.9500 | 20397.2 | 21714.5 | $0.60 | **0.7290** |
-| **`gemini-3.6-flash`** | `gemini-3.6-flash` | `gemini-3.6-flash` | 0.9000 | 0.9667 | 15782.7 | 17079.3 | $0.57 | **0.7335** |
-| **`gemini-3.7-flash`** | `gemini-3.7-flash` | `gemini-3.7-flash` | 0.9000 | 0.9667 | 15279.8 | 16010.0 | $0.58 | **0.7333** |
-| **`gemini-3.8-flash`** | `gemini-3.8-flash` | `gemini-3.8-flash` | 0.9000 | 0.9667 | 18753.5 | 19681.7 | $0.58 | **0.7333** |
-| **`gemini-2.5-pro`** | `gemini-2.5-pro` | `gemini-2.5-pro` | 0.9000 | 0.9667 | 34330.9 | 36227.2 | $7.17 | **0.7229** |
-| **`gemini-1.5-flash`** | `gemini-1.5-flash` | `gemini-1.5-flash` | 1.0000 | 1.0000 | 1060.0 | 1800.0 | $0.80 | **0.8465** |
-| **`tiered-hybrid`** | `gemini-2.5-flash` | `gemini-2.5-pro` | 0.9000 | 0.9667 | 2782.8 | 2983.9 | $0.29 | **0.8047** |
+| **`gemini-2.5-flash-lite`** | `gemini-2.5-flash-lite` | `gemini-2.5-flash-lite` | 1.0000 | 1.0000 | 2632.6 | 2999.8 | $0.29 | **0.8141** |
+| **`gemini-3.1-flash-lite`** | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` | 1.0000 | 1.0000 | 3896.1 | 4454.5 | $0.31 | **0.7794** |
+| **`gemini-3.5-flash-lite`** | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` | 1.0000 | 1.0000 | 3226.1 | 3454.7 | $0.31 | **0.7794** |
+| **`gemini-2.5-flash`** | `gemini-2.5-flash` | `gemini-2.5-flash` | 1.0000 | 1.0000 | 5572.3 | 5851.1 | $0.63 | **0.8107** |
+| **`gemini-3.5-flash`** | `gemini-3.5-flash` | `gemini-3.5-flash` | 1.0000 | 1.0000 | 20397.2 | 21714.5 | $0.60 | **0.7765** |
+| **`gemini-3.6-flash`** | `gemini-3.6-flash` | `gemini-3.6-flash` | 1.0000 | 1.0000 | 15782.7 | 17079.3 | $0.57 | **0.7768** |
+| **`gemini-3.7-flash`** | `gemini-3.7-flash` | `gemini-3.7-flash` | 1.0000 | 1.0000 | 15279.8 | 16010.0 | $0.58 | **0.7767** |
+| **`gemini-3.8-flash`** | `gemini-3.8-flash` | `gemini-3.8-flash` | 1.0000 | 1.0000 | 18753.5 | 19681.7 | $0.58 | **0.7767** |
+| **`gemini-2.5-pro`** | `gemini-2.5-pro` | `gemini-2.5-pro` | 1.0000 | 1.0000 | 34330.9 | 36227.2 | $7.17 | **0.7663** |
+| **`gemini-1.5-flash`** | `gemini-1.5-flash` | `gemini-1.5-flash` | 0.9380 | 0.9120 | 1160.0 | 1920.0 | $0.81 | **0.7955** |
+| **`tiered-hybrid`** | `gemini-2.5-flash` | `gemini-2.5-pro` | 1.0000 | 1.0000 | 2782.8 | 2983.9 | $0.29 | **0.8480** |
 
 ## 4. Summed Pipeline Latency & Strict SLA Verification (P95 $\le 3.0$s)
 

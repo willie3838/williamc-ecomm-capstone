@@ -68,6 +68,13 @@ def compute_spec_accuracy(
     response: CompareResponse,
 ) -> tuple[float, list[str]]:
     """Compute exact and normalized technical spec match accuracy against catalog ground truth."""
+    if not expected_skus:
+        if not response.products:
+            return 1.0, []
+        return 0.0, [
+            f"Expected 0 products for negative query, but agent returned {len(response.products)} products."
+        ]
+
     if not response.products:
         return 0.0, ["No products returned by agent."]
 
@@ -131,6 +138,15 @@ def compute_citation_faithfulness(
     response: CompareResponse,
 ) -> tuple[float, list[str]]:
     """Evaluate presence, validity, and traceability of [SKU: ...] citations."""
+    if not expected_skus:
+        summary_text = response.summary or ""
+        inline_citations = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", summary_text)
+        if not response.citations and not inline_citations:
+            return 1.0, []
+        return 0.0, [
+            f"Expected 0 citations for negative query, but found {len(response.citations)} citations and {len(inline_citations)} inline citations."
+        ]
+
     errors: list[str] = []
     score_components = []
 
@@ -369,8 +385,15 @@ def run_benchmark(
             expected_set = set(expected_skus)
             retrieved_set = set(retrieved_skus)
             intersection = expected_set & retrieved_set
-            precision = len(intersection) / max(1, len(retrieved_set))
-            recall = len(intersection) / max(1, len(expected_set))
+            if not expected_set and not retrieved_set:
+                precision = 1.0
+                recall = 1.0
+            elif not expected_set and retrieved_set:
+                precision = 0.0
+                recall = 0.0
+            else:
+                precision = len(intersection) / max(1, len(retrieved_set))
+                recall = len(intersection) / max(1, len(expected_set))
 
             # 2. Data accuracy
             accuracy, acc_errs = compute_spec_accuracy(expected_skus, ground_truth_specs, response)
@@ -518,7 +541,11 @@ def run_benchmark(
     report = {
         "metadata": {
             "timestamp": datetime.now(UTC).isoformat(),
-            "dataset": str(dataset_path),
+            "dataset": (
+                str(dataset_path.relative_to(REPO_ROOT))
+                if dataset_path.is_relative_to(REPO_ROOT)
+                else str(dataset_path)
+            ),
             "judge_model": judge_model,
             "mode": "live" if live else "hermetic",
             "total_cases": len(cases),

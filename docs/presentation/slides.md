@@ -275,7 +275,7 @@ The TechBuy Retailers Catalog Comparison Agent delivers verifiable, grounded int
 
 | ID | What `SPEC.md` Originally Prescribed (Baseline) | Why the `SPEC.md` Baseline Failed / Was Insufficient | Our True Architectural Decision (Engineered Beyond `SPEC.md`) |
 | :- | :--- | :--- | :--- |
-| **`D1`** | Single `ADK Root Agent` calling `query_catalog` then synthesizing (`SPEC.md:222-228`) | Calls BigQuery & generates matrices even on insults/rants (*"this is a stupid laptop"*); prompt crowding degrades tool accuracy. | **4-Node Cooperative Pipeline (`MultiAgentCoordinator`)**: `QueryIntent` $\rightarrow$ `CatalogRetrieval` $\rightarrow$ `RelevanceDetector` ($\ge 6.0$ gate) $\rightarrow$ `SpecComparison`. |
+| **`D1`** | Single `ADK Root Agent` calling `query_catalog` then synthesizing (`SPEC.md:222-228`) | Calls BigQuery & generates matrices even on insults/rants (*"this is a stupid laptop"*); prompt crowding degrades tool accuracy. | **4-Node Cooperative Pipeline (3 LLM Agents + 1 Deterministic SQL Step)**: `QueryIntent` $\rightarrow$ `CatalogRetrievalStep` (deterministic SQL + 3-layer SKU dedup) $\rightarrow$ `RelevanceDetector` ($\ge 6.0$ gate) $\rightarrow$ `SpecComparison`. |
 | **`D2`** | Use `Gemini 2.5 Pro` for agent reasoning & synthesis (`SPEC.md:126, 227`) | Two sequential `Gemini 2.5 Pro` turns hit **`3.48s` P95 latency**—breaching `SPEC.md`'s own `<= 3.0s` SLA—and cost `$2.45/1k`. | **Tiered-Hybrid Routing (`ADR-004`)**: `Flash` (`T=0.0`, `thinking_budget=0`) for Stage 1/2 + `Pro` (`T=0.1`) for Stage 3 (**`2.18s` P95**, **65.3% cheaper**). |
 | **`D3`** | *"Return Markdown Report / Markdown comparison table"* (`SPEC.md:228, 264`) | Free-form LLM Markdown misaligns columns, drops `[SKU: ...]` tags, and declares false winners across incompatible categories. | **Pydantic `ComparisonSynthesis` Schema + Deterministic `MatrixRow` Builder + Post-Generation `verify_and_scrub_sku_citations()`**. |
 | **`D4`** | Basic SQL parameterization & IAM (`SPEC.md:289, 330`); zero LLM guardrail design | Sequential pre-flight `Model Armor` REST checks added `400–700ms` latency; FastAPI middleware missed ADK Playground tool turns. | **Concurrent Pre-Flight Model Armor over Pooled HTTP Keep-Alive (`ThreadPoolExecutor`)** + Dual-Plane (`locations/us` & `us-central1`) + `CatalogAdkLlm` hook. |
@@ -290,12 +290,12 @@ The TechBuy Retailers Catalog Comparison Agent delivers verifiable, grounded int
 ## Appendix Slide A2: Decisions `D1` & `D2` — 4-Node Pipeline & Empirical Tiered Routing
 **Focus**: How We Fixed `SPEC.md`'s Single-Agent `Gemini 2.5 Pro` Latency SLA Violation (`3.48s` $\rightarrow$ `2.18s`)
 
-### Decision `D1`: Why We Replaced `SPEC.md`'s Single `ADK Root Agent` with 4 Specialist Nodes
+### Decision `D1`: Why We Replaced `SPEC.md`'s Single `ADK Root Agent` with 3 LLM Agents + 1 Deterministic SQL Step
 - **What `SPEC.md` Drew**: `FastAPI -> ADK Root Agent -> query_catalog -> Gemini 2.5 Pro -> Markdown Report`.
 - **What Happened in Practice**: When a shopper typed *"this is a stupid laptop"* or *"Apple is overpriced"*, a single agent extracted `"laptop"`/`"Apple"`, queried BigQuery, and rendered a full comparison table for an angry rant.
 - **Our Fix (`MultiAgentCoordinator` in `multi_agent.py`)**:
   1. **`QueryIntentAgent` (`Flash`)**: Structured `QueryIntentAnalysis` classifier; immediately short-circuits `OPINION_OR_CHATTER` in `~300ms` (0 BigQuery bytes scanned).
-  2. **`CatalogRetrievalAgent` (`BigQuery`)**: Enforces 3-layer SKU deduplication (`ingest.py`, SQL `QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1`, `seen_skus`)—solving duplicate catalog feed bugs not addressed in `SPEC.md`'s naive `WHERE name LIKE ANY(...)` query.
+  2. **`CatalogRetrievalStep` (`BigQuery`)**: Pure deterministic SQL execution enforcing 3-layer SKU deduplication (`ingest.py`, SQL `QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1`, `seen_skus`)—solving duplicate catalog feed bugs not addressed in `SPEC.md`'s naive `WHERE name LIKE ANY(...)` query (~550ms, 0 LLM tokens).
   3. **`RelevanceDetectorAgent` (`Flash`)**: Pure LLM reranking ($\ge 6.0$ cutoff) + **Cross-Brand Entity Balancing** (`Brand A` vs `Brand B` on `"Mac vs Dell"`), suppressing the matrix if $<2$ products qualify.
   4. **`SpecComparisonAgent` (`Pro`)**: Synthesizes grounded trade-offs only for verified, balanced candidates.
 

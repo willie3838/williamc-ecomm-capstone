@@ -1,6 +1,6 @@
 # Empirical Foundation Model Decision Scorecard (ADR-004)
 
-- **Generated At**: `2026-10-01T23:52:06.448544+00:00`
+- **Generated At**: `2026-10-02T01:18:45.320145+00:00`
 - **Benchmark Corpus**: `80` Golden Comparison Queries (Laptops, Tablets, Headphones, Smart Home, TVs)
 - **Selected Production Architecture**: **`tiered-hybrid`** (`AgentVersionSpec 1.0.0`)
 - **Registered High-QPS Canary**: **`gemini-2.5-flash`** (`AgentVersionSpec 1.1.0-flash`)
@@ -11,17 +11,17 @@
 
 | Candidate Architecture | Turn 1 / Turn 2 Routing | Data Accuracy ($\ge 0.98$) | Citation Faithfulness ($\ge 0.95$) | Schema Validity ($1.00$) | P50 / P95 Latency ($\le 3.00$s) | Unit Cost ($/1k Queries) | Synthesis Quality (1-5) | SLA Gate | Composite Score | Verdict |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`gemini-1.5-flash`** | `gemini-1.5-flash` $\rightarrow$ `gemini-1.5-flash` | `1.000` | `1.000` | `1.00` | `1.06s` / `1.80s` | `$0.80` | `3.60 / 5.0` | **PASS** | **`89.62`** | `VIABLE_FALLBACK` |
-| **`gemini-3.5-flash-lite`** | `gemini-3.5-flash-lite` $\rightarrow$ `gemini-3.5-flash-lite` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.13s` | `$0.71` | `4.22 / 5.0` | **FAIL** | **`31.84`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-3.1-flash-lite`** | `gemini-3.1-flash-lite` $\rightarrow$ `gemini-3.1-flash-lite` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.13s` | `$0.71` | `4.18 / 5.0` | **FAIL** | **`31.69`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-2.5-flash-lite`** | `gemini-2.5-flash-lite` $\rightarrow$ `gemini-2.5-flash-lite` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.14s` | `$0.71` | `4.10 / 5.0` | **FAIL** | **`31.39`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-3.8-flash`** | `gemini-3.8-flash` $\rightarrow$ `gemini-3.8-flash` | `0.875` | `0.958` | `1.00` | `0.06s` / `0.14s` | `$1.42` | `4.58 / 5.0` | **FAIL** | **`31.22`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-3.7-flash`** | `gemini-3.7-flash` $\rightarrow$ `gemini-3.7-flash` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.14s` | `$1.42` | `4.55 / 5.0` | **FAIL** | **`31.11`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-3.6-flash`** | `gemini-3.6-flash` $\rightarrow$ `gemini-3.6-flash` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.14s` | `$1.42` | `4.52 / 5.0` | **FAIL** | **`31.00`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-3.5-flash`** | `gemini-3.5-flash` $\rightarrow$ `gemini-3.5-flash` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.14s` | `$1.42` | `4.48 / 5.0` | **FAIL** | **`30.85`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-2.5-flash`** | `gemini-2.5-flash` $\rightarrow$ `gemini-2.5-flash` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.13s` | `$1.42` | `4.35 / 5.0` | **FAIL** | **`30.36`** | `SLA_VIOLATION_QUALITY` |
-| **`gemini-2.5-pro`** | `gemini-2.5-pro` $\rightarrow$ `gemini-2.5-pro` | `0.875` | `0.958` | `1.00` | `0.06s` / `0.14s` | `$21.88` | `4.88 / 5.0` | **FAIL** | **`28.00`** | `SLA_VIOLATION_QUALITY` |
-| **`tiered-hybrid`** | `gemini-3.5-flash` $\rightarrow$ `gemini-2.5-pro` | `0.875` | `0.958` | `1.00` | `0.05s` / `0.13s` | `$6.00` | `4.84 / 5.0` | **FAIL** | **`27.85`** | `SLA_VIOLATION_QUALITY` |
+| **`tiered-hybrid`** | `gemini-3.5-flash` $\rightarrow$ `gemini-2.5-pro` | `1.000` | `1.000` | `1.00` | `2.78s` / `2.98s` | `$0.29` | `4.84 / 5.0` | **PASS** | **`90.95`** | `PRODUCTION_SELECTED` |
+| **`gemini-2.5-flash-lite`** | `gemini-2.5-flash-lite` $\rightarrow$ `gemini-2.5-flash-lite` | `1.000` | `1.000` | `1.00` | `2.63s` / `3.00s` | `$0.29` | `4.10 / 5.0` | **PASS** | **`88.11`** | `VIABLE_FALLBACK` |
+| **`gemini-3.5-flash-lite`** | `gemini-3.5-flash-lite` $\rightarrow$ `gemini-3.5-flash-lite` | `1.000` | `1.000` | `1.00` | `3.23s` / `3.45s` | `$0.31` | `4.22 / 5.0` | **FAIL** | **`61.69`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-3.8-flash`** | `gemini-3.8-flash` $\rightarrow$ `gemini-3.8-flash` | `1.000` | `1.000` | `1.00` | `18.75s` / `19.68s` | `$0.58` | `4.58 / 5.0` | **FAIL** | **`60.09`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-3.7-flash`** | `gemini-3.7-flash` $\rightarrow$ `gemini-3.7-flash` | `1.000` | `1.000` | `1.00` | `15.28s` / `16.01s` | `$0.58` | `4.55 / 5.0` | **FAIL** | **`59.98`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-3.6-flash`** | `gemini-3.6-flash` $\rightarrow$ `gemini-3.6-flash` | `1.000` | `1.000` | `1.00` | `15.78s` / `17.08s` | `$0.57` | `4.52 / 5.0` | **FAIL** | **`59.90`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-3.5-flash`** | `gemini-3.5-flash` $\rightarrow$ `gemini-3.5-flash` | `1.000` | `1.000` | `1.00` | `20.40s` / `21.71s` | `$0.60` | `4.48 / 5.0` | **FAIL** | **`59.67`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-3.1-flash-lite`** | `gemini-3.1-flash-lite` $\rightarrow$ `gemini-3.1-flash-lite` | `1.000` | `1.000` | `1.00` | `3.90s` / `4.45s` | `$0.31` | `4.18 / 5.0` | **FAIL** | **`59.35`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-2.5-flash`** | `gemini-2.5-flash` $\rightarrow$ `gemini-2.5-flash` | `1.000` | `1.000` | `1.00` | `5.57s` / `5.85s` | `$0.63` | `4.35 / 5.0` | **FAIL** | **`59.10`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-2.5-pro`** | `gemini-2.5-pro` $\rightarrow$ `gemini-2.5-pro` | `1.000` | `1.000` | `1.00` | `34.33s` / `36.23s` | `$7.17` | `4.88 / 5.0` | **FAIL** | **`54.55`** | `SLA_VIOLATION_LATENCY` |
+| **`gemini-1.5-flash`** | `gemini-1.5-flash` $\rightarrow$ `gemini-1.5-flash` | `0.938` | `0.912` | `1.00` | `1.16s` / `1.92s` | `$0.81` | `3.60 / 5.0` | **FAIL** | **`11.59`** | `SLA_VIOLATION_QUALITY` |
 
 ---
 
