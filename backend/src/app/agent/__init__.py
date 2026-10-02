@@ -5,6 +5,13 @@ from typing import TYPE_CHECKING, Any
 from app.agent.prompts import SYSTEM_INSTRUCTION
 
 if TYPE_CHECKING:
+    from app.agent.compaction import (
+        SUMMARY_BANNER_PREFIX,
+        CatalogAnchoredEventSummarizer,
+        flush_events_to_memory_before_compaction,
+        prune_tool_outputs,
+        prune_tool_outputs_callback,
+    )
     from app.agent.multi_agent import (
         CatalogRetrievalAgent,
         ComparisonAgentState,
@@ -24,6 +31,7 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "CatalogAnchoredEventSummarizer",
     "CatalogRetrievalAgent",
     "ComparisonAgentState",
     "ComparisonOrchestrator",
@@ -31,12 +39,16 @@ __all__ = [
     "QueryIntentAgent",
     "RelevanceDetectorAgent",
     "RelevanceRerankerAgent",
+    "SUMMARY_BANNER_PREFIX",
     "SYSTEM_INSTRUCTION",
     "SpecComparisonAgent",
     "catalog_agent",
     "catalog_runner",
     "create_catalog_runner",
+    "flush_events_to_memory_before_compaction",
     "get_adk_runner",
+    "prune_tool_outputs",
+    "prune_tool_outputs_callback",
     "root_agent",
     "run_adk_agent",
 ]
@@ -78,6 +90,19 @@ def __getattr__(name: str) -> Any:
         from app.agent import runner
 
         val = getattr(runner, name)
+        globals()[name] = val
+        return val
+
+    if name in {
+        "CatalogAnchoredEventSummarizer",
+        "SUMMARY_BANNER_PREFIX",
+        "flush_events_to_memory_before_compaction",
+        "prune_tool_outputs",
+        "prune_tool_outputs_callback",
+    }:
+        from app.agent import compaction
+
+        val = getattr(compaction, name)
         globals()[name] = val
         return val
 

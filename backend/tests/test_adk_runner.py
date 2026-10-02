@@ -377,8 +377,13 @@ class TestADKRunnerIntegration:
         assert isinstance(runner.app.events_compaction_config, EventsCompactionConfig)
         assert runner.app.events_compaction_config.token_threshold == 32000
         assert runner.app.events_compaction_config.event_retention_size == 5
-        assert runner.app.events_compaction_config.compaction_interval == 8
-        assert runner.app.events_compaction_config.overlap_size == 2
+        assert runner.app.events_compaction_config.compaction_interval is None
+        assert runner.app.events_compaction_config.overlap_size is None
+        from app.agent.compaction import CatalogAnchoredEventSummarizer
+
+        assert isinstance(
+            runner.app.events_compaction_config.summarizer, CatalogAnchoredEventSummarizer
+        )
 
         assert runner.app.resumability_config is not None
         assert isinstance(runner.app.resumability_config, ResumabilityConfig)

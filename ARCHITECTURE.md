@@ -705,13 +705,18 @@ sequenceDiagram
 1. **`get_adk_runner(...) -> CatalogAdkRunner`**:
    - Configures a `CatalogAdkRunner` (derived from `google.adk.runners.InMemoryRunner`).
    - Injects `session_service=CatalogVertexAiSessionService()` and `memory_service=CatalogVertexAiMemoryBankService()`.
-   - Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2, summarizer=LlmEventSummarizer(CatalogAdkLlm('gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`.
-2. **`CatalogVertexAiSessionService` & `CatalogVertexAiMemoryBankService`**:
+   - Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=None, overlap_size=None, summarizer=CatalogAnchoredEventSummarizer(CatalogAdkLlm('gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`. Compaction triggers lazily strictly when `prompt_token_count >= 32000`, preventing premature turn-interval summarization.
+2. **3-Tier Lazy Context Compaction Pipeline (`app.agent.compaction`)**:
+   - **Tier 1 (Deterministic Tool-Output Pruning)**: `prune_tool_outputs` and `prune_tool_outputs_callback` walk `session.events` newest-to-oldest, protect the last 3 user turns (`protect_user_turns=3`), protect `protect_token_budget=8000`, and protect `preload_memory` tool outputs, while pruning bulky older `query_catalog` function_response payloads into lightweight `{sku, name, price}` stubs with `pruned: True`.
+   - **Tier 2 (Pre-Compaction Memory Bank Flush)**: `flush_events_to_memory_before_compaction` executes a best-effort flush of raw events into `CatalogVertexAiMemoryBankService.add_events_to_memory` immediately before summarization so customer facts and preferences remain indexed in long-term memory.
+   - **Tier 3 (Catalog-Anchored Structured Event Summarizer)**: `CatalogAnchoredEventSummarizer(LlmEventSummarizer)` extracts deterministic `[SKU: ...]` identifiers and prices, enforces a 5-section structured Markdown template (`### 1. Active Products & SKUs`, `### 2. Customer Constraints & Preferences`, `### 3. Key Spec Trade-offs & Winners`, `### 4. Recommendations Given`, `### 5. Open Follow-up Questions`), supports rolling `<previous-summary>` merges, and prepends `SUMMARY_BANNER_PREFIX = "[CONTEXT COMPACTION — REFERENCE ONLY]"`.
+3. **`CatalogVertexAiSessionService` & `CatalogVertexAiMemoryBankService`**:
    - Operates against Vertex AI Agent Engine (`projects/{project}/locations/{location}/reasoningEngines/{agent_engine_id}`).
    - Automatically resolves `agent_engine_id` from `backend/deployment_metadata.json` (`2445220951441276928`) when `GOOGLE_CLOUD_AGENT_ENGINE_ID` is unset.
    - Provides seamless in-memory fallback during offline testing and hermetic CI validation.
-3. **`PreloadMemoryTool` & `generate_memories_callback`**:
+4. **`PreloadMemoryTool` & `generate_memories_callback`**:
    - `create_adk_agent()` equips `google.adk.tools.preload_memory_tool.PreloadMemoryTool` to inject relevant prior preferences.
+   - Configures `before_model_callback=prune_tool_outputs_callback` for pre-turn Tier 1 pruning.
    - Configures `after_agent_callback=generate_memories_callback` invoking `callback_context.add_session_to_memory()` to auto-ingest user preferences into the memory bank.
 4. **`ReasoningEngineContextSpecMemoryBankConfig` (`app.agent.memory_config`)**:
    - Declares native Vertex AI Reasoning Engine memory bank configuration for deployment via `cli_deploy.to_agent_engine`.

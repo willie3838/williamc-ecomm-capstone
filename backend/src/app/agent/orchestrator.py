@@ -295,14 +295,22 @@ def create_adk_agent(
     synthesis_model: str | None = None,
     name: str = "catalog_comparison_orchestrator",
     instruction: str = SYSTEM_INSTRUCTION,
+    before_model_callback: Any = None,
 ) -> Agent:
     """Factory to instantiate a Google ADK Agent with dynamic model swappability and memory tools."""
+    from app.agent.compaction import prune_tool_outputs_callback
+
     _, resolved_synthesis, _ = resolve_model_pair(model=model, synthesis_model=synthesis_model)
     return Agent(
         name=name,
         model=resolved_synthesis,
         instruction=instruction,
         tools=[query_catalog, PreloadMemoryTool()],
+        before_model_callback=(
+            before_model_callback
+            if before_model_callback is not None
+            else prune_tool_outputs_callback
+        ),
         after_agent_callback=generate_memories_callback,
     )
 
@@ -2625,6 +2633,28 @@ def _persist_chat_session_and_memory(
         )
         await session_service.append_event(session=sess, event=user_event)
         await session_service.append_event(session=sess, event=model_event)
+
+        # Tier 1 deterministic stale tool-output pruning
+        from app.agent.compaction import prune_tool_outputs
+
+        try:
+            prune_tool_outputs(sess)
+        except Exception as p_exc:
+            logger.debug("Tier 1 tool-output pruning note: %s", p_exc)
+
+        # ADK token-threshold compaction check
+        from google.adk.apps.compaction import _run_compaction_for_token_threshold
+
+        from app.agent.runner import catalog_app
+
+        try:
+            await _run_compaction_for_token_threshold(
+                app=catalog_app,
+                session=sess,
+                session_service=session_service,
+            )
+        except Exception as c_exc:
+            logger.debug("ADK token-threshold compaction check note: %s", c_exc)
 
         # Ingest session into memory bank
         await memory_service.add_session_to_memory(sess)
