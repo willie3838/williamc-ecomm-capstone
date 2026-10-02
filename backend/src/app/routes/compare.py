@@ -33,20 +33,22 @@ logger = logging.getLogger(__name__)
 _COORDINATOR_CACHE: dict[tuple[str | None, str | None], Any] = {}
 _COORDINATOR_LOCK = threading.Lock()
 _REQUEST_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=80, thread_name_prefix="api-worker"
+    max_workers=300, thread_name_prefix="api-worker"
 )
 _CHAT_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=64, thread_name_prefix="chat-worker"
+    max_workers=200, thread_name_prefix="chat-worker"
 )
 _CATALOG_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=32, thread_name_prefix="catalog-worker"
+    max_workers=128, thread_name_prefix="catalog-worker"
 )
 _ANALYTICS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=64, thread_name_prefix="analytics-worker"
+    max_workers=256, thread_name_prefix="analytics-worker"
 )
 _TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=32, thread_name_prefix="telemetry-bg"
+    max_workers=64, thread_name_prefix="telemetry-bg"
 )
+_CATALOG_RESPONSE_CACHE: dict[tuple[Any, ...], tuple[float, CatalogResponse]] = {}
+_CATALOG_CACHE_LOCK = threading.Lock()
 
 
 def resolve_iap_user_id(http_request: Request | None, explicit_user_id: str | None = None) -> str:
@@ -411,7 +413,8 @@ def _record_telemetry_sync(
                 query=request.query,
                 category=request.category,
                 target_skus=[p.sku for p in result.products],
-            )
+            ),
+            from_background=True,
         )
     analytics_service.record_query_telemetry(
         query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
@@ -590,6 +593,14 @@ def _fetch_catalog_sync(
 
     from app.tools.catalog import query_catalog
 
+    cache_key = ((category or "").strip().lower(), min_price, max_price, limit)
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        now_ts = time.monotonic()
+        with _CATALOG_CACHE_LOCK:
+            cached = _CATALOG_RESPONSE_CACHE.get(cache_key)
+            if cached is not None and (now_ts - cached[0]) < 60.0:
+                return cached[1]
+
     # 1. Attempt query_catalog with category or broad wildcard
     keywords = (
         [category]
@@ -657,11 +668,17 @@ def _fetch_catalog_sync(
                 logger.warning("Failed loading seed catalog fallback: %s", read_err)
 
     validated_products = [ProductSpec.model_validate(p) for p in raw_products]
-    return CatalogResponse(
+    resp = CatalogResponse(
         products=validated_products,
         total_count=len(validated_products),
         category=category,
     )
+    if not os.environ.get("PYTEST_CURRENT_TEST") and validated_products:
+        with _CATALOG_CACHE_LOCK:
+            if len(_CATALOG_RESPONSE_CACHE) >= 256:
+                _CATALOG_RESPONSE_CACHE.clear()
+            _CATALOG_RESPONSE_CACHE[cache_key] = (time.monotonic(), resp)
+    return resp
 
 
 @router.get(
@@ -678,6 +695,13 @@ async def list_catalog(
     limit: int = 50,
 ) -> CatalogResponse:
     """Browse verified product catalog grounded in BigQuery with category and price filters."""
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        cache_key = ((category or "").strip().lower(), min_price, max_price, limit)
+        now_ts = time.monotonic()
+        with _CATALOG_CACHE_LOCK:
+            cached = _CATALOG_RESPONSE_CACHE.get(cache_key)
+            if cached is not None and (now_ts - cached[0]) < 60.0:
+                return cached[1]
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         _CATALOG_EXECUTOR,

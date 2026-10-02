@@ -10,8 +10,6 @@ Implements specialized cooperative agents under the Google ADK framework:
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
 import logging
 import re
 import time
@@ -653,12 +651,9 @@ class MultiAgentCoordinator:
                     )
                 return sess
 
-            try:
-                asyncio.get_running_loop()
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    session = pool.submit(lambda: asyncio.run(_init_session())).result(timeout=10.0)
-            except RuntimeError:
-                session = asyncio.run(_init_session())
+            from app.agent.orchestrator import _run_async_safely
+
+            session = _run_async_safely(_init_session)
 
             # Node 1: Query Intent Extraction & Security Sanitization
             t0 = time.perf_counter()

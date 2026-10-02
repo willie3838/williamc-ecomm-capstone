@@ -50,11 +50,20 @@ def _get_shared_vertex_client(location: str = "us-central1") -> genai.Client:
     with _CLIENT_LOCK:
         if location not in _VERTEX_CLIENTS:
             os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            _VERTEX_CLIENTS[location] = genai.Client(
+            client = genai.Client(
                 vertexai=True,
                 project=settings.gcp_project,
                 location=location,
             )
+            if (
+                _SHARED_GCP_CREDS is not None
+                and getattr(_SHARED_GCP_CREDS, "valid", False)
+                and not os.environ.get("PYTEST_CURRENT_TEST")
+                and not hasattr(genai.Client, "assert_called")
+                and hasattr(client, "_api_client")
+            ):
+                client._api_client._credentials = _SHARED_GCP_CREDS
+            _VERTEX_CLIENTS[location] = client
         if location == "us-central1":
             _SHARED_VERTEX_CLIENT = _VERTEX_CLIENTS[location]
         return _VERTEX_CLIENTS[location]
@@ -126,17 +135,26 @@ def _warm_vertex_client_and_auth() -> None:
             creds.refresh(Request())
         _SHARED_GCP_CREDS = creds
         if _SHARED_MA_SESSION is None:
+            from requests.adapters import HTTPAdapter
+
             _SHARED_MA_SESSION = requests.Session()
+            _ma_adapter = HTTPAdapter(pool_connections=256, pool_maxsize=256)
+            _SHARED_MA_SESSION.mount("https://", _ma_adapter)
+            _SHARED_MA_SESSION.mount("http://", _ma_adapter)
         from app.tools.catalog import _get_shared_bq_client
 
         bq_client = _get_shared_bq_client()
 
         def _warm_vertex() -> None:
             try:
+                for loc in ("global", "us-central1", "us-east4", "us-west1"):
+                    c = _get_shared_vertex_client(location=loc)
+                    if hasattr(c, "_api_client"):
+                        c._api_client._credentials = creds
                 from app.agent.orchestrator import get_model_armor_config
 
                 v_client.models.generate_content(
-                    model="gemini-2.5-flash-lite",
+                    model="gemini-2.5-flash",
                     contents="{}",
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
@@ -229,7 +247,12 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
         if not getattr(_SHARED_GCP_CREDS, "valid", False):
             _SHARED_GCP_CREDS.refresh(Request())
         if _SHARED_MA_SESSION is None:
+            from requests.adapters import HTTPAdapter
+
             _SHARED_MA_SESSION = requests.Session()
+            _ma_adapter = HTTPAdapter(pool_connections=256, pool_maxsize=256)
+            _SHARED_MA_SESSION.mount("https://", _ma_adapter)
+            _SHARED_MA_SESSION.mount("http://", _ma_adapter)
         project_id = settings.gcp_project
         region = settings.region or "us-central1"
         url = (

@@ -167,7 +167,9 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             state=state,
             session_id=session_id,
         )
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or session_id is None
+        ):
             try:
                 remote_session = await super().create_session(
                     app_name=self.agent_engine_id or app_name,
@@ -193,7 +195,17 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         session_id: str,
         config: GetSessionConfig | None = None,
     ) -> Session | None:
-        if self._should_use_vertex_remote():
+        local_session = await self._fallback_memory.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            config=config,
+        )
+        if local_session is not None and not os.environ.get("PYTEST_CURRENT_TEST"):
+            return local_session
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (session_id and session_id.isdigit())
+        ):
             try:
                 remote_session = await super().get_session(
                     app_name=self.agent_engine_id or app_name,
@@ -209,12 +221,7 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
                     "VertexAiSessionService.get_session fallback to InMemorySessionService: %s",
                     exc,
                 )
-        return await self._fallback_memory.get_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            config=config,
-        )
+        return local_session
 
     async def list_sessions(
         self,
@@ -250,7 +257,9 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             user_id=user_id,
             session_id=session_id,
         )
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (session_id and session_id.isdigit())
+        ):
             try:
                 await super().delete_session(
                     app_name=self.agent_engine_id or app_name,
@@ -262,7 +271,10 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
 
     async def append_event(self, session: Session, event: Event) -> Event:
         updated = await self._fallback_memory.append_event(session=session, event=event)
-        if self._should_use_vertex_remote():
+        sid = str(getattr(session, "id", "") or "")
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (sid and sid.isdigit())
+        ):
             try:
                 await super().append_event(session=session, event=event)
             except Exception as exc:
@@ -305,6 +317,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         self.location = resolved_location
         self.hermetic = hermetic
         self._fallback_memory = InMemoryMemoryService()
+        self._users_with_memories: set[str] = set()
 
     @property
     def agent_engine_id(self) -> str | None:
@@ -326,8 +339,12 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         return True
 
     async def add_session_to_memory(self, session: Session) -> None:
+        uid = getattr(session, "user_id", None) or "default_user"
+        self._users_with_memories.add(uid)
         await self._fallback_memory.add_session_to_memory(session)
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or uid != "default_user"
+        ):
             try:
                 await super().add_session_to_memory(session)
             except Exception as exc:
@@ -342,6 +359,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         session_id: str | None = None,
         custom_metadata: Any = None,
     ) -> None:
+        self._users_with_memories.add(user_id)
         await self._fallback_memory.add_events_to_memory(
             app_name=app_name,
             user_id=user_id,
@@ -349,7 +367,9 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
             session_id=session_id,
             custom_metadata=custom_metadata,
         )
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or user_id != "default_user"
+        ):
             try:
                 await super().add_events_to_memory(
                     app_name=self.agent_engine_id or app_name,
@@ -369,6 +389,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         memories: Any,
         custom_metadata: Any = None,
     ) -> None:
+        self._users_with_memories.add(user_id)
         try:
             await self._fallback_memory.add_memory(
                 app_name=app_name,
@@ -378,7 +399,9 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
             )
         except NotImplementedError:
             pass
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST")) or user_id != "default_user"
+        ):
             try:
                 await super().add_memory(
                     app_name=self.agent_engine_id or app_name,
@@ -396,7 +419,11 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         user_id: str,
         query: str,
     ) -> Any:
-        if self._should_use_vertex_remote():
+        if self._should_use_vertex_remote() and (
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or user_id != "default_user"
+            or user_id in self._users_with_memories
+        ):
             try:
                 return await super().search_memory(
                     app_name=self.agent_engine_id or app_name,

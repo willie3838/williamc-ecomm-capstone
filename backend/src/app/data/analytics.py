@@ -14,9 +14,14 @@ from app.observability.logging import scrub_pii
 logger = logging.getLogger("app.analytics")
 
 _FIRESTORE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=64,
+    max_workers=256,
     thread_name_prefix="firestore-io",
 )
+_BG_FIRESTORE_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=64,
+    thread_name_prefix="firestore-bg",
+)
+_FIRESTORE_POOL_SIZE = 16
 _MAX_LOCAL_SESSIONS = 10000
 
 
@@ -30,6 +35,8 @@ class AnalyticsService:
         disable_cloud_clients: bool = False,
     ) -> None:
         self._firestore_client = firestore_client
+        self._firestore_pool: list[firestore.Client] = []
+        self._firestore_rr_idx = 0
         self._bq_client = bq_client
         self._disable_cloud_clients = disable_cloud_clients
         self._local_session_counts: dict[str, int] = {}
@@ -52,10 +59,10 @@ class AnalyticsService:
             return current
 
     def get_firestore_client(self) -> firestore.Client | None:
-        """Lazily initialize Firestore client with graceful fallback if unavailable."""
+        """Lazily initialize Firestore client pool (16 gRPC channels) with graceful fallback if unavailable."""
         if self._disable_cloud_clients:
             return None
-        if self._firestore_client is not None:
+        if self._firestore_client is not None and not self._firestore_pool:
             return self._firestore_client
         if os.getenv("PYTEST_CURRENT_TEST"):
             return None
@@ -64,12 +71,39 @@ class AnalyticsService:
         if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
             return None
 
+        if self._firestore_pool:
+            with self._client_lock:
+                client = self._firestore_pool[self._firestore_rr_idx % len(self._firestore_pool)]
+                self._firestore_rr_idx += 1
+                return client
+
         with self._client_lock:
+            if self._firestore_pool:
+                client = self._firestore_pool[self._firestore_rr_idx % len(self._firestore_pool)]
+                self._firestore_rr_idx += 1
+                return client
             if self._firestore_client is not None:
                 return self._firestore_client
             try:
-                self._firestore_client = firestore.Client(project=settings.gcp_project)
-                return self._firestore_client
+                first_client = firestore.Client(project=settings.gcp_project)
+                self._firestore_client = first_client
+                shared_creds = getattr(first_client, "_credentials", None)
+                pool = [first_client]
+                for _ in range(_FIRESTORE_POOL_SIZE - 1):
+                    try:
+                        if shared_creds is not None:
+                            pool.append(
+                                firestore.Client(
+                                    project=settings.gcp_project,
+                                    credentials=shared_creds,
+                                )
+                            )
+                        else:
+                            pool.append(firestore.Client(project=settings.gcp_project))
+                    except Exception:
+                        break
+                self._firestore_pool = pool
+                return first_client
             except Exception as e:
                 logger.warning(
                     "Firestore client initialization failed (analytics will be mocked/skipped): %s",
@@ -110,7 +144,9 @@ class AnalyticsService:
                 logger.warning("BigQuery client initialization failed for telemetry: %s", e)
                 return None
 
-    def record_user_action(self, action: UserActionRequest) -> str | None:
+    def record_user_action(
+        self, action: UserActionRequest, *, from_background: bool = False
+    ) -> str | None:
         """Log user action to Firestore collection 'user_actions' with PII redaction."""
         scrubbed_query = scrub_pii(action.query) if action.query else action.query
         doc_data: dict[str, Any] = {
@@ -131,7 +167,8 @@ class AnalyticsService:
                     _, doc_ref = client.collection("user_actions").add(doc_data)
                     return doc_ref.id
 
-                future = _FIRESTORE_EXECUTOR.submit(_do_add)
+                pool = _BG_FIRESTORE_EXECUTOR if from_background else _FIRESTORE_EXECUTOR
+                future = pool.submit(_do_add)
                 doc_id = future.result(timeout=6.0)
                 logger.info(
                     "Recorded user action '%s' in Firestore (doc: %s)",
@@ -208,7 +245,7 @@ class AnalyticsService:
                         )
                         return 1
 
-                future = _FIRESTORE_EXECUTOR.submit(_do_increment)
+                future = _BG_FIRESTORE_EXECUTOR.submit(_do_increment)
                 count = future.result(timeout=6.0)
                 return self._increment_local_session(session_id, value=count)
             except Exception as e:

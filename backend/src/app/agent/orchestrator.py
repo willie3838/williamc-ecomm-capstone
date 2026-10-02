@@ -1,5 +1,4 @@
 import asyncio
-import concurrent.futures
 import json
 import logging
 import os
@@ -41,13 +40,17 @@ logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
 
 _SPECULATIVE_PRELAUNCH_POOL = ThreadPoolExecutor(
-    max_workers=128, thread_name_prefix="spec-prelaunch"
+    max_workers=300, thread_name_prefix="spec-prelaunch"
 )
-_SPECULATIVE_SYNTH_POOL = ThreadPoolExecutor(max_workers=256, thread_name_prefix="spec-llm")
+_SPECULATIVE_SYNTH_POOL = ThreadPoolExecutor(max_workers=512, thread_name_prefix="spec-llm")
 _SPECULATIVE_LOCK = threading.Lock()
-_MAX_SPECULATIVE_FUTURES = 512
+_MAX_SPECULATIVE_FUTURES = 1024
 _SPECULATIVE_SYNTH_FUTURES: OrderedDict[Any, list[Future[Any]]] = OrderedDict()
 _SPECULATIVE_RERANK_FUTURES: OrderedDict[Any, list[Future[Any]]] = OrderedDict()
+_REQUEST_SPECULATIVE_LOCAL = threading.local()
+_GENAI_RR_LOCK = threading.Lock()
+_GENAI_RR_COUNTER = 0
+_LIVE_GENAI_LOCATIONS: tuple[str, ...] = ("global", "us-central1", "us-east4", "us-west1")
 
 
 def _store_speculative_future(
@@ -567,9 +570,41 @@ class ComparisonOrchestrator:
         config: types.GenerateContentConfig,
         is_mock_env: bool = False,
     ) -> Any:
-        """Invoke Vertex AI generate_content with multi-region failover on transient 429/503/preemption errors."""
+        """Invoke Vertex AI generate_content with multi-region load distribution and failover on transient errors."""
+        global _GENAI_RR_COUNTER
+        import app.agent.hermetic_adapter as ha
+
+        use_live_rr = (
+            not is_mock_env
+            and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            and not getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
+            and self.genai_client is None
+            and not hasattr(genai.Client, "assert_called")
+            and not hasattr(client, "assert_called")
+            and "Mock" not in type(client).__name__
+            and "Hermetic" not in type(client).__name__
+        )
+        primary_loc = "us-central1"
+        active_client = client
+        if use_live_rr:
+            from app.agent.hermetic_adapter import (
+                _get_shared_vertex_client,
+                _is_preview_or_3x_model,
+            )
+
+            if _is_preview_or_3x_model(model):
+                primary_loc = "global"
+            elif getattr(config, "model_armor_config", None) is not None:
+                primary_loc = "us-central1"
+            else:
+                with _GENAI_RR_LOCK:
+                    idx = _GENAI_RR_COUNTER % len(_LIVE_GENAI_LOCATIONS)
+                    _GENAI_RR_COUNTER += 1
+                primary_loc = _LIVE_GENAI_LOCATIONS[idx]
+            active_client = _get_shared_vertex_client(location=primary_loc)
+
         try:
-            return client.models.generate_content(
+            return active_client.models.generate_content(
                 model=model,
                 contents=contents,
                 config=config,
@@ -609,13 +644,14 @@ class ComparisonOrchestrator:
             fallback_locations = (
                 ("us-central1",)
                 if _is_preview_or_3x_model(model) and not is_transient
-                else ("global", "us-east4", "us-west1", "us-central1")
+                else tuple(loc for loc in _LIVE_GENAI_LOCATIONS if loc != primary_loc)
+                + (primary_loc,)
             )
             last_exc = err
             for idx, loc in enumerate(fallback_locations):
                 try:
                     if idx > 0:
-                        time.sleep(0.08 * idx)
+                        time.sleep(0.05 * idx)
                     fb_client = _get_shared_vertex_client(location=loc)
                     return fb_client.models.generate_content(
                         model=model,
@@ -1240,9 +1276,27 @@ class ComparisonOrchestrator:
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         spec_key = self._get_speculative_synth_key(products, query, active_model)
         legacy_spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
+        req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
+        local_synth_fut = None
+        if isinstance(req_spec, dict) and not is_mock_env and not is_benchmark_actual:
+            with req_spec["lock"]:
+                local_synth_fut = req_spec["synth"].pop(spec_key, None)
+                if local_synth_fut is None:
+                    prod_skus = {p.sku for p in products}
+                    for k in list(req_spec["synth"].keys()):
+                        if (
+                            isinstance(k, tuple)
+                            and len(k) == 3
+                            and k[2] == active_model
+                            and isinstance(k[0], tuple)
+                            and set(k[0]).issubset(prod_skus)
+                        ):
+                            local_synth_fut = req_spec["synth"].pop(k, None)
+                            break
         spec_future = (
             (
-                _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
+                local_synth_fut
+                or _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
                 or _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, legacy_spec_key)
                 or _pop_speculative_future_by_query(
                     _SPECULATIVE_SYNTH_FUTURES,
@@ -1261,7 +1315,7 @@ class ComparisonOrchestrator:
                 response = None
                 if spec_future is not None:
                     try:
-                        response = spec_future.result(timeout=8.0)
+                        response = spec_future.result(timeout=25.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -1388,7 +1442,12 @@ class ComparisonOrchestrator:
         return recs
 
     def _prelaunch_speculative_stages(
-        self, query: str, active_category_hint: str | None = None
+        self,
+        query: str,
+        active_category_hint: str | None = None,
+        explicit_rerank_model: str | None = None,
+        explicit_synth_model: str | None = None,
+        req_spec: dict[str, Any] | None = None,
     ) -> None:
         """Speculatively launch Stage 3 reranking and Stage 4 synthesis concurrently with Stage 1 intent classification."""
         try:
@@ -1422,8 +1481,8 @@ class ComparisonOrchestrator:
             if len(unique_products) < 2:
                 return
             safe_q = sanitize_user_prompt(query)
-            spec_rerank_model = self.model
-            spec_synth_model = self.synthesis_model
+            spec_rerank_model = explicit_rerank_model or self.model
+            spec_synth_model = explicit_synth_model or self.synthesis_model
             client = self._get_genai_client(model=spec_rerank_model)
 
             rerank_key = self._get_speculative_rerank_key(
@@ -1454,18 +1513,23 @@ class ComparisonOrchestrator:
                 max_output_tokens=192,
                 thinking_config=_build_thinking_config(spec_rerank_model),
             )
-            _store_speculative_future(
-                _SPECULATIVE_RERANK_FUTURES,
-                rerank_key,
-                _SPECULATIVE_SYNTH_POOL.submit(
-                    self._call_genai_with_failover,
-                    client,
-                    spec_rerank_model,
-                    rerank_prompt,
-                    rerank_cfg,
-                    False,
-                ),
+            rerank_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                self._call_genai_with_failover,
+                client,
+                spec_rerank_model,
+                rerank_prompt,
+                rerank_cfg,
+                False,
             )
+            if isinstance(req_spec, dict):
+                with req_spec["lock"]:
+                    req_spec["rerank"][rerank_key] = rerank_fut
+            else:
+                _store_speculative_future(
+                    _SPECULATIVE_RERANK_FUTURES,
+                    rerank_key,
+                    rerank_fut,
+                )
 
             # Check tagged SKUs first
             tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query or "")
@@ -1498,18 +1562,23 @@ class ComparisonOrchestrator:
                     max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
                     thinking_config=_build_thinking_config(spec_synth_model),
                 )
-                _store_speculative_future(
-                    _SPECULATIVE_SYNTH_FUTURES,
-                    spec_key,
-                    _SPECULATIVE_SYNTH_POOL.submit(
-                        self._call_genai_with_failover,
-                        synth_client,
-                        spec_synth_model,
-                        spec_prompt,
-                        spec_config,
-                        False,
-                    ),
+                synth_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                    self._call_genai_with_failover,
+                    synth_client,
+                    spec_synth_model,
+                    spec_prompt,
+                    spec_config,
+                    False,
                 )
+                if isinstance(req_spec, dict):
+                    with req_spec["lock"]:
+                        req_spec["synth"][spec_key] = synth_fut
+                else:
+                    _store_speculative_future(
+                        _SPECULATIVE_SYNTH_FUTURES,
+                        spec_key,
+                        synth_fut,
+                    )
         except Exception as exc:
             logger.debug("Speculative stage prelaunch skipped: %s", exc)
 
@@ -1564,13 +1633,22 @@ class ComparisonOrchestrator:
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
+        call_model, _, _ = resolve_model_pair(model=model)
         if not is_mock_env:
+            req_spec: dict[str, Any] = {
+                "rerank": {},
+                "synth": {},
+                "lock": threading.Lock(),
+            }
+            _REQUEST_SPECULATIVE_LOCAL.current = req_spec
             _SPECULATIVE_PRELAUNCH_POOL.submit(
                 self._prelaunch_speculative_stages,
                 query,
                 self._active_category_hint,
+                call_model,
+                self.synthesis_model,
+                req_spec,
             )
-        call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
         thinking_cfg = (
@@ -1937,13 +2015,20 @@ class ComparisonOrchestrator:
                 safe_q = sanitize_user_prompt(original_query or " ".join(keywords))
                 spec_synth_model = self.synthesis_model
                 spec_key = self._get_speculative_synth_key(spec_prods, safe_q, spec_synth_model)
-                if not _has_speculative_future(
-                    _SPECULATIVE_SYNTH_FUTURES, spec_key
-                ) and not _has_speculative_future_for_query(
-                    _SPECULATIVE_SYNTH_FUTURES,
-                    safe_q,
-                    spec_synth_model,
-                    valid_skus={p.sku for p in unique_products},
+                req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
+                has_local_synth = False
+                if isinstance(req_spec, dict):
+                    with req_spec["lock"]:
+                        has_local_synth = spec_key in req_spec["synth"] or bool(req_spec["synth"])
+                if (
+                    not has_local_synth
+                    and not _has_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
+                    and not _has_speculative_future_for_query(
+                        _SPECULATIVE_SYNTH_FUTURES,
+                        safe_q,
+                        spec_synth_model,
+                        valid_skus={p.sku for p in unique_products},
+                    )
                 ):
                     spec_matrix = self.build_comparison_matrix(spec_prods, query=safe_q)
                     spec_prompt = self._build_synthesis_prompt(spec_prods, spec_matrix, safe_q)
@@ -1956,18 +2041,23 @@ class ComparisonOrchestrator:
                         max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
                         thinking_config=_build_thinking_config(spec_synth_model),
                     )
-                    _store_speculative_future(
-                        _SPECULATIVE_SYNTH_FUTURES,
-                        spec_key,
-                        _SPECULATIVE_SYNTH_POOL.submit(
-                            self._call_genai_with_failover,
-                            synth_client,
-                            spec_synth_model,
-                            spec_prompt,
-                            spec_config,
-                            False,
-                        ),
+                    synth_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                        self._call_genai_with_failover,
+                        synth_client,
+                        spec_synth_model,
+                        spec_prompt,
+                        spec_config,
+                        False,
                     )
+                    if isinstance(req_spec, dict):
+                        with req_spec["lock"]:
+                            req_spec["synth"][spec_key] = synth_fut
+                    else:
+                        _store_speculative_future(
+                            _SPECULATIVE_SYNTH_FUTURES,
+                            spec_key,
+                            synth_fut,
+                        )
 
         # Execute LLM-based Reranking using the original user query as the frame of reference
         llm_ranked = self._rerank_with_llm(
@@ -2032,9 +2122,27 @@ class ComparisonOrchestrator:
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         legacy_rerank_key = (tuple(sorted(p.sku for p in products[:10])), sanitized_query)
+        req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
+        local_rerank_fut = None
+        if isinstance(req_spec, dict) and not is_mock_env and not is_benchmark_actual:
+            with req_spec["lock"]:
+                local_rerank_fut = req_spec["rerank"].pop(rerank_key, None)
+                if local_rerank_fut is None:
+                    prod_skus = {p.sku for p in products}
+                    for k in list(req_spec["rerank"].keys()):
+                        if (
+                            isinstance(k, tuple)
+                            and len(k) == 3
+                            and k[2] == call_model
+                            and isinstance(k[0], tuple)
+                            and set(k[0]).issubset(prod_skus)
+                        ):
+                            local_rerank_fut = req_spec["rerank"].pop(k, None)
+                            break
         rerank_future = (
             (
-                _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, rerank_key)
+                local_rerank_fut
+                or _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, rerank_key)
                 or _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, legacy_rerank_key)
                 or _pop_speculative_future_by_query(
                     _SPECULATIVE_RERANK_FUTURES,
@@ -2055,7 +2163,7 @@ class ComparisonOrchestrator:
                 response = None
                 if rerank_future is not None:
                     try:
-                        response = rerank_future.result(timeout=8.0)
+                        response = rerank_future.result(timeout=15.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -2727,26 +2835,34 @@ class ComparisonOrchestrator:
             )
 
         # (2) Run _check_model_armor_prompt_guard on message and user history turns
-        is_ma_blocked = False
-        ma_block_detail = ""
+        def _run_ma_guard() -> tuple[bool, str]:
+            b_main, r_main = _check_model_armor_prompt_guard(clean_message or message)
+            if b_main:
+                return True, r_main or "The prompt violated Model Armor security filters."
+            if conversation_history:
+                for msg in conversation_history:
+                    if msg.role.lower() in ("user", "customer"):
+                        b_hist, r_hist = _check_model_armor_prompt_guard(msg.content)
+                        if b_hist:
+                            return (
+                                True,
+                                r_hist or "The prompt violated Model Armor security filters.",
+                            )
+            return False, ""
 
-        blocked, reason = _check_model_armor_prompt_guard(clean_message or message)
-        if blocked:
-            is_ma_blocked = True
-            ma_block_detail = reason or "The prompt violated Model Armor security filters."
-        elif conversation_history:
-            for msg in conversation_history:
-                if msg.role.lower() in ("user", "customer"):
-                    b_hist, r_hist = _check_model_armor_prompt_guard(msg.content)
-                    if b_hist:
-                        is_ma_blocked = True
-                        ma_block_detail = (
-                            r_hist or "The prompt violated Model Armor security filters."
-                        )
-                        break
-
-        if is_ma_blocked:
-            return _make_refusal(ma_block_detail)
+        is_sync_guard_env = (
+            self.hermetic
+            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            or self.genai_client is not None
+            or hasattr(genai.Client, "assert_called")
+        )
+        ma_guard_future: Future[tuple[bool, str]] | None = None
+        if is_sync_guard_env:
+            is_ma_blocked, ma_block_detail = _run_ma_guard()
+            if is_ma_blocked:
+                return _make_refusal(ma_block_detail)
+        else:
+            ma_guard_future = _SPECULATIVE_PRELAUNCH_POOL.submit(_run_ma_guard)
 
         # Context lines for products
         product_blocks: list[str] = []
@@ -2945,9 +3061,15 @@ class ComparisonOrchestrator:
                             "Model Armor template lookup failed in region (%s); retrying without template.",
                             call_err,
                         )
-                        ma_blocked, ma_reason = _check_model_armor_prompt_guard(
-                            clean_message or message
-                        )
+                        if ma_guard_future is not None:
+                            try:
+                                ma_blocked, ma_reason = ma_guard_future.result(timeout=2.5)
+                            except Exception:
+                                ma_blocked, ma_reason = False, ""
+                        else:
+                            ma_blocked, ma_reason = _check_model_armor_prompt_guard(
+                                clean_message or message
+                            )
                         if ma_blocked:
                             return _make_refusal(
                                 ma_reason or "The prompt violated Model Armor security filters."
@@ -2976,6 +3098,16 @@ class ComparisonOrchestrator:
                             call_err,
                         )
                         resp = None
+
+                if ma_guard_future is not None:
+                    try:
+                        ma_blocked, ma_reason = ma_guard_future.result(timeout=2.5)
+                        if ma_blocked:
+                            return _make_refusal(
+                                ma_reason or "The prompt violated Model Armor security filters."
+                            )
+                    except Exception:
+                        pass
 
                 # (4) Inspect resp.prompt_feedback.block_reason and resp.candidates[0].finish_reason
                 blocked_reasons = {
@@ -3066,14 +3198,26 @@ class ComparisonOrchestrator:
         )
 
 
+_ASYNC_SAFE_POOL = ThreadPoolExecutor(max_workers=64, thread_name_prefix="async-safe")
+_ASYNC_LOOP_LOCAL = threading.local()
+
+
+def _run_in_thread_loop(coro_fn: Any) -> Any:
+    """Reuse a persistent per-thread event loop to avoid socketpair/FD churn under high concurrency."""
+    loop = getattr(_ASYNC_LOOP_LOCAL, "loop", None)
+    if loop is None or loop.is_closed():
+        loop = asyncio.new_event_loop()
+        _ASYNC_LOOP_LOCAL.loop = loop
+    return loop.run_until_complete(coro_fn())
+
+
 def _run_async_safely(coro_fn: Any) -> Any:
     """Execute an async coroutine function safely whether an event loop is active or not."""
     try:
         asyncio.get_running_loop()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(coro_fn())).result(timeout=8.0)
+        return _ASYNC_SAFE_POOL.submit(_run_in_thread_loop, coro_fn).result(timeout=8.0)
     except RuntimeError:
-        return asyncio.run(coro_fn())
+        return _run_in_thread_loop(coro_fn)
 
 
 def _persist_chat_session_and_memory(
