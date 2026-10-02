@@ -32,6 +32,7 @@ export interface MatrixRow {
   feature: string;
   values: Record<string, string | number | boolean | null>;
   winner_sku?: string | null;
+  winner_skus?: string[] | null;
 }
 
 export interface Citation {

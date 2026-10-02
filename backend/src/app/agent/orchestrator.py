@@ -882,6 +882,7 @@ class ComparisonOrchestrator:
                     feature="Category",
                     values={p.sku: (p.category or "General") for p in products},
                     winner_sku=None,
+                    winner_skus=[],
                 )
             )
 
@@ -889,11 +890,13 @@ class ComparisonOrchestrator:
         price_values = {p.sku: f"${p.price:,.2f}" for p in products}
         min_price = min(p.price for p in products)
         price_winners = [p.sku for p in products if p.price == min_price]
+        price_winner_skus = price_winners if 0 < len(price_winners) < len(products) else []
         rows.append(
             MatrixRow(
                 feature="Price",
                 values=price_values,
                 winner_sku=price_winners[0] if len(price_winners) == 1 else None,
+                winner_skus=price_winner_skus,
             )
         )
 
@@ -908,16 +911,20 @@ class ComparisonOrchestrator:
         }
         valid_ratings = [(p.sku, p.rating) for p in products if p.rating is not None]
         rating_winner = None
+        rating_winners: list[str] = []
         if valid_ratings:
             best_rating = max(r[1] for r in valid_ratings)
             top_raters = [r[0] for r in valid_ratings if r[1] == best_rating]
-            if len(top_raters) == 1:
-                rating_winner = top_raters[0]
+            if 0 < len(top_raters) < len(products):
+                rating_winners = top_raters
+                if len(top_raters) == 1:
+                    rating_winner = top_raters[0]
         rows.append(
             MatrixRow(
                 feature="Customer Rating",
                 values=rating_values,
                 winner_sku=rating_winner,
+                winner_skus=rating_winners,
             )
         )
 
@@ -1034,14 +1041,24 @@ class ComparisonOrchestrator:
                     val_map[p.sku] = str(raw_val)
 
             winner_sku = None
+            winner_skus: list[str] = []
             # Only crown a spec winner when all products share the spec and are comparable
-            if not is_cross_category and len(numeric_vals) == len(products):
+            if len(numeric_vals) == len(products):
                 best_val = max(nv[1] for nv in numeric_vals)
                 best_skus = [nv[0] for nv in numeric_vals if nv[1] == best_val]
-                if len(best_skus) == 1:
-                    winner_sku = best_skus[0]
+                if 0 < len(best_skus) < len(products):
+                    winner_skus = best_skus
+                    if len(best_skus) == 1:
+                        winner_sku = best_skus[0]
 
-            rows.append(MatrixRow(feature=label, values=val_map, winner_sku=winner_sku))
+            rows.append(
+                MatrixRow(
+                    feature=label,
+                    values=val_map,
+                    winner_sku=winner_sku,
+                    winner_skus=winner_skus,
+                )
+            )
 
         return rows
 
