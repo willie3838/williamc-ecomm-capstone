@@ -147,7 +147,7 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_vertex() -> None:
             try:
-                for loc in ("global", "us-central1", "us-east4", "us-west1"):
+                for loc in ("us-central1", "global"):
                     c = _get_shared_vertex_client(location=loc)
                     if hasattr(c, "_api_client"):
                         c._api_client._credentials = creds

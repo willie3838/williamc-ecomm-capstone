@@ -48,9 +48,6 @@ _MAX_SPECULATIVE_FUTURES = 1024
 _SPECULATIVE_SYNTH_FUTURES: OrderedDict[Any, list[Future[Any]]] = OrderedDict()
 _SPECULATIVE_RERANK_FUTURES: OrderedDict[Any, list[Future[Any]]] = OrderedDict()
 _REQUEST_SPECULATIVE_LOCAL = threading.local()
-_GENAI_RR_LOCK = threading.Lock()
-_GENAI_RR_COUNTER = 0
-_LIVE_GENAI_LOCATIONS: tuple[str, ...] = ("global", "us-central1", "us-east4", "us-west1")
 
 
 def _store_speculative_future(
@@ -570,41 +567,9 @@ class ComparisonOrchestrator:
         config: types.GenerateContentConfig,
         is_mock_env: bool = False,
     ) -> Any:
-        """Invoke Vertex AI generate_content with multi-region load distribution and failover on transient errors."""
-        global _GENAI_RR_COUNTER
-        import app.agent.hermetic_adapter as ha
-
-        use_live_rr = (
-            not is_mock_env
-            and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            and not getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
-            and self.genai_client is None
-            and not hasattr(genai.Client, "assert_called")
-            and not hasattr(client, "assert_called")
-            and "Mock" not in type(client).__name__
-            and "Hermetic" not in type(client).__name__
-        )
-        primary_loc = "us-central1"
-        active_client = client
-        if use_live_rr:
-            from app.agent.hermetic_adapter import (
-                _get_shared_vertex_client,
-                _is_preview_or_3x_model,
-            )
-
-            if _is_preview_or_3x_model(model):
-                primary_loc = "global"
-            elif getattr(config, "model_armor_config", None) is not None:
-                primary_loc = "us-central1"
-            else:
-                with _GENAI_RR_LOCK:
-                    idx = _GENAI_RR_COUNTER % len(_LIVE_GENAI_LOCATIONS)
-                    _GENAI_RR_COUNTER += 1
-                primary_loc = _LIVE_GENAI_LOCATIONS[idx]
-            active_client = _get_shared_vertex_client(location=primary_loc)
-
+        """Invoke Vertex AI generate_content in us-central1 with failover on transient errors."""
         try:
-            return active_client.models.generate_content(
+            return client.models.generate_content(
                 model=model,
                 contents=contents,
                 config=config,
@@ -615,19 +580,28 @@ class ComparisonOrchestrator:
                 _is_preview_or_3x_model,
             )
 
-            if is_mock_env:
-                if _is_preview_or_3x_model(model):
+            if _is_preview_or_3x_model(model):
+                if is_mock_env:
                     fb_client = _get_shared_vertex_client(location="us-central1")
                     return fb_client.models.generate_content(
                         model=model,
                         contents=contents,
                         config=config,
                     )
-                raise err
+                logger.info(
+                    "Model %s call on global endpoint failed (%s); failing over to us-central1",
+                    model,
+                    err,
+                )
+                fb_client = _get_shared_vertex_client(location="us-central1")
+                return fb_client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
 
-            err_low = str(err).lower()
-            is_transient = any(
-                tok in err_low
+            if not is_mock_env and any(
+                tok in str(err).lower()
                 for tok in (
                     "429",
                     "resource_exhausted",
@@ -637,30 +611,15 @@ class ComparisonOrchestrator:
                     "deadline",
                     "overloaded",
                 )
-            )
-            if not is_transient and not _is_preview_or_3x_model(model):
-                raise err
-
-            fallback_locations = (
-                ("us-central1",)
-                if _is_preview_or_3x_model(model) and not is_transient
-                else tuple(loc for loc in _LIVE_GENAI_LOCATIONS if loc != primary_loc)
-                + (primary_loc,)
-            )
-            last_exc = err
-            for idx, loc in enumerate(fallback_locations):
-                try:
-                    if idx > 0:
-                        time.sleep(0.05 * idx)
-                    fb_client = _get_shared_vertex_client(location=loc)
-                    return fb_client.models.generate_content(
-                        model=model,
-                        contents=contents,
-                        config=config,
-                    )
-                except Exception as fb_err:
-                    last_exc = fb_err
-            raise last_exc from err
+            ):
+                time.sleep(0.1)
+                fb_client = _get_shared_vertex_client(location="us-central1")
+                return fb_client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
+            raise err
 
     @staticmethod
     def _infer_category_from_query(query: str) -> str | None:
