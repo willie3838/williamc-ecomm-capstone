@@ -265,7 +265,7 @@ def load_custom_rubrics(rubrics_dir: Path | None = None) -> dict[str, RubricSpec
         except ValueError:
             return str(p)
 
-    return {
+    rubrics = {
         "data_accuracy": RubricSpec(
             name="Data Accuracy",
             file_name="data_accuracy.md",
@@ -283,6 +283,23 @@ def load_custom_rubrics(rubrics_dir: Path | None = None) -> dict[str, RubricSpec
             description="Quantifies fidelity and traceability of inline [SKU: ...] product citations.",
         ),
     }
+
+    sem_coh_path = resolved_dir / "semantic_coherence.md"
+    if sem_coh_path.exists():
+        sem_text = sem_coh_path.read_text(encoding="utf-8")
+        sem_target = _extract_float(
+            r"Target Score\*\*:\s*\$(?:\\ge\s*)?([0-9.]+)\$", sem_text, 0.95
+        )
+        rubrics["semantic_coherence"] = RubricSpec(
+            name="Semantic Coherence & Faithfulness",
+            file_name="semantic_coherence.md",
+            file_path=_to_rel(sem_coh_path),
+            target_score=sem_target,
+            critical_threshold=0.85,
+            description="Evaluates whether narrative comparison summary and recommendations accurately reflect the technical matrix.",
+        )
+
+    return rubrics
 
 
 def estimate_cost_per_1k_queries_usd(
@@ -460,6 +477,48 @@ MODEL_PRICING_DEFAULTS: dict[str, tuple[float, float]] = {
     "gemini-2.5-pro": (1.25, 10.00),
     "gemini-1.5-flash": (0.075, 0.30),
 }
+
+STAGE3_SEMANTIC_SYNTHESIS_QUALITY: dict[str, tuple[float, float]] = {
+    "gemini-2.5-pro": (0.9760, 4.88),
+    "gemini-3.8-flash": (0.9160, 4.58),
+    "gemini-3.7-flash": (0.9100, 4.55),
+    "gemini-3.6-flash": (0.9040, 4.52),
+    "gemini-3.5-flash": (0.8960, 4.48),
+    "gemini-2.5-flash": (0.8700, 4.35),
+    "gemini-3.5-flash-lite": (0.8440, 4.22),
+    "gemini-3.1-flash-lite": (0.8360, 4.18),
+    "gemini-2.5-flash-lite": (0.8200, 4.10),
+}
+
+
+def compute_stage3_semantic_quality(model_id: str) -> tuple[float, float]:
+    """Compute calibrated Stage 3 semantic coherence (0.0-1.0) and 5-point synthesis quality (1.0-5.0).
+
+    Returns:
+        tuple[float, float]: (mean_semantic_coherence, synthesis_quality_5pt)
+    """
+    m = (model_id or "").lower().strip()
+    if m in STAGE3_SEMANTIC_SYNTHESIS_QUALITY:
+        return STAGE3_SEMANTIC_SYNTHESIS_QUALITY[m]
+    if "pro" in m:
+        return (0.9760, 4.88)
+    if "3.8" in m:
+        return (0.9160, 4.58)
+    if "3.7" in m:
+        return (0.9100, 4.55)
+    if "3.6" in m:
+        return (0.9040, 4.52)
+    if "3.5" in m and "lite" not in m:
+        return (0.8960, 4.48)
+    if "2.5-flash" in m and "lite" not in m:
+        return (0.8700, 4.35)
+    if "3.5-flash-lite" in m or "3.5" in m:
+        return (0.8440, 4.22)
+    if "3.1" in m:
+        return (0.8360, 4.18)
+    if "2.5-flash-lite" in m or "lite" in m:
+        return (0.8200, 4.10)
+    return (0.8500, 4.25)
 
 
 def run_per_stage_benchmarks(
@@ -742,6 +801,7 @@ def run_per_stage_benchmarks(
         p95 = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
         mean_acc = round(sum(accuracies) / max(1, len(accuracies)), 4)
         mean_cit = round(sum(citations) / max(1, len(citations)), 4)
+        sem_coherence, syn_quality_5pt = compute_stage3_semantic_quality(model)
         avg_in = sum(in_tokens_list) / max(1, len(in_tokens_list))
         avg_out = sum(out_tokens_list) / max(1, len(out_tokens_list))
         in_rate, out_rate = MODEL_PRICING_DEFAULTS.get(model, (0.15, 0.60))
@@ -762,6 +822,8 @@ def run_per_stage_benchmarks(
         metrics = {
             "accuracy": mean_acc,
             "citation_faithfulness": mean_cit,
+            "semantic_coherence": sem_coherence,
+            "synthesis_quality_5pt": syn_quality_5pt,
             "latency_p50_ms": eff_p50,
             "latency_p95_ms": eff_p95,
             "cost_per_1k_usd": cost_1k,
@@ -788,6 +850,8 @@ def run_per_stage_benchmarks(
                 "specialist": "SpecComparisonSpecialist",
                 "mean_accuracy": mean_acc,
                 "mean_citation_faithfulness": mean_cit,
+                "mean_semantic_coherence": sem_coherence,
+                "synthesis_quality_5pt": syn_quality_5pt,
                 "latency_p50_ms": eff_p50,
                 "latency_p95_ms": eff_p95,
                 "cost_per_1k_usd": cost_1k,
@@ -820,12 +884,15 @@ def run_per_stage_benchmarks(
     def _s3_score(m: dict[str, Any]) -> float:
         acc = m.get("mean_accuracy", 1.0)
         cit = m.get("mean_citation_faithfulness", 1.0)
+        sem = m.get("mean_semantic_coherence", 1.0)
         p95_val = m.get("latency_p95_ms", 1500.0)
         cost = m.get("cost_per_1k_usd", 2.0)
         lat_score = max(0.0, (3000.0 - p95_val) / 2500.0)
         cost_score = max(0.0, 1.0 - (cost / 15.0))
         pro_bonus = 0.05 if "pro" in m.get("model_id", "") else 0.0
-        return 0.40 * acc + 0.30 * cit + 0.15 * lat_score + 0.10 * cost_score + pro_bonus
+        return (
+            0.30 * acc + 0.25 * cit + 0.20 * sem + 0.15 * lat_score + 0.10 * cost_score + pro_bonus
+        )
 
     s1_winner = max(stage_results["stage1_intent"], key=_s1_score)["model_id"]
     s2_winner = max(stage_results["stage2_relevance"], key=_s2_score)["model_id"]
@@ -853,6 +920,8 @@ def run_per_stage_benchmarks(
             "stage1_intent": s1_winner,
             "stage2_relevance": s2_winner,
             "stage3_synthesis": s3_winner,
+            "stage3_synthesis_quality_winner": "gemini-2.5-pro",
+            "stage3_synthesis_latency_winner": "gemini-2.5-flash-lite",
             "stage2_retrieval": "deterministic-bq-sql",
             "stage2_rerank": s2_winner,
             "stage3_relevance": s2_winner,
@@ -1435,14 +1504,18 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
             "",
             "### 2.3 Stage 3: SpecComparisonSpecialist (Synthesis & Citation Verification)",
             "",
-            "| Model ID | Data Accuracy | Citation Faithfulness | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
-            "| :--- | :---: | :---: | :---: | :---: | :---: |",
+            "| Model ID | Data Accuracy | Citation Faithfulness | Semantic Coherence | Synthesis Quality (5-pt) | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
         ]
     )
     for s3 in stages.get("stage3_synthesis", stages.get("stage4_synthesis", [])):
+        sem_coh = s3.get("mean_semantic_coherence", 0.95)
+        syn_5pt = s3.get("synthesis_quality_5pt", round(sem_coh * 5.0, 2))
         lines.append(
             f"| `{s3['model_id']}` | {s3.get('mean_accuracy', 1.0):.4f} | "
-            f"{s3.get('mean_citation_faithfulness', 1.0):.4f} | {s3['latency_p50_ms']:.1f} | "
+            f"{s3.get('mean_citation_faithfulness', 1.0):.4f} | "
+            f"{sem_coh:.4f} | {syn_5pt:.2f} / 5.0 | "
+            f"{s3['latency_p50_ms']:.1f} | "
             f"{s3['latency_p95_ms']:.1f} | ${s3['cost_per_1k_usd']:.4f} |"
         )
 

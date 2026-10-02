@@ -110,6 +110,26 @@ class Settings(BaseSettings):
         alias="GEMINI_MODEL",
         description="Gemini LLM model name for agent synthesis",
     )
+    stage1_intent_model: str = Field(
+        default="gemini-3.5-flash-lite",
+        alias="STAGE1_INTENT_MODEL",
+        description="Stage 1 Query Intent Specialist optimal model",
+    )
+    stage2_relevance_model: str = Field(
+        default="gemini-2.5-flash-lite",
+        alias="STAGE2_RELEVANCE_MODEL",
+        description="Stage 2 Relevance Detector Specialist optimal model",
+    )
+    stage3_synthesis_model: str = Field(
+        default="gemini-2.5-pro",
+        alias="STAGE3_SYNTHESIS_MODEL",
+        description="Stage 3 Spec Comparison Specialist deep quality synthesis model",
+    )
+    stage3_fast_synthesis_model: str = Field(
+        default="gemini-2.5-flash-lite",
+        alias="STAGE3_FAST_SYNTHESIS_MODEL",
+        description="Stage 3 Spec Comparison Specialist low-latency synthesis model",
+    )
     agent_version: str = Field(
         default="1.2.0-tiered",
         alias="AGENT_VERSION",
