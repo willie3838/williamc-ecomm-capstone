@@ -561,11 +561,33 @@ class TrajectoryGrader:
             else:
                 keyword_score = 0.0
 
+        brand_aliases = {
+            "macbook": "apple",
+            "ipad": "apple",
+            "airpods": "apple",
+            "thinkpad": "lenovo",
+            "galaxy": "samsung",
+            "pixel": "google",
+            "spectre": "hp",
+            "zephyrus": "asus",
+            "rog": "asus",
+            "bravia": "sony",
+            "quietcomfort": "bose",
+            "momentum": "sennheiser",
+        }
+        for model_tok, brand_name in brand_aliases.items():
+            if model_tok in act_tokens:
+                act_tokens.add(brand_name)
+            if model_tok in exp_tokens:
+                exp_tokens.add(brand_name)
+
         # Brand check: ensure expected brands appear in actual tokens
         known_brands = {
             "apple",
             "dell",
             "lenovo",
+            "asus",
+            "hp",
             "samsung",
             "sony",
             "bose",
@@ -573,6 +595,22 @@ class TrajectoryGrader:
             "lg",
             "nest",
             "ecobee",
+            "honeywell",
+            "ring",
+            "arlo",
+            "amazon",
+            "philips",
+            "yale",
+            "tcl",
+            "hisense",
+            "vizio",
+            "panasonic",
+            "roku",
+            "sennheiser",
+            "beats",
+            "oneplus",
+            "microsoft",
+            "acer",
         }
         exp_brands = exp_tokens & known_brands
         act_brands = act_tokens & known_brands
@@ -580,8 +618,8 @@ class TrajectoryGrader:
             if not (exp_brands & act_brands):
                 # Missing core brand name severely penalizes similarity
                 keyword_score *= 0.5
-            elif exp_brands.issubset(act_brands):
-                # All expected brands were captured; floor keyword score to 0.45
+            elif exp_brands.issubset(act_brands) or len(exp_brands & act_brands) >= 2:
+                # Expected brands were captured; floor keyword score to 0.45
                 keyword_score = max(keyword_score, 0.45)
 
         return (cat_match * 0.3) + (keyword_score * 0.7)

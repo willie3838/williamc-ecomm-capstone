@@ -235,7 +235,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare Dell XPS 13 and Lenovo ThinkPad X1 Carbon Gen 12 for business travel",
+                "text": "Compare 5 premium ultraportable laptops: Dell XPS 13, Lenovo ThinkPad X1 Carbon, Apple MacBook Air 13, HP Spectre x360, and Microsoft Surface Laptop 7",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -258,7 +258,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] (, processor: Intel Core Ultra 7 155H, battery_life_hours: 14.0, weight_lbs: 2.6) and Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] (, processor: Intel Core Ultra 7 155U, battery_life_hours: 13.5, weight_lbs: 2.42).",
+                "text": "Comparison between Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] ($1,199.00), Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] ($1,499.99), Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] ($1,099.00), HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD [SKU: 6572088] ($1,449.99), Microsoft Surface Laptop 7th Edition 13.8\" Touch-Screen - Snapdragon X Elite - 16GB Memory - 512GB SSD [SKU: 6581910] ($1,299.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -299,40 +299,134 @@
       "category": "Laptops",
       "expected_skus": [
         "6575132",
-        "6579840"
+        "6579840",
+        "6534606",
+        "6572088",
+        "6581910"
       ],
       "key_differential_features": [
+        "price",
         "processor",
-        "weight_lbs",
-        "battery_life_hours",
-        "ports"
+        "battery_life",
+        "weight"
       ],
       "ground_truth_specs": {
         "6575132": {
-          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
-          "brand": "Dell",
-          "price": 1199.0,
           "processor": "Intel Core Ultra 7 155H",
-          "weight_lbs": 2.6,
+          "ram_gb": 16,
+          "storage_gb": 512,
           "battery_life_hours": 14.0,
+          "weight_lbs": 2.6,
+          "display_size_in": 13.4,
+          "display_resolution": "1920 x 1200 FHD+ InfinityEdge",
+          "refresh_rate_hz": 120,
+          "panel_type": "IPS InfinityEdge Anti-Glare",
+          "gpu": "Intel Arc Graphics",
+          "operating_system": "Windows 11 Home",
+          "connectivity": "Wi-Fi 7 (Intel Killer BE200), Bluetooth 5.4",
+          "webcam": "1080p FHD RGB + IR Windows Hello Camera",
           "ports": [
             "2x Thunderbolt 4"
-          ]
+          ],
+          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Dell",
+          "price": 1199.0
         },
         "6579840": {
-          "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
-          "brand": "Lenovo",
-          "price": 1499.99,
           "processor": "Intel Core Ultra 7 155U",
-          "weight_lbs": 2.42,
+          "ram_gb": 16,
+          "storage_gb": 512,
           "battery_life_hours": 13.5,
+          "weight_lbs": 2.42,
+          "display_size_in": 14.0,
+          "display_resolution": "1920 x 1200 IPS Anti-Glare",
+          "refresh_rate_hz": 60,
+          "panel_type": "IPS Low-Power Anti-Glare 400 nits",
+          "gpu": "Intel Graphics",
+          "operating_system": "Windows 11 Pro",
+          "connectivity": "Wi-Fi 6E (Intel AX211), Bluetooth 5.3",
+          "webcam": "1080p FHD IR Camera with Privacy Shutter",
           "ports": [
             "2x Thunderbolt 4",
             "2x USB-A 3.2",
             "HDMI 2.1"
-          ]
+          ],
+          "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Lenovo",
+          "price": 1499.99
+        },
+        "6534606": {
+          "processor": "Apple M3 8-core",
+          "ram_gb": 16,
+          "storage_gb": 512,
+          "battery_life_hours": 18.0,
+          "weight_lbs": 2.7,
+          "display_size_in": 13.6,
+          "display_resolution": "2560 x 1664 Liquid Retina Display",
+          "refresh_rate_hz": 60,
+          "panel_type": "IPS Liquid Retina with True Tone",
+          "gpu": "10-core GPU",
+          "operating_system": "macOS Sonoma",
+          "connectivity": "Wi-Fi 6E (802.11ax), Bluetooth 5.3",
+          "webcam": "1080p FaceTime HD Camera",
+          "ports": [
+            "MagSafe 3",
+            "2x Thunderbolt 4 / USB4",
+            "3.5mm Headphone Jack"
+          ],
+          "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+          "brand": "Apple",
+          "price": 1099.0
+        },
+        "6572088": {
+          "processor": "Intel Core Ultra 5 125H",
+          "ram_gb": 16,
+          "storage_gb": 1000,
+          "battery_life_hours": 13.0,
+          "weight_lbs": 3.19,
+          "display_size_in": 14.0,
+          "display_resolution": "2880 x 1800 2.8K OLED Touch",
+          "refresh_rate_hz": 120,
+          "panel_type": "OLED Touch with Corning Gorilla Glass NBT",
+          "gpu": "Intel Arc Graphics",
+          "operating_system": "Windows 11 Home",
+          "connectivity": "Wi-Fi 7, Bluetooth 5.4",
+          "webcam": "9MP IR GlamCam with Hardware Kill Switch",
+          "ports": [
+            "2x Thunderbolt 4 / USB4",
+            "1x USB-A 3.2",
+            "3.5mm Audio Combo"
+          ],
+          "name": "HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD",
+          "brand": "HP",
+          "price": 1449.99
+        },
+        "6581910": {
+          "processor": "Qualcomm Snapdragon X Elite 12-core",
+          "ram_gb": 16,
+          "storage_gb": 512,
+          "battery_life_hours": 20.0,
+          "weight_lbs": 2.96,
+          "display_size_in": 13.8,
+          "display_resolution": "2304 x 1536 PixelSense Flow Touch",
+          "refresh_rate_hz": 120,
+          "panel_type": "IPS Touch with Dolby Vision IQ",
+          "gpu": "Qualcomm Adreno GPU",
+          "operating_system": "Windows 11 Home (ARM64 Copilot+)",
+          "connectivity": "Wi-Fi 7, Bluetooth 5.4",
+          "webcam": "1080p Full HD Surface Studio Camera",
+          "ports": [
+            "2x USB4 / Thunderbolt 4",
+            "1x USB-A 3.1",
+            "Surface Connect",
+            "3.5mm Headphone Jack"
+          ],
+          "name": "Microsoft Surface Laptop 7th Edition 13.8\" Touch-Screen - Snapdragon X Elite - 16GB Memory - 512GB SSD",
+          "brand": "Microsoft",
+          "price": 1299.99
         }
-      }
+      },
+      "query": "Compare 5 premium ultraportable laptops: Dell XPS 13, Lenovo ThinkPad X1 Carbon, Apple MacBook Air 13, HP Spectre x360, and Microsoft Surface Laptop 7"
     },
     {
       "eval_id": "laptop-004",
@@ -1330,7 +1424,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Price and processor breakdown: MacBook Air 13 M3 vs Dell XPS 13 Core Ultra 7",
+                "text": "Compare Apple MacBook Air 13 M3, Dell XPS 13, and Lenovo ThinkPad X1 Carbon Gen 12",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1353,7 +1447,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] (, processor: Apple M3 8-core, ram_gb: 16) and Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] (, processor: Intel Core Ultra 7 155H, ram_gb: 16).",
+                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] ($1,099.00), Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] ($1,199.00), and Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] ($1,499.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1394,13 +1488,14 @@
       "category": "Laptops",
       "expected_skus": [
         "6534606",
-        "6575132"
+        "6575132",
+        "6579840"
       ],
       "key_differential_features": [
         "processor",
-        "price",
         "ram_gb",
-        "storage_gb"
+        "battery_life_hours",
+        "weight_lbs"
       ],
       "ground_truth_specs": {
         "6534606": {
@@ -1409,7 +1504,8 @@
           "price": 1099.0,
           "processor": "Apple M3 8-core",
           "ram_gb": 16,
-          "storage_gb": 512
+          "battery_life_hours": 18.0,
+          "weight_lbs": 2.7
         },
         "6575132": {
           "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
@@ -1417,7 +1513,17 @@
           "price": 1199.0,
           "processor": "Intel Core Ultra 7 155H",
           "ram_gb": 16,
-          "storage_gb": 512
+          "battery_life_hours": 14.0,
+          "weight_lbs": 2.6
+        },
+        "6579840": {
+          "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Lenovo",
+          "price": 1499.99,
+          "processor": "Intel Core Ultra 7 155U",
+          "ram_gb": 16,
+          "battery_life_hours": 13.5,
+          "weight_lbs": 2.42
         }
       }
     },
@@ -1436,7 +1542,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "MacBook Air 13 M3 vs MacBook Pro 14 M3 Pro display size and memory comparison",
+                "text": "Compare MacBook Pro 14 M3 Pro, ASUS ROG Zephyrus G14, and HP Spectre x360",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1459,7 +1565,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] (, ram_gb: 16, display_resolution: 2560 x 1664 Liquid Retina Display) and Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD [SKU: 6534640] (, ram_gb: 18, display_resolution: 3024 x 1964 Liquid Retina XDR).",
+                "text": "Comparison between Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD [SKU: 6534640] ($1,799.00), ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD [SKU: 6570214] ($1,599.99), and HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD [SKU: 6572088] ($1,449.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1499,31 +1605,43 @@
       "final_session_state": {},
       "category": "Laptops",
       "expected_skus": [
-        "6534606",
-        "6534640"
+        "6534640",
+        "6570214",
+        "6572088"
       ],
       "key_differential_features": [
-        "display_size_in",
+        "processor",
         "ram_gb",
-        "display_resolution",
-        "price"
+        "storage_gb",
+        "weight_lbs"
       ],
       "ground_truth_specs": {
-        "6534606": {
-          "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
-          "brand": "Apple",
-          "price": 1099.0,
-          "display_size_in": 13.6,
-          "ram_gb": 16,
-          "display_resolution": "2560 x 1664 Liquid Retina Display"
-        },
         "6534640": {
           "name": "Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD",
           "brand": "Apple",
           "price": 1799.0,
-          "display_size_in": 14.2,
+          "processor": "Apple M3 Pro 11-core",
           "ram_gb": 18,
-          "display_resolution": "3024 x 1964 Liquid Retina XDR"
+          "storage_gb": 512,
+          "weight_lbs": 3.5
+        },
+        "6570214": {
+          "name": "ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD",
+          "brand": "ASUS",
+          "price": 1599.99,
+          "processor": "AMD Ryzen 9 8945HS 8-core",
+          "ram_gb": 16,
+          "storage_gb": 1000,
+          "weight_lbs": 3.31
+        },
+        "6572088": {
+          "name": "HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD",
+          "brand": "HP",
+          "price": 1449.99,
+          "processor": "Intel Core Ultra 5 125H",
+          "ram_gb": 16,
+          "storage_gb": 1000,
+          "weight_lbs": 3.19
         }
       }
     },
@@ -1542,7 +1660,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare Intel Core Ultra 7 laptops: Dell XPS 13 vs ThinkPad X1 Carbon",
+                "text": "Compare 4 flagship laptops: MacBook Air 13 M3, Dell XPS 13, Lenovo ThinkPad X1 Carbon, and ASUS ROG Zephyrus G14",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1565,113 +1683,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] (, processor: Intel Core Ultra 7 155H, ram_gb: 16, weight_lbs: 2.6) and Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] (, processor: Intel Core Ultra 7 155U, ram_gb: 16, weight_lbs: 2.42).",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "model"
-          },
-          "intermediate_data": {
-            "tool_uses": [
-              {
-                "id": null,
-                "args": {
-                  "category": "Laptops"
-                },
-                "name": "query_catalog",
-                "partial_args": null,
-                "will_continue": null
-              }
-            ],
-            "tool_responses": [],
-            "intermediate_responses": []
-          },
-          "creation_timestamp": 0.0,
-          "rubrics": null,
-          "app_details": null
-        }
-      ],
-      "conversation_scenario": null,
-      "session_input": null,
-      "creation_timestamp": 0.0,
-      "rubrics": null,
-      "final_session_state": {},
-      "category": "Laptops",
-      "expected_skus": [
-        "6575132",
-        "6579840"
-      ],
-      "key_differential_features": [
-        "processor",
-        "ram_gb",
-        "weight_lbs",
-        "price"
-      ],
-      "ground_truth_specs": {
-        "6575132": {
-          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
-          "brand": "Dell",
-          "price": 1199.0,
-          "processor": "Intel Core Ultra 7 155H",
-          "ram_gb": 16,
-          "weight_lbs": 2.6
-        },
-        "6579840": {
-          "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
-          "brand": "Lenovo",
-          "price": 1499.99,
-          "processor": "Intel Core Ultra 7 155U",
-          "ram_gb": 16,
-          "weight_lbs": 2.42
-        }
-      }
-    },
-    {
-      "eval_id": "laptop-016",
-      "conversation": [
-        {
-          "invocation_id": "inv-laptop-016",
-          "user_content": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Which laptop has better battery life: MacBook Air 13 M3 or Lenovo ThinkPad X1 Carbon?",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "user"
-          },
-          "final_response": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] (, battery_life_hours: 18.0, weight_lbs: 2.7) and Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] (, battery_life_hours: 13.5, weight_lbs: 2.42).",
+                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] ($1,099.00), Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] ($1,199.00), Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] ($1,499.99), and ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD [SKU: 6570214] ($1,599.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1712,30 +1724,190 @@
       "category": "Laptops",
       "expected_skus": [
         "6534606",
-        "6579840"
+        "6575132",
+        "6579840",
+        "6570214"
       ],
       "key_differential_features": [
+        "processor",
+        "ram_gb",
         "battery_life_hours",
-        "weight_lbs",
-        "price",
-        "operating_system"
+        "weight_lbs"
       ],
       "ground_truth_specs": {
         "6534606": {
           "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
           "brand": "Apple",
           "price": 1099.0,
+          "processor": "Apple M3 8-core",
+          "ram_gb": 16,
           "battery_life_hours": 18.0,
-          "weight_lbs": 2.7,
-          "operating_system": "macOS Sonoma"
+          "weight_lbs": 2.7
+        },
+        "6575132": {
+          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Dell",
+          "price": 1199.0,
+          "processor": "Intel Core Ultra 7 155H",
+          "ram_gb": 16,
+          "battery_life_hours": 14.0,
+          "weight_lbs": 2.6
         },
         "6579840": {
           "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
           "brand": "Lenovo",
           "price": 1499.99,
+          "processor": "Intel Core Ultra 7 155U",
+          "ram_gb": 16,
           "battery_life_hours": 13.5,
-          "weight_lbs": 2.42,
-          "operating_system": "Windows 11 Pro"
+          "weight_lbs": 2.42
+        },
+        "6570214": {
+          "name": "ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD",
+          "brand": "ASUS",
+          "price": 1599.99,
+          "processor": "AMD Ryzen 9 8945HS 8-core",
+          "ram_gb": 16,
+          "battery_life_hours": 10.5,
+          "weight_lbs": 3.31
+        }
+      }
+    },
+    {
+      "eval_id": "laptop-016",
+      "conversation": [
+        {
+          "invocation_id": "inv-laptop-016",
+          "user_content": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Compare 5 ultraportable laptops: Apple MacBook Air 13 M3, Dell XPS 13, Lenovo ThinkPad X1 Carbon, HP Spectre x360, and ASUS ROG Zephyrus G14",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Comparison between Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD [SKU: 6534606] ($1,099.00), Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6575132] ($1,199.00), Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD [SKU: 6579840] ($1,499.99), HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD [SKU: 6572088] ($1,449.99), and ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD [SKU: 6570214] ($1,599.99).",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Laptops"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {},
+      "category": "Laptops",
+      "expected_skus": [
+        "6534606",
+        "6575132",
+        "6579840",
+        "6572088",
+        "6570214"
+      ],
+      "key_differential_features": [
+        "processor",
+        "ram_gb",
+        "battery_life_hours",
+        "weight_lbs"
+      ],
+      "ground_truth_specs": {
+        "6534606": {
+          "name": "Apple MacBook Air 13.6\" Laptop - M3 chip - 16GB Memory - 512GB SSD",
+          "brand": "Apple",
+          "price": 1099.0,
+          "processor": "Apple M3 8-core",
+          "ram_gb": 16,
+          "battery_life_hours": 18.0,
+          "weight_lbs": 2.7
+        },
+        "6575132": {
+          "name": "Dell XPS 13\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Dell",
+          "price": 1199.0,
+          "processor": "Intel Core Ultra 7 155H",
+          "ram_gb": 16,
+          "battery_life_hours": 14.0,
+          "weight_lbs": 2.6
+        },
+        "6579840": {
+          "name": "Lenovo ThinkPad X1 Carbon Gen 12 14\" - Intel Core Ultra 7 - 16GB Memory - 512GB SSD",
+          "brand": "Lenovo",
+          "price": 1499.99,
+          "processor": "Intel Core Ultra 7 155U",
+          "ram_gb": 16,
+          "battery_life_hours": 13.5,
+          "weight_lbs": 2.42
+        },
+        "6572088": {
+          "name": "HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD",
+          "brand": "HP",
+          "price": 1449.99,
+          "processor": "Intel Core Ultra 5 125H",
+          "ram_gb": 16,
+          "battery_life_hours": 13.0,
+          "weight_lbs": 3.19
+        },
+        "6570214": {
+          "name": "ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD",
+          "brand": "ASUS",
+          "price": 1599.99,
+          "processor": "AMD Ryzen 9 8945HS 8-core",
+          "ram_gb": 16,
+          "battery_life_hours": 10.5,
+          "weight_lbs": 3.31
         }
       }
     },
@@ -1965,7 +2137,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Samsung Galaxy Tab S9 vs Google Pixel Tablet: specs, battery, and price",
+                "text": "Compare 5 leading tablets: Samsung Galaxy Tab S9, Google Pixel Tablet, Apple iPad Pro 11, Microsoft Surface Pro 11, and OnePlus Pad 2",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -1988,7 +2160,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] (, processor: Qualcomm Snapdragon 8 Gen 2, battery_life_hours: 12.0, display_resolution: 2560 x 1600 Dynamic AMOLED 2X) and Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] (, processor: Google Tensor G2, battery_life_hours: 12.0, display_resolution: 2560 x 1600 LCD).",
+                "text": "Comparison between Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] ($799.99), Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] ($499.00), Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] ($999.00), Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD [SKU: 6582105] ($1,349.99), OnePlus Pad 2 12.1\" 3K 144Hz Display Slate - Snapdragon 8 Gen 3 - 12GB - 256GB [SKU: 6583920] ($549.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -2029,32 +2201,119 @@
       "category": "Tablets",
       "expected_skus": [
         "6546522",
-        "6542951"
+        "6542951",
+        "6579601",
+        "6582105",
+        "6583920"
       ],
       "key_differential_features": [
-        "battery_life_hours",
         "price",
+        "display",
         "processor",
-        "display_resolution"
+        "battery_life"
       ],
       "ground_truth_specs": {
         "6546522": {
+          "processor": "Qualcomm Snapdragon 8 Gen 2",
+          "ram_gb": 8,
+          "storage_gb": 128,
+          "display_resolution": "2560 x 1600 Dynamic AMOLED 2X",
+          "display_size_in": 11.0,
+          "refresh_rate_hz": 120,
+          "panel_type": "Dynamic AMOLED 2X with Vision Booster",
+          "battery_life_hours": 12.0,
+          "weight_lbs": 1.1,
+          "operating_system": "Android 13",
+          "connectivity": "Wi-Fi 6E, Bluetooth 5.3",
+          "ports": [
+            "USB-C 3.2 Gen 1",
+            "MicroSDXC Slot (up to 1TB)"
+          ],
           "name": "Samsung Galaxy Tab S9 11\" AMOLED",
           "brand": "Samsung",
-          "price": 799.99,
-          "battery_life_hours": 12.0,
-          "processor": "Qualcomm Snapdragon 8 Gen 2",
-          "display_resolution": "2560 x 1600 Dynamic AMOLED 2X"
+          "price": 799.99
         },
         "6542951": {
+          "processor": "Google Tensor G2",
+          "ram_gb": 8,
+          "storage_gb": 128,
+          "display_resolution": "2560 x 1600 LCD",
+          "display_size_in": 10.95,
+          "refresh_rate_hz": 60,
+          "panel_type": "IPS LCD with Anti-Smudge Coating",
+          "battery_life_hours": 12.0,
+          "weight_lbs": 1.08,
+          "operating_system": "Android 14",
+          "connectivity": "Wi-Fi 6, Bluetooth 5.2, Ultra-Wideband (UWB)",
+          "ports": [
+            "USB-C 3.2 Gen 1",
+            "4-pin Magnetic Speaker Dock Pogo Connector"
+          ],
           "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
           "brand": "Google",
-          "price": 499.0,
-          "battery_life_hours": 12.0,
-          "processor": "Google Tensor G2",
-          "display_resolution": "2560 x 1600 LCD"
+          "price": 499.0
+        },
+        "6579601": {
+          "processor": "Apple M4 9-core",
+          "ram_gb": 8,
+          "storage_gb": 256,
+          "display_resolution": "2420 x 1668 Ultra Retina XDR OLED",
+          "display_size_in": 11.0,
+          "refresh_rate_hz": 120,
+          "panel_type": "Tandem OLED with ProMotion",
+          "battery_life_hours": 10.0,
+          "weight_lbs": 0.98,
+          "operating_system": "iPadOS 17",
+          "connectivity": "Wi-Fi 6E, Bluetooth 5.3",
+          "ports": [
+            "Thunderbolt / USB4"
+          ],
+          "name": "Apple iPad Pro 11\" OLED - M4 chip",
+          "brand": "Apple",
+          "price": 999.0
+        },
+        "6582105": {
+          "processor": "Qualcomm Snapdragon X Plus 10-core",
+          "ram_gb": 16,
+          "storage_gb": 512,
+          "display_resolution": "2880 x 1920 PixelSense Flow OLED",
+          "display_size_in": 13.0,
+          "refresh_rate_hz": 120,
+          "panel_type": "OLED with Dolby Vision IQ",
+          "battery_life_hours": 14.0,
+          "weight_lbs": 1.97,
+          "operating_system": "Windows 11 Home (ARM64)",
+          "connectivity": "Wi-Fi 7, Bluetooth 5.4",
+          "ports": [
+            "2x USB4 / Thunderbolt 4",
+            "Surface Connect",
+            "Surface Pro Keyboard Magnetic Port"
+          ],
+          "name": "Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD",
+          "brand": "Microsoft",
+          "price": 1349.99
+        },
+        "6583920": {
+          "processor": "Qualcomm Snapdragon 8 Gen 3",
+          "ram_gb": 12,
+          "storage_gb": 256,
+          "display_resolution": "3000 x 2120 3K ReadFit 7:5",
+          "display_size_in": 12.1,
+          "refresh_rate_hz": 144,
+          "panel_type": "IPS LTPS 900-nit Dolby Vision",
+          "battery_life_hours": 13.5,
+          "weight_lbs": 1.29,
+          "operating_system": "OxygenOS 14 (Android 14)",
+          "connectivity": "Wi-Fi 7, Bluetooth 5.4",
+          "ports": [
+            "USB-C 3.2 Gen 1 (67W SUPERVOOC)"
+          ],
+          "name": "OnePlus Pad 2 12.1\" 3K 144Hz Display Slate - Snapdragon 8 Gen 3 - 12GB - 256GB",
+          "brand": "OnePlus",
+          "price": 549.99
         }
-      }
+      },
+      "query": "Compare 5 leading tablets: Samsung Galaxy Tab S9, Google Pixel Tablet, Apple iPad Pro 11, Microsoft Surface Pro 11, and OnePlus Pad 2"
     },
     {
       "eval_id": "tablet-004",
@@ -3006,7 +3265,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Price and storage comparison between Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+                "text": "Compare Apple iPad Pro 11 M4, Samsung Galaxy Tab S9, and Google Pixel Tablet 11",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3029,7 +3288,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] (, ram_gb: 8) and Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] (, ram_gb: 8).",
+                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] ($999.00), Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] ($799.99), and Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] ($499.00).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3070,27 +3329,38 @@
       "category": "Tablets",
       "expected_skus": [
         "6579601",
-        "6546522"
+        "6546522",
+        "6542951"
       ],
       "key_differential_features": [
-        "price",
-        "storage_gb",
-        "ram_gb"
+        "display_resolution",
+        "battery_life_hours",
+        "weight_lbs"
       ],
       "ground_truth_specs": {
         "6579601": {
           "name": "Apple iPad Pro 11\" OLED - M4 chip",
           "brand": "Apple",
           "price": 999.0,
-          "storage_gb": 256,
-          "ram_gb": 8
+          "display_resolution": "2420 x 1668 Ultra Retina XDR OLED",
+          "battery_life_hours": 10.0,
+          "weight_lbs": 0.98
         },
         "6546522": {
           "name": "Samsung Galaxy Tab S9 11\" AMOLED",
           "brand": "Samsung",
           "price": 799.99,
-          "storage_gb": 128,
-          "ram_gb": 8
+          "display_resolution": "2560 x 1600 Dynamic AMOLED 2X",
+          "battery_life_hours": 12.0,
+          "weight_lbs": 1.1
+        },
+        "6542951": {
+          "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
+          "brand": "Google",
+          "price": 499.0,
+          "display_resolution": "2560 x 1600 LCD",
+          "battery_life_hours": 12.0,
+          "weight_lbs": 1.08
         }
       }
     },
@@ -3109,7 +3379,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Which is lighter: Apple iPad Pro 11 M4 or Google Pixel Tablet with Dock?",
+                "text": "Compare Samsung Galaxy Tab S9, Microsoft Surface Pro 11th Edition, and Lenovo Tab P12",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3132,110 +3402,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] (, battery_life_hours: 10.0, weight_lbs: 0.98) and Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] (, battery_life_hours: 12.0, weight_lbs: 1.08).",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "model"
-          },
-          "intermediate_data": {
-            "tool_uses": [
-              {
-                "id": null,
-                "args": {
-                  "category": "Tablets"
-                },
-                "name": "query_catalog",
-                "partial_args": null,
-                "will_continue": null
-              }
-            ],
-            "tool_responses": [],
-            "intermediate_responses": []
-          },
-          "creation_timestamp": 0.0,
-          "rubrics": null,
-          "app_details": null
-        }
-      ],
-      "conversation_scenario": null,
-      "session_input": null,
-      "creation_timestamp": 0.0,
-      "rubrics": null,
-      "final_session_state": {},
-      "category": "Tablets",
-      "expected_skus": [
-        "6579601",
-        "6542951"
-      ],
-      "key_differential_features": [
-        "weight_lbs",
-        "price",
-        "battery_life_hours"
-      ],
-      "ground_truth_specs": {
-        "6579601": {
-          "name": "Apple iPad Pro 11\" OLED - M4 chip",
-          "brand": "Apple",
-          "price": 999.0,
-          "weight_lbs": 0.98,
-          "battery_life_hours": 10.0
-        },
-        "6542951": {
-          "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
-          "brand": "Google",
-          "price": 499.0,
-          "weight_lbs": 1.08,
-          "battery_life_hours": 12.0
-        }
-      }
-    },
-    {
-      "eval_id": "tablet-015",
-      "conversation": [
-        {
-          "invocation_id": "inv-tablet-015",
-          "user_content": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Best Android tablet value: Samsung Tab S9 versus Google Pixel Tablet 11",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "user"
-          },
-          "final_response": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Comparison between Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] (, processor: Qualcomm Snapdragon 8 Gen 2, battery_life_hours: 12.0) and Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] (, processor: Google Tensor G2, battery_life_hours: 12.0).",
+                "text": "Comparison between Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] ($799.99), Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD [SKU: 6582105] ($1,349.99), and Lenovo Tab P12 12.7\" 3K Matte Display Slate - MediaTek Dimensity 7050 - 8GB - 128GB [SKU: 6568419] ($349.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3276,35 +3443,46 @@
       "category": "Tablets",
       "expected_skus": [
         "6546522",
-        "6542951"
+        "6582105",
+        "6568419"
       ],
       "key_differential_features": [
-        "price",
-        "battery_life_hours",
-        "processor"
+        "processor",
+        "ram_gb",
+        "display_resolution"
       ],
       "ground_truth_specs": {
         "6546522": {
           "name": "Samsung Galaxy Tab S9 11\" AMOLED",
           "brand": "Samsung",
           "price": 799.99,
-          "battery_life_hours": 12.0,
-          "processor": "Qualcomm Snapdragon 8 Gen 2"
+          "processor": "Qualcomm Snapdragon 8 Gen 2",
+          "ram_gb": 8,
+          "display_resolution": "2560 x 1600 Dynamic AMOLED 2X"
         },
-        "6542951": {
-          "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
-          "brand": "Google",
-          "price": 499.0,
-          "battery_life_hours": 12.0,
-          "processor": "Google Tensor G2"
+        "6582105": {
+          "name": "Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD",
+          "brand": "Microsoft",
+          "price": 1349.99,
+          "processor": "Qualcomm Snapdragon X Plus 10-core",
+          "ram_gb": 16,
+          "display_resolution": "2880 x 1920 PixelSense Flow OLED"
+        },
+        "6568419": {
+          "name": "Lenovo Tab P12 12.7\" 3K Matte Display Slate - MediaTek Dimensity 7050 - 8GB - 128GB",
+          "brand": "Lenovo",
+          "price": 349.99,
+          "processor": "MediaTek Dimensity 7050 8-core",
+          "ram_gb": 8,
+          "display_resolution": "2944 x 1840 3K LTPS LCD"
         }
       }
     },
     {
-      "eval_id": "tablet-016",
+      "eval_id": "tablet-015",
       "conversation": [
         {
-          "invocation_id": "inv-tablet-016",
+          "invocation_id": "inv-tablet-015",
           "user_content": {
             "parts": [
               {
@@ -3315,7 +3493,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Summary of differences between iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+                "text": "Compare 4 premium slates: iPad Pro 11 M4, Samsung Galaxy Tab S9, Google Pixel Tablet, and Microsoft Surface Pro 11",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3338,7 +3516,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] (, processor: Apple M4 9-core, battery_life_hours: 10.0, display_resolution: 2420 x 1668 Ultra Retina XDR OLED) and Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] (, processor: Qualcomm Snapdragon 8 Gen 2, battery_life_hours: 12.0, display_resolution: 2560 x 1600 Dynamic AMOLED 2X).",
+                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] ($999.00), Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] ($799.99), Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] ($499.00), and Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD [SKU: 6582105] ($1,349.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3379,30 +3557,179 @@
       "category": "Tablets",
       "expected_skus": [
         "6579601",
-        "6546522"
+        "6546522",
+        "6542951",
+        "6582105"
       ],
       "key_differential_features": [
-        "processor",
         "display_resolution",
-        "battery_life_hours",
-        "price"
+        "ram_gb",
+        "battery_life_hours"
       ],
       "ground_truth_specs": {
         "6579601": {
           "name": "Apple iPad Pro 11\" OLED - M4 chip",
           "brand": "Apple",
           "price": 999.0,
-          "processor": "Apple M4 9-core",
           "display_resolution": "2420 x 1668 Ultra Retina XDR OLED",
+          "ram_gb": 8,
           "battery_life_hours": 10.0
         },
         "6546522": {
           "name": "Samsung Galaxy Tab S9 11\" AMOLED",
           "brand": "Samsung",
           "price": 799.99,
-          "processor": "Qualcomm Snapdragon 8 Gen 2",
           "display_resolution": "2560 x 1600 Dynamic AMOLED 2X",
+          "ram_gb": 8,
           "battery_life_hours": 12.0
+        },
+        "6542951": {
+          "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
+          "brand": "Google",
+          "price": 499.0,
+          "display_resolution": "2560 x 1600 LCD",
+          "ram_gb": 8,
+          "battery_life_hours": 12.0
+        },
+        "6582105": {
+          "name": "Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD",
+          "brand": "Microsoft",
+          "price": 1349.99,
+          "display_resolution": "2880 x 1920 PixelSense Flow OLED",
+          "ram_gb": 16,
+          "battery_life_hours": 14.0
+        }
+      }
+    },
+    {
+      "eval_id": "tablet-016",
+      "conversation": [
+        {
+          "invocation_id": "inv-tablet-016",
+          "user_content": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Compare 5 tablets: Apple iPad Pro 11 M4, Samsung Galaxy Tab S9, Google Pixel Tablet, Microsoft Surface Pro 11, and OnePlus Pad 2",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Comparison between Apple iPad Pro 11\" OLED - M4 chip [SKU: 6579601] ($999.00), Samsung Galaxy Tab S9 11\" AMOLED [SKU: 6546522] ($799.99), Google Pixel Tablet 11\" with Charging Speaker Dock [SKU: 6542951] ($499.00), Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD [SKU: 6582105] ($1,349.99), and OnePlus Pad 2 12.1\" 3K 144Hz Display Slate - Snapdragon 8 Gen 3 - 12GB - 256GB [SKU: 6583920] ($549.99).",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Tablets"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {},
+      "category": "Tablets",
+      "expected_skus": [
+        "6579601",
+        "6546522",
+        "6542951",
+        "6582105",
+        "6583920"
+      ],
+      "key_differential_features": [
+        "display_resolution",
+        "ram_gb",
+        "battery_life_hours"
+      ],
+      "ground_truth_specs": {
+        "6579601": {
+          "name": "Apple iPad Pro 11\" OLED - M4 chip",
+          "brand": "Apple",
+          "price": 999.0,
+          "display_resolution": "2420 x 1668 Ultra Retina XDR OLED",
+          "ram_gb": 8,
+          "battery_life_hours": 10.0
+        },
+        "6546522": {
+          "name": "Samsung Galaxy Tab S9 11\" AMOLED",
+          "brand": "Samsung",
+          "price": 799.99,
+          "display_resolution": "2560 x 1600 Dynamic AMOLED 2X",
+          "ram_gb": 8,
+          "battery_life_hours": 12.0
+        },
+        "6542951": {
+          "name": "Google Pixel Tablet 11\" with Charging Speaker Dock",
+          "brand": "Google",
+          "price": 499.0,
+          "display_resolution": "2560 x 1600 LCD",
+          "ram_gb": 8,
+          "battery_life_hours": 12.0
+        },
+        "6582105": {
+          "name": "Microsoft Surface Pro 11th Edition 13\" OLED Copilot+ Slate - Snapdragon X Plus - 16GB - 512GB SSD",
+          "brand": "Microsoft",
+          "price": 1349.99,
+          "display_resolution": "2880 x 1920 PixelSense Flow OLED",
+          "ram_gb": 16,
+          "battery_life_hours": 14.0
+        },
+        "6583920": {
+          "name": "OnePlus Pad 2 12.1\" 3K 144Hz Display Slate - Snapdragon 8 Gen 3 - 12GB - 256GB",
+          "brand": "OnePlus",
+          "price": 549.99,
+          "display_resolution": "3000 x 2120 3K ReadFit 7:5",
+          "ram_gb": 12,
+          "battery_life_hours": 13.5
         }
       }
     },
@@ -3632,7 +3959,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare Bose QuietComfort Ultra and Apple AirPods Max for travel comfort and ANC",
+                "text": "Compare 5 top ANC headphones: Bose QuietComfort Ultra, Apple AirPods Max, Sony WH-1000XM5, Sennheiser Momentum 4, and Beats Studio Pro",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3655,7 +3982,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] (, battery_life_hours: 24.0) and Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] (, battery_life_hours: 20.0).",
+                "text": "Comparison between Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] ($549.00), Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] ($399.99), Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones [SKU: 6519302] ($379.95), Beats Studio Pro Wireless Spatial Audio Over-Ear Headphones [SKU: 6501045] ($349.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -3696,32 +4023,90 @@
       "category": "Headphones",
       "expected_skus": [
         "6553823",
-        "6373460"
+        "6373460",
+        "6505727",
+        "6519302",
+        "6501045"
       ],
       "key_differential_features": [
-        "noise_cancellation",
-        "weight_oz",
-        "battery_life_hours",
-        "price"
+        "price",
+        "battery_life",
+        "anc",
+        "spatial_audio"
       ],
       "ground_truth_specs": {
         "6553823": {
-          "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
-          "brand": "Bose",
-          "price": 429.0,
+          "battery_life_hours": 24.0,
           "noise_cancellation": "CustomTune Active Noise Cancelling",
           "weight_oz": 8.9,
-          "battery_life_hours": 24.0
+          "driver_size_mm": 35,
+          "bluetooth_version": "5.3",
+          "connection_type": "Wireless",
+          "audio_codecs": "aptX Adaptive (Snapdragon Sound), AAC, SBC",
+          "multipoint_pairing": true,
+          "quick_charge": "15 min charge for 2.5 hours playback",
+          "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
+          "brand": "Bose",
+          "price": 429.0
         },
         "6373460": {
-          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
-          "brand": "Apple",
-          "price": 549.0,
+          "battery_life_hours": 20.0,
           "noise_cancellation": "Active Noise Cancellation with Transparency mode",
           "weight_oz": 13.6,
-          "battery_life_hours": 20.0
+          "driver_size_mm": 40,
+          "bluetooth_version": "5.0",
+          "connection_type": "Wireless",
+          "audio_codecs": "AAC, Apple Spatial Audio with Dynamic Head Tracking",
+          "multipoint_pairing": true,
+          "quick_charge": "5 min charge for 1.5 hours listening",
+          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
+          "brand": "Apple",
+          "price": 549.0
+        },
+        "6505727": {
+          "battery_life_hours": 30.0,
+          "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer",
+          "weight_oz": 8.8,
+          "driver_size_mm": 30,
+          "bluetooth_version": "5.2",
+          "connection_type": "Wireless",
+          "audio_codecs": "LDAC, AAC, SBC",
+          "multipoint_pairing": true,
+          "quick_charge": "3 min charge for 3 hours playback (USB-PD)",
+          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
+          "brand": "Sony",
+          "price": 399.99
+        },
+        "6519302": {
+          "battery_life_hours": 60.0,
+          "noise_cancellation": "Hybrid Adaptive ANC with Wind Noise Reduction",
+          "weight_oz": 10.3,
+          "driver_size_mm": 42,
+          "bluetooth_version": "5.2",
+          "connection_type": "Wireless",
+          "audio_codecs": "aptX Adaptive, aptX HD, AAC, SBC",
+          "multipoint_pairing": true,
+          "quick_charge": "10 min charge for 6 hours playback",
+          "name": "Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones",
+          "brand": "Sennheiser",
+          "price": 379.95
+        },
+        "6501045": {
+          "battery_life_hours": 40.0,
+          "noise_cancellation": "Fully Adaptive Active Noise Cancelling",
+          "weight_oz": 9.17,
+          "driver_size_mm": 40,
+          "bluetooth_version": "5.3",
+          "connection_type": "Wireless & USB-C Lossless Wired",
+          "audio_codecs": "AAC, SBC, 24-bit/48kHz USB-C Lossless DAC",
+          "multipoint_pairing": true,
+          "quick_charge": "10 min Fast Fuel for 4 hours playback",
+          "name": "Beats Studio Pro Wireless Spatial Audio Over-Ear Headphones",
+          "brand": "Beats",
+          "price": 349.99
         }
-      }
+      },
+      "query": "Compare 5 top ANC headphones: Bose QuietComfort Ultra, Apple AirPods Max, Sony WH-1000XM5, Sennheiser Momentum 4, and Beats Studio Pro"
     },
     {
       "eval_id": "headphone-004",
@@ -4671,7 +5056,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Price comparison between Sony WH-1000XM5 and Bose QuietComfort Ultra headphones",
+                "text": "Compare Sony WH-1000XM5, Bose QuietComfort Ultra, and Apple AirPods Max",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -4694,7 +5079,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] (, battery_life_hours: 30.0) and Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] (, battery_life_hours: 24.0).",
+                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] ($399.99), Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), and Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] ($549.00).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -4735,12 +5120,13 @@
       "category": "Headphones",
       "expected_skus": [
         "6505727",
-        "6553823"
+        "6553823",
+        "6373460"
       ],
       "key_differential_features": [
-        "price",
         "battery_life_hours",
-        "weight_oz"
+        "weight_oz",
+        "noise_cancellation"
       ],
       "ground_truth_specs": {
         "6505727": {
@@ -4748,14 +5134,24 @@
           "brand": "Sony",
           "price": 399.99,
           "battery_life_hours": 30.0,
-          "weight_oz": 8.8
+          "weight_oz": 8.8,
+          "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer"
         },
         "6553823": {
           "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
           "brand": "Bose",
           "price": 429.0,
           "battery_life_hours": 24.0,
-          "weight_oz": 8.9
+          "weight_oz": 8.9,
+          "noise_cancellation": "CustomTune Active Noise Cancelling"
+        },
+        "6373460": {
+          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
+          "brand": "Apple",
+          "price": 549.0,
+          "battery_life_hours": 20.0,
+          "weight_oz": 13.6,
+          "noise_cancellation": "Active Noise Cancellation with Transparency mode"
         }
       }
     },
@@ -4774,7 +5170,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
+                "text": "Compare Bose QuietComfort Ultra, Apple AirPods Max, and Sennheiser Momentum 4",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -4797,110 +5193,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] (, battery_life_hours: 30.0) and Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] (, battery_life_hours: 20.0).",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "model"
-          },
-          "intermediate_data": {
-            "tool_uses": [
-              {
-                "id": null,
-                "args": {
-                  "category": "Headphones"
-                },
-                "name": "query_catalog",
-                "partial_args": null,
-                "will_continue": null
-              }
-            ],
-            "tool_responses": [],
-            "intermediate_responses": []
-          },
-          "creation_timestamp": 0.0,
-          "rubrics": null,
-          "app_details": null
-        }
-      ],
-      "conversation_scenario": null,
-      "session_input": null,
-      "creation_timestamp": 0.0,
-      "rubrics": null,
-      "final_session_state": {},
-      "category": "Headphones",
-      "expected_skus": [
-        "6505727",
-        "6373460"
-      ],
-      "key_differential_features": [
-        "battery_life_hours",
-        "weight_oz",
-        "price"
-      ],
-      "ground_truth_specs": {
-        "6505727": {
-          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
-          "brand": "Sony",
-          "price": 399.99,
-          "battery_life_hours": 30.0,
-          "weight_oz": 8.8
-        },
-        "6373460": {
-          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
-          "brand": "Apple",
-          "price": 549.0,
-          "battery_life_hours": 20.0,
-          "weight_oz": 13.6
-        }
-      }
-    },
-    {
-      "eval_id": "headphone-015",
-      "conversation": [
-        {
-          "invocation_id": "inv-headphone-015",
-          "user_content": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
-                "thought": null,
-                "thought_signature": null,
-                "video_metadata": null,
-                "tool_call": null,
-                "tool_response": null,
-                "part_metadata": null,
-                "audio_transcription": null,
-                "media_processing": null
-              }
-            ],
-            "role": "user"
-          },
-          "final_response": {
-            "parts": [
-              {
-                "media_resolution": null,
-                "code_execution_result": null,
-                "executable_code": null,
-                "file_data": null,
-                "function_call": null,
-                "function_response": null,
-                "inline_data": null,
-                "text": "Comparison between Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] (, battery_life_hours: 24.0) and Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] (, battery_life_hours: 20.0).",
+                "text": "Comparison between Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] ($549.00), and Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones [SKU: 6519302] ($379.95).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -4941,35 +5234,46 @@
       "category": "Headphones",
       "expected_skus": [
         "6553823",
-        "6373460"
+        "6373460",
+        "6519302"
       ],
       "key_differential_features": [
-        "weight_oz",
         "battery_life_hours",
-        "price"
+        "weight_oz",
+        "driver_size_mm"
       ],
       "ground_truth_specs": {
         "6553823": {
           "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
           "brand": "Bose",
           "price": 429.0,
+          "battery_life_hours": 24.0,
           "weight_oz": 8.9,
-          "battery_life_hours": 24.0
+          "driver_size_mm": 35
         },
         "6373460": {
           "name": "Apple AirPods Max Wireless Over-Ear Headphones",
           "brand": "Apple",
           "price": 549.0,
+          "battery_life_hours": 20.0,
           "weight_oz": 13.6,
-          "battery_life_hours": 20.0
+          "driver_size_mm": 40
+        },
+        "6519302": {
+          "name": "Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones",
+          "brand": "Sennheiser",
+          "price": 379.95,
+          "battery_life_hours": 60.0,
+          "weight_oz": 10.3,
+          "driver_size_mm": 42
         }
       }
     },
     {
-      "eval_id": "headphone-016",
+      "eval_id": "headphone-015",
       "conversation": [
         {
-          "invocation_id": "inv-headphone-016",
+          "invocation_id": "inv-headphone-015",
           "user_content": {
             "parts": [
               {
@@ -4980,7 +5284,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Detailed breakdown of Sony WH-1000XM5 and Bose QuietComfort Ultra specs",
+                "text": "Compare 4 noise-canceling headphones: Sony WH-1000XM5, Bose QuietComfort Ultra, Apple AirPods Max, and Sennheiser Momentum 4",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -5003,7 +5307,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] (, battery_life_hours: 30.0) and Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] (, battery_life_hours: 24.0).",
+                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] ($399.99), Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] ($549.00), and Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones [SKU: 6519302] ($379.95).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -5044,13 +5348,14 @@
       "category": "Headphones",
       "expected_skus": [
         "6505727",
-        "6553823"
+        "6553823",
+        "6373460",
+        "6519302"
       ],
       "key_differential_features": [
         "battery_life_hours",
-        "noise_cancellation",
-        "driver_size_mm",
-        "price"
+        "weight_oz",
+        "noise_cancellation"
       ],
       "ground_truth_specs": {
         "6505727": {
@@ -5058,7 +5363,131 @@
           "brand": "Sony",
           "price": 399.99,
           "battery_life_hours": 30.0,
-          "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer",
+          "weight_oz": 8.8,
+          "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer"
+        },
+        "6553823": {
+          "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
+          "brand": "Bose",
+          "price": 429.0,
+          "battery_life_hours": 24.0,
+          "weight_oz": 8.9,
+          "noise_cancellation": "CustomTune Active Noise Cancelling"
+        },
+        "6373460": {
+          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
+          "brand": "Apple",
+          "price": 549.0,
+          "battery_life_hours": 20.0,
+          "weight_oz": 13.6,
+          "noise_cancellation": "Active Noise Cancellation with Transparency mode"
+        },
+        "6519302": {
+          "name": "Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones",
+          "brand": "Sennheiser",
+          "price": 379.95,
+          "battery_life_hours": 60.0,
+          "weight_oz": 10.3,
+          "noise_cancellation": "Hybrid Adaptive ANC with Wind Noise Reduction"
+        }
+      }
+    },
+    {
+      "eval_id": "headphone-016",
+      "conversation": [
+        {
+          "invocation_id": "inv-headphone-016",
+          "user_content": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Compare 5 wireless ANC headphones: Sony WH-1000XM5, Bose QC Ultra, Apple AirPods Max, Sennheiser Momentum 4, and Beats Studio Pro",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "media_resolution": null,
+                "code_execution_result": null,
+                "executable_code": null,
+                "file_data": null,
+                "function_call": null,
+                "function_response": null,
+                "inline_data": null,
+                "text": "Comparison between Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] ($399.99), Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), Apple AirPods Max Wireless Over-Ear Headphones [SKU: 6373460] ($549.00), Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones [SKU: 6519302] ($379.95), and Beats Studio Pro Wireless Spatial Audio Over-Ear Headphones [SKU: 6501045] ($349.99).",
+                "thought": null,
+                "thought_signature": null,
+                "video_metadata": null,
+                "tool_call": null,
+                "tool_response": null,
+                "part_metadata": null,
+                "audio_transcription": null,
+                "media_processing": null
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Headphones"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {},
+      "category": "Headphones",
+      "expected_skus": [
+        "6505727",
+        "6553823",
+        "6373460",
+        "6519302",
+        "6501045"
+      ],
+      "key_differential_features": [
+        "battery_life_hours",
+        "weight_oz",
+        "driver_size_mm"
+      ],
+      "ground_truth_specs": {
+        "6505727": {
+          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
+          "brand": "Sony",
+          "price": 399.99,
+          "battery_life_hours": 30.0,
+          "weight_oz": 8.8,
           "driver_size_mm": 30
         },
         "6553823": {
@@ -5066,8 +5495,32 @@
           "brand": "Bose",
           "price": 429.0,
           "battery_life_hours": 24.0,
-          "noise_cancellation": "CustomTune Active Noise Cancelling",
+          "weight_oz": 8.9,
           "driver_size_mm": 35
+        },
+        "6373460": {
+          "name": "Apple AirPods Max Wireless Over-Ear Headphones",
+          "brand": "Apple",
+          "price": 549.0,
+          "battery_life_hours": 20.0,
+          "weight_oz": 13.6,
+          "driver_size_mm": 40
+        },
+        "6519302": {
+          "name": "Sennheiser Momentum 4 Wireless Adaptive ANC Over-Ear Headphones",
+          "brand": "Sennheiser",
+          "price": 379.95,
+          "battery_life_hours": 60.0,
+          "weight_oz": 10.3,
+          "driver_size_mm": 42
+        },
+        "6501045": {
+          "name": "Beats Studio Pro Wireless Spatial Audio Over-Ear Headphones",
+          "brand": "Beats",
+          "price": 349.99,
+          "battery_life_hours": 40.0,
+          "weight_oz": 9.17,
+          "driver_size_mm": 40
         }
       }
     },
@@ -5310,7 +5763,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Google Nest Learning Thermostat 4th Gen vs ecobee Smart Thermostat Premium price and sensors",
+                "text": "Compare 5 smart home essentials: Google Nest Thermostat 4th Gen, ecobee Smart Thermostat Premium, Honeywell Home T9, Ring Battery Doorbell Pro, and Arlo Pro 5S",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -5333,7 +5786,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] () and ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ().",
+                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] ($279.99), ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor [SKU: 6562418] ($199.99), Ring Battery Doorbell Pro Wireless 1536p HD Head-to-Toe Video with 3D Motion Detection [SKU: 6571290] ($229.99), Arlo Pro 5S 2K Spotlight Indoor/Outdoor Dual-Band Wireless Security Camera [SKU: 6539021] ($249.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -5374,38 +5827,75 @@
       "category": "Smart Home",
       "expected_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418",
+        "6571290",
+        "6539021"
       ],
       "key_differential_features": [
-        "connectivity",
-        "display",
-        "voice_assistant",
+        "price",
         "power_source",
-        "sensor_included",
-        "price"
+        "connectivity",
+        "sensors"
       ],
       "ground_truth_specs": {
         "6584201": {
-          "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
-          "brand": "Google",
-          "price": 279.99,
           "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
           "display": "Polished glass high-res Dynamic Farsight display",
           "voice_assistant": "Google Assistant",
           "power_source": "C-wire / HVAC powered with backup battery",
-          "sensor_included": true
+          "sensor_included": true,
+          "sensor_range_ft": 50,
+          "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
+          "brand": "Google",
+          "price": 279.99
         },
         "6502275": {
-          "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
-          "brand": "ecobee",
-          "price": 249.99,
           "connectivity": "Matter, Wi-Fi, Bluetooth",
           "display": "Vibrant color touchscreen",
           "voice_assistant": "Alexa built-in, Apple Siri compatible",
           "power_source": "Hardwired 24VAC with Power Extender Kit included",
-          "sensor_included": true
+          "sensor_included": true,
+          "sensor_range_ft": 60,
+          "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
+          "brand": "ecobee",
+          "price": 249.99
+        },
+        "6562418": {
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz)",
+          "display": "3.5-inch IPS Color LCD Touchscreen",
+          "voice_assistant": "Amazon Alexa, Google Assistant, Apple HomeKit",
+          "power_source": "24VAC C-Wire (C-Wire Adapter Included)",
+          "sensor_included": true,
+          "sensor_range_ft": 200,
+          "name": "Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor",
+          "brand": "Honeywell Home",
+          "price": 199.99
+        },
+        "6571290": {
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz), Bluetooth",
+          "display": "1536p HD+ Square 1:1 Head-to-Toe Video Feed",
+          "voice_assistant": "Amazon Alexa",
+          "power_source": "Quick-Release Rechargeable Battery or 8-24VAC Hardwired",
+          "sensor_included": true,
+          "sensor_range_ft": 30,
+          "name": "Ring Battery Doorbell Pro Wireless 1536p HD Head-to-Toe Video with 3D Motion Detection",
+          "brand": "Ring",
+          "price": 229.99
+        },
+        "6539021": {
+          "connectivity": "Dual-Band Wi-Fi, Arlo SecureLink RF",
+          "display": "2K QHD (2560 x 1440) HDR 160-Degree Video",
+          "voice_assistant": "Amazon Alexa, Google Assistant, IFTTT",
+          "power_source": "Removable Rechargeable Battery (up to 8 months)",
+          "sensor_included": true,
+          "sensor_range_ft": 25,
+          "name": "Arlo Pro 5S 2K Spotlight Indoor/Outdoor Dual-Band Wireless Security Camera",
+          "brand": "Arlo",
+          "price": 249.99
         }
-      }
+      },
+      "query": "Compare 5 smart home essentials: Google Nest Thermostat 4th Gen, ecobee Smart Thermostat Premium, Honeywell Home T9, Ring Battery Doorbell Pro, and Arlo Pro 5S"
     },
     {
       "eval_id": "smarthome-004",
@@ -6430,7 +6920,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Is ecobee Smart Thermostat Premium cheaper than Google Nest Learning Thermostat 4th Gen?",
+                "text": "Compare Google Nest Learning Thermostat 4th Gen, ecobee Smart Thermostat Premium, and Honeywell Home T9",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6453,7 +6943,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] () and ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ().",
+                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] ($279.99), ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), and Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor [SKU: 6562418] ($199.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6494,36 +6984,38 @@
       "category": "Smart Home",
       "expected_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418"
       ],
       "key_differential_features": [
-        "connectivity",
-        "display",
         "voice_assistant",
-        "power_source",
-        "sensor_included",
-        "price"
+        "connectivity",
+        "power_source"
       ],
       "ground_truth_specs": {
         "6584201": {
           "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
           "brand": "Google",
           "price": 279.99,
-          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
-          "display": "Polished glass high-res Dynamic Farsight display",
           "voice_assistant": "Google Assistant",
-          "power_source": "C-wire / HVAC powered with backup battery",
-          "sensor_included": true
+          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
+          "power_source": "C-wire / HVAC powered with backup battery"
         },
         "6502275": {
           "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
           "brand": "ecobee",
           "price": 249.99,
-          "connectivity": "Matter, Wi-Fi, Bluetooth",
-          "display": "Vibrant color touchscreen",
           "voice_assistant": "Alexa built-in, Apple Siri compatible",
-          "power_source": "Hardwired 24VAC with Power Extender Kit included",
-          "sensor_included": true
+          "connectivity": "Matter, Wi-Fi, Bluetooth",
+          "power_source": "Hardwired 24VAC with Power Extender Kit included"
+        },
+        "6562418": {
+          "name": "Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor",
+          "brand": "Honeywell Home",
+          "price": 199.99,
+          "voice_assistant": "Amazon Alexa, Google Assistant, Apple HomeKit",
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz)",
+          "power_source": "24VAC C-Wire (C-Wire Adapter Included)"
         }
       }
     },
@@ -6542,7 +7034,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Voice control differences: Nest 4th Gen Google Assistant vs ecobee Premium Alexa Siri",
+                "text": "Compare ecobee Smart Thermostat Premium, Amazon Echo Show 10, and Philips Hue Starter Kit",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6565,7 +7057,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] () and ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ().",
+                "text": "Comparison between ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub [SKU: 6481592] ($249.99), and Philips Hue White and Color Ambiance A19 LED Smart Lighting Starter Kit with Bridge [SKU: 6549310] ($199.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6605,37 +7097,35 @@
       "final_session_state": {},
       "category": "Smart Home",
       "expected_skus": [
-        "6584201",
-        "6502275"
+        "6502275",
+        "6481592",
+        "6549310"
       ],
       "key_differential_features": [
-        "connectivity",
-        "display",
         "voice_assistant",
-        "power_source",
-        "sensor_included",
-        "price"
+        "connectivity"
       ],
       "ground_truth_specs": {
-        "6584201": {
-          "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
-          "brand": "Google",
-          "price": 279.99,
-          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
-          "display": "Polished glass high-res Dynamic Farsight display",
-          "voice_assistant": "Google Assistant",
-          "power_source": "C-wire / HVAC powered with backup battery",
-          "sensor_included": true
-        },
         "6502275": {
           "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
           "brand": "ecobee",
           "price": 249.99,
-          "connectivity": "Matter, Wi-Fi, Bluetooth",
-          "display": "Vibrant color touchscreen",
           "voice_assistant": "Alexa built-in, Apple Siri compatible",
-          "power_source": "Hardwired 24VAC with Power Extender Kit included",
-          "sensor_included": true
+          "connectivity": "Matter, Wi-Fi, Bluetooth"
+        },
+        "6481592": {
+          "name": "Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub",
+          "brand": "Amazon",
+          "price": 249.99,
+          "voice_assistant": "Amazon Alexa",
+          "connectivity": "Matter, Zigbee, Thread Border Router, Dual-Band Wi-Fi, Bluetooth"
+        },
+        "6549310": {
+          "name": "Philips Hue White and Color Ambiance A19 LED Smart Lighting Starter Kit with Bridge",
+          "brand": "Philips Hue",
+          "price": 199.99,
+          "voice_assistant": "Apple HomeKit, Amazon Alexa, Google Assistant, SmartThings",
+          "connectivity": "Matter, Zigbee Light Link, Ethernet Bridge, Bluetooth"
         }
       }
     },
@@ -6654,7 +7144,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare energy savings and sensor technology of Nest 4th Gen and ecobee Premium",
+                "text": "Compare 4 climate and hub devices: Google Nest 4th Gen, ecobee Premium, Honeywell Home T9, and Amazon Echo Show 10",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6677,7 +7167,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] () and ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ().",
+                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] ($279.99), ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor [SKU: 6562418] ($199.99), and Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub [SKU: 6481592] ($249.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6718,36 +7208,47 @@
       "category": "Smart Home",
       "expected_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418",
+        "6481592"
       ],
       "key_differential_features": [
-        "connectivity",
-        "display",
         "voice_assistant",
-        "power_source",
-        "sensor_included",
-        "price"
+        "connectivity",
+        "display"
       ],
       "ground_truth_specs": {
         "6584201": {
           "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
           "brand": "Google",
           "price": 279.99,
-          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
-          "display": "Polished glass high-res Dynamic Farsight display",
           "voice_assistant": "Google Assistant",
-          "power_source": "C-wire / HVAC powered with backup battery",
-          "sensor_included": true
+          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
+          "display": "Polished glass high-res Dynamic Farsight display"
         },
         "6502275": {
           "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
           "brand": "ecobee",
           "price": 249.99,
-          "connectivity": "Matter, Wi-Fi, Bluetooth",
-          "display": "Vibrant color touchscreen",
           "voice_assistant": "Alexa built-in, Apple Siri compatible",
-          "power_source": "Hardwired 24VAC with Power Extender Kit included",
-          "sensor_included": true
+          "connectivity": "Matter, Wi-Fi, Bluetooth",
+          "display": "Vibrant color touchscreen"
+        },
+        "6562418": {
+          "name": "Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor",
+          "brand": "Honeywell Home",
+          "price": 199.99,
+          "voice_assistant": "Amazon Alexa, Google Assistant, Apple HomeKit",
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz)",
+          "display": "3.5-inch IPS Color LCD Touchscreen"
+        },
+        "6481592": {
+          "name": "Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub",
+          "brand": "Amazon",
+          "price": 249.99,
+          "voice_assistant": "Amazon Alexa",
+          "connectivity": "Matter, Zigbee, Thread Border Router, Dual-Band Wi-Fi, Bluetooth",
+          "display": "10.1-inch 1280 x 800 HD Motorized Swivel Touchscreen"
         }
       }
     },
@@ -6766,7 +7267,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comprehensive comparison of Google Nest Learning Thermostat 4th Gen vs ecobee Premium",
+                "text": "Compare 5 smart home essentials: Google Nest 4th Gen, ecobee Premium, Honeywell T9, Ring Battery Doorbell Pro, and Arlo Pro 5S",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6789,7 +7290,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] () and ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ().",
+                "text": "Comparison between Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] ($279.99), ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor [SKU: 6562418] ($199.99), Ring Battery Doorbell Pro Wireless 1536p HD Head-to-Toe Video with 3D Motion Detection [SKU: 6571290] ($229.99), and Arlo Pro 5S 2K Spotlight Indoor/Outdoor Dual-Band Wireless Security Camera [SKU: 6539021] ($249.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -6830,36 +7331,56 @@
       "category": "Smart Home",
       "expected_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418",
+        "6571290",
+        "6539021"
       ],
       "key_differential_features": [
-        "connectivity",
-        "display",
         "voice_assistant",
-        "power_source",
-        "sensor_included",
-        "price"
+        "connectivity",
+        "power_source"
       ],
       "ground_truth_specs": {
         "6584201": {
           "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
           "brand": "Google",
           "price": 279.99,
-          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
-          "display": "Polished glass high-res Dynamic Farsight display",
           "voice_assistant": "Google Assistant",
-          "power_source": "C-wire / HVAC powered with backup battery",
-          "sensor_included": true
+          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
+          "power_source": "C-wire / HVAC powered with backup battery"
         },
         "6502275": {
           "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
           "brand": "ecobee",
           "price": 249.99,
-          "connectivity": "Matter, Wi-Fi, Bluetooth",
-          "display": "Vibrant color touchscreen",
           "voice_assistant": "Alexa built-in, Apple Siri compatible",
-          "power_source": "Hardwired 24VAC with Power Extender Kit included",
-          "sensor_included": true
+          "connectivity": "Matter, Wi-Fi, Bluetooth",
+          "power_source": "Hardwired 24VAC with Power Extender Kit included"
+        },
+        "6562418": {
+          "name": "Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor",
+          "brand": "Honeywell Home",
+          "price": 199.99,
+          "voice_assistant": "Amazon Alexa, Google Assistant, Apple HomeKit",
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz)",
+          "power_source": "24VAC C-Wire (C-Wire Adapter Included)"
+        },
+        "6571290": {
+          "name": "Ring Battery Doorbell Pro Wireless 1536p HD Head-to-Toe Video with 3D Motion Detection",
+          "brand": "Ring",
+          "price": 229.99,
+          "voice_assistant": "Amazon Alexa",
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz), Bluetooth",
+          "power_source": "Quick-Release Rechargeable Battery or 8-24VAC Hardwired"
+        },
+        "6539021": {
+          "name": "Arlo Pro 5S 2K Spotlight Indoor/Outdoor Dual-Band Wireless Security Camera",
+          "brand": "Arlo",
+          "price": 249.99,
+          "voice_assistant": "Amazon Alexa, Google Assistant, IFTTT",
+          "connectivity": "Dual-Band Wi-Fi, Arlo SecureLink RF",
+          "power_source": "Removable Rechargeable Battery (up to 8 months)"
         }
       }
     },
@@ -7114,7 +7635,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare gaming specs and refresh rate for LG C3 OLED vs Samsung S90C OLED TV",
+                "text": "Compare 5 premium 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, TCL QM8 75, and Hisense U8N 75",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -7137,7 +7658,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] () and Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ().",
+                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] ($1,499.99), Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ($1,599.99), Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99), TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display [SKU: 6551173] ($1,499.99), Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display [SKU: 6577012] ($1,399.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -7178,44 +7699,90 @@
       "category": "TVs",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "key_differential_features": [
-        "screen_size_in",
-        "display_technology",
-        "resolution",
-        "refresh_rate_hz",
-        "hdr_support",
-        "hdmi_ports",
-        "smart_platform",
-        "price"
+        "price",
+        "display_type",
+        "refresh_rate",
+        "hdr_formats"
       ],
       "ground_truth_specs": {
         "6535929": {
-          "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
-          "brand": "LG",
-          "price": 1499.99,
           "screen_size_in": 65,
           "display_technology": "OLED evo",
+          "panel_type": "WOLED evo with Brightness Booster",
           "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 120,
+          "response_time_ms": 0.1,
           "hdr_support": "Dolby Vision, HDR10, HLG",
           "hdmi_ports": 4,
-          "smart_platform": "webOS 23"
+          "smart_platform": "webOS 23",
+          "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
+          "brand": "LG",
+          "price": 1499.99
         },
         "6536965": {
-          "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
-          "brand": "Samsung",
-          "price": 1599.99,
           "screen_size_in": 65,
           "display_technology": "QD-OLED",
+          "panel_type": "Quantum Dot OLED (QD-OLED)",
           "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 144,
+          "response_time_ms": 0.1,
           "hdr_support": "HDR10+, HLG",
           "hdmi_ports": 4,
-          "smart_platform": "Tizen OS"
+          "smart_platform": "Tizen OS",
+          "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
+          "brand": "Samsung",
+          "price": 1599.99
+        },
+        "6543908": {
+          "screen_size_in": 55,
+          "display_technology": "XR Contrast Booster Panel",
+          "panel_type": "Self-Lit Emissive 10-bit Panel",
+          "resolution": "4K (3840 x 2160)",
+          "refresh_rate_hz": 120,
+          "response_time_ms": 0.2,
+          "hdr_support": "Dolby Vision, IMAX Enhanced, HDR10, HLG",
+          "hdmi_ports": 4,
+          "smart_platform": "Google TV",
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99
+        },
+        "6551173": {
+          "screen_size_in": 75,
+          "display_technology": "QD-Mini LED",
+          "panel_type": "VA Mini-LED (2300+ Local Dimming Zones)",
+          "resolution": "4K (3840 x 2160)",
+          "refresh_rate_hz": 120,
+          "response_time_ms": 2.5,
+          "hdr_support": "Dolby Vision IQ, HDR10+, HDR10, HLG",
+          "hdmi_ports": 4,
+          "smart_platform": "Google TV",
+          "name": "TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display",
+          "brand": "TCL",
+          "price": 1499.99
+        },
+        "6577012": {
+          "screen_size_in": 75,
+          "display_technology": "Mini-LED Pro ULED",
+          "panel_type": "ADS-Pro Mini-LED with Anti-Glare",
+          "resolution": "4K (3840 x 2160)",
+          "refresh_rate_hz": 144,
+          "response_time_ms": 2.0,
+          "hdr_support": "Dolby Vision IQ, HDR10+ Adaptive, IMAX Enhanced",
+          "hdmi_ports": 4,
+          "smart_platform": "Google TV",
+          "name": "Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display",
+          "brand": "Hisense",
+          "price": 1399.99
         }
-      }
+      },
+      "query": "Compare 5 premium 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, TCL QM8 75, and Hisense U8N 75"
     },
     {
       "eval_id": "tv-004",
@@ -8294,7 +8861,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Audio and smart features comparison: LG C3 65-inch vs Samsung S90C 65-inch",
+                "text": "Compare LG C3 65 OLED, Samsung S90C 65 OLED, and Sony BRAVIA XR A80L 55",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8317,7 +8884,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] () and Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ().",
+                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] ($1,499.99), Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ($1,599.99), and Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8358,42 +8925,38 @@
       "category": "TVs",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908"
       ],
       "key_differential_features": [
-        "screen_size_in",
         "display_technology",
-        "resolution",
         "refresh_rate_hz",
-        "hdr_support",
-        "hdmi_ports",
-        "smart_platform",
-        "price"
+        "hdr_support"
       ],
       "ground_truth_specs": {
         "6535929": {
           "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
           "brand": "LG",
           "price": 1499.99,
-          "screen_size_in": 65,
           "display_technology": "OLED evo",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 120,
-          "hdr_support": "Dolby Vision, HDR10, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "webOS 23"
+          "hdr_support": "Dolby Vision, HDR10, HLG"
         },
         "6536965": {
           "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
           "brand": "Samsung",
           "price": 1599.99,
-          "screen_size_in": 65,
           "display_technology": "QD-OLED",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 144,
-          "hdr_support": "HDR10+, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "Tizen OS"
+          "hdr_support": "HDR10+, HLG"
+        },
+        "6543908": {
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99,
+          "display_technology": "XR Contrast Booster Panel",
+          "refresh_rate_hz": 120,
+          "hdr_support": "Dolby Vision, IMAX Enhanced, HDR10, HLG"
         }
       }
     },
@@ -8412,7 +8975,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Is Samsung S90C 65-inch worth $100 more than LG C3 65-inch OLED?",
+                "text": "Compare Sony BRAVIA XR A80L, TCL QM8 Series 75, and Hisense U8N Series 75",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8435,7 +8998,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] () and Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ().",
+                "text": "Comparison between Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99), TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display [SKU: 6551173] ($1,499.99), and Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display [SKU: 6577012] ($1,399.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8475,43 +9038,39 @@
       "final_session_state": {},
       "category": "TVs",
       "expected_skus": [
-        "6535929",
-        "6536965"
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "key_differential_features": [
         "screen_size_in",
         "display_technology",
-        "resolution",
-        "refresh_rate_hz",
-        "hdr_support",
-        "hdmi_ports",
-        "smart_platform",
-        "price"
+        "refresh_rate_hz"
       ],
       "ground_truth_specs": {
-        "6535929": {
-          "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
-          "brand": "LG",
-          "price": 1499.99,
-          "screen_size_in": 65,
-          "display_technology": "OLED evo",
-          "resolution": "4K (3840 x 2160)",
-          "refresh_rate_hz": 120,
-          "hdr_support": "Dolby Vision, HDR10, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "webOS 23"
+        "6543908": {
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99,
+          "screen_size_in": 55,
+          "display_technology": "XR Contrast Booster Panel",
+          "refresh_rate_hz": 120
         },
-        "6536965": {
-          "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
-          "brand": "Samsung",
-          "price": 1599.99,
-          "screen_size_in": 65,
-          "display_technology": "QD-OLED",
-          "resolution": "4K (3840 x 2160)",
-          "refresh_rate_hz": 144,
-          "hdr_support": "HDR10+, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "Tizen OS"
+        "6551173": {
+          "name": "TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display",
+          "brand": "TCL",
+          "price": 1499.99,
+          "screen_size_in": 75,
+          "display_technology": "QD-Mini LED",
+          "refresh_rate_hz": 120
+        },
+        "6577012": {
+          "name": "Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display",
+          "brand": "Hisense",
+          "price": 1399.99,
+          "screen_size_in": 75,
+          "display_technology": "Mini-LED Pro ULED",
+          "refresh_rate_hz": 144
         }
       }
     },
@@ -8530,7 +9089,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Compare picture quality and refresh rate: LG C3 vs Samsung S90C OLED 4K TVs",
+                "text": "Compare 4 premium 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, and TCL QM8 75",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8553,7 +9112,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] () and Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ().",
+                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] ($1,499.99), Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ($1,599.99), Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99), and TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display [SKU: 6551173] ($1,499.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8594,42 +9153,47 @@
       "category": "TVs",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173"
       ],
       "key_differential_features": [
-        "screen_size_in",
         "display_technology",
-        "resolution",
         "refresh_rate_hz",
-        "hdr_support",
-        "hdmi_ports",
-        "smart_platform",
-        "price"
+        "hdr_support"
       ],
       "ground_truth_specs": {
         "6535929": {
           "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
           "brand": "LG",
           "price": 1499.99,
-          "screen_size_in": 65,
           "display_technology": "OLED evo",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 120,
-          "hdr_support": "Dolby Vision, HDR10, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "webOS 23"
+          "hdr_support": "Dolby Vision, HDR10, HLG"
         },
         "6536965": {
           "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
           "brand": "Samsung",
           "price": 1599.99,
-          "screen_size_in": 65,
           "display_technology": "QD-OLED",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 144,
-          "hdr_support": "HDR10+, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "Tizen OS"
+          "hdr_support": "HDR10+, HLG"
+        },
+        "6543908": {
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99,
+          "display_technology": "XR Contrast Booster Panel",
+          "refresh_rate_hz": 120,
+          "hdr_support": "Dolby Vision, IMAX Enhanced, HDR10, HLG"
+        },
+        "6551173": {
+          "name": "TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display",
+          "brand": "TCL",
+          "price": 1499.99,
+          "display_technology": "QD-Mini LED",
+          "refresh_rate_hz": 120,
+          "hdr_support": "Dolby Vision IQ, HDR10+, HDR10, HLG"
         }
       }
     },
@@ -8648,7 +9212,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Complete breakdown of LG C3 65-inch OLED evo vs Samsung S90C 65-inch OLED TV",
+                "text": "Compare 5 smart 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, TCL QM8 75, and Hisense U8N 75",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8671,7 +9235,7 @@
                 "function_call": null,
                 "function_response": null,
                 "inline_data": null,
-                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] () and Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ().",
+                "text": "Comparison between LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] ($1,499.99), Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ($1,599.99), Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99), TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display [SKU: 6551173] ($1,499.99), and Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display [SKU: 6577012] ($1,399.99).",
                 "thought": null,
                 "thought_signature": null,
                 "video_metadata": null,
@@ -8712,42 +9276,56 @@
       "category": "TVs",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "key_differential_features": [
-        "screen_size_in",
         "display_technology",
-        "resolution",
         "refresh_rate_hz",
-        "hdr_support",
-        "hdmi_ports",
-        "smart_platform",
-        "price"
+        "screen_size_in"
       ],
       "ground_truth_specs": {
         "6535929": {
           "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
           "brand": "LG",
           "price": 1499.99,
-          "screen_size_in": 65,
           "display_technology": "OLED evo",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 120,
-          "hdr_support": "Dolby Vision, HDR10, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "webOS 23"
+          "screen_size_in": 65
         },
         "6536965": {
           "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
           "brand": "Samsung",
           "price": 1599.99,
-          "screen_size_in": 65,
           "display_technology": "QD-OLED",
-          "resolution": "4K (3840 x 2160)",
           "refresh_rate_hz": 144,
-          "hdr_support": "HDR10+, HLG",
-          "hdmi_ports": 4,
-          "smart_platform": "Tizen OS"
+          "screen_size_in": 65
+        },
+        "6543908": {
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99,
+          "display_technology": "XR Contrast Booster Panel",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 55
+        },
+        "6551173": {
+          "name": "TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display",
+          "brand": "TCL",
+          "price": 1499.99,
+          "display_technology": "QD-Mini LED",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 75
+        },
+        "6577012": {
+          "name": "Hisense U8N Series 75\" Class Mini-LED ULED 4K UHD Google Smart Display",
+          "brand": "Hisense",
+          "price": 1399.99,
+          "display_technology": "Mini-LED Pro ULED",
+          "refresh_rate_hz": 144,
+          "screen_size_in": 75
         }
       }
     }

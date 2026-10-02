@@ -58,7 +58,7 @@ def test_eval_dataset_schema_and_uniqueness():
 
         # Validate required keys
         assert "category" in case and case["category"]
-        assert "expected_skus" in case and len(case["expected_skus"]) == 2
+        assert "expected_skus" in case and 2 <= len(case["expected_skus"]) <= 5
         assert "key_differential_features" in case and len(case["key_differential_features"]) >= 1
         assert "ground_truth_specs" in case and isinstance(case["ground_truth_specs"], dict)
 
@@ -79,3 +79,16 @@ def test_eval_dataset_schema_and_uniqueness():
             assert "name" in sku_specs
             assert "brand" in sku_specs
             assert "price" in sku_specs and sku_specs["price"] > 0
+
+
+def test_eval_dataset_multi_product_distribution():
+    """Assert benchmark dataset contains multi-product comparisons ranging from 2 to 5 products."""
+    with open(BENCHMARK_EVALSET_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+
+    sku_counts = Counter(len(c["expected_skus"]) for c in data["eval_cases"])
+    # Must contain 2, 3, 4, and 5 product comparisons
+    assert 2 in sku_counts and sku_counts[2] >= 10, "Expected at least 10 2-product comparisons"
+    assert 3 in sku_counts and sku_counts[3] >= 5, "Expected at least 5 3-product comparisons"
+    assert 4 in sku_counts and sku_counts[4] >= 5, "Expected at least 5 4-product comparisons"
+    assert 5 in sku_counts and sku_counts[5] >= 5, "Expected at least 5 5-product comparisons"

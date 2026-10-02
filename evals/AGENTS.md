@@ -18,9 +18,9 @@ evals/
 ├── pairwise_judge.py          # Head-to-head Pairwise Judge with position-bias swap checks
 ├── generate_model_matrix.py   # Empirical Foundation Model Decision Scorecard generator (ADR-004)
 ├── dataset/
-│   ├── benchmark_catalog.evalset.json # Canonical 80-pair ADK EvalSet
-│   ├── holdout_catalog.evalset.json   # Curated Holdout & Counterfactual ADK EvalSet
-│   ├── benchmark_queries.json # Legacy 80-pair comparison test cases
+│   ├── benchmark_catalog.evalset.json # Canonical 80-case ADK EvalSet (2 to 5 product comparisons)
+│   ├── holdout_catalog.evalset.json   # Curated Holdout (31 cases) & Counterfactual ADK EvalSet (2 to 5 products)
+│   ├── benchmark_queries.json # Legacy comparison test cases
 │   └── fixtures/
 │       └── simple_test.evalset.json   # 1-case integration fixture for Pytest
 ├── rubrics/
@@ -51,6 +51,7 @@ evals/
 | **End-to-End P95 Latency** | $\le 3.0$s | 95th percentile request duration | `evals/analyze.py` flags latency regression only when `cur_lat > target_latency_p95` (`3.0`s) and exceeds baseline tolerance |
 | **Structured Output Validity**| $1.00$ | Pydantic `CompareResponse` schema validation | Any validation error is fatal |
 | **Pairwise Synthesis Win Rate**| $\ge 0.85$ | `evals/pairwise_judge.py` (`PairwiseJudgment` schema) | Position-bias-checked head-to-head comparison against baseline models |
+| **Multi-Product Scaling ($N \in [2, 5]$)** | $100\%$ | `evals.runner` & `test_multi_product_comparison` | Factual accuracy, $\binom{N}{2}$ price consistency, and complete entity citations across 2, 3, 4, and 5 products |
 
 ---
 
@@ -153,6 +154,15 @@ python3 -m evals.anti_overfitting_gate \
   --max-gap 0.05 \
   --strict
 ```
+
+### J. Multi-Product Benchmark & Evaluation Flywheel (2 to 5 Products)
+The evaluation harness natively benchmarks multi-product comparisons across 2, 3, 4, and 5 products ($N \in [2, 5]$):
+- **Benchmark EvalSet (`benchmark_catalog.evalset.json`)**: 80 total cases with 16 cases per category. Cases 13 & 14 test 3-way comparisons, Case 15 tests 4-way comparisons, and Case 16 tests 5-way comparisons across all 5 consumer electronics categories.
+- **Holdout EvalSet (`holdout_catalog.evalset.json`)**: 31 total cases with 4 dedicated multi-product cases (`holdout-multi-001` through `holdout-multi-004`) covering 3-, 4-, and 5-product comparisons.
+- **Multi-Product Evaluation Gates**:
+  - `evaluate_semantic_coherence`: Asserts price monotonicity and pairwise non-contradiction across all $\binom{N}{2}$ product combinations, while verifying entity mentions across all $N$ items.
+  - `trajectory_grader`: Evaluates catalog brand and model alias coverage across all queried items.
+  - `test_multi_product_comparison.py`: Validates end-to-end multi-product orchestrator retrieval, comparison matrices, citations, and semantic coherence.
 
 ---
 

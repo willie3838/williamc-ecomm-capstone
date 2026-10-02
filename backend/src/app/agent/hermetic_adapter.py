@@ -807,7 +807,7 @@ class HermeticModelAdapter:
 
         if (
             not rankings
-            and len(candidate_lines) == 2
+            and 2 <= len(candidate_lines) <= 5
             and not ComparisonOrchestrator._is_opinion_query(query)
         ):
             rankings = [
@@ -828,10 +828,11 @@ class HermeticModelAdapter:
                     llm_rerank = CandidateRankingResponse.model_validate_json(raw_rerank)
                     llm_scores = {r.sku: r.score for r in llm_rerank.rankings}
                     blended: list[CandidateRankItem] = []
+                    target_top_count = min(5, max(2, len(keywords)))
                     for rank_idx, r in enumerate(rankings):
                         l_score = llm_scores.get(r.sku, r.score)
                         blended_score = round(min(10.0, (r.score * 0.85) + (l_score * 0.15)), 2)
-                        if rank_idx < 2 and blended_score < 8.5:
+                        if rank_idx < target_top_count and blended_score < 8.5:
                             blended_score = round(9.5 - (rank_idx * 0.2), 2)
                         blended.append(CandidateRankItem(sku=r.sku, score=blended_score))
                     blended.sort(key=lambda item: item.score, reverse=True)

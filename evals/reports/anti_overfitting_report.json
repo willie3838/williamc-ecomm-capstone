@@ -1,18 +1,18 @@
 {
-  "timestamp": "2026-10-02T01:18:00.621914+00:00",
+  "timestamp": "2026-10-02T16:09:37.261813+00:00",
   "gate_passed": true,
   "benchmark_metrics": {
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "mean_retrieval_precision": 0.95,
+    "mean_retrieval_precision": 0.9667,
     "mean_retrieval_recall": 1.0,
     "mean_semantic_score": 1.0,
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 0.0088,
-    "latency_p90_seconds": 0.0152,
-    "latency_p95_seconds": 0.017,
+    "latency_p50_seconds": 0.0104,
+    "latency_p90_seconds": 0.0141,
+    "latency_p95_seconds": 0.0162,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -23,11 +23,11 @@
     }
   },
   "holdout_metrics": {
-    "total_cases": 27,
-    "passed_cases": 27,
+    "total_cases": 31,
+    "passed_cases": 31,
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "latency_p95_seconds": 0.0164
+    "latency_p95_seconds": 0.0151
   },
   "accuracy_gap": 0.0,
   "citation_gap": 0.0,

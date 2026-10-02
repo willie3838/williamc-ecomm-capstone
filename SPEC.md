@@ -64,12 +64,12 @@ This engagement focuses on establishing a secure, scalable "AI Sandbox" inside t
 
 ## User Journey
 
-1. **Submit Comparison Query**: A customer inputs a natural language query (e.g., *"Compare the key specs and price differences between the iPad Pro 11-inch and the Samsung Galaxy Tab S9"* or non-comparative input like *"this is a stupid laptop"*).
-2. **Intent & Entity Extraction (Node 1 - QueryIntentAgent)**: The agent sanitizes the query against prompt injection, detects if the input is a genuine comparison request vs an opinion/rant, and extracts candidate entities.
+1. **Submit Comparison Query**: A customer inputs a natural language query (e.g., *"Compare the key specs and price differences between the iPad Pro 11-inch and the Samsung Galaxy Tab S9"*, multi-product queries like *"Compare 3 high-end wireless headphones: Sony WH-1000XM5, Bose QuietComfort Ultra, and Apple AirPods Max"*, or non-comparative input like *"this is a stupid laptop"*).
+2. **Intent & Entity Extraction (Node 1 - QueryIntentAgent)**: The agent sanitizes the query against prompt injection, detects if the input is a genuine comparison request vs an opinion/rant, and extracts candidate entities (supporting 2 to 5 distinct items).
 3. **Structured Tool-Calling (Node 2 - CatalogRetrievalAgent)**: If eligible for comparison, the agent calls the `query_catalog` tool to execute parameterized SQL queries against the BigQuery catalog. (Bypassed for non-comparative rants).
-4. **Relevance Verification & Reranking (Node 3 - RelevanceDetectorAgent)**: The agent executes pure LLM reranking against the query context. Candidates with relevance score $< 6.0$ are filtered out. If fewer than 2 relevant products match, comparison matrix generation is suppressed.
+4. **Relevance Verification & Reranking (Node 3 - RelevanceDetectorAgent)**: The agent executes pure LLM reranking against the query context across 2 to 5 candidate products ($N \in [2, 5]$). Candidates with relevance score $< 6.0$ are filtered out. If fewer than 2 relevant products match, comparison matrix generation is suppressed.
 5. **Spec Alignment & Display Output (Node 4 - SpecComparisonAgent)**:
-   - If 2+ verified products match: The system builds a structured comparison matrix, spec deltas, winner badges, and SKU citations.
+   - If 2 to 5 verified products match ($N \in [2, 5]$): The system builds a structured comparison matrix, spec deltas, winner badges, and verifiable inline `[SKU: ...]` citations.
    - If non-comparative or $<2$ products: The system suppresses the matrix (`comparison_matrix = []`) and provides conversational guidance on how to submit a valid comparison.
 6. **Infrastructure Deployment**: A developer makes a code change, pushes to git, and Cloud Build automatically deploys the updated container to Cloud Run.
 

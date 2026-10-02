@@ -225,33 +225,51 @@ def evaluate_semantic_coherence(
                 judge_err,
             )
 
-    p1, p2 = response.products[0], response.products[1]
+    prods = response.products[:5]
     summary = (response.summary or "").lower()
+    recs = (response.recommendations or "").lower()
+    combined_text = f"{summary} {recs}"
 
-    # Contradiction checks on price
+    # Contradiction checks on price across all compared products
     score = 1.0
-    if p1.price < p2.price:
-        # p1 is cheaper
-        if (
-            f"{p2.name.lower()} is cheaper" in summary
-            or f"{p2.name.lower()} is more affordable" in summary
-        ):
-            errors.append(f"Contradiction: summary claimed {p2.name} is cheaper than {p1.name}")
-            score -= 0.5
-    elif p2.price < p1.price and (
-        f"{p1.name.lower()} is cheaper" in summary
-        or f"{p1.name.lower()} is more affordable" in summary
-    ):
-        errors.append(f"Contradiction: summary claimed {p1.name} is cheaper than {p2.name}")
-        score -= 0.5
+    for i in range(len(prods)):
+        for j in range(len(prods)):
+            if i != j and prods[i].price < prods[j].price:
+                # prods[i] is cheaper than prods[j]
+                if (
+                    f"{prods[j].name.lower()} is cheaper" in summary
+                    or f"{prods[j].name.lower()} is more affordable" in summary
+                ):
+                    errors.append(
+                        f"Contradiction: summary claimed {prods[j].name} is cheaper than {prods[i].name}"
+                    )
+                    score -= 0.5
+                    break
 
-    # Check that summary mentions key entities
-    if p1.sku not in (response.summary or "") and p1.name.lower() not in summary:
-        errors.append(f"Summary does not reference first product {p1.name}")
-        score -= 0.25
-    if p2.sku not in (response.summary or "") and p2.name.lower() not in summary:
-        errors.append(f"Summary does not reference second product {p2.name}")
-        score -= 0.25
+    # Check that summary or recommendations reference all compared entities
+    penalty_per_prod = 0.5 / max(1, len(prods))
+    for p in prods:
+        sku_found = p.sku in (response.summary or "") or (
+            response.recommendations and p.sku in response.recommendations
+        )
+        clean_name = p.name.lower()
+        name_found = clean_name in combined_text
+        if not name_found and not sku_found:
+            brand_low = (p.brand or "").lower().strip()
+            tokens = [
+                t
+                for t in re.findall(r"[a-z0-9]+", clean_name)
+                if t
+                not in (brand_low, "laptop", "tv", "headphones", "tablet", "the", "and", "with")
+            ]
+            if len(tokens) >= 2:
+                distinctive = " ".join(tokens[:2])
+                name_found = distinctive in combined_text
+            elif tokens:
+                name_found = tokens[0] in combined_text
+        if not sku_found and not name_found:
+            errors.append(f"Summary does not reference product {p.name} [SKU: {p.sku}]")
+            score -= penalty_per_prod
 
     final_score = max(0.0, min(1.0, score))
     return round(final_score, 4), errors
