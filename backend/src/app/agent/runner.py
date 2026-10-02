@@ -20,7 +20,6 @@ from typing import Any
 from google.adk.agents import BaseAgent
 from google.adk.apps import App
 from google.adk.apps.app import EventsCompactionConfig, ResumabilityConfig
-from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.auth import auth_preprocessor as _adk_auth_preprocessor  # noqa: F401
 from google.adk.events import Event
 from google.adk.flows.llm_flows import (
@@ -418,16 +417,17 @@ def create_catalog_app(
     root_agent: BaseAgent | None = None,
 ) -> App:
     """Create ADK App configured with EventsCompactionConfig and ResumabilityConfig."""
+    from app.agent.compaction import CatalogAnchoredEventSummarizer
     from app.agent.hermetic_adapter import CatalogAdkLlm
     from app.agent.orchestrator import catalog_agent
 
     target_agent = root_agent or catalog_agent
-    summarizer = LlmEventSummarizer(llm=CatalogAdkLlm(model="gemini-2.5-flash"))
+    summarizer = CatalogAnchoredEventSummarizer(llm=CatalogAdkLlm(model="gemini-2.5-flash"))
     compaction_config = EventsCompactionConfig(
         token_threshold=32000,
         event_retention_size=5,
-        compaction_interval=8,
-        overlap_size=2,
+        compaction_interval=None,
+        overlap_size=None,
         summarizer=summarizer,
     )
     resumability_config = ResumabilityConfig(is_resumable=True)

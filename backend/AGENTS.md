@@ -23,6 +23,7 @@ backend/
 │       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
 │       │   ├── __init__.py
 │       │   ├── agent.py       # Google ADK CLI / Playground entrypoint (exposes root_agent; skips background warm under pytest)
+│       │   ├── compaction.py  # 3-Tier Lazy Context Compaction Pipeline (prune_tool_outputs, flush_events_to_memory, CatalogAnchoredEventSummarizer)
 │       │   ├── reasoning_engine.py # Vertex AI Agent Runtime wrapper (ReasoningEngine contract)
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent, precomputed_intent deduplication & LLM reranker
@@ -203,8 +204,12 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
      - Speculative pre-launch cache keys incorporate the candidate model (`(skus, query, model)`) to prevent cross-model cache collisions while preserving backward compatibility with 2-tuple keys.
 4. **Traceability**:
    - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
-5. **Google ADK Runner Execution, Vertex AI Memory Bank & Session Governance**:
-   - `app.agent.runner` provisions `CatalogAdkRunner` with `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` bound to `catalog_agent`. Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2)` and `ResumabilityConfig(is_resumable=True)`. `ComparisonOrchestrator.execute_with_adk_runner` executes queries through ADK's native runner lifecycle, collecting tool calls (`query_catalog`) and synthesized grounded narrative responses.
+5. **Google ADK Runner Execution, Vertex AI Memory Bank, Session Governance & 3-Tier Lazy Context Compaction Pipeline (`app.agent.compaction`)**:
+   - `app.agent.runner` provisions `CatalogAdkRunner` with `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` bound to `catalog_agent`. Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=None, overlap_size=None, summarizer=CatalogAnchoredEventSummarizer(llm=CatalogAdkLlm(model='gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`. Compaction triggers strictly when `prompt_token_count >= 32000`, never prematurely on turn counts.
+   - **3-Tier Lazy Context Compaction Architecture**:
+     - **Tier 1 (Deterministic Tool-Output Pruning)**: `prune_tool_outputs` and `prune_tool_outputs_callback` walk `session.events` newest-to-oldest, protect the last 3 user turns (`protect_user_turns=3`), protect `protect_token_budget=8000`, and protect `preload_memory` tool outputs, while pruning bulky older `query_catalog` function_response payloads into lightweight `{sku, name, price}` stubs with `pruned: True`.
+     - **Tier 2 (Pre-Compaction Memory Bank Flush)**: `flush_events_to_memory_before_compaction` executes a best-effort flush of raw events into `CatalogVertexAiMemoryBankService.add_events_to_memory` immediately before summarization so customer facts and preferences remain indexed in long-term memory.
+     - **Tier 3 (Catalog-Anchored Structured Event Summarizer)**: `CatalogAnchoredEventSummarizer(LlmEventSummarizer)` extracts deterministic `[SKU: ...]` identifiers and prices, enforces a 5-section structured Markdown template (`### 1. Active Products & SKUs`, `### 2. Customer Constraints & Preferences`, `### 3. Key Spec Trade-offs & Winners`, `### 4. Recommendations Given`, `### 5. Open Follow-up Questions`), supports rolling `<previous-summary>` merges, and prepends `SUMMARY_BANNER_PREFIX = "[CONTEXT COMPACTION — REFERENCE ONLY]"`.
    - `ComparisonOrchestrator.extract_keywords` implements robust brand-agnostic entity parsing that accurately isolates product models from question-colon lead-ins (`Which ... is better: Model A or Model B?`), chip comparison prefixes (`Chip X vs Chip Y: Model A vs Model B`), and trailing spec/attribute comparison phrases without discarding target products.
 6. **Vertex AI Agent Runtime (Reasoning Engine Contract) & Decoupled Architecture (`app.agent.reasoning_engine`)**:
    - The agent core conforms to Google Cloud's Vertex AI Reasoning Engine contract (`set_up()`, `query()`, `stream_query()`) in `CatalogComparisonReasoningEngine`.
