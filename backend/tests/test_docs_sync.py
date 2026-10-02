@@ -56,6 +56,22 @@ def test_agent_components_documented_in_backend_agents_guide():
         )
 
 
+def test_no_local_markdown_slides_exist():
+    """Verify no local slides.md file exists; only the live Google Slides deck is permitted."""
+    forbidden_paths = [
+        REPO_ROOT / "slides.md",
+        REPO_ROOT / "docs" / "slides.md",
+        REPO_ROOT / "docs" / "presentation" / "slides.md",
+    ]
+    for path in forbidden_paths:
+        assert not path.exists(), (
+            f"Forbidden local markdown slide file found at {path}! "
+            "Per AGENTS.md Section 5.4, NEVER create or maintain slides.md; "
+            "edit only the live Google Slides deck (113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA)."
+        )
+
+
+
 def check_docs_sync(modified_files: list[str], bypass: bool = False) -> tuple[bool, str]:
     """Evaluate whether modified files satisfy the strict documentation synchronization rule.
 

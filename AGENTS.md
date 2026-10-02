@@ -224,7 +224,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 - **Inspect Before Mutating**: Always run `/google/bin/releases/gemini-agents-gslides/gslides readonly list-elements <deck_id> <slide_index> --json` to inspect the exact element IDs and existing text before mutating.
 - **Surgical Updates Only**: Use targeted `mutate update-text --element <ELEMENT_ID>` or batch updates targeting specific element IDs. Never delete or recreate entire slides unless explicitly requested.
 
-#### 3. Current 19-Slide Deck Architecture Reference
+#### 3. Current 20-Slide Deck Architecture Reference
 | Slide # | Slide ID | Title / Topic | Primary Content |
 | :---: | :---: | :--- | :--- |
 | **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $547.38/mo net Hybrid TCO |
@@ -236,7 +236,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 | **7** | `slide_06` | AI-Driven Development | Pre-coding `AGENTS.md` harness, Outside-the-Loop TDD hillclimbing, In-the-Loop skills, 4-pane tmux swarm |
 | **8** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Agent Gateway |
 | **9** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
-| **10** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–I) |
+| **10** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–J) |
 | **11** | `slide_10` | Appendix A: Agent Architecture — Matrix Generation & Conversation | Dual-path ADK runtime (`/api/compare` + `/api/chat`), IAP-scoped session/memory bank, 3-tier lazy compaction & speculative latency optimizations |
 | **12** | `slide_11` | Appendix B: ADR-004 Scorecard | 3-Agent x 9-GA-Model fleet benchmark (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
 | **13** | `slide_12` | Appendix C: Decisions D1–D4 | 3 LLM Agents + 1 Deterministic SQL Step (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
@@ -246,6 +246,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 | **17** | `slide_17` | Appendix H: TCO Math | TCO assumptions, token estimation math, pricing models |
 | **18** | `SLIDES_API98052315_0` | Appendix I: Continuous Quality | Continuous quality, 9-GA-model weekly sweeps, and drift prevention cadence |
 | **19** | `slide_16` | Appendix G: Executive Q&A Defense | Objection handling (`Q1` Why Not All-Flash vs Hybrid ROI, `Q2` Single-Agent SPEC.md, `Q3` SQL vs Vector DB, `Q4` Split GitOps) |
+| **20** | `SLIDES_API510898368_0` | Appendix J: Enterprise Defense-in-Depth Security Architecture | 8-layer zero-trust posture (`S1` Edge IAP + Tenant Scoping + VPC-SC, `S2` Dual-Region Model Armor + XML/SKU Scrubber, `S3` PoLP IAM + SQL/FinOps Caps, `S4` DLP + Audit Logs + Keyless WIF) |
 
 ---
 

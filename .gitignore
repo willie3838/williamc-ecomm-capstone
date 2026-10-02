@@ -80,3 +80,9 @@ logs/
 skills/project-creation
 uv.lock
 /reports/
+
+# Forbidden local markdown slides (use live Google Slides deck 113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA only)
+docs/presentation/
+*slides.md
+**/*slides.md
+

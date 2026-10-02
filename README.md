@@ -126,7 +126,7 @@ The application UI is accessible at `http://localhost:5173`, proxying API reques
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): Comprehensive system architecture, ADRs, latency budgets, and security specifications.
 - [docs/MODEL_SELECTION_MATRIX.md](docs/MODEL_SELECTION_MATRIX.md): 9-model × 3-stage empirical benchmark matrix, Stage 3 Semantic Coherence synthesis quality leaderboard, and 2-product vs. 5-product scaling analysis.
-- [docs/presentation/slides.md](docs/presentation/slides.md): Executive & technical architecture presentation deck (including Quality Flywheel & Appendix deep-dives).
+- [Capstone Google Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit): Live executive & technical architecture presentation deck (`113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`).
 - [SPEC.md](SPEC.md): Functional and technical requirements baseline.
 - [RUBRIC.md](RUBRIC.md): Quality criteria and audit checklist.
 - [backend/AGENTS.md](backend/AGENTS.md): Backend developer guidelines and strict documentation synchronization rules.
