@@ -160,7 +160,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     if (hasTaggedProducts) {
       if (!isLoading) {
         const prompt = buildComparisonPrompt(taggedProducts, trimmed);
-        onSearch(prompt, selectedCategory, taggedProducts);
+        const allSameCategory =
+          taggedProducts.length > 0 &&
+          taggedProducts.every(
+            (p) => Boolean(p.category) && p.category === taggedProducts[0].category
+          );
+        const categoryToPass =
+          allSameCategory && selectedCategory && taggedProducts[0].category === selectedCategory
+            ? selectedCategory
+            : null;
+        onSearch(prompt, categoryToPass, taggedProducts);
       }
       return;
     }

@@ -700,6 +700,52 @@ describe('SearchBar', () => {
 
       expect(screen.getByRole('listbox', { name: /product suggestions/i })).toBeInTheDocument();
     });
+
+    it('passes category = null to onSearch when tagged products span multiple categories', () => {
+      const handleSearch = vi.fn();
+      const crossCategoryProducts = [
+        { sku: '1', name: 'MacBook Air', brand: 'Apple', price: 999, category: 'Laptops', specifications: {}, in_stock: true },
+        { sku: '2', name: 'iPad Pro', brand: 'Apple', price: 799, category: 'Tablets', specifications: {}, in_stock: true },
+      ];
+      render(
+        <SearchBar
+          onSearch={handleSearch}
+          isLoading={false}
+          taggedProducts={crossCategoryProducts}
+          initialCategory="Laptops"
+        />
+      );
+      fireEvent.submit(screen.getByRole('search'));
+      expect(handleSearch).toHaveBeenCalledTimes(1);
+      expect(handleSearch).toHaveBeenCalledWith(
+        expect.any(String),
+        null,
+        crossCategoryProducts
+      );
+    });
+
+    it('passes shared category to onSearch when all tagged products share the exact same category', () => {
+      const handleSearch = vi.fn();
+      const sameCategoryProducts = [
+        { sku: '1', name: 'MacBook Air', brand: 'Apple', price: 999, category: 'Laptops', specifications: {}, in_stock: true },
+        { sku: '2', name: 'Dell XPS 13', brand: 'Dell', price: 1099, category: 'Laptops', specifications: {}, in_stock: true },
+      ];
+      render(
+        <SearchBar
+          onSearch={handleSearch}
+          isLoading={false}
+          taggedProducts={sameCategoryProducts}
+          initialCategory="Laptops"
+        />
+      );
+      fireEvent.submit(screen.getByRole('search'));
+      expect(handleSearch).toHaveBeenCalledTimes(1);
+      expect(handleSearch).toHaveBeenCalledWith(
+        expect.any(String),
+        'Laptops',
+        sameCategoryProducts
+      );
+    });
   });
 });
 

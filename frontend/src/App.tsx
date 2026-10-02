@@ -123,13 +123,18 @@ export const App: React.FC = () => {
   const [taggedProducts, setTaggedProducts] = useState<ProductSpec[]>([]);
   const [prevComparison, setPrevComparison] = useState(comparison);
 
-  // Auto-populate compared SKU tags in SearchBar whenever comparison completes and no tags currently set
-  if (comparison !== prevComparison) {
+  // Auto-populate compared SKU tags in SearchBar whenever comparison completes
+  if (comparison && comparison !== prevComparison) {
+    const prevProducts = prevComparison?.products || [];
+    const newProducts = comparison?.products || [];
+    const prevSkus = prevProducts.map((p) => p.sku).sort().join(',');
+    const newSkus = newProducts.map((p) => p.sku).sort().join(',');
+
     setPrevComparison(comparison);
-    if (comparison?.products && comparison.products.length > 0 && taggedProducts.length === 0) {
-      setTaggedProducts(comparison.products);
-    }
-    if (comparison?.products && comparison.products.length > 0) {
+    if (newProducts.length > 0) {
+      if (taggedProducts.length === 0 || (prevProducts.length > 0 && prevSkus !== newSkus)) {
+        setTaggedProducts(newProducts);
+      }
       setIsChatOpen(true);
     }
   }
@@ -168,25 +173,41 @@ export const App: React.FC = () => {
     setBrowseCategory({ category });
   };
 
-  const handleToggleSelectProduct = (product: ProductSpec) => {
-    setSelectedProducts((prev) => {
-      const exists = prev.some((p) => p.sku === product.sku);
-      if (exists) {
-        return prev.filter((p) => p.sku !== product.sku);
+  const handleToggleSelectProduct = (product: ProductSpec, action: 'toggle' | 'add' = 'toggle') => {
+    const base =
+      selectedProducts.length > 0
+        ? selectedProducts
+        : taggedProducts.length > 0
+          ? taggedProducts
+          : comparison?.products || [];
+
+    const exists = base.some((p) => p.sku === product.sku);
+    let next: ProductSpec[];
+    if (exists) {
+      if (action === 'add') {
+        setSelectedProducts(base);
+        setTaggedProducts(base);
+        return;
       }
-      if (prev.length >= 5) {
-        return prev;
+      next = base.filter((p) => p.sku !== product.sku);
+    } else {
+      if (base.length >= 5) {
+        return;
       }
-      return [...prev, product];
-    });
+      next = [...base, product];
+    }
+    setSelectedProducts(next);
+    setTaggedProducts(next);
   };
 
   const handleRemoveSelectedProduct = (sku: string) => {
     setSelectedProducts((prev) => prev.filter((p) => p.sku !== sku));
+    setTaggedProducts((prev) => prev.filter((p) => p.sku !== sku));
   };
 
   const handleClearSelectedProducts = () => {
     setSelectedProducts([]);
+    setTaggedProducts([]);
   };
 
   const handleRemoveTag = (sku: string) => {
@@ -204,7 +225,10 @@ export const App: React.FC = () => {
 
     // Build the rich prompt with all attributes implicitly
     const prompt = buildComparisonPrompt(products);
-    const category = products[0]?.category || browseCategory?.category || null;
+    const allSameCategory =
+      products.length > 0 &&
+      products.every((p) => Boolean(p.category) && p.category === products[0].category);
+    const category = allSameCategory ? (products[0].category || null) : null;
 
     setBrowseCategory(null);
     setTaggedProducts([...products]);
@@ -304,7 +328,7 @@ export const App: React.FC = () => {
           onCategorySelect={handleCategorySelect}
           isLoading={isLoading}
           taggedProducts={selectedProducts.length > 0 ? selectedProducts : taggedProducts}
-          onAddTag={handleToggleSelectProduct}
+          onAddTag={(p) => handleToggleSelectProduct(p, 'add')}
           onRemoveTag={handleRemoveTag}
           onClearTags={handleClearTags}
           initialQuery={
@@ -438,7 +462,7 @@ export const App: React.FC = () => {
                                     />
                                   </div>
                                   <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-gray-100">
-                                    {searchCatalogProducts(addCompareQuery, searchParams?.category)
+                                    {searchCatalogProducts(addCompareQuery, null)
                                       .filter((p) => !comparison.products.some((cp) => cp.sku === p.sku))
                                       .slice(0, 6)
                                       .map((prod) => (
@@ -475,7 +499,7 @@ export const App: React.FC = () => {
                                           </div>
                                         </div>
                                       ))}
-                                    {searchCatalogProducts(addCompareQuery, searchParams?.category).filter(
+                                    {searchCatalogProducts(addCompareQuery, null).filter(
                                       (p) => !comparison.products.some((cp) => cp.sku === p.sku)
                                     ).length === 0 && (
                                       <div className="p-3 text-center text-xs text-gray-500">
