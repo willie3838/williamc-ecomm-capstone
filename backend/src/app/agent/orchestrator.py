@@ -1449,6 +1449,27 @@ class ComparisonOrchestrator:
                 out_toks = int(getattr(retry_usage, "candidates_token_count", 0) or 0)
                 self.last_input_tokens += in_toks
                 self.last_output_tokens += out_toks
+            if getattr(retry_response, "candidates", None):
+                finish_reason = str(
+                    getattr(retry_response.candidates[0], "finish_reason", "") or ""
+                )
+                if finish_reason in {
+                    "SAFETY",
+                    "MODEL_ARMOR",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "SPII",
+                }:
+                    logger.warning(
+                        "Intent classification query blocked by Model Armor / Safety filter on retry (reason=%s): %s",
+                        finish_reason,
+                        sanitized_query,
+                    )
+                    return QueryIntentAnalysis(
+                        intent_type="OPINION_OR_CHATTER",
+                        is_comparison_eligible=False,
+                        reasoning="Blocked by security filter.",
+                    )
             # If retry also fails, exception propagates cleanly (fail-fast preserved)
             parsed_intent = _parse_intent_payload(retry_response)
 
@@ -1877,6 +1898,23 @@ class ComparisonOrchestrator:
                 out_toks = int(getattr(retry_usage, "candidates_token_count", 0) or 0)
                 self.last_input_tokens += in_toks
                 self.last_output_tokens += out_toks
+            if getattr(retry_response, "candidates", None):
+                finish_reason = str(
+                    getattr(retry_response.candidates[0], "finish_reason", "") or ""
+                )
+                if finish_reason in {
+                    "SAFETY",
+                    "MODEL_ARMOR",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "SPII",
+                }:
+                    logger.warning(
+                        "Query blocked by Google Cloud Model Armor / Safety filter on retry (reason=%s): %s",
+                        finish_reason,
+                        sanitized_query,
+                    )
+                    return []
             # If retry also fails, exception propagates cleanly (fail-fast preserved)
             ranked_items = _parse_rerank_payload(retry_response)
 

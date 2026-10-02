@@ -8,8 +8,8 @@ Tests:
 5. Verification of BigQuery parameter binding for 2-character tokens.
 """
 
+import ast
 import json
-import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -256,17 +256,31 @@ def test_balance_entities_with_two_char_model_token():
 
 
 def test_orchestrator_future_timeout_is_eight_seconds():
-    """Verify that all speculative and in-flight .result(timeout=...) calls use timeout=8.0."""
+    """Verify that all speculative and in-flight .result(timeout=...) calls use timeout=8.0 via AST analysis."""
     orch_path = Path(__file__).resolve().parent.parent / "src" / "app" / "agent" / "orchestrator.py"
     content = orch_path.read_text(encoding="utf-8")
 
     # Assert no timeout=4.0 remains
     assert "timeout=4.0" not in content, "Found lingering timeout=4.0 in orchestrator.py!"
 
-    # Assert timeout=8.0 is present for future.result calls
-    matches_8s = re.findall(r"\.result\(timeout=8\.0\)", content)
-    assert len(matches_8s) >= 7, (
-        f"Expected at least 7 instances of .result(timeout=8.0), found {len(matches_8s)}"
+    # AST-level inspection of all Call nodes invoking .result(timeout=...)
+    tree = ast.parse(content)
+    result_timeout_values: list[float] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "result"
+        ):
+            for kw in node.keywords:
+                if kw.arg == "timeout" and isinstance(kw.value, ast.Constant):
+                    result_timeout_values.append(float(kw.value.value))
+
+    assert 4.0 not in result_timeout_values, (
+        f"Found Call with timeout=4.0 in AST: {result_timeout_values}"
+    )
+    assert result_timeout_values.count(8.0) >= 7, (
+        f"Expected at least 7 calls with timeout=8.0, found: {result_timeout_values}"
     )
 
 
