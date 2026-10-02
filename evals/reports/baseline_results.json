@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-10-02T01:02:22.860647+00:00",
+    "timestamp": "2026-10-02T16:09:21.814011+00:00",
     "dataset": "evals/dataset/benchmark_catalog.evalset.json",
     "judge_model": "gemini-3.5-flash",
     "mode": "hermetic",
@@ -11,15 +11,15 @@
   "summary": {
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "mean_retrieval_precision": 0.95,
+    "mean_retrieval_precision": 0.9667,
     "mean_retrieval_recall": 1.0,
     "mean_semantic_score": 1.0,
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 0.0088,
-    "latency_p90_seconds": 0.0152,
-    "latency_p95_seconds": 0.017,
+    "latency_p50_seconds": 0.0098,
+    "latency_p90_seconds": 0.0127,
+    "latency_p95_seconds": 0.0146,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -37,7 +37,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0098
+      "mean_latency_seconds": 0.0123
     },
     "Tablets": {
       "total": 16,
@@ -46,7 +46,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0108
+      "mean_latency_seconds": 0.0101
     },
     "Headphones": {
       "total": 16,
@@ -55,7 +55,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0096
+      "mean_latency_seconds": 0.0088
     },
     "Smart Home": {
       "total": 16,
@@ -64,7 +64,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0115
+      "mean_latency_seconds": 0.01
     },
     "TVs": {
       "total": 16,
@@ -73,7 +73,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0085
+      "mean_latency_seconds": 0.0111
     }
   },
   "details": [
@@ -101,7 +101,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0164,
+      "latency_seconds": 0.0432,
       "status": "PASS",
       "errors": []
     },
@@ -129,21 +129,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0099,
+      "latency_seconds": 0.0112,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "laptop-003",
       "category": "Laptops",
-      "query": "Compare Dell XPS 13 and Lenovo ThinkPad X1 Carbon Gen 12 for business travel",
+      "query": "Compare 5 premium ultraportable laptops: Dell XPS 13, Lenovo ThinkPad X1 Carbon, Apple MacBook Air 13, HP Spectre x360, and Microsoft Surface Laptop 7",
       "expected_skus": [
         "6575132",
-        "6579840"
+        "6579840",
+        "6534606",
+        "6572088",
+        "6581910"
       ],
       "retrieved_skus": [
         "6575132",
-        "6579840"
+        "6579840",
+        "6534606",
+        "6572088",
+        "6581910"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -157,7 +163,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0067,
+      "latency_seconds": 0.0114,
       "status": "PASS",
       "errors": []
     },
@@ -185,7 +191,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0089,
+      "latency_seconds": 0.0115,
       "status": "PASS",
       "errors": []
     },
@@ -214,7 +220,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0089,
+      "latency_seconds": 0.0108,
       "status": "PASS",
       "errors": []
     },
@@ -242,7 +248,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0082,
+      "latency_seconds": 0.0096,
       "status": "PASS",
       "errors": []
     },
@@ -270,7 +276,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0083,
+      "latency_seconds": 0.0133,
       "status": "PASS",
       "errors": []
     },
@@ -298,7 +304,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0078,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -326,7 +332,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0114,
+      "latency_seconds": 0.009,
       "status": "PASS",
       "errors": []
     },
@@ -354,7 +360,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0082,
+      "latency_seconds": 0.0103,
       "status": "PASS",
       "errors": []
     },
@@ -382,7 +388,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0126,
+      "latency_seconds": 0.0086,
       "status": "PASS",
       "errors": []
     },
@@ -411,21 +417,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0126,
+      "latency_seconds": 0.0094,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "laptop-013",
       "category": "Laptops",
-      "query": "Price and processor breakdown: MacBook Air 13 M3 vs Dell XPS 13 Core Ultra 7",
+      "query": "Compare Apple MacBook Air 13 M3, Dell XPS 13, and Lenovo ThinkPad X1 Carbon Gen 12",
       "expected_skus": [
         "6534606",
-        "6575132"
+        "6575132",
+        "6579840"
       ],
       "retrieved_skus": [
+        "6534606",
         "6575132",
-        "6534606"
+        "6579840"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -439,21 +447,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0115,
+      "latency_seconds": 0.0087,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "laptop-014",
       "category": "Laptops",
-      "query": "MacBook Air 13 M3 vs MacBook Pro 14 M3 Pro display size and memory comparison",
+      "query": "Compare MacBook Pro 14 M3 Pro, ASUS ROG Zephyrus G14, and HP Spectre x360",
       "expected_skus": [
-        "6534606",
-        "6534640"
+        "6534640",
+        "6570214",
+        "6572088"
       ],
       "retrieved_skus": [
-        "6534606",
-        "6534640"
+        "6534640",
+        "6570214",
+        "6572088"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -467,21 +477,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0091,
+      "latency_seconds": 0.01,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "laptop-015",
       "category": "Laptops",
-      "query": "Compare Intel Core Ultra 7 laptops: Dell XPS 13 vs ThinkPad X1 Carbon",
+      "query": "Compare 4 flagship laptops: MacBook Air 13 M3, Dell XPS 13, Lenovo ThinkPad X1 Carbon, and ASUS ROG Zephyrus G14",
       "expected_skus": [
+        "6534606",
         "6575132",
-        "6579840"
+        "6579840",
+        "6570214"
       ],
       "retrieved_skus": [
+        "6534606",
         "6575132",
-        "6579840"
+        "6579840",
+        "6570214"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -495,21 +509,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0072,
+      "latency_seconds": 0.0102,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "laptop-016",
       "category": "Laptops",
-      "query": "Which laptop has better battery life: MacBook Air 13 M3 or Lenovo ThinkPad X1 Carbon?",
+      "query": "Compare 5 ultraportable laptops: Apple MacBook Air 13 M3, Dell XPS 13, Lenovo ThinkPad X1 Carbon, HP Spectre x360, and ASUS ROG Zephyrus G14",
       "expected_skus": [
         "6534606",
-        "6579840"
+        "6575132",
+        "6579840",
+        "6572088",
+        "6570214"
       ],
       "retrieved_skus": [
+        "6534606",
+        "6575132",
         "6579840",
-        "6534606"
+        "6572088",
+        "6570214"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -523,7 +543,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0084,
+      "latency_seconds": 0.0112,
       "status": "PASS",
       "errors": []
     },
@@ -551,7 +571,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0091,
+      "latency_seconds": 0.0146,
       "status": "PASS",
       "errors": []
     },
@@ -564,8 +584,8 @@
         "6542951"
       ],
       "retrieved_skus": [
-        "6542951",
         "6579601",
+        "6542951",
         "6582105"
       ],
       "retrieval_precision": 0.6667,
@@ -580,21 +600,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.008,
+      "latency_seconds": 0.0125,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tablet-003",
       "category": "Tablets",
-      "query": "Samsung Galaxy Tab S9 vs Google Pixel Tablet: specs, battery, and price",
+      "query": "Compare 5 leading tablets: Samsung Galaxy Tab S9, Google Pixel Tablet, Apple iPad Pro 11, Microsoft Surface Pro 11, and OnePlus Pad 2",
       "expected_skus": [
         "6546522",
-        "6542951"
+        "6542951",
+        "6579601",
+        "6582105",
+        "6583920"
       ],
       "retrieved_skus": [
         "6546522",
-        "6542951"
+        "6542951",
+        "6579601",
+        "6582105",
+        "6583920"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -608,7 +634,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0232,
+      "latency_seconds": 0.0145,
       "status": "PASS",
       "errors": []
     },
@@ -636,7 +662,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.017,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -664,7 +690,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0083,
+      "latency_seconds": 0.0087,
       "status": "PASS",
       "errors": []
     },
@@ -692,7 +718,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0098,
+      "latency_seconds": 0.0074,
       "status": "PASS",
       "errors": []
     },
@@ -721,7 +747,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0077,
+      "latency_seconds": 0.0093,
       "status": "PASS",
       "errors": []
     },
@@ -749,7 +775,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0078,
+      "latency_seconds": 0.0081,
       "status": "PASS",
       "errors": []
     },
@@ -777,7 +803,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0083,
+      "latency_seconds": 0.008,
       "status": "PASS",
       "errors": []
     },
@@ -805,7 +831,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0114,
+      "latency_seconds": 0.0098,
       "status": "PASS",
       "errors": []
     },
@@ -834,7 +860,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0163,
+      "latency_seconds": 0.0105,
       "status": "PASS",
       "errors": []
     },
@@ -863,21 +889,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0152,
+      "latency_seconds": 0.0127,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tablet-013",
       "category": "Tablets",
-      "query": "Price and storage comparison between Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+      "query": "Compare Apple iPad Pro 11 M4, Samsung Galaxy Tab S9, and Google Pixel Tablet 11",
       "expected_skus": [
         "6579601",
-        "6546522"
+        "6546522",
+        "6542951"
       ],
       "retrieved_skus": [
+        "6579601",
         "6546522",
-        "6579601"
+        "6542951"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -891,24 +919,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0084,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tablet-014",
       "category": "Tablets",
-      "query": "Which is lighter: Apple iPad Pro 11 M4 or Google Pixel Tablet with Dock?",
+      "query": "Compare Samsung Galaxy Tab S9, Microsoft Surface Pro 11th Edition, and Lenovo Tab P12",
       "expected_skus": [
-        "6579601",
-        "6542951"
+        "6546522",
+        "6582105",
+        "6568419"
       ],
       "retrieved_skus": [
-        "6542951",
-        "6579601",
-        "6582105"
+        "6546522",
+        "6582105",
+        "6568419"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -920,21 +949,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.007,
+      "latency_seconds": 0.0104,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tablet-015",
       "category": "Tablets",
-      "query": "Best Android tablet value: Samsung Tab S9 versus Google Pixel Tablet 11",
+      "query": "Compare 4 premium slates: iPad Pro 11 M4, Samsung Galaxy Tab S9, Google Pixel Tablet, and Microsoft Surface Pro 11",
       "expected_skus": [
+        "6579601",
         "6546522",
-        "6542951"
+        "6542951",
+        "6582105"
       ],
       "retrieved_skus": [
+        "6579601",
+        "6546522",
         "6542951",
-        "6546522"
+        "6582105"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -948,21 +981,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0086,
+      "latency_seconds": 0.0105,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tablet-016",
       "category": "Tablets",
-      "query": "Summary of differences between iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+      "query": "Compare 5 tablets: Apple iPad Pro 11 M4, Samsung Galaxy Tab S9, Google Pixel Tablet, Microsoft Surface Pro 11, and OnePlus Pad 2",
       "expected_skus": [
         "6579601",
-        "6546522"
+        "6546522",
+        "6542951",
+        "6582105",
+        "6583920"
       ],
       "retrieved_skus": [
+        "6579601",
         "6546522",
-        "6579601"
+        "6542951",
+        "6582105",
+        "6583920"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -976,7 +1015,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0072,
+      "latency_seconds": 0.0087,
       "status": "PASS",
       "errors": []
     },
@@ -989,8 +1028,8 @@
         "6553823"
       ],
       "retrieved_skus": [
-        "6553823",
-        "6505727"
+        "6505727",
+        "6553823"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1004,7 +1043,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0073,
+      "latency_seconds": 0.0096,
       "status": "PASS",
       "errors": []
     },
@@ -1017,8 +1056,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6373460",
-        "6505727"
+        "6505727",
+        "6373460"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1032,21 +1071,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.009,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "headphone-003",
       "category": "Headphones",
-      "query": "Compare Bose QuietComfort Ultra and Apple AirPods Max for travel comfort and ANC",
+      "query": "Compare 5 top ANC headphones: Bose QuietComfort Ultra, Apple AirPods Max, Sony WH-1000XM5, Sennheiser Momentum 4, and Beats Studio Pro",
       "expected_skus": [
         "6553823",
-        "6373460"
+        "6373460",
+        "6505727",
+        "6519302",
+        "6501045"
       ],
       "retrieved_skus": [
         "6553823",
-        "6373460"
+        "6373460",
+        "6505727",
+        "6519302",
+        "6501045"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1060,7 +1105,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0084,
+      "latency_seconds": 0.011,
       "status": "PASS",
       "errors": []
     },
@@ -1088,7 +1133,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0099,
+      "latency_seconds": 0.0086,
       "status": "PASS",
       "errors": []
     },
@@ -1101,8 +1146,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6373460",
-        "6505727"
+        "6505727",
+        "6373460"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1116,7 +1161,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0063,
+      "latency_seconds": 0.0093,
       "status": "PASS",
       "errors": []
     },
@@ -1144,7 +1189,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0078,
+      "latency_seconds": 0.011,
       "status": "PASS",
       "errors": []
     },
@@ -1172,7 +1217,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0082,
+      "latency_seconds": 0.0067,
       "status": "PASS",
       "errors": []
     },
@@ -1200,7 +1245,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0099,
+      "latency_seconds": 0.0058,
       "status": "PASS",
       "errors": []
     },
@@ -1228,7 +1273,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0081,
+      "latency_seconds": 0.0096,
       "status": "PASS",
       "errors": []
     },
@@ -1256,7 +1301,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0123,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -1284,7 +1329,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0096,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -1312,21 +1357,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0202,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "headphone-013",
       "category": "Headphones",
-      "query": "Price comparison between Sony WH-1000XM5 and Bose QuietComfort Ultra headphones",
+      "query": "Compare Sony WH-1000XM5, Bose QuietComfort Ultra, and Apple AirPods Max",
       "expected_skus": [
         "6505727",
-        "6553823"
+        "6553823",
+        "6373460"
       ],
       "retrieved_skus": [
         "6505727",
-        "6553823"
+        "6553823",
+        "6373460"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1340,21 +1387,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0092,
+      "latency_seconds": 0.0081,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "headphone-014",
       "category": "Headphones",
-      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
+      "query": "Compare Bose QuietComfort Ultra, Apple AirPods Max, and Sennheiser Momentum 4",
       "expected_skus": [
-        "6505727",
-        "6373460"
+        "6553823",
+        "6373460",
+        "6519302"
       ],
       "retrieved_skus": [
+        "6553823",
         "6373460",
-        "6505727"
+        "6519302"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1368,50 +1417,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0085,
+      "latency_seconds": 0.0093,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "headphone-015",
       "category": "Headphones",
-      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
+      "query": "Compare 4 noise-canceling headphones: Sony WH-1000XM5, Bose QuietComfort Ultra, Apple AirPods Max, and Sennheiser Momentum 4",
       "expected_skus": [
+        "6505727",
         "6553823",
-        "6373460"
-      ],
-      "retrieved_skus": [
         "6373460",
-        "6553823",
-        "6548219"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0083,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "headphone-016",
-      "category": "Headphones",
-      "query": "Detailed breakdown of Sony WH-1000XM5 and Bose QuietComfort Ultra specs",
-      "expected_skus": [
-        "6505727",
-        "6553823"
+        "6519302"
       ],
       "retrieved_skus": [
         "6505727",
-        "6553823"
+        "6553823",
+        "6373460",
+        "6519302"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1425,7 +1449,41 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0104,
+      "latency_seconds": 0.0086,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-016",
+      "category": "Headphones",
+      "query": "Compare 5 wireless ANC headphones: Sony WH-1000XM5, Bose QC Ultra, Apple AirPods Max, Sennheiser Momentum 4, and Beats Studio Pro",
+      "expected_skus": [
+        "6505727",
+        "6553823",
+        "6373460",
+        "6519302",
+        "6501045"
+      ],
+      "retrieved_skus": [
+        "6505727",
+        "6553823",
+        "6373460",
+        "6519302",
+        "6501045"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0107,
       "status": "PASS",
       "errors": []
     },
@@ -1453,7 +1511,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0196,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -1481,24 +1539,29 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0126,
+      "latency_seconds": 0.0101,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "smarthome-003",
       "category": "Smart Home",
-      "query": "Google Nest Learning Thermostat 4th Gen vs ecobee Smart Thermostat Premium price and sensors",
+      "query": "Compare 5 smart home essentials: Google Nest Thermostat 4th Gen, ecobee Smart Thermostat Premium, Honeywell Home T9, Ring Battery Doorbell Pro, and Arlo Pro 5S",
       "expected_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418",
+        "6571290",
+        "6539021"
       ],
       "retrieved_skus": [
         "6584201",
         "6502275",
-        "6481592"
+        "6562418",
+        "6571290",
+        "6539021"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1510,7 +1573,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0132,
+      "latency_seconds": 0.0105,
       "status": "PASS",
       "errors": []
     },
@@ -1538,7 +1601,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0092,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -1566,7 +1629,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0112,
+      "latency_seconds": 0.0093,
       "status": "PASS",
       "errors": []
     },
@@ -1594,7 +1657,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0085,
+      "latency_seconds": 0.0106,
       "status": "PASS",
       "errors": []
     },
@@ -1622,7 +1685,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0175,
+      "latency_seconds": 0.0115,
       "status": "PASS",
       "errors": []
     },
@@ -1650,7 +1713,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0109,
+      "latency_seconds": 0.0103,
       "status": "PASS",
       "errors": []
     },
@@ -1678,7 +1741,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0111,
+      "latency_seconds": 0.0101,
       "status": "PASS",
       "errors": []
     },
@@ -1706,7 +1769,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0077,
+      "latency_seconds": 0.0116,
       "status": "PASS",
       "errors": []
     },
@@ -1734,7 +1797,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0091,
+      "latency_seconds": 0.0104,
       "status": "PASS",
       "errors": []
     },
@@ -1762,80 +1825,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0071,
+      "latency_seconds": 0.0111,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "smarthome-013",
       "category": "Smart Home",
-      "query": "Is ecobee Smart Thermostat Premium cheaper than Google Nest Learning Thermostat 4th Gen?",
+      "query": "Compare Google Nest Learning Thermostat 4th Gen, ecobee Smart Thermostat Premium, and Honeywell Home T9",
       "expected_skus": [
         "6584201",
-        "6502275"
-      ],
-      "retrieved_skus": [
-        "6584201",
-        "6502275"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0142,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "smarthome-014",
-      "category": "Smart Home",
-      "query": "Voice control differences: Nest 4th Gen Google Assistant vs ecobee Premium Alexa Siri",
-      "expected_skus": [
-        "6584201",
-        "6502275"
-      ],
-      "retrieved_skus": [
-        "6584201",
-        "6502275"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0094,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "smarthome-015",
-      "category": "Smart Home",
-      "query": "Compare energy savings and sensor technology of Nest 4th Gen and ecobee Premium",
-      "expected_skus": [
-        "6584201",
-        "6502275"
+        "6502275",
+        "6562418"
       ],
       "retrieved_skus": [
         "6584201",
         "6502275",
         "6562418"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1847,21 +1855,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0088,
+      "latency_seconds": 0.0097,
       "status": "PASS",
       "errors": []
     },
     {
-      "id": "smarthome-016",
+      "id": "smarthome-014",
       "category": "Smart Home",
-      "query": "Comprehensive comparison of Google Nest Learning Thermostat 4th Gen vs ecobee Premium",
+      "query": "Compare ecobee Smart Thermostat Premium, Amazon Echo Show 10, and Philips Hue Starter Kit",
       "expected_skus": [
-        "6584201",
-        "6502275"
+        "6502275",
+        "6481592",
+        "6549310"
       ],
       "retrieved_skus": [
-        "6584201",
-        "6502275"
+        "6502275",
+        "6481592",
+        "6549310"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1875,7 +1885,73 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0136,
+      "latency_seconds": 0.0093,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-015",
+      "category": "Smart Home",
+      "query": "Compare 4 climate and hub devices: Google Nest 4th Gen, ecobee Premium, Honeywell Home T9, and Amazon Echo Show 10",
+      "expected_skus": [
+        "6584201",
+        "6502275",
+        "6562418",
+        "6481592"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275",
+        "6562418",
+        "6481592"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.009,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "smarthome-016",
+      "category": "Smart Home",
+      "query": "Compare 5 smart home essentials: Google Nest 4th Gen, ecobee Premium, Honeywell T9, Ring Battery Doorbell Pro, and Arlo Pro 5S",
+      "expected_skus": [
+        "6584201",
+        "6502275",
+        "6562418",
+        "6571290",
+        "6539021"
+      ],
+      "retrieved_skus": [
+        "6584201",
+        "6502275",
+        "6562418",
+        "6571290",
+        "6539021"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0098,
       "status": "PASS",
       "errors": []
     },
@@ -1903,7 +1979,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.014,
+      "latency_seconds": 0.0127,
       "status": "PASS",
       "errors": []
     },
@@ -1916,8 +1992,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1931,24 +2007,29 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0127,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tv-003",
       "category": "TVs",
-      "query": "Compare gaming specs and refresh rate for LG C3 OLED vs Samsung S90C OLED TV",
+      "query": "Compare 5 premium 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, TCL QM8 75, and Hisense U8N 75",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "retrieved_skus": [
-        "6536965",
         "6535929",
-        "6569402"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1960,7 +2041,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0147,
+      "latency_seconds": 0.0157,
       "status": "PASS",
       "errors": []
     },
@@ -1973,8 +2054,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1988,7 +2069,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0158,
       "status": "PASS",
       "errors": []
     },
@@ -2001,8 +2082,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2016,7 +2097,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0085,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -2029,8 +2110,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2044,7 +2125,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0159,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -2057,36 +2138,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0083,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tv-008",
-      "category": "TVs",
-      "query": "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?",
-      "expected_skus": [
         "6535929",
         "6536965"
-      ],
-      "retrieved_skus": [
-        "6536965",
-        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2105,6 +2158,34 @@
       "errors": []
     },
     {
+      "id": "tv-008",
+      "category": "TVs",
+      "query": "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0117,
+      "status": "PASS",
+      "errors": []
+    },
+    {
       "id": "tv-009",
       "category": "TVs",
       "query": "Compare screen size and display technology of LG C3 65-inch and Samsung S90C 65-inch",
@@ -2113,8 +2194,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
         "6535929",
+        "6536965",
         "6569402"
       ],
       "retrieval_precision": 0.6667,
@@ -2129,7 +2210,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0105,
       "status": "PASS",
       "errors": []
     },
@@ -2142,8 +2223,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2157,7 +2238,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0059,
+      "latency_seconds": 0.009,
       "status": "PASS",
       "errors": []
     },
@@ -2170,8 +2251,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6535929",
+        "6536965"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2185,7 +2266,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0056,
+      "latency_seconds": 0.0164,
       "status": "PASS",
       "errors": []
     },
@@ -2199,9 +2280,10 @@
       ],
       "retrieved_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6551173"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -2213,21 +2295,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0056,
+      "latency_seconds": 0.0087,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tv-013",
       "category": "TVs",
-      "query": "Audio and smart features comparison: LG C3 65-inch vs Samsung S90C 65-inch",
+      "query": "Compare LG C3 65 OLED, Samsung S90C 65 OLED, and Sony BRAVIA XR A80L 55",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908"
       ],
       "retrieved_skus": [
+        "6535929",
         "6536965",
-        "6535929"
+        "6543908"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2241,21 +2325,23 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0055,
+      "latency_seconds": 0.0077,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tv-014",
       "category": "TVs",
-      "query": "Is Samsung S90C 65-inch worth $100 more than LG C3 65-inch OLED?",
+      "query": "Compare Sony BRAVIA XR A80L, TCL QM8 Series 75, and Hisense U8N Series 75",
       "expected_skus": [
-        "6535929",
-        "6536965"
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "retrieved_skus": [
-        "6536965",
-        "6535929"
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2269,21 +2355,25 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0064,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tv-015",
       "category": "TVs",
-      "query": "Compare picture quality and refresh rate: LG C3 vs Samsung S90C OLED 4K TVs",
+      "query": "Compare 4 premium 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, and TCL QM8 75",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173"
       ],
       "retrieved_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2297,21 +2387,27 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0056,
+      "latency_seconds": 0.0089,
       "status": "PASS",
       "errors": []
     },
     {
       "id": "tv-016",
       "category": "TVs",
-      "query": "Complete breakdown of LG C3 65-inch OLED evo vs Samsung S90C 65-inch OLED TV",
+      "query": "Compare 5 smart 4K TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L, TCL QM8 75, and Hisense U8N 75",
       "expected_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "retrieved_skus": [
         "6535929",
-        "6536965"
+        "6536965",
+        "6543908",
+        "6551173",
+        "6577012"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2325,7 +2421,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0075,
+      "latency_seconds": 0.0098,
       "status": "PASS",
       "errors": []
     }

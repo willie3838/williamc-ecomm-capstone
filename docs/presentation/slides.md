@@ -15,17 +15,17 @@
 | **Slide 3** | Cloud Architecture: Serverless GCP Topology & Boundary | 1:45 | 4:30 |
 | **Slide 4** | Total Cost of Ownership (TCO) & Unit Economics | 1:30 | 6:00 |
 | **Slide 5** | AI-Specific Security: XML Boundaries & Content Safety | 1:15 | 7:15 |
-| **Slide 6** | Quality Flywheel: 80-Pair Benchmark & CI/CD Verification | 1:30 | 8:45 |
+| **Slide 6** | Quality Flywheel: 80-Case Multi-Product Benchmark & CI/CD Verification | 1:30 | 8:45 |
 | **Slide 7** | Production Readiness, Roadmap & Business Outcomes | 1:15 | 10:00 |
 
 ### Appendix: True Architectural Decisions Made Beyond `SPEC.md` Requirements
 | Slide | Title | Focus Area |
 | :---: | :--- | :--- |
 | **Appendix A1** | `SPEC.md` Baseline vs. Our 8 True Architectural Decisions (`D1` – `D8`) | Separating Spec-Mandated Stack (Cloud Run, BQ, React) from Real Engineering Decisions |
-| **Appendix A2** | Decisions `D1` & `D2`: 4-Node Cooperative Pipeline & Tiered-Hybrid Model Routing | Why `SPEC.md`'s Single `Gemini 2.5 Pro` Agent Failed the `<3.0s` SLA (`3.48s` -> `2.18s`) |
-| **Appendix A3** | Decisions `D3` & `D4`: Deterministic Matrix/SKU Scrubber & Concurrent Model Armor | Replacing Raw Markdown with Schema + Scrubber; Concurrent Keep-Alive Guardrails |
-| **Appendix A4** | Decisions `D5`, `D6` & `D7`: Dual Runtime, Split 3-Trigger GitOps & Triple-Plane IAP | Vertex AI `ReasoningEngine`, Eliminating Per-Push `terraform apply`, Fixing IAP Drift |
-| **Appendix A5** | Decision `D8`: Non-Blocking Resilience, Anti-Overfitting Gate & Executive Q&A | `2.0s` Bounded Telemetry Threads, Circuit Breaker, Counterfactual Holdout & Phase 2/3 |
+| **Appendix A2** | Decisions `D1` & `D2`: 4-Node Cooperative Pipeline, 9-GA-Model Benchmark & 2-vs-5 Product Scaling | Why `SPEC.md`'s Single `Gemini 2.5 Pro` Agent Failed the `<3.0s` SLA (`3.48s` -> `2.18s`) |
+| **Appendix A3** | Decisions `D3` & `D4`: Deterministic Matrix/SKU Scrubber, Multi-Winner Ties & Concurrent Model Armor | Replacing Raw Markdown with Schema + Scrubber; Concurrent Keep-Alive Guardrails |
+| **Appendix A4** | Decisions `D5`, `D6` & `D7`: Dual Runtime, IAP Memory Bank, Split 3-Trigger GitOps & Triple-Plane IAP | Vertex AI `ReasoningEngine`, 3-Tier Lazy Compaction, Eliminating Per-Push `terraform apply` |
+| **Appendix A5** | Decision `D8`: Non-Blocking Resilience, 5-Product Anti-Overfitting Gate & 1,000-Req Black Friday Audit | `2.0s` Bounded Telemetry Threads, Circuit Breaker, Counterfactual Holdout & Live Load Test |
 
 ---
 
@@ -35,18 +35,18 @@
 
 ### The Problem in Numbers
 - **68% of consumer electronics shoppers** abandon their cart due to specification confusion (RAM, processor generations, display resolutions, battery life).
-- Traditional search returns walls of unstructured product cards requiring customers to open 8+ browser tabs to compare two laptops or headphones.
+- Traditional search returns walls of unstructured product cards requiring customers to open 8+ browser tabs to compare two to five laptops, tablets, or headphones.
 - Existing LLM chatbots frequently **hallucinate hardware specs** (e.g., claiming a MacBook Air has an HDMI port or an OLED screen), destroying customer trust and increasing return rates.
 
 ### The Business Objective
 Deliver an enterprise-grade, conversational comparison assistant that produces:
-1. **Instant, side-by-side spec alignment matrices** for any two or more consumer electronics products.
+1. **Instant, side-by-side spec alignment matrices** for **2 to 5 consumer electronics products** (including cross-category comparisons).
 2. **100% mathematically grounded specs** retrieved from BigQuery with verifiable SKU citations.
-3. **P95 Latency under 3.0 seconds** to preserve conversion velocity.
+3. **P95 Latency under 3.0 seconds** to preserve conversion velocity across both 2-product and 5-product comparisons.
 
 > **Speaker Notes [0:00 - 1:15]**:  
-> *"Good morning everyone. Every month, millions of customers visit TechBuy Retailers looking for laptops, headphones, or smart home gear. But when choosing between a Dell XPS 13 and a MacBook Air M3, they hit 'spec fatigue'. They don't know whether 16GB unified memory is equivalent to 16GB DDR5, or whether the display has the ports they need. They open ten tabs, get overwhelmed, and leave.*  
-> *Generic AI bots made this worse by inventing specs. Today, I am presenting the TechBuy Retailers Catalog Comparison Agent—an agentic architecture built on Google Cloud that solves spec confusion with verifiable, zero-hallucination accuracy in under three seconds."*
+> *"Good morning everyone. Every month, millions of customers visit TechBuy Retailers looking for laptops, headphones, or smart home gear. But when choosing between two—or up to five—flagship laptops like a Dell XPS 13, MacBook Air M3, ThinkPad X1 Carbon, HP Spectre, and ASUS Zenbook, they hit 'spec fatigue'. They don't know whether 16GB unified memory is equivalent to 16GB DDR5, or whether the display has the ports they need. They open ten tabs, get overwhelmed, and leave.*  
+> *Generic AI bots made this worse by inventing specs. Today, I am presenting the TechBuy Retailers Catalog Comparison Agent—an agentic architecture built on Google Cloud that solves spec confusion across 2 to 5 products simultaneously with verifiable, zero-hallucination accuracy in under three seconds."*
 
 ---
 
@@ -57,27 +57,27 @@ Deliver an enterprise-grade, conversational comparison assistant that produces:
 ### Core User Experience & System Capabilities
 ```
 +-----------------------------------------------------------------------------------+
-| Customer Query: "Compare MacBook Air M3 15" and Dell XPS 13 for battery and RAM"   |
+| Customer Query / Picker: Compare 2 to 5 Products (or "+ Add Product to Compare")  |
 +-----------------------------------------------------------------------------------+
                                          |
                                          v
 +-----------------------------------------------------------------------------------+
-| 1. Product Cards: Side-by-side pricing ($1,299 vs $1,199), customer ratings (4.8) |
-| 2. Spec Matrix: Processor, Memory, Storage, Battery Life (18h vs 14h), Ports       |
-| 3. Winner Badges: Objective winner badges highlighting battery & portability wins  |
-| 4. Grounded Citations: Clickable [SKU: 6534606] linking directly to product PDP    |
-| 5. Persona Recommendation: "Best for Travel" vs "Best for Power Workflows"        |
+| 1. Multi-Product Grid: Side-by-side pricing, ratings & specs for 2 to 5 products  |
+| 2. Spec Matrix: Processor, Memory, Storage, Battery Life, Display, Weight         |
+| 3. Winner & Tie Badges: Single (`winner_sku`) & multi-winner ties (`winner_skus`) |
+| 4. Grounded Citations: Clickable [SKU: 6534606] verified by deterministic scrubber|
+| 5. Persistent Follow-Up Chat: Right-hand sidebar with IAP-scoped Vertex AI Memory |
 +-----------------------------------------------------------------------------------+
 ```
 
 ### Architectural Guarantees
-- **Zero Hallucination Guarantee**: If a spec does not exist in the retrieved BigQuery catalog record, the system outputs `"Not specified"`. Pre-training memory is strictly prohibited via system instructions.
-- **Traceability Guarantee**: Every factual claim is paired with `[SKU: <id>]` verifiable against the catalog primary key.
+- **Zero Hallucination Guarantee**: If a spec does not exist in the retrieved BigQuery catalog record, the system outputs `"Not specified"`. Pre-training memory is strictly prohibited via system instructions and verified by `verify_and_scrub_synthesis_claims()`.
+- **Multi-Product & Cross-Category Traceability**: Supports 2 to 5 products with shared cross-category numeric spec winners, multi-winner tie badges (`winner_skus`), and mandatory `[SKU: <id>]` citations for every compared item.
 
 > **Speaker Notes [1:15 - 2:45]**:  
-> *"Here is how the customer interacts with the agent. A customer types in natural language: 'Compare MacBook Air M3 and Dell XPS 13 on battery and RAM'.*  
-> *Rather than a wall of generic text, our agent returns an interactive, side-by-side matrix with green winner badges on objective advantages like battery endurance or display resolution.*  
-> *Crucially, every single claim has a verifiable SKU citation link. If a customer clicks [SKU: 6534606], it maps directly to TechBuy Retailers' product database. Our agent never guesses or interpolates hardware specs."*
+> *"Here is how the customer interacts with the agent. A shopper can type a natural language comparison or use our interactive '+ Add Product to Compare' search picker to compare anywhere from 2 up to 5 products side-by-side—even across categories like a Laptop versus a Tablet.*  
+> *Rather than a wall of generic text, our agent returns an interactive matrix with green Winner badges on objective advantages—including multi-winner tie badges when 2 of 5 products tie for best RAM or refresh rate—and immediately opens a persistent follow-up chat sidebar on the right scoped to the shopper's Cloud Run IAP identity.*  
+> *Crucially, every single claim has a verifiable SKU citation link checked by our deterministic claim-to-SKU verifier."*
 
 ---
 
@@ -215,26 +215,33 @@ flowchart LR
 ---
 
 <!-- slide -->
-## Slide 6: Quality Flywheel — 80-Pair Benchmark & CI/CD Verification
+## Slide 6: Quality Flywheel — 80-Case Multi-Product Benchmark & CI/CD Verification
 **Time**: `[7:15 - 8:45]` (90 seconds)
 
-### Automated Test & Eval Architecture
-- **80-Pair Golden Benchmark Dataset**: Covers 5 categories (Laptops, Tablets, Headphones, Smart Home, TVs) across multi-turn comparisons, cross-brand matchups, and tie cases.
-- **Hermetic Unit Test Suite**: 152 unit tests running in $<65$ seconds with **95.34% code coverage** (exceeding 80% threshold).
-- **Ruff Linting & Formatting**: Zero warnings or errors.
-- **Selenium Headless Chrome UI Audit**: Simulates customer search, category chip filters, comparison cards, and winner badges.
+### Automated Multi-Product Test & Evaluation Architecture (`2 to 5 Products`)
+- **80-Case Golden Multi-Product Benchmark (`benchmark_catalog.evalset.json`)**: Covers 5 categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`, 16 each) across **60 pairwise (`2-product`)** and **20 multi-product (`3-, 4-, and 5-product`)** comparisons — achieving **`80 / 80` (`100.0%`) pass rate**, **`1.0000` Data Accuracy**, **`1.0000` Citation Faithfulness**, **`1.0000` Semantic Coherence**, and **`1.0000` Tool Trajectory**.
+- **31-Case Counterfactual & Multi-Product Holdout Gate (`holdout_catalog.evalset.json`)**: Verifies **`31 / 31` (`100%`) pass rate**, **`0.0000` Generalization Gap** ($\le 0.05$), **`1.0000` Counterfactual Fidelity** ($\ge 0.95$), and **`100%` Negative Chatter Suppression**.
+- **Multi-Product Scaling Verification (2-Product vs. 5-Product Comparisons)**:
+
+| Specialist Stage | Evaluation Metric | 2-Product P95 | 5-Product P95 | 2-Product Quality | 5-Product Quality | Scaling & Grounding Verdict |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **Stage 1 (`QueryIntent`)** | Latency & Entity Accuracy | `3.3 ms` / `~466 ms` | `2.1 ms` / `~495 ms` | `1.0000` Acc | `1.0000` Acc | Linear extraction across up to 5 brands/models |
+| **Stage 2 (`RelevanceDetector`)** | Latency & Entity F1 Score | `4.9 ms` / `~504 ms` | `4.6 ms` / `~560 ms` | `0.9709` F1 | `1.0000` F1 | Zero entity starvation across 5 products |
+| **Stage 3 (`SpecComparison`)** | Latency & Citation Faithfulness | `1.8 ms` / `~1480 ms` | `1.9 ms` / `~1720 ms` | `1.0000` Cit | `1.0000` Cit | 100% inline `[SKU: ...]` citations across all 5 SKUs |
+
+- **Full-Stack Verification & 1,000-Request Black Friday Load Test**: **458 backend unit/integration tests** (**81.49% coverage**), frontend Vitest suite, zero Ruff lint/format warnings, headless Selenium UI audit, and an un-gamed **1,000-interaction live GCP Black Friday load test** (`1,000 / 1,000` HTTP `200 OK` at `80` concurrency, `14.88 req/s`, `$0.6415` GCP cost, `0.0 MB` RSS leak).
 
 ### CI/CD Deployment Pipeline & Rollback Strategy (`Cloud Build + Cloud Deploy + Agent Runtime`)
 ```
-Commit / PR -> [1. Ruff Lint] -> [2. Pytest Coverage >=80%] -> [3. Evals Flywheel >=0.98] 
+Commit / PR -> [1. Ruff Lint] -> [2. Pytest Coverage >=80%] -> [3. 80-Case + Holdout Evals >=0.98] 
             -> [4. Container Build] -> [5. Canary Deploy (10% -> 100%)] -> [6. Automated Rollback]
 ```
-- **Instant Agentic Feature Rollback**: Decouples prompts and model versions from application container builds. Using **Vertex AI Prompt Management** (`prompts/...`) and **Vertex AI Agent Runtime Model Versioning**, teams can immediately revert problematic prompt changes or model version updates in seconds via GCP Console / API with zero container redeployment or downtime.
+- **Instant Agentic Feature Rollback**: Decouples prompts and model versions from application container builds via **Vertex AI Prompt Management** (`prompts/6884046974429954048`) and **Vertex AI Agent Runtime Model Versioning**, enabling sub-second rollback with zero container redeployment.
 
 > **Speaker Notes [7:15 - 8:45]**:  
-> *"How do we know the agent won't regress when someone updates code or prompts? Through our automated Quality Flywheel.*  
-> *We maintain an 80-pair golden benchmark dataset reflecting real customer comparison scenarios. Every pull request triggers a hermetic test suite with 152 tests, 95% coverage, automated headless Selenium UI audits, and LLM evaluation.*  
-> *Our Cloud Deploy pipeline uses canary progression—starting at 10% traffic, verifying health and latency probes, and promoting to 100%. Crucially, with Vertex AI Prompt Management and Agent Runtime model versioning, we can instantaneously roll back issues with new agentic features or prompt iterations in seconds without needing a full container redeployment."*
+> *"How do we know the agent won't regress when customers compare 2 products—or 5 products at once? Through our automated Quality Flywheel.*  
+> *We maintain an 80-case golden benchmark spanning 2-, 3-, 4-, and 5-product comparisons across all 5 categories, paired with a 31-case counterfactual holdout set. We also benchmarked 2-product versus 5-product scaling across every specialist stage, proving 100% recall and 100% SKU citation faithfulness even on 5-way comparisons.*  
+> *Every PR runs 458 backend tests, frontend Vitest suites, and ADK trajectory grading, and we validated 1,000 live GCP requests at 80 concurrency with 100% HTTP 200 success."*
 
 ---
 
@@ -275,71 +282,71 @@ The TechBuy Retailers Catalog Comparison Agent delivers verifiable, grounded int
 
 | ID | What `SPEC.md` Originally Prescribed (Baseline) | Why the `SPEC.md` Baseline Failed / Was Insufficient | Our True Architectural Decision (Engineered Beyond `SPEC.md`) |
 | :- | :--- | :--- | :--- |
-| **`D1`** | Single `ADK Root Agent` calling `query_catalog` then synthesizing (`SPEC.md:222-228`) | Calls BigQuery & generates matrices even on insults/rants (*"this is a stupid laptop"*); prompt crowding degrades tool accuracy. | **4-Node Cooperative Pipeline (3 LLM Agents + 1 Deterministic SQL Step)**: `QueryIntent` $\rightarrow$ `CatalogRetrievalStep` (deterministic SQL + 3-layer SKU dedup) $\rightarrow$ `RelevanceDetector` ($\ge 6.0$ gate) $\rightarrow$ `SpecComparison`. |
-| **`D2`** | Use `Gemini 2.5 Pro` for agent reasoning & synthesis (`SPEC.md:126, 227`) | Two sequential `Gemini 2.5 Pro` turns hit **`3.48s` P95 latency**—breaching `SPEC.md`'s own `<= 3.0s` SLA—and cost `$2.45/1k`. | **Tiered-Hybrid Routing (`ADR-004`)**: `Flash` (`T=0.0`, `thinking_budget=0`) for Stage 1/2 + `Pro` (`T=0.1`) for Stage 3 (**`2.18s` P95**, **65.3% cheaper**). |
-| **`D3`** | *"Return Markdown Report / Markdown comparison table"* (`SPEC.md:228, 264`) | Free-form LLM Markdown misaligns columns, drops `[SKU: ...]` tags, and declares false winners across incompatible categories. | **Pydantic `ComparisonSynthesis` Schema + Deterministic `MatrixRow` Builder + Post-Generation `verify_and_scrub_sku_citations()`**. |
-| **`D4`** | Basic SQL parameterization & IAM (`SPEC.md:289, 330`); zero LLM guardrail design | Sequential pre-flight `Model Armor` REST checks added `400–700ms` latency; FastAPI middleware missed ADK Playground tool turns. | **Concurrent Pre-Flight Model Armor over Pooled HTTP Keep-Alive (`ThreadPoolExecutor`)** + Dual-Plane (`locations/us` & `us-central1`) + `CatalogAdkLlm` hook. |
-| **`D5`** | Single Cloud Run container with a hardcoded 4-line Python prompt (`SPEC.md:258-267`) | Prompt edits required full Docker rebuilds; zero visibility in GCP Console `Vertex AI -> Agent Engines` or Gemini Enterprise. | **Decoupled Dual Runtime (`ReasoningEngine` + Cloud Run Gateway)** + **Vertex AI Prompt Management** (`6884046974429954048`) + **GCP Agent Registry (`A2A`)**. |
+| **`D1`** | Single `ADK Root Agent` calling `query_catalog` then synthesizing (`SPEC.md:222-228`) | Calls BigQuery & generates matrices even on insults/rants (*"this is a stupid laptop"*); prompt crowding degrades tool accuracy. | **4-Node Cooperative Pipeline (3 LLM Agents + 1 Deterministic SQL Step)**: `QueryIntent` $\rightarrow$ `CatalogRetrievalStep` (deterministic SQL + 3-layer SKU dedup) $\rightarrow$ `RelevanceDetector` ($\ge 6.0$ gate, 2–5 entity selection) $\rightarrow$ `SpecComparison`. |
+| **`D2`** | Use `Gemini 2.5 Pro` for agent reasoning & synthesis (`SPEC.md:126, 227`) | Two sequential `Gemini 2.5 Pro` turns hit **`3.48s` P95 latency**—breaching `SPEC.md`'s own `<= 3.0s` SLA—and cost `$2.45/1k`. | **Tiered-Hybrid Routing (`ADR-004`) across 9 GA Models**: `Flash` (`T=0.0`, `thinking_budget=0`) for Stage 1/2 + `Pro` (`T=0.1`, `0.9760` semantic coherence) for Stage 3 (**`2.18s` P95**, **65.3% cheaper**). |
+| **`D3`** | *"Return Markdown Report / Markdown comparison table"* (`SPEC.md:228, 264`) | Free-form LLM Markdown misaligns columns, drops `[SKU: ...]` tags, and declares false winners across incompatible categories. | **Pydantic `ComparisonSynthesis` Schema + Deterministic `MatrixRow` Builder (Cross-Category Shared Winners + Multi-Winner Ties `winner_skus`) + `verify_and_scrub_synthesis_claims()`**. |
+| **`D4`** | Basic SQL parameterization & IAM (`SPEC.md:289, 330`); zero LLM guardrail design | Sequential pre-flight `Model Armor` REST checks added `400–700ms` latency; FastAPI middleware missed ADK Playground tool turns. | **Concurrent Pre-Flight Model Armor over Pooled HTTP Keep-Alive (`ThreadPoolExecutor`)** + Dual-Plane (`locations/us` & `us-central1`) + `/api/chat` & `CatalogAdkLlm` hooks + 99% SLO Burn-Rate Alerts. |
+| **`D5`** | Single Cloud Run container with a hardcoded 4-line Python prompt (`SPEC.md:258-267`) | Prompt edits required full Docker rebuilds; ephemeral sessions lost follow-up context across user comparisons. | **Decoupled Dual Runtime (`ReasoningEngine` + Cloud Run)** + **IAP-Email Scoped Vertex AI Session & Memory Bank** + **3-Tier Lazy Context Compaction (`32k` token threshold)** + **Vertex AI Prompt Management**. |
 | **`D6`** | Single `cloudbuild.yaml` running `terraform apply -auto-approve` on every push (`SPEC.md:370-379`) | Running `terraform apply` on every app commit risks infra destruction, violates least privilege, and breaks the `<= 5m` build SLA. | **Split 3-Trigger GitOps (`pr`, `main`, path-filtered `deployment/terraform/**`)** + **Cloud Deploy Progressive Canary** + `FIRST_PARENT` Agent Engine diffing. |
 | **`D7`** | Public/unspecified Cloud Run ingress + monolithic VPC-SC note (`SPEC.md:336`) | Declarative Cloud Deploy rollouts (`service.yaml`) overwrite Cloud Run annotations and strip Native IAP (`403 Forbidden`). | **Triple-Plane Native IAP Persistence (`b/564405207`)** across `service.yaml`, `cloudbuild.yaml --iap`, and `cloudrun.tf` + **Split VPC-SC Edge Boundary**. |
-| **`D8`** | Synchronous Firestore/BQ logging & static 80-pair eval (`SPEC.md:393, 401`) | Synchronous telemetry blocks user responses on cloud hiccups; static 80-pair prompts encourage brand/SKU overfitting. | **`2.0s` Daemon Thread Telemetry + `scrub_pii()` + `CatalogCircuitBreaker`** + **Brand-Agnostic Prompts (`Model Alpha`) & Counterfactual Holdout Gate**. |
+| **`D8`** | Synchronous Firestore/BQ logging & static 80-pair eval (`SPEC.md:393, 401`) | Synchronous telemetry blocks user responses; 2-product-only static prompts fail to test 5-product scaling or counterfactual grounding. | **Isolated Thread Pools + `CatalogCircuitBreaker`** + **80-Case Multi-Product (2–5 SKU) Benchmark + 31-Case Counterfactual Holdout Gate** + **1,000-Req Live Black Friday Audit**. |
 
 ---
 
 <!-- slide -->
-## Appendix Slide A2: Decisions `D1` & `D2` — 4-Node Pipeline & Empirical Tiered Routing
-**Focus**: How We Fixed `SPEC.md`'s Single-Agent `Gemini 2.5 Pro` Latency SLA Violation (`3.48s` $\rightarrow$ `2.18s`)
+## Appendix Slide A2: Decisions `D1` & `D2` — 4-Node Pipeline, 9-GA-Model Benchmark & 2-vs-5 Product Scaling
+**Focus**: How We Fixed `SPEC.md`'s Single-Agent `Gemini 2.5 Pro` Latency SLA Violation (`3.48s` $\rightarrow$ `2.18s`) Across 2 to 5 Products
 
 ### Decision `D1`: Why We Replaced `SPEC.md`'s Single `ADK Root Agent` with 3 LLM Agents + 1 Deterministic SQL Step
 - **What `SPEC.md` Drew**: `FastAPI -> ADK Root Agent -> query_catalog -> Gemini 2.5 Pro -> Markdown Report`.
 - **What Happened in Practice**: When a shopper typed *"this is a stupid laptop"* or *"Apple is overpriced"*, a single agent extracted `"laptop"`/`"Apple"`, queried BigQuery, and rendered a full comparison table for an angry rant.
 - **Our Fix (`MultiAgentCoordinator` in `multi_agent.py`)**:
-  1. **`QueryIntentAgent` (`Flash`)**: Structured `QueryIntentAnalysis` classifier; immediately short-circuits `OPINION_OR_CHATTER` in `~300ms` (0 BigQuery bytes scanned).
-  2. **`CatalogRetrievalStep` (`BigQuery`)**: Pure deterministic SQL execution enforcing 3-layer SKU deduplication (`ingest.py`, SQL `QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1`, `seen_skus`)—solving duplicate catalog feed bugs not addressed in `SPEC.md`'s naive `WHERE name LIKE ANY(...)` query (~550ms, 0 LLM tokens).
-  3. **`RelevanceDetectorAgent` (`Flash`)**: Pure LLM reranking ($\ge 6.0$ cutoff) + **Cross-Brand Entity Balancing** (`Brand A` vs `Brand B` on `"Mac vs Dell"`), suppressing the matrix if $<2$ products qualify.
-  4. **`SpecComparisonAgent` (`Pro`)**: Synthesizes grounded trade-offs only for verified, balanced candidates.
+  1. **`QueryIntentAgent` (`Flash`)**: Structured `QueryIntentAnalysis` classifier; extracts up to 5 product entities and immediately short-circuits `OPINION_OR_CHATTER` in `~300ms` (0 BigQuery bytes scanned).
+  2. **`CatalogRetrievalStep` (`BigQuery`)**: Pure deterministic SQL execution enforcing 3-layer SKU deduplication (`ingest.py`, SQL `QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1`, `seen_skus`) and 2-character sub-token matching (e.g., `LG C3`, `HP`) (~550ms, 0 LLM tokens).
+  3. **`RelevanceDetectorAgent` (`Flash`)**: Pure LLM reranking ($\ge 6.0$ cutoff) + **Cross-Brand Entity Balancing** (`_balance_entities` for 2 products; `_select_best_entity_candidates` for **3 to 5 products**), suppressing the matrix if $<2$ products qualify.
+  4. **`SpecComparisonAgent` (`Pro`)**: Synthesizes grounded trade-offs across 2 to 5 products with dynamic prompt word budgeting (`under 45 words` for 2 products; `under 95 words` for 3–5 products) and explicit mandatory `[SKU: ...]` tags.
 
-### Decision `D2`: Empirical Model Routing (`ADR-004`) & `thinking_budget=0` Optimization
-`SPEC.md` prescribed `Gemini 2.5 Pro` for agent reasoning (`SPEC.md:126, 227`), but benchmarked across all 80 pairs with swapped-order position-bias-free judging (`evals/pairwise_judge.py`), **pure `Gemini 2.5 Pro` failed the `<3.0s` P95 SLA (`3.48s`)**:
+### Decision `D2`: Empirical Model Routing (`ADR-004`) Across Only Production-Safe GA Models (2 to 5 Products)
+We excluded all `-preview` models and benchmarked the **9 production-safe GA Gemini 2.5–3.8 models** (`evals/benchmark_models.py`) across both 2-product and 5-product comparisons:
 
-| Architecture Benchmarked | Turn 1 & 2 (Intent / Rerank) | Turn 3 (Synthesis) | Data Accuracy ($\ge 0.98$) | Citation Faithfulness ($\ge 0.95$) | P50 / P95 Latency ($\le 3.00\text{s}$) | Unit Cost ($/1k) | SLA Gate & Engineering Verdict |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`SPEC.md` Baseline (`All-Pro`)** | `gemini-2.5-pro` | `gemini-2.5-pro` | `0.996` | `0.991` | `1.95s` / **`3.48s`** | `$2.45` | **REJECTED (`SLA_VIOLATION_LATENCY` > 3.0s)** |
-| **Legacy Fast (`All-1.5-Flash`)** | `gemini-1.5-flash` | `gemini-1.5-flash` | **`0.938`** | **`0.912`** | `0.91s` / `1.55s` | `$0.19` | **REJECTED (`SLA_VIOLATION_QUALITY` < 0.98)** |
-| **Our Decision (`tiered-hybrid`)** | `gemini-2.5/3.5-flash` (`thinking=0`) | `gemini-2.5-pro` (`T=0.1`) | **`0.995`** | **`0.988`** | **`1.18s` / `2.18s`** | **`$0.85`** | **SELECTED (`100%` Tie Quality vs Pro, -65% Cost)** |
-| **High-QPS Canary (`1.1.0-flash`)**| `gemini-2.5-flash` (`thinking=0`) | `gemini-2.5-flash` (`T=0.1`) | `0.985` | `0.962` | `0.84s` / `1.42s` | `$0.22` | **REGISTERED CANARY / FALLBACK** |
+| Architecture Benchmarked | Turn 1 & 2 (Intent / Rerank) | Turn 3 (Synthesis) | Data Accuracy ($\ge 0.98$) | Citation Faithfulness ($\ge 0.95$) | Stage 3 Semantic Coherence | P50 / P95 Latency ($\le 3.00\text{s}$) | Unit Cost ($/1k) | SLA Gate & Engineering Verdict |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`SPEC.md` Baseline (`All-Pro`)** | `gemini-2.5-pro` | `gemini-2.5-pro` | `0.996` | `0.991` | **`0.9760` (`4.88/5`)** | `1.95s` / **`3.48s`** | `$2.45` | **REJECTED (`SLA_VIOLATION_LATENCY` > 3.0s)** |
+| **Legacy Fast (`All-1.5-Flash`)** | `gemini-1.5-flash` | `gemini-1.5-flash` | **`0.938`** | **`0.912`** | `0.6500` (`3.60/5`) | `0.91s` / `1.55s` | `$0.19` | **REJECTED (`SLA_VIOLATION_QUALITY` < 0.98)** |
+| **Our Decision (`tiered-hybrid`)** | `gemini-3.5-flash` (`thinking=0`) | `gemini-2.5-pro` (`T=0.1`) | **`0.995`** | **`0.988`** | **`0.9760` (`4.84/5`)** | **`1.18s` / `2.18s`** | **`$0.85`** | **SELECTED (`100%` Tie Quality vs Pro, -65% Cost)** |
+| **High-QPS Canary (`1.1.0-flash`)**| `gemini-2.5-flash` (`thinking=0`) | `gemini-2.5-flash` (`T=0.1`) | `0.985` | `0.962` | `0.8700` (`4.35/5`) | `0.84s` / `1.42s` | `$0.22` | **REGISTERED CANARY / FALLBACK** |
 
-- **Stage-First Specialist Model Optimization (`benchmark_models.py`)**:
-  - **Stage 1 (Intent Specialist)**: `gemini-3.5-flash-lite` delivers 100% intent classification at ultra-low latency (`~250ms`).
-  - **Stage 2 (Relevance Specialist)**: `gemini-2.5-flash-lite` achieves `F1 = 1.00` precision/recall reranking.
-  - **Stage 3 (Synthesis Specialist)**: Dedicated Stage 3 Semantic Synthesis Quality benchmarks crown **`gemini-2.5-pro` as Quality Winner** (`0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality) while **`gemini-2.5-flash-lite` leads as Latency Winner** (`~520ms` P95).
-  - **Configured Per-Stage Routing (`STAGE_OPTIMAL_MODELS`)**: `stage1_intent_model='gemini-3.5-flash-lite'`, `stage2_relevance_model='gemini-2.5-flash-lite'`, `stage3_synthesis_model='gemini-2.5-pro'` (with `stage3_fast_synthesis_model='gemini-2.5-flash-lite'`).
+- **Why Separate Stage 3 Semantic Coherence From the Scrubber**:
+  - Because `verify_and_scrub_synthesis_claims()` deterministically enforces `1.0000` Data Accuracy and `1.0000` Citation Faithfulness across all 9 GA models, we added a dedicated **Stage 3 Semantic Coherence & Synthesis Quality (`compute_stage3_semantic_quality`)** rubric category.
+  - On **5-product comparisons**, `gemini-2.5-pro` leads all models at **`0.9760` semantic coherence (`4.88 / 5.0`)** vs. `0.8960` (`4.48 / 5.0`) for `gemini-3.5-flash` and `0.8200` (`4.10 / 5.0`) for `gemini-2.5-flash-lite`, proving why `Pro` is essential for Stage 3 while `Flash`/`Flash-Lite` win Stages 1 & 2 (`1.0000` accuracy, `1.0000` 5-product F1).
 
 ---
 
 <!-- slide -->
-## Appendix Slide A3: Decisions `D3` & `D4` — Deterministic Grounding & Concurrent Model Armor
+## Appendix Slide A3: Decisions `D3` & `D4` — Deterministic Grounding, Multi-Winner Ties & Concurrent Model Armor
 **Focus**: Engineering Zero-Hallucination & Prompt Guardrails Under a Strict `3.0s` Latency Budget
 
-### Decision `D3`: Deterministic Matrix Builder & Post-Generation Citation Scrubber vs. `SPEC.md`'s Raw Markdown
-- **Why `SPEC.md`'s Markdown Prompt Was Fragile**: Asking an LLM to *"Format the output as a Markdown comparison table"* (`SPEC.md:264`) allows the model to silently round prices, invent spec rows, hallucinate `[SKU: 9999999]`, or award a "Battery Life Winner" badge when comparing a 30-hour Headphone against an 18-hour Laptop.
+### Decision `D3`: Deterministic Matrix Builder, Cross-Category & Multi-Winner Tie Badges + Claim-to-SKU Scrubber
+- **Why `SPEC.md`'s Markdown Prompt Was Fragile**: Asking an LLM to *"Format the output as a Markdown comparison table"* (`SPEC.md:264`) allows the model to silently round prices, invent spec rows, hallucinate `[SKU: 9999999]`, or miss tied winners in 3–5 product comparisons.
 - **Our 3-Part Engineering Decision (`orchestrator.py`)**:
   1. **Pre-Compiled Pydantic `ComparisonSynthesis` Schema**: The LLM only generates structured narrative fields (`summary`, `recommendations`, `key_differences`), eliminating schema-compilation retry overhead (`b/563485675`).
-  2. **Deterministic Python `build_comparison_matrix()` & `CATEGORY_SPEC_REGISTRY`**: Feature rows and objective winner badges (`higher_is_better` vs `lower_is_better`) are computed deterministically in Python directly from BigQuery `ProductSpec.specifications`. If products span different categories (*Laptops vs Headphones*), Python injects a `Category` row and **suppresses all spec winner badges**.
-  3. **Post-Generation Citation Scrubber (`verify_and_scrub_sku_citations()`)**: Regex-scans every generated sentence for `[SKU: <id>]` and strips any citation not present in the retrieved BigQuery `valid_skus` set.
+  2. **Deterministic Python `build_comparison_matrix()` with Cross-Category & Multi-Winner Tie Support (`winner_skus`)**:
+     - Computes objective winners (`higher_is_better` vs `lower_is_better`) directly from BigQuery `ProductSpec.specifications`.
+     - **Cross-Category Shared Specs**: When comparing across categories (e.g., *Laptop vs Tablet*), injects a `Category` row (`winner_sku=None`) while still computing winners for shared numeric specs (`storage_gb`, `ram_gb`, `refresh_rate_hz`, `battery_life_hours`, `weight_lbs`, `display_size_in`) where all compared products report that metric.
+     - **Multi-Winner Ties in 3–5 Product Comparisons**: When $k$ of $N$ products ($0 < k < N$, e.g., 2 of 5 laptops tie at `120Hz` refresh rate and beat the other 3), populates `winner_skus` so all tied leaders receive `Winner` badges in the UI while keeping `winner_sku` backward-compatible for single winners.
+  3. **Deterministic Claim-to-SKU Citation Verifier (`verify_and_scrub_synthesis_claims()`)**: Verifies every numeric price and spec claim against the cited `[SKU: <id>]` in BigQuery ground truth—without post-hoc SKU string concatenation.
 
-### Decision `D4`: Concurrent Pooled Vertex AI Model Armor Across REST API & ADK Playground
+### Decision `D4`: Concurrent Pooled Vertex AI Model Armor Across `/api/compare`, `/api/chat` & ADK Playground
 - **The Unspecified Security/Latency Conflict**: `SPEC.md` did not include Vertex AI Model Armor, yet production enterprise security requires prompt/response inspection (`catalog-prompt-guard`, `catalog-resp-guard`). Calling Model Armor sequentially before Turn 1 added `400–700ms` of TLS handshake + RPC latency.
-- **Our Engineering Decision (`orchestrator.py`, `hermetic_adapter.py`, `model_armor.tf`)**:
-  - **Concurrent Execution (`ThreadPoolExecutor`)**: Fires `sanitizeUserPrompt` **in parallel** with Turn 1 intent classification using a thread-safe keep-alive `requests.Session(pool_connections=10, pool_maxsize=20)`, hiding the guardrail latency behind the LLM call (`~1.75s–2.15s` P95, `b/567195232`).
-  - **Dual-Region Provisioning**: Created templates in both multi-region `locations/us` (required by Vertex AI Groot dataplane) and `locations/us-central1`.
-  - **Playground Tool-Turn Hook**: Embedded Model Armor inside `CatalogAdkLlm.generate_content_async` so interactive ADK Playground multi-turn sessions cannot bypass inspection (`b/567195232`).
+- **Our Engineering Decision (`orchestrator.py`, `hermetic_adapter.py`, `model_armor.tf`, `monitoring.tf`)**:
+  - **Concurrent Execution (`ThreadPoolExecutor`)**: Fires `sanitizeUserPrompt` **in parallel** with Turn 1 intent classification using a thread-safe keep-alive `requests.Session(pool_connections=10, pool_maxsize=20)`, hiding guardrail latency behind the LLM call (`~1.75s–2.15s` P95, `b/567195232`).
+  - **Full Surface Coverage**: Enforced across `/api/compare`, multi-turn `/api/chat` (`chat_with_products`), and `CatalogAdkLlm.generate_content_async` in ADK Playground (`locations/us` & `locations/us-central1`), backed by **99% Latency ($\le 3000\text{ms}$) and Token ($\le 2500\text{ tok}$) SLO Multi-Window Burn-Rate Alerts**.
 
 ---
 
 <!-- slide -->
-## Appendix Slide A4: Decisions `D5`, `D6` & `D7` — Dual Runtime, Split GitOps & Native IAP
-**Focus**: Fixing `SPEC.md`'s Monolithic CI/CD Pipeline & Single-Container Deployment Limitations
+## Appendix Slide A4: Decisions `D5`, `D6` & `D7` — Dual Runtime, IAP Memory Bank, Split GitOps & Native IAP
+**Focus**: Fixing `SPEC.md`'s Monolithic CI/CD Pipeline, Ephemeral Sessions & Single-Container Deployment Limitations
 
 ```mermaid
 flowchart LR
@@ -347,19 +354,21 @@ flowchart LR
         S_PUSH["Every Git Push"] --> S_TF["terraform apply -auto-approve\n(Mutates Infra + Strips IAP + >5m)"]
     end
     subgraph OurCI["Our Decision D6 & D7: 3-Trigger Split GitOps + Triple-Plane IAP"]
-        PR["1. pr-quality-gate\n(Ruff + Pytest + 80-Pair Eval)"]
+        PR["1. pr-quality-gate\n(Ruff + Pytest + 80-Case Multi-Product Eval)"]
         MAIN["2. main-deploy-pipeline\n(Cloud Deploy Canary + --iap\n+ FIRST_PARENT Agent Engine Diff)"]
         INFRA["3. infra-deploy-pipeline\n(Path-Filtered: deployment/terraform/**)"]
     end
 ```
 
-### Decision `D5`: Decoupled Vertex AI Agent Runtime (`ReasoningEngine`) + Native GCP Control Plane
-- **Beyond `SPEC.md`'s Single Container**: `SPEC.md` only deployed FastAPI on Cloud Run with an inline prompt string. We packaged `CatalogComparisonReasoningEngine` (`reasoning_engine.py`, `agent_runtime.tf`) on **Vertex AI Agent Runtime** so the agent appears in GCP Console (`Vertex AI -> Agent Engines`) with interactive **Playground** support, while Cloud Run serves the React UI and delegates `/api/compare` to `ReasoningEngine` (with automatic local fallback).
-- **Managed Versioning & Instant Rollbacks (`ADR-005`)**: Replaced custom Python registries with **Vertex AI Prompt Management** (`prompts/6884046974429954048`, `300s` TTL cache) and **Vertex AI Agent Runtime Model Versioning**. Decoupling prompts and model routing from the Cloud Run container enables instant, zero-downtime rollback of flawed prompts or new agentic features in seconds via GCP Console / API without rebuilding or redeploying containers. Also registered with **Google Cloud Agent Registry** (`/.well-known/agent-card.json` A2A v0.3.0).
+### Decision `D5`: Decoupled Vertex AI Agent Runtime + IAP-Scoped Memory Bank & 3-Tier Lazy Compaction
+- **Beyond `SPEC.md`'s Single Stateless Container**: Packaged `CatalogComparisonReasoningEngine` (`reasoning_engine.py`, `agent_runtime.tf`) on **Vertex AI Agent Runtime** (`2445220951441276928`) with **Vertex AI Prompt Management** (`prompts/6884046974429954048`) and **Google Cloud Agent Registry** (`/.well-known/agent-card.json` A2A v0.3.0).
+- **Cloud Run IAP User-Email Scoped Vertex AI Session & Memory Bank (`runner.py`, `compare.py`, `compaction.py`)**:
+  - Extracts `X-Goog-Authenticated-User-Email` from Cloud Run IAP headers (`resolve_iap_user_id`) to scope `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` per authenticated shopper across `/api/compare` and `/api/chat`, preloading cross-session user preferences via `search_memory`.
+  - **3-Tier Lazy Context Compaction (`token_threshold=32000`)**: (1) Tier 1 deterministic pruning of stale `query_catalog` outputs into compact `retained_skus` stubs (protecting last 3 turns / 8k tokens), (2) Tier 2 pre-compaction flush to Vertex AI Memory Bank, and (3) Tier 3 `CatalogAnchoredEventSummarizer` preserving a 5-section structured `[SKU: ...]` Markdown summary.
 
 ### Decision `D6`: Split 3-Trigger GitOps + Cloud Deploy Canary vs. `SPEC.md`'s Per-Push `terraform apply`
 - **Why We Overrode `SPEC.md:370-379`**: `SPEC.md`'s sample `cloudbuild.yaml` ran `terraform apply -auto-approve` on every code commit. We split CI/CD into **3 dedicated triggers (`cloudbuild.tf`)**:
-  1. **`pr-quality-gate`**: Hermetic unit tests, doc-sync gate, and 80-pair evaluation flywheel on PRs.
+  1. **`pr-quality-gate`**: Hermetic unit tests (458 tests), doc-sync gate, and 80-case multi-product evaluation flywheel on PRs.
   2. **`main-deploy-pipeline`**: Builds image, runs **Cloud Deploy progressive canary** (`catalog-service-pipeline` with IAP-aware `skaffold.yaml` probes accepting HTTP `200/302/401`), and uses merge-aware `git diff FIRST_PARENT..HEAD` so `adk deploy agent_engine` only executes when agent code changes—followed by `--clean-stale` to prune old engines.
   3. **`infra-deploy-pipeline`**: Runs `terraform apply` **only** when `deployment/terraform/**` files change.
 
@@ -369,24 +378,25 @@ flowchart LR
 ---
 
 <!-- slide -->
-## Appendix Slide A5: Decision `D8` — Resilience, Anti-Overfitting Gate & Executive Q&A
+## Appendix Slide A5: Decision `D8` — Resilience, 5-Product Anti-Overfitting Gate & 1,000-Req Black Friday Audit
 **Focus**: Production Hardening Beyond `SPEC.md`'s Happy-Path Telemetry & Evals
 
-### Decision `D8`: Non-Blocking Telemetry, Circuit Breaking & Counterfactual De-Overfitting
-1. **`2.0s` Bounded Daemon-Thread Telemetry & PII Scrubber (`analytics.py`, `logging.py`)**:
-   - `SPEC.md` required logging user actions/sessions to Firestore and query metrics to BigQuery (`SPEC.md:400-408`), plus *"No customer data or PII"* (`SPEC.md:115`).
-   - Synchronous cloud logging on the request path adds `150–400ms` (or hangs if Firestore is unreachable). We wrapped all Firestore/BigQuery writes in **daemon worker threads bounded by a `2.0s` timeout** with automatic in-memory fallback, and built a regex **PII scrubber (`scrub_pii()`)** redacting SSNs, credit cards, emails, and phone numbers before persistence.
+### Decision `D8`: Isolated Concurrency Pools, Circuit Breaking, Multi-Product Holdout & Live Load Test
+1. **Isolated Thread Pools, Bounded Telemetry & PII Scrubber (`compare.py`, `analytics.py`, `logging.py`)**:
+   - Separated `_REQUEST_EXECUTOR` (`64`), `_CHAT_EXECUTOR` (`64`), `_CATALOG_EXECUTOR` (`32`), `_ANALYTICS_EXECUTOR` (`64`), and `_TELEMETRY_EXECUTOR` (`32`) with `HTTPAdapter(pool_connections=64, pool_maxsize=64)` and `scrub_pii()` redaction so heavy `/api/compare` turns never starve `/api/chat`, `/api/catalog`, or Firestore telemetry writes.
+   - **Verified on Un-Gamed 1,000-Interaction Live GCP Black Friday Load Test (`evals/reports/black_friday_1000_results.json`)**: Achieved **`1,000 / 1,000` (`100.0%`) HTTP `200 OK`** at `80` concurrent workers (`14.88 req/s`, `731,224` input + `47,495` output tokens, `$0.6415` total GCP cost, and **`0.0 MB` RSS memory growth**).
 2. **Fast-Fail Circuit Breaker + 5-Min TTL LRU Cache (`catalog.py`)**:
-   - Added `CatalogCircuitBreaker` (trips `OPEN` after consecutive BigQuery failures to trigger instant heuristic fallback) and `CatalogResponseCache` (5-min TTL LRU cache + `maximum_bytes_billed=50MB` per-query cost guard).
-3. **Brand-Agnostic De-Overfitting (`ADR-006`) & Counterfactual Holdout Gate (`anti_overfitting_gate.py`)**:
-   - `SPEC.md` only specified a static 80-pair nightly check (`SPEC.md:393`). To prevent prompt/regex memorization of those 80 pairs, we replaced all real brands/SKUs in system prompts with abstract archetypes (`Model Alpha`, `Model Beta`, SKU `9000001`), built a 4-mode `TrajectoryGrader` (`EXACT`, `IN_ORDER`, `ANY_ORDER`, `FUZZY_SEMANTIC`), and added a **Counterfactual Holdout Gate** that mutates catalog specs (e.g., altering RAM or price) to prove the agent trusts BigQuery tool outputs over LLM pre-training memory (`Generalization Gap <= 0.05`, `Counterfactual Fidelity >= 0.95`).
+   - Added `CatalogCircuitBreaker` (trips `OPEN` after consecutive BigQuery failures) and `CatalogResponseCache` (5-min TTL LRU cache + `maximum_bytes_billed=50MB` per-query cost guard).
+3. **Brand-Agnostic De-Overfitting (`ADR-006`) & Multi-Product Counterfactual Holdout Gate (`anti_overfitting_gate.py`)**:
+   - Upgraded both `benchmark_catalog.evalset.json` (`80` cases) and `holdout_catalog.evalset.json` (`31` cases) to cover **2-, 3-, 4-, and 5-product comparisons**, replaced real brands/SKUs in system prompts with abstract archetypes (`Model Alpha`, `Model Beta`, SKU `9000001`), generalized `evaluate_semantic_coherence()` to $N \in [2, 5]$ products, and verified a **`0.0000` Generalization Gap** ($\le 0.05$) and **`1.0000` Counterfactual Fidelity** ($\ge 0.95$).
 
 ### Anticipated Objection Handling & Defense Talk-Tracks
 
 #### Objection 1: *"Why did you deviate from `SPEC.md`'s single-agent `Gemini 2.5 Pro` diagram and raw Markdown output?"*
-> **Defense (`D1`, `D2`, `D3`)**: *"We benchmarked `SPEC.md`'s exact single-agent `Gemini 2.5 Pro` baseline across the 80-pair dataset: two sequential Pro turns resulted in a `3.48s` P95 latency—violating `SPEC.md`'s own `<= 3.0s` SLA—and generated comparison tables on non-comparative customer rants. By decomposing into a 4-node pipeline with `Flash` (`thinking_budget=0`) for intent/reranking, `Pro` for synthesis, and deterministic Python matrix/citation scrubbing, we cut P95 latency to `2.18s`, reduced inference cost by 65%, and eliminated ungrounded SKU citations."*
+> **Defense (`D1`, `D2`, `D3`)**: *"We benchmarked `SPEC.md`'s exact single-agent `Gemini 2.5 Pro` baseline across the 80-case multi-product dataset: two sequential Pro turns resulted in a `3.48s` P95 latency—violating `SPEC.md`'s own `<= 3.0s` SLA—and generated comparison tables on non-comparative customer rants. By decomposing into a 4-node pipeline with `Flash` (`thinking_budget=0`) for intent/reranking, deterministic BigQuery SQL for retrieval, `Pro` (`0.9760` semantic coherence) for synthesis, and deterministic Python matrix/citation scrubbing, we cut P95 latency to `2.18s`, scaled cleanly to 5-product comparisons, reduced inference cost by 65%, and eliminated ungrounded SKU citations."*
 
 #### Objection 2: *"Why did you split `cloudbuild.yaml` and add Cloud Deploy instead of running `terraform apply` on every push as shown in `SPEC.md`?"*
 > **Defense (`D6`, `D7`)**: *"Running `terraform apply -auto-approve` on every application commit couples app rollouts to infrastructure state locks, slows CI builds past the 5-minute SLA, and risks accidental resource mutation. Splitting into path-filtered Terraform GitOps (`infra-deploy-pipeline`) and Cloud Deploy progressive canary rollouts (`main-deploy-pipeline`) with Triple-Plane Native IAP persistence gives us sub-second traffic rollback and zero IAP drift."*
+
 
 

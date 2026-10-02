@@ -237,7 +237,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 | **8** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Agent Gateway |
 | **9** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
 | **10** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–I) |
-| **11** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter (`fde-bestbuy-sandbox-dev-508321`), 4-Node ADK sequential pipeline (Node 2: CatalogRetrievalStep), BigQuery catalog, CI/CD |
+| **11** | `slide_10` | Appendix A: Agent Architecture — Matrix Generation & Conversation | Dual-path ADK runtime (`/api/compare` + `/api/chat`), IAP-scoped session/memory bank, 3-tier lazy compaction & speculative latency optimizations |
 | **12** | `slide_11` | Appendix B: ADR-004 Scorecard | 3-Agent x 9-GA-Model fleet benchmark (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
 | **13** | `slide_12` | Appendix C: Decisions D1–D4 | 3 LLM Agents + 1 Deterministic SQL Step (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
 | **14** | `slide_13` | Appendix D: Decisions D5–D8 | Dual runtime (`D5`), 3-trigger GitOps (`D6`), Triple-Plane IAP (`D7`), bounded telemetry & de-overfitting (`D8`) |

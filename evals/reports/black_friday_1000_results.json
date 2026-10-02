@@ -1,57 +1,183 @@
 {
+  "mode": "cloud_run_e2e",
+  "target_url": "https://catalog-comparison-service-ocj5dik5ra-uc.a.run.app",
   "total_requests": 1000,
-  "concurrency": 80,
-  "wall_seconds": 67.22,
-  "rps": 14.88,
+  "concurrency": 1000,
+  "wall_seconds": 40.04,
+  "rps": 24.98,
   "status_counts": {
     "200": 1000
   },
   "errors": [],
-  "overall_p50_ms": 2355.17,
-  "overall_p95_ms": 8123.71,
-  "overall_p99_ms": 15384.33,
-  "overall_max_ms": 55034.01,
+  "overall_p50_ms": 6530.8,
+  "overall_p95_ms": 12596.65,
+  "overall_p99_ms": 15278.23,
+  "overall_max_ms": 39023.14,
   "endpoint_breakdown": {
     "POST /api/compare (Live Vertex AI)": {
       "count": 150,
-      "p50_ms": 6097.78,
-      "p95_ms": 25263.28,
-      "max_ms": 55034.01
+      "p50_ms": 9555.19,
+      "p95_ms": 16144.67,
+      "max_ms": 39023.14
     },
     "POST /api/chat (Live Vertex AI)": {
       "count": 100,
-      "p50_ms": 3650.41,
-      "p95_ms": 5291.42,
-      "max_ms": 5843.89
+      "p50_ms": 7174.27,
+      "p95_ms": 12632.72,
+      "max_ms": 13692.76
     },
     "GET /api/catalog": {
       "count": 400,
-      "p50_ms": 1335.55,
-      "p95_ms": 2554.55,
-      "max_ms": 3620.87
+      "p50_ms": 5855.39,
+      "p95_ms": 11640.05,
+      "max_ms": 12799.24
     },
     "POST /api/actions": {
       "count": 200,
-      "p50_ms": 2757.77,
-      "p95_ms": 8727.86,
-      "max_ms": 9318.31
+      "p50_ms": 4851.78,
+      "p95_ms": 10709.11,
+      "max_ms": 12332.6
     },
     "POST /api/feedback": {
       "count": 150,
-      "p50_ms": 2736.05,
-      "p95_ms": 8860.39,
-      "max_ms": 9312.3
+      "p50_ms": 5933.73,
+      "p95_ms": 11248.44,
+      "max_ms": 13019.3
     }
   },
-  "total_input_tokens": 731224,
-  "total_output_tokens": 47495,
-  "max_input_tokens_single_req": 5876,
-  "estimated_gcp_cost_usd": 0.6415,
-  "unclaimed_synth_futures": 0,
-  "unclaimed_rerank_futures": 1,
-  "session_cache_size": 149,
-  "catalog_cache_entries": 16,
-  "rss_start_mb": 1143.92,
-  "rss_end_mb": 1143.92,
-  "rss_delta_mb": 0.0
+  "total_input_tokens": 762206,
+  "total_output_tokens": 48024,
+  "max_input_tokens_single_req": 7444,
+  "estimated_gcp_cost_usd": 0.6635,
+  "rss_start_mb": 113.92,
+  "rss_end_mb": 113.92,
+  "rss_delta_mb": 0.0,
+  "cloud_run_autoscaling": {
+    "service_name": "catalog-comparison-service",
+    "window_start_utc": "2026-10-02T18:36:03.598962+00:00",
+    "distinct_instance_count": 30,
+    "instance_ids": [
+      {
+        "instance_id": "0010dd8607046e2d",
+        "first_seen_utc": "2026-10-02T18:37:15.374606Z"
+      },
+      {
+        "instance_id": "0010dd8607b9b444",
+        "first_seen_utc": "2026-10-02T18:37:15.381944Z"
+      },
+      {
+        "instance_id": "0010dd8607b1c878",
+        "first_seen_utc": "2026-10-02T18:37:15.382254Z"
+      },
+      {
+        "instance_id": "0010dd860754d083",
+        "first_seen_utc": "2026-10-02T18:37:15.401577Z"
+      },
+      {
+        "instance_id": "0010dd8607aa4da6",
+        "first_seen_utc": "2026-10-02T18:37:15.416170Z"
+      },
+      {
+        "instance_id": "0010dd860787255e",
+        "first_seen_utc": "2026-10-02T18:37:15.416377Z"
+      },
+      {
+        "instance_id": "0010dd86078f5e75",
+        "first_seen_utc": "2026-10-02T18:37:15.437989Z"
+      },
+      {
+        "instance_id": "0010dd86071008db",
+        "first_seen_utc": "2026-10-02T18:37:15.445345Z"
+      },
+      {
+        "instance_id": "0010dd860727c707",
+        "first_seen_utc": "2026-10-02T18:37:15.461608Z"
+      },
+      {
+        "instance_id": "0010dd8607953bbd",
+        "first_seen_utc": "2026-10-02T18:37:15.495380Z"
+      },
+      {
+        "instance_id": "0010dd8607e9ecf5",
+        "first_seen_utc": "2026-10-02T18:37:15.515731Z"
+      },
+      {
+        "instance_id": "0010dd86072a0b19",
+        "first_seen_utc": "2026-10-02T18:37:15.558665Z"
+      },
+      {
+        "instance_id": "0010dd8607589cc9",
+        "first_seen_utc": "2026-10-02T18:37:15.570571Z"
+      },
+      {
+        "instance_id": "0010dd8607c5ad0e",
+        "first_seen_utc": "2026-10-02T18:37:15.668335Z"
+      },
+      {
+        "instance_id": "0010dd8607ab8916",
+        "first_seen_utc": "2026-10-02T18:37:15.737754Z"
+      },
+      {
+        "instance_id": "0010dd860767d306",
+        "first_seen_utc": "2026-10-02T18:37:16.789696Z"
+      },
+      {
+        "instance_id": "0010dd8607a75986",
+        "first_seen_utc": "2026-10-02T18:37:16.791190Z"
+      },
+      {
+        "instance_id": "0010dd860781ea64",
+        "first_seen_utc": "2026-10-02T18:37:16.827643Z"
+      },
+      {
+        "instance_id": "0010dd8607b8cd08",
+        "first_seen_utc": "2026-10-02T18:37:16.862541Z"
+      },
+      {
+        "instance_id": "0010dd8607c11342",
+        "first_seen_utc": "2026-10-02T18:37:16.881405Z"
+      },
+      {
+        "instance_id": "0010dd8607fc7e37",
+        "first_seen_utc": "2026-10-02T18:37:16.912160Z"
+      },
+      {
+        "instance_id": "0010dd860737ad5e",
+        "first_seen_utc": "2026-10-02T18:37:16.925339Z"
+      },
+      {
+        "instance_id": "0010dd8607a5cf03",
+        "first_seen_utc": "2026-10-02T18:37:16.939192Z"
+      },
+      {
+        "instance_id": "0010dd860733cbe5",
+        "first_seen_utc": "2026-10-02T18:37:16.945179Z"
+      },
+      {
+        "instance_id": "0010dd8607ee2b8f",
+        "first_seen_utc": "2026-10-02T18:37:16.959370Z"
+      },
+      {
+        "instance_id": "0010dd8607169b9e",
+        "first_seen_utc": "2026-10-02T18:37:16.972148Z"
+      },
+      {
+        "instance_id": "0010dd860725cca9",
+        "first_seen_utc": "2026-10-02T18:37:17.034728Z"
+      },
+      {
+        "instance_id": "0010dd860732a627",
+        "first_seen_utc": "2026-10-02T18:37:28.868343Z"
+      },
+      {
+        "instance_id": "0010dd8607d99844",
+        "first_seen_utc": "2026-10-02T18:37:29.154073Z"
+      },
+      {
+        "instance_id": "0010dd8607e82c56",
+        "first_seen_utc": "2026-10-02T18:37:29.415736Z"
+      }
+    ],
+    "instance_spinup_events": []
+  }
 }

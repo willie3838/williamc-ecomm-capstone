@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-02T01:19:59.183078+00:00",
+  "timestamp": "2026-10-02T16:09:21.814011+00:00",
   "verdict": "PASSED",
   "regressions_detected": false,
   "metrics_comparison": {
@@ -22,8 +22,8 @@
       "target": 1.0
     },
     "latency_p95_seconds": {
-      "current": 0.017,
-      "baseline": 0.017,
+      "current": 0.0146,
+      "baseline": 0.0146,
       "delta": 0.0,
       "delta_pct": 0.0,
       "target": 3.0
@@ -47,7 +47,7 @@
       "baseline_trajectory": 1.0,
       "trajectory_delta": 0.0,
       "pass_rate": 1.0,
-      "latency_seconds": 0.0098
+      "latency_seconds": 0.0123
     },
     "Tablets": {
       "current_accuracy": 1.0,
@@ -60,7 +60,7 @@
       "baseline_trajectory": 1.0,
       "trajectory_delta": 0.0,
       "pass_rate": 1.0,
-      "latency_seconds": 0.0108
+      "latency_seconds": 0.0101
     },
     "Headphones": {
       "current_accuracy": 1.0,
@@ -73,7 +73,7 @@
       "baseline_trajectory": 1.0,
       "trajectory_delta": 0.0,
       "pass_rate": 1.0,
-      "latency_seconds": 0.0096
+      "latency_seconds": 0.0088
     },
     "Smart Home": {
       "current_accuracy": 1.0,
@@ -86,7 +86,7 @@
       "baseline_trajectory": 1.0,
       "trajectory_delta": 0.0,
       "pass_rate": 1.0,
-      "latency_seconds": 0.0115
+      "latency_seconds": 0.01
     },
     "TVs": {
       "current_accuracy": 1.0,
@@ -99,7 +99,7 @@
       "baseline_trajectory": 1.0,
       "trajectory_delta": 0.0,
       "pass_rate": 1.0,
-      "latency_seconds": 0.0085
+      "latency_seconds": 0.0111
     }
   },
   "metric_regressions": [],
