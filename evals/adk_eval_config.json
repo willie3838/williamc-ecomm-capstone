@@ -8,7 +8,7 @@
       },
       "evaluate_intermediate_nl_responses": false
     },
-    "tool_trajectory_avg_score": 1.0,
     "response_match_score": 0.8
   }
 }
+

@@ -323,8 +323,8 @@ def test_export_evaluation_to_bigquery_handles_errors():
     assert success_exc is False
 
 
-def test_run_benchmark_computes_tool_trajectory():
-    """Verify run_benchmark records and grades tool trajectories."""
+def test_run_benchmark_excludes_tool_trajectory_metrics():
+    """Verify run_benchmark omits tool trajectory metrics since Node 2 is a deterministic SQL step."""
     repo_root = Path(__file__).resolve().parent.parent.parent
     dataset_path = repo_root / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
     catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
@@ -332,17 +332,44 @@ def test_run_benchmark_computes_tool_trajectory():
     report = run_benchmark(
         dataset_path=dataset_path,
         catalog_path=catalog_path,
-        target_trajectory=0.95,
     )
 
     summary = report["summary"]
-    assert "mean_tool_trajectory_score" in summary
-    assert "adk_tool_trajectory_score" in summary
-    assert summary["mean_tool_trajectory_score"] == 1.0
-    assert summary["adk_tool_trajectory_score"] == 1.0
+    assert "mean_tool_trajectory_score" not in summary
+    assert "adk_tool_trajectory_score" not in summary
+    assert "target_trajectory" not in summary.get("targets", {})
 
     details = report["details"]
     assert len(details) == 1
-    assert details[0]["tool_trajectory_score"] == 1.0
-    assert details[0]["tool_trajectory_passed"] is True
-    assert details[0]["tool_trajectory_match_type"] == "FUZZY_SEMANTIC"
+    assert "tool_trajectory_score" not in details[0]
+    assert "tool_trajectory_passed" not in details[0]
+    assert "tool_trajectory_match_type" not in details[0]
+    assert "trajectory_diagnosis" not in details[0]
+
+    for cat_data in report.get("category_metrics", {}).values():
+        assert "mean_tool_trajectory_score" not in cat_data
+
+
+def test_runner_main_cli(tmp_path, monkeypatch):
+    """Verify runner.main CLI executes without --target-trajectory and saves report."""
+    from evals.runner import main as runner_main
+
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    dataset_path = repo_root / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
+    catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
+    out_path = tmp_path / "eval_out.json"
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evals.runner",
+            "--dataset",
+            str(dataset_path),
+            "--catalog",
+            str(catalog_path),
+            "--output",
+            str(out_path),
+        ],
+    )
+    runner_main()
+    assert out_path.exists()

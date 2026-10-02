@@ -55,7 +55,6 @@ def test_pipeline_execution_order_and_combined_metrics(mock_dataset_and_catalog)
         execution_order.append("adk_evaluator_second")
         return {
             "hallucination_score": 0.96,
-            "tool_trajectory_score": 1.0,
             "response_match_score": 0.85,
             "status": "COMPLETED",
         }
@@ -82,19 +81,19 @@ def test_pipeline_execution_order_and_combined_metrics(mock_dataset_and_catalog)
         "adk_evaluator_second",
     ]
 
-    # Assert ADK metrics attached to runner report summary
+    # Assert ADK metrics attached to runner report summary without tool trajectory
     summary = result["runner_report"]["summary"]
     assert summary["adk_hallucination_score"] == 0.96
-    assert summary["adk_tool_trajectory_score"] == 1.0
+    assert "adk_tool_trajectory_score" not in summary
 
-    # Assert BigQuery row had both runner and ADK fields
+    # Assert BigQuery row had both runner and ADK fields without tool trajectory
     assert mock_bq.insert_rows_json.called
     table_ref, rows = mock_bq.insert_rows_json.call_args[0]
     row = rows[0]
     assert row["avg_spec_accuracy"] == 1.0
     assert row["avg_citation_faithfulness"] == 1.0
     assert row["adk_hallucination_score"] == 0.96
-    assert row["adk_tool_trajectory_score"] == 1.0
+    assert "adk_tool_trajectory_score" not in row
     assert row["trigger_source"] == "cloud_scheduler"
 
 
@@ -111,3 +110,29 @@ async def test_execute_adk_evaluation_graceful_warning(tmp_path):
         )
         assert res["status"] == "WARNING"
         assert "Quota limit" in res["error"]
+
+
+def test_run_pipeline_main_cli(tmp_path, monkeypatch):
+    """Verify run_pipeline.main parses arguments and delegates to run_pipeline."""
+    from evals.run_pipeline import main as pipeline_main
+
+    called_kwargs = {}
+
+    def fake_run_pipeline(**kwargs):
+        called_kwargs.update(kwargs)
+        return {}
+
+    monkeypatch.setattr("evals.run_pipeline.run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evals.run_pipeline",
+            "--reports-dir",
+            str(tmp_path),
+            "--limit",
+            "1",
+        ],
+    )
+    pipeline_main()
+    assert called_kwargs["reports_dir"] == tmp_path
+    assert called_kwargs["limit"] == 1
