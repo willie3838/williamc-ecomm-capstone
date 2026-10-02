@@ -39,7 +39,6 @@ def compare_reports(
     accuracy_tolerance: float = 0.01,
     citation_tolerance: float = 0.01,
     latency_tolerance_pct: float = 10.0,
-    trajectory_tolerance: float = 0.05,
 ) -> dict[str, Any]:
     """Compare current and baseline eval runs, computing deltas and detecting regressions."""
     cur_sum = current.get("summary", {})
@@ -61,18 +60,6 @@ def compare_reports(
     cur_schema = cur_sum.get("structured_output_validity", 0.0)
     base_schema = base_sum.get("structured_output_validity", cur_schema)
     schema_delta = cur_schema - base_schema
-
-    cur_traj = cur_sum.get(
-        "mean_tool_trajectory_score", cur_sum.get("adk_tool_trajectory_score", 1.0)
-    )
-    base_traj = (
-        base_sum.get(
-            "mean_tool_trajectory_score", base_sum.get("adk_tool_trajectory_score", cur_traj)
-        )
-        if baseline
-        else cur_traj
-    )
-    traj_delta = cur_traj - base_traj
 
     # Identify individual case regressions
     regressions: list[dict[str, Any]] = []
@@ -103,14 +90,6 @@ def compare_reports(
                     case_regressions.append(
                         f"Case {cid} citation faithfulness dropped by {abs(cit_diff):.4f} ({b_case.get('citation_faithfulness')} -> {cur_case.get('citation_faithfulness')})"
                     )
-                # Check tool trajectory drop
-                traj_diff = cur_case.get("tool_trajectory_score", 1.0) - b_case.get(
-                    "tool_trajectory_score", 1.0
-                )
-                if traj_diff < -trajectory_tolerance:
-                    case_regressions.append(
-                        f"Case {cid} tool trajectory score dropped by {abs(traj_diff):.4f} ({b_case.get('tool_trajectory_score')} -> {cur_case.get('tool_trajectory_score')})"
-                    )
 
     # Check threshold violations
     regressions_found = False
@@ -130,15 +109,6 @@ def compare_reports(
                     "metric": "Citation Faithfulness",
                     "delta": cit_delta,
                     "reason": f"Dropped by {abs(cit_delta):.4f} (tolerance: {citation_tolerance:.4f})",
-                }
-            )
-            regressions_found = True
-        if traj_delta < -trajectory_tolerance:
-            regressions.append(
-                {
-                    "metric": "Tool Trajectory Quality",
-                    "delta": traj_delta,
-                    "reason": f"Dropped by {abs(traj_delta):.4f} (tolerance: {trajectory_tolerance:.4f})",
                 }
             )
             regressions_found = True
@@ -197,19 +167,6 @@ def compare_reports(
                 ),
                 4,
             ),
-            "current_trajectory": c_data.get("mean_tool_trajectory_score", 1.0),
-            "baseline_trajectory": b_data.get(
-                "mean_tool_trajectory_score",
-                c_data.get("mean_tool_trajectory_score", 1.0),
-            ),
-            "trajectory_delta": round(
-                c_data.get("mean_tool_trajectory_score", 1.0)
-                - b_data.get(
-                    "mean_tool_trajectory_score",
-                    c_data.get("mean_tool_trajectory_score", 1.0),
-                ),
-                4,
-            ),
             "pass_rate": c_data.get("pass_rate", 0.0),
             "latency_seconds": c_data.get("mean_latency_seconds", 0.0),
         }
@@ -227,12 +184,6 @@ def compare_reports(
                 "baseline": base_cit,
                 "delta": round(cit_delta, 4),
                 "target": cur_sum.get("targets", {}).get("target_citation", 0.95),
-            },
-            "tool_trajectory": {
-                "current": cur_traj,
-                "baseline": base_traj,
-                "delta": round(traj_delta, 4),
-                "target": cur_sum.get("targets", {}).get("target_trajectory", 1.0),
             },
             "latency_p95_seconds": {
                 "current": cur_lat,
@@ -287,15 +238,6 @@ def generate_markdown_report(comparison: dict[str, Any]) -> str:
         f"| **Citation Faithfulness** | {cit['baseline']:.4f} | {cit['current']:.4f} | {format_delta(cit['delta'], higher_is_better=True)} | $\\ge {cit['target']:.2f}$ | {cit_status} |"
     )
 
-    # Tool Trajectory Quality
-    if "tool_trajectory" in s:
-        traj = s["tool_trajectory"]
-        traj_target = traj.get("target", 1.00)
-        traj_status = "PASS" if traj["current"] >= (traj_target * 0.95) else "FAIL"
-        lines.append(
-            f"| **Tool Trajectory Quality** | {traj['baseline']:.4f} | {traj['current']:.4f} | {format_delta(traj['delta'], higher_is_better=True)} | $\\ge {traj_target:.2f}$ | {traj_status} |"
-        )
-
     # Schema Validity
     schema = s["structured_output_validity"]
     schema_status = "PASS" if schema["current"] >= schema["target"] else "FAIL"
@@ -315,8 +257,8 @@ def generate_markdown_report(comparison: dict[str, Any]) -> str:
             "",
             "## 2. Category Performance Breakdown",
             "",
-            "| Category | Data Accuracy | Citation Faithfulness | Tool Trajectory | Pass Rate | Mean Latency |",
-            "| :--- | :--- | :--- | :--- | :--- | :--- |",
+            "| Category | Data Accuracy | Citation Faithfulness | Pass Rate | Mean Latency |",
+            "| :--- | :--- | :--- | :--- | :--- |",
         ]
     )
 
@@ -324,7 +266,6 @@ def generate_markdown_report(comparison: dict[str, Any]) -> str:
         lines.append(
             f"| **{cat}** | {data['current_accuracy']:.4f} ({format_delta(data['accuracy_delta'])}) | "
             f"{data['current_citation']:.4f} ({format_delta(data['citation_delta'])}) | "
-            f"{data.get('current_trajectory', 1.0):.4f} ({format_delta(data.get('trajectory_delta', 0.0))}) | "
             f"{data['pass_rate'] * 100:.1f}% | {data['latency_seconds']:.4f}s |"
         )
 

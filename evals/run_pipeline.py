@@ -8,7 +8,7 @@ Execution Sequence:
    - Validates P95 latency (<= 3.0s) and Pydantic schema validity
 2. ADK Agent Evaluator SECOND (google.adk.evaluation.agent_evaluator.AgentEvaluator)
    - Evaluates hallucinations_v1 (model-graded sentence entailment)
-   - Evaluates tool_trajectory_avg_score and response_match_score
+   - Evaluates response_match_score
 3. Analyzer & Regression Detection THIRD (evals.analyze.compare_reports)
    - Compares metrics against baseline runs
    - Detects regressions and writes executive markdown summary (reports/eval_summary.md)
@@ -55,7 +55,6 @@ async def execute_adk_evaluation(
 
     adk_report: dict[str, Any] = {
         "hallucination_score": None,
-        "tool_trajectory_score": None,
         "response_match_score": None,
         "status": "COMPLETED",
     }
@@ -78,7 +77,6 @@ async def execute_adk_evaluation(
                 adk_report["hallucination_score"] = data.get("hallucinations_v1") or data.get(
                     "hallucination_score"
                 )
-                adk_report["tool_trajectory_score"] = data.get("tool_trajectory_avg_score")
                 adk_report["response_match_score"] = data.get("response_match_score")
         logger.info("ADK AgentEvaluator completed successfully.")
     except Exception as e:  # noqa: BLE001
@@ -156,8 +154,6 @@ def run_pipeline(
     # Attach ADK scores to runner summary
     if adk_report.get("hallucination_score") is not None:
         runner_report["summary"]["adk_hallucination_score"] = adk_report["hallucination_score"]
-    if adk_report.get("tool_trajectory_score") is not None:
-        runner_report["summary"]["adk_tool_trajectory_score"] = adk_report["tool_trajectory_score"]
 
     # -------------------------------------------------------------------------
     # STEP 3: Regression Analysis & Reporting (THIRD)

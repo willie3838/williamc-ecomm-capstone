@@ -45,7 +45,7 @@ def test_eval_dataset_categories_distribution():
 
 
 def test_eval_dataset_schema_and_uniqueness():
-    """Assert each test case has unique ID, trajectory, and valid ground truth specs."""
+    """Assert each test case has unique ID and valid ground truth specs."""
     with open(BENCHMARK_EVALSET_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
@@ -66,9 +66,6 @@ def test_eval_dataset_schema_and_uniqueness():
         assert "conversation" in case and len(case["conversation"]) == 1
         inv = case["conversation"][0]
         assert "user_content" in inv and inv["user_content"]["parts"][0]["text"]
-        assert "intermediate_data" in inv
-        assert len(inv["intermediate_data"]["tool_uses"]) >= 1
-        assert inv["intermediate_data"]["tool_uses"][0]["name"] == "query_catalog"
         assert "final_response" in inv and len(inv["final_response"]["parts"][0]["text"]) > 20
 
         # Check ground truth matches expected SKUs

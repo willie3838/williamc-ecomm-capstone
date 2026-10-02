@@ -191,88 +191,58 @@ def test_generate_markdown_report():
     assert "No regressions detected" in md
 
 
-def test_compare_reports_tool_trajectory_regression():
-    """Verify regression detection when tool trajectory score drops beyond tolerance."""
+def test_compare_and_markdown_exclude_tool_trajectory():
+    """Verify compare_reports and generate_markdown_report omit tool trajectory metrics and columns."""
     base_report = {
         "summary": {
             "mean_data_accuracy": 0.99,
             "mean_citation_faithfulness": 0.95,
-            "mean_tool_trajectory_score": 1.0,
             "latency_p95_seconds": 1.0,
             "structured_output_validity": 1.0,
             "target_threshold_met": True,
         },
-        "details": [{"id": "case-1", "status": "PASS", "tool_trajectory_score": 1.0}],
+        "category_metrics": {
+            "Laptops": {
+                "mean_data_accuracy": 1.0,
+                "mean_citation_faithfulness": 1.0,
+                "pass_rate": 1.0,
+                "mean_latency_seconds": 0.01,
+            }
+        },
+        "details": [
+            {"id": "case-1", "status": "PASS", "data_accuracy": 0.99, "citation_faithfulness": 0.95}
+        ],
     }
     curr_report = {
         "summary": {
             "mean_data_accuracy": 0.99,
             "mean_citation_faithfulness": 0.95,
-            "mean_tool_trajectory_score": 0.80,  # 20% drop
             "latency_p95_seconds": 1.0,
             "structured_output_validity": 1.0,
-            "target_threshold_met": False,
-        },
-        "details": [{"id": "case-1", "status": "PASS", "tool_trajectory_score": 0.80}],
-    }
-
-    res = compare_reports(curr_report, base_report, trajectory_tolerance=0.05)
-    assert res["regressions_detected"] is True
-    assert any("Tool Trajectory Quality" in r["metric"] for r in res["regression_details"])
-
-
-def test_generate_markdown_report_with_tool_trajectory():
-    """Verify markdown output formats tool trajectory in summary table and category matrix."""
-    comparison = {
-        "summary": {
-            "data_accuracy": {"current": 0.99, "baseline": 0.98, "delta": 0.01, "target": 0.98},
-            "citation_faithfulness": {
-                "current": 0.96,
-                "baseline": 0.95,
-                "delta": 0.01,
-                "target": 0.95,
-            },
-            "tool_trajectory": {
-                "current": 1.0,
-                "baseline": 1.0,
-                "delta": 0.0,
-                "target": 1.0,
-            },
-            "latency_p95_seconds": {
-                "current": 1.2,
-                "baseline": 1.5,
-                "delta": -0.3,
-                "delta_pct": -20.0,
-                "target": 3.0,
-            },
-            "structured_output_validity": {
-                "current": 1.0,
-                "baseline": 1.0,
-                "delta": 0.0,
-                "target": 1.0,
-            },
+            "target_threshold_met": True,
         },
         "category_metrics": {
             "Laptops": {
-                "current_accuracy": 1.0,
-                "accuracy_delta": 0.0,
-                "current_citation": 1.0,
-                "citation_delta": 0.0,
-                "current_trajectory": 1.0,
-                "trajectory_delta": 0.0,
+                "mean_data_accuracy": 1.0,
+                "mean_citation_faithfulness": 1.0,
                 "pass_rate": 1.0,
-                "latency_seconds": 0.01,
+                "mean_latency_seconds": 0.01,
             }
         },
-        "verdict": "PASSED",
-        "regressions_detected": False,
-        "regression_details": [],
-        "case_regressions": [],
+        "details": [
+            {"id": "case-1", "status": "PASS", "data_accuracy": 0.99, "citation_faithfulness": 0.95}
+        ],
     }
 
-    md = generate_markdown_report(comparison)
-    assert "Tool Trajectory Quality" in md
-    assert "Tool Trajectory" in md
+    res = compare_reports(curr_report, base_report)
+    assert "tool_trajectory" not in res["summary"]
+    assert "current_trajectory" not in res["category_metrics"]["Laptops"]
+    assert "baseline_trajectory" not in res["category_metrics"]["Laptops"]
+    assert "trajectory_delta" not in res["category_metrics"]["Laptops"]
+
+    md = generate_markdown_report(res)
+    assert "Tool Trajectory Quality" not in md
+    assert "Tool Trajectory" not in md
     assert "PASSED" in md
 
 
@@ -338,3 +308,49 @@ def test_compare_reports_latency_exceeds_target_regression():
     res = compare_reports(curr_report, base_report, latency_tolerance_pct=10.0)
     assert res["regressions_detected"] is True
     assert any("P95 Latency" in r["metric"] for r in res["regression_details"])
+
+
+def test_analyze_main_cli(tmp_path, monkeypatch):
+    """Verify analyze.main CLI execution and report generation without tool trajectory args."""
+    import json
+
+    from evals.analyze import main as analyze_main
+
+    report_data = {
+        "summary": {
+            "mean_data_accuracy": 0.99,
+            "mean_citation_faithfulness": 0.98,
+            "latency_p95_seconds": 1.5,
+            "structured_output_validity": 1.0,
+            "target_threshold_met": True,
+            "targets": {
+                "target_accuracy": 0.98,
+                "target_citation": 0.95,
+                "target_latency_p95": 3.0,
+                "target_schema_validity": 1.0,
+            },
+        },
+        "category_metrics": {},
+        "details": [],
+    }
+    cur_file = tmp_path / "cur.json"
+    base_file = tmp_path / "base.json"
+    out_md = tmp_path / "out.md"
+    cur_file.write_text(json.dumps(report_data), encoding="utf-8")
+    base_file.write_text(json.dumps(report_data), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "evals.analyze",
+            "--current",
+            str(cur_file),
+            "--baseline",
+            str(base_file),
+            "--output",
+            str(out_md),
+        ],
+    )
+    analyze_main()
+    assert out_md.exists()
+    assert "Tool Trajectory" not in out_md.read_text(encoding="utf-8")

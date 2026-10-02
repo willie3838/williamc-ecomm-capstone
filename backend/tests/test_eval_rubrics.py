@@ -12,9 +12,9 @@ def test_eval_rubrics_exist_and_populated():
         "data_accuracy.md",
         "citation_faithfulness.md",
         "semantic_coherence.md",
-        "tool_trajectory.md",
         "counterfactual_anti_overfitting.md",
     ]
+    assert not (rubrics_dir / "tool_trajectory.md").exists()
 
     for fname in expected_files:
         rubric_file = rubrics_dir / fname
@@ -34,12 +34,6 @@ def test_eval_rubrics_exist_and_populated():
         elif fname == "semantic_coherence.md":
             assert "LLM" in content
             assert "scale" in content.lower() or "score" in content.lower()
-
-        elif fname == "tool_trajectory.md":
-            assert "1.00" in content or "0.95" in content
-            assert "EXACT" in content
-            assert "IN_ORDER" in content
-            assert "FUZZY_SEMANTIC" in content
 
         elif fname == "counterfactual_anti_overfitting.md":
             assert "Generalization Gap" in content
