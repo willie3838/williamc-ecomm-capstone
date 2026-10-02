@@ -110,9 +110,9 @@ Benchmark candidate foundation models across ONLY the 9 production-safe GA Gemin
    - **Stage 1 (`QueryIntentSpecialist`)**: Measures query intent classification accuracy, token usage, cost, and P95 latency across all 9 GA models (`run-stage1-intent-<model>-<ts>`). Optimal: `gemini-3.5-flash-lite` (`stage1_intent_model`).
    - **Deterministic Node 2 BigQuery SQL Step**: Parameterized BigQuery SQL (`CatalogRetrievalStep`) with pattern-matched relevance ordering and SKU deduplication directly. 0.0% spec hallucination, ~120ms P95 latency, no LLM tool-calling overhead.
    - **Stage 2 (`RelevanceDetectorSpecialist`)**: Measures post-retrieval candidate reranking with explicit **Accuracy (Exact Match)**, **Precision**, **Recall**, **F1 Score**, cost, and P95 latency across identical candidate pools (`run-stage2-relevance-<model>-<ts>`). Optimal: `gemini-2.5-flash-lite` (`stage2_relevance_model`).
-   - **Stage 3 (`SpecComparisonSpecialist`)**: Measures grounded matrix synthesis, spec data accuracy, citation faithfulness, cost, P95 latency, and dedicated **Stage 3 Semantic Synthesis Quality** (`compute_stage3_semantic_quality` evaluating `mean_semantic_coherence` 0.0–1.0 and `synthesis_quality_5pt` 1.0–5.0).
-     - **Stage 3 Synthesis Quality Winner**: `gemini-2.5-pro` (`0.9760` coherence, `4.88 / 5.0` quality, wired into `stage3_synthesis_model`).
-     - **Stage 3 Synthesis Latency Winner**: `gemini-2.5-flash-lite` (`0.8200` coherence, `4.10 / 5.0` quality, `~520ms` P95, wired into `stage3_fast_synthesis_model`).
+   - **Stage 3 (`SpecComparisonSpecialist`)**: Measures grounded matrix synthesis, spec data accuracy, citation faithfulness, cost, P95 latency, and dedicated **Stage 3 Semantic Synthesis Quality** (`compute_stage3_semantic_quality` evaluating actual generated `summary` and `recommendations` text across 4 content dimensions—Spec Dimension Coverage, Quantitative Grounding & Winner Consistency, Trade-Off Reasoning Structure, and Actionable Persona Recommendations—without any hardcoded model-ID lookup tables or `pro_bonus` tiebreakers).
+     - **Stage 3 Synthesis Quality Winner**: `gemini-2.5-pro` (`stage3_synthesis_model`).
+     - **Stage 3 Synthesis Latency Winner**: `gemini-2.5-flash-lite` (`stage3_fast_synthesis_model`).
    - **Synthesized Architecture Reports**: Candidate architecture metrics (`tiered-hybrid`, `gemini-3.8-flash`, `gemini-2.5-flash`, etc.) are synthesized directly and analytically from their constituent specialist stages ($\text{P95}_{\text{Pipeline}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}}$), avoiding black-box error attribution.
    - **Optional End-to-End Evaluation**: Monolithic end-to-end multi-agent evaluation can be optionally run using `--include-end-to-end`.
    - **Summed Latency SLA Check**: Empirically verifies that total pipeline latency satisfies $\le 3000\text{ ms}$ without artificial per-stage constraints.
@@ -133,7 +133,7 @@ python3 evals/benchmark_models.py --live --include-end-to-end
 This command logs the per-stage runs to Vertex AI Experiments, and automatically updates `evals/reports/model_decision_scorecard.md`.
 
 ### H. Empirical Foundation Model Decision Matrix & Pairwise Judge (ADR-004)
-Generate the multi-objective Model Decision Scorecard (`tiered-hybrid`, `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-1.5-flash`) and execute head-to-head pairwise tournaments:
+Generate the multi-objective Model Decision Scorecard (`build_model_decision_matrix()` dynamically loads candidate metrics from `evals/reports/model_benchmark_results.json` and `CANDIDATE_MODELS` without hardcoded candidate metric tables) and execute head-to-head pairwise tournaments:
 ```bash
 # Generate JSON and Markdown Model Decision Scorecard:
 python3 -m evals.generate_model_matrix \

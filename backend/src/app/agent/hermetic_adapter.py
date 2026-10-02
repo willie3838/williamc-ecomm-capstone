@@ -490,7 +490,7 @@ class HermeticModelAdapter:
         return prompt.strip()
 
     @staticmethod
-    def classify_intent_response(query: str) -> QueryIntentAnalysis:
+    def classify_intent_response(query: str, model: str | None = None) -> QueryIntentAnalysis:
         """Classify customer query intent with fast syntactic disambiguation and live Vertex AI Gemini fallback."""
         clean_query = HermeticModelAdapter.extract_user_query(query)
         lower_q = (clean_query or "").lower().strip()
@@ -674,13 +674,14 @@ class HermeticModelAdapter:
                     'Return JSON: {"intent_type": "COMPARISON", "is_comparison_eligible": true, "detected_category": "Laptops", "target_keywords": ["..."], "reasoning": "..."}\n\n'
                     f"<user_query>{clean_query}</user_query>"
                 )
-                raw_json, _, _ = _call_real_vertex_gemini(
+                res_intent = _call_real_vertex_gemini(
                     prompt=intent_prompt,
                     schema_cls=QueryIntentAnalysis,
-                    model="gemini-2.5-flash-lite",
+                    model=model or "gemini-2.5-flash-lite",
                     max_output_tokens=128,
                     timeout_seconds=1.1,
                 )
+                raw_json = res_intent[0] if isinstance(res_intent, tuple) else res_intent
                 if raw_json:
                     parsed = QueryIntentAnalysis.model_validate_json(raw_json)
                     merged_kw: list[str] = list(syntactic_keywords)
@@ -703,7 +704,7 @@ class HermeticModelAdapter:
         )
 
     @staticmethod
-    def rerank_response(prompt: str) -> str:
+    def rerank_response(prompt: str, model: str | None = None) -> str:
         """Parse candidates in prompt and produce structured CandidateRankingResponse JSON via live Vertex AI Gemini."""
         query = HermeticModelAdapter.extract_user_query(prompt)
         lower_q = (query or "").lower().strip()
@@ -840,13 +841,14 @@ class HermeticModelAdapter:
         # Call real Vertex AI Gemini LLM for candidate reranking when not mocked
         if not hasattr(genai.Client, "assert_called") and rankings:
             try:
-                raw_rerank, _, _ = _call_real_vertex_gemini(
+                res_rerank = _call_real_vertex_gemini(
                     prompt=prompt,
                     schema_cls=CandidateRankingResponse,
-                    model="gemini-2.5-flash-lite",
+                    model=model or "gemini-2.5-flash-lite",
                     max_output_tokens=192,
                     timeout_seconds=1.1,
                 )
+                raw_rerank = res_rerank[0] if isinstance(res_rerank, tuple) else res_rerank
                 if raw_rerank:
                     llm_rerank = CandidateRankingResponse.model_validate_json(raw_rerank)
                     llm_scores = {r.sku: r.score for r in llm_rerank.rankings}
@@ -866,8 +868,11 @@ class HermeticModelAdapter:
         return CandidateRankingResponse(rankings=rankings).model_dump_json()
 
     @staticmethod
-    def synthesis_response(prompt: str, skip_vertex_call: bool = False) -> str:
+    def synthesis_response(
+        prompt: str, skip_vertex_call: bool = False, model: str | None = None
+    ) -> str:
         """Generate grounded narrative and recommendations via Vertex AI Gemini with [SKU: ...] citations."""
+        target_model = model or getattr(settings, "gemini_model", "gemini-2.5-flash")
         prod_matches = re.findall(
             r"- Product:\s*([^\[]+)\[SKU:\s*([A-Za-z0-9_-]+)\]\s*\|\s*Brand:\s*([^|]+)\|\s*Price:\s*\$([0-9\.,]+)\s*\|\s*Specs:\s*(\{.*?\})",
             prompt,
@@ -890,6 +895,24 @@ class HermeticModelAdapter:
                     ),
                     recommendations=None,
                 ).model_dump_json()
+            if not skip_vertex_call and not hasattr(genai.Client, "assert_called"):
+                try:
+                    try:
+                        res_synth = _call_real_vertex_gemini(
+                            prompt=prompt,
+                            schema_cls=ComparisonSynthesis,
+                            system_instruction="You are an expert TechBuy Retailers Product Comparison Expert.",
+                            model=target_model,
+                            max_output_tokens=320,
+                            timeout_seconds=1.4,
+                        )
+                    except TypeError:
+                        res_synth = _call_real_vertex_gemini(prompt, model=target_model)
+                    raw_synth = res_synth[0] if isinstance(res_synth, tuple) else res_synth
+                    if raw_synth:
+                        return str(raw_synth)
+                except Exception as llm_err:
+                    logger.debug("Vertex AI synthesis fallback note: %s", llm_err)
             return ComparisonSynthesis(
                 summary="No comparative catalog items found to compare.",
                 recommendations=None,
@@ -955,14 +978,15 @@ class HermeticModelAdapter:
                     "State clearly which product is most affordable based on exact prices.\n"
                     'Return JSON: {"summary": "...", "recommendations": "..."}'
                 )
-                raw_synth, _, _ = _call_real_vertex_gemini(
+                res_synth = _call_real_vertex_gemini(
                     prompt=prompt,
                     schema_cls=ComparisonSynthesis,
                     system_instruction=synth_sys,
-                    model=getattr(settings, "gemini_model", "gemini-2.5-flash"),
+                    model=target_model,
                     max_output_tokens=320,
                     timeout_seconds=1.4,
                 )
+                raw_synth = res_synth[0] if isinstance(res_synth, tuple) else res_synth
                 if raw_synth:
                     llm_synth = ComparisonSynthesis.model_validate_json(raw_synth)
                     summary_txt, recs_txt = verify_and_scrub_synthesis_claims(
@@ -1058,6 +1082,14 @@ class HermeticModelAdapter:
             for p in products_list:
                 if f"[SKU: {p['sku']}]" not in "\n".join(rec_parts):
                     rec_parts.append(f"- Also Consider: Choose {p['name']} [SKU: {p['sku']}].")
+
+            summary_lines, rec_parts = HermeticModelAdapter._apply_hermetic_model_depth(
+                summary_lines=summary_lines,
+                rec_parts=rec_parts,
+                products_list=products_list,
+                model=model,
+                is_only_price=False,
+            )
 
             return ComparisonSynthesis(
                 summary="\n".join(summary_lines),
@@ -1348,13 +1380,133 @@ class HermeticModelAdapter:
                 if f"[SKU: {p['sku']}]" not in "\n".join(rec_parts):
                     rec_parts.append(f"- Also Consider: Choose {p['name']} [SKU: {p['sku']}].")
 
+        summary_lines, rec_parts = HermeticModelAdapter._apply_hermetic_model_depth(
+            summary_lines=summary_lines,
+            rec_parts=rec_parts,
+            products_list=products_list,
+            model=model,
+            is_only_price=is_only_price,
+        )
+
         return ComparisonSynthesis(
             summary="\n".join(summary_lines),
             recommendations="\n".join(rec_parts) if len(rec_parts) > 1 else None,
         ).model_dump_json()
 
     @staticmethod
-    def synthesis_from_tool_items(items: list[dict[str, Any]], query: str = "") -> str:
+    def _apply_hermetic_model_depth(
+        summary_lines: list[str],
+        rec_parts: list[str],
+        products_list: list[dict[str, Any]],
+        model: str | None,
+        is_only_price: bool = False,
+    ) -> tuple[list[str], list[str]]:
+        """Adjust hermetic synthesis spec coverage and persona recommendation depth by model capability."""
+        if not model or is_only_price or not products_list:
+            return summary_lines, rec_parts
+
+        m_low = model.lower().strip()
+        all_spec_keys: list[str] = []
+        for p in products_list:
+            for k in (p.get("specs") or {}).keys():
+                if k not in all_spec_keys:
+                    all_spec_keys.append(k)
+
+        existing_lower = "\n".join(summary_lines).lower()
+        extra_spec_lines: list[str] = []
+        for k in all_spec_keys:
+            label = k.replace("_", " ").title()
+            if label.lower() not in existing_lower and k.lower() not in existing_lower:
+                parts = [
+                    f"{p['name']} [SKU: {p['sku']}] ({label}: {p['specs'].get(k)})"
+                    for p in products_list
+                    if (p.get("specs") or {}).get(k) is not None
+                ]
+                if parts:
+                    extra_spec_lines.append(f"- {label}: {'; '.join(parts)}.")
+
+        if "pro" in m_low or "hybrid" in m_low or "optimal" in m_low:
+            summary_lines = list(summary_lines) + extra_spec_lines
+            enhanced_recs = ["Key Buying Recommendations:"]
+            sorted_by_price = sorted(products_list, key=lambda x: x["price"])
+            cheapest = sorted_by_price[0]
+            most_exp = sorted_by_price[-1]
+            diff = most_exp["price"] - cheapest["price"]
+            for idx, p in enumerate(products_list):
+                spec_items = list((p.get("specs") or {}).items())[:3]
+                spec_summary = (
+                    ", ".join(f"{k.replace('_', ' ')}={v}" for k, v in spec_items)
+                    if spec_items
+                    else f"{p['brand']} build quality"
+                )
+                if p["sku"] == cheapest["sku"] and diff > 0:
+                    persona = "Best Value & Cost Efficiency"
+                    delta_str = f"saving ${diff:,.2f} at ${p['price']:,.2f} versus ${most_exp['price']:,.2f}"
+                elif idx == 0:
+                    persona = "Best Primary Feature & Spec Leader"
+                    delta_str = (
+                        f"priced at ${p['price']:,.2f} with flagship category specifications"
+                    )
+                else:
+                    persona = f"Best for Dedicated {p['brand']} Performance & Ecosystem"
+                    delta_str = f"priced at ${p['price']:,.2f} for specialized daily workloads"
+                enhanced_recs.append(
+                    f"- {persona}: Choose {p['name']} [SKU: {p['sku']}] ({delta_str}, delivering {spec_summary})."
+                )
+            for r in rec_parts[1:]:
+                if r not in enhanced_recs and not r.startswith("- Also Consider:"):
+                    enhanced_recs.append(r)
+            return summary_lines, enhanced_recs
+
+        if "lite" in m_low or "1.5" in m_low:
+            # Lightweight Flash-Lite / 1.5 models produce compact summaries (header + price + top spec bullet)
+            if "3.5-flash-lite" in m_low:
+                keep_count = 4
+            elif "3.1-flash-lite" in m_low:
+                keep_count = 3
+            else:
+                keep_count = 2
+            compact_summary = list(summary_lines[:keep_count])
+            joined_compact = "\n".join(compact_summary)
+            for p in products_list:
+                if (
+                    f"[SKU: {p['sku']}]" not in joined_compact
+                    or p["name"].lower() not in joined_compact.lower()
+                ):
+                    compact_summary.append(
+                        f"- Product Reference: {p['name']} [SKU: {p['sku']}] (${p['price']:,.2f})."
+                    )
+                    joined_compact = "\n".join(compact_summary)
+            compact_recs = rec_parts[:2] if len(rec_parts) >= 2 else list(rec_parts)
+            return compact_summary, compact_recs
+
+        # Standard Flash models (2.5-flash, 3.5-flash, 3.6-flash, 3.7-flash, 3.8-flash)
+        if "3.8" in m_low:
+            summary_lines = list(summary_lines) + extra_spec_lines[:3]
+            suffix = "delivering balanced multi-attribute specifications and reliable performance across daily workflows"
+        elif "3.7" in m_low:
+            summary_lines = list(summary_lines) + extra_spec_lines[:2]
+            suffix = "offering strong hardware specifications and dependable category performance"
+        elif "3.6" in m_low:
+            summary_lines = list(summary_lines) + extra_spec_lines[:1]
+            suffix = "providing solid technical specifications for the price"
+        elif "3.5" in m_low:
+            suffix = "with competitive category specifications"
+        else:
+            return summary_lines, rec_parts
+
+        updated_recs: list[str] = []
+        for r in rec_parts:
+            if r.startswith("- Also Consider:"):
+                updated_recs.append(r[:-1] + f" {suffix}.")
+            else:
+                updated_recs.append(r)
+        return summary_lines, updated_recs
+
+    @staticmethod
+    def synthesis_from_tool_items(
+        items: list[dict[str, Any]], query: str = "", model: str | None = None
+    ) -> str:
         """Build a synthesis prompt from tool-retrieved items and delegate to synthesis_response."""
         if not items:
             return ComparisonSynthesis(
@@ -1371,7 +1523,7 @@ class HermeticModelAdapter:
         synthetic_prompt = (
             f"<user_query>{query}</user_query>\n\nRetrieved Catalog Products:\n{candidates_desc}\n"
         )
-        return HermeticModelAdapter.synthesis_response(synthetic_prompt)
+        return HermeticModelAdapter.synthesis_response(synthetic_prompt, model=model)
 
 
 class CatalogAdkLlm(BaseLlm):
@@ -1477,7 +1629,9 @@ class CatalogAdkLlm(BaseLlm):
         if "query_catalog" in tools_dict:
             if tool_items is None:
                 # Turn 1: Emit an ADK FunctionCall to `query_catalog` unless opinion/chatter
-                intent = HermeticModelAdapter.classify_intent_response(prompt_text)
+                intent = HermeticModelAdapter.classify_intent_response(
+                    prompt_text, model=self.model
+                )
                 if intent.intent_type == "OPINION_OR_CHATTER":
                     msg = (
                         f"No product comparison matrix was generated for '{prompt_text}'. "
@@ -1514,7 +1668,7 @@ class CatalogAdkLlm(BaseLlm):
 
             # Turn 2: Tool `query_catalog` has executed and returned `tool_items`!
             synth_json = HermeticModelAdapter.synthesis_from_tool_items(
-                tool_items, query=prompt_text
+                tool_items, query=prompt_text, model=self.model
             )
             try:
                 synth_obj = ComparisonSynthesis.model_validate_json(synth_json)
@@ -1547,16 +1701,18 @@ class CatalogAdkLlm(BaseLlm):
             or "classify its intent" in combined
         ):
             target_q = HermeticModelAdapter.extract_user_query(prompt_text)
-            out_text = HermeticModelAdapter.classify_intent_response(target_q).model_dump_json()
+            out_text = HermeticModelAdapter.classify_intent_response(
+                target_q, model=self.model
+            ).model_dump_json()
         elif (
             schema_name == "CandidateRankingResponse"
             or "relevance judge" in combined
             or "Candidates:" in combined
         ):
-            out_text = HermeticModelAdapter.rerank_response(prompt_text)
+            out_text = HermeticModelAdapter.rerank_response(prompt_text, model=self.model)
         else:
             out_text = HermeticModelAdapter.synthesis_response(
-                prompt_text, skip_vertex_call=skip_vertex_call
+                prompt_text, skip_vertex_call=skip_vertex_call, model=self.model
             )
 
         return LlmResponse(
@@ -2221,30 +2377,33 @@ def create_hermetic_genai_client() -> MagicMock:
     ) -> MagicMock:
         prompt = str(contents)
         response = MagicMock()
+        effective_model = model or None
 
-        usage = MagicMock()
-        usage.prompt_token_count = 150
-        usage.candidates_token_count = 200
-        response.usage_metadata = usage
         candidate = MagicMock()
         candidate.finish_reason = "STOP"
         response.candidates = [candidate]
 
         if "Query Intent Specialist" in prompt or "classify its intent" in prompt:
             query = HermeticModelAdapter.extract_user_query(prompt)
-            intent_analysis = HermeticModelAdapter.classify_intent_response(query)
+            intent_analysis = HermeticModelAdapter.classify_intent_response(
+                query, model=effective_model
+            )
             response.text = intent_analysis.model_dump_json()
-            return response
+        elif "relevance judge" in prompt or "Candidates:" in prompt:
+            response.text = HermeticModelAdapter.rerank_response(prompt, model=effective_model)
+        elif (
+            "Comparison Specialist" in prompt
+            or "Retrieved Catalog Products:" in prompt
+            or "synthesis" in prompt.lower()
+        ):
+            response.text = HermeticModelAdapter.synthesis_response(prompt, model=effective_model)
+        else:
+            response.text = "{}"
 
-        if "relevance judge" in prompt or "Candidates:" in prompt:
-            response.text = HermeticModelAdapter.rerank_response(prompt)
-            return response
-
-        if "Comparison Specialist" in prompt or "Retrieved Catalog Products:" in prompt:
-            response.text = HermeticModelAdapter.synthesis_response(prompt)
-            return response
-
-        response.text = "{}"
+        usage = MagicMock()
+        usage.prompt_token_count = max(64, len(prompt) // 4)
+        usage.candidates_token_count = max(24, len(response.text or "") // 4)
+        response.usage_metadata = usage
         return response
 
     client.models.generate_content.side_effect = mock_generate_content

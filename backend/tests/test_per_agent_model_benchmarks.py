@@ -283,22 +283,159 @@ def test_build_model_decision_matrix_from_dict_report(tmp_path):
 
 
 def test_stage3_semantic_synthesis_quality_scores() -> None:
-    """Verify compute_stage3_semantic_quality returns exact 0.0-1.0 and 1.0-5.0 normalized scores."""
-    expected_scores = {
-        "gemini-2.5-pro": (0.9760, 4.88),
-        "gemini-3.8-flash": (0.9160, 4.58),
-        "gemini-3.7-flash": (0.9100, 4.55),
-        "gemini-3.6-flash": (0.9040, 4.52),
-        "gemini-3.5-flash": (0.8960, 4.48),
-        "gemini-2.5-flash": (0.8700, 4.35),
-        "gemini-3.5-flash-lite": (0.8440, 4.22),
-        "gemini-3.1-flash-lite": (0.8360, 4.18),
-        "gemini-2.5-flash-lite": (0.8200, 4.10),
-    }
-    for model_id, (expected_coherence, expected_5pt) in expected_scores.items():
-        coherence, score_5pt = compute_stage3_semantic_quality(model_id)
-        assert coherence == expected_coherence, f"{model_id} coherence mismatch"
-        assert score_5pt == expected_5pt, f"{model_id} 5pt score mismatch"
+    """Verify compute_stage3_semantic_quality evaluates actual generated text across 4 content dimensions."""
+    sample_items = [
+        {
+            "sku": "6534606",
+            "name": "Apple MacBook Air 13-inch M3",
+            "price": 1099.00,
+            "rating": 4.8,
+            "Specs": {
+                "RAM": "16GB",
+                "Storage": "512GB SSD",
+                "Battery_Life": "18 hours",
+                "Display_Type": "Liquid Retina",
+            },
+        },
+        {
+            "sku": "6543210",
+            "name": "Dell XPS 13 Laptop",
+            "price": 1299.00,
+            "rating": 4.6,
+            "Specs": {
+                "RAM": "32GB",
+                "Storage": "1TB SSD",
+                "Battery_Life": "12 hours",
+                "Display_Type": "OLED Touch",
+            },
+        },
+    ]
+
+    # 1. Rich multi-attribute synthesis citing all SKUs, quantitative deltas, and persona recommendations
+    rich_summary = (
+        "Comparing Apple MacBook Air 13-inch M3 [SKU: 6534606] ($1099.00, 4.8★) and "
+        "Dell XPS 13 Laptop [SKU: 6543210] ($1299.00, 4.6★): Apple MacBook Air 13-inch M3 [SKU: 6534606] "
+        "is the lowest price option at $1099.00 (saving $200.00) and leads in Battery Life (18 hours vs 12 hours) "
+        "with a Liquid Retina display. Conversely, Dell XPS 13 Laptop [SKU: 6543210] leads in RAM (32GB vs 16GB) "
+        "and Storage (1TB SSD vs 512GB SSD) with an OLED Touch display for heavier multitasking."
+    )
+    rich_recs = [
+        {
+            "best_for": "Best Value & All-Day Battery Mobility",
+            "sku": "6534606",
+            "product_name": "Apple MacBook Air 13-inch M3",
+            "reason": (
+                "Delivers 18 hours of battery life and a 4.8★ rating at $1099.00 ($200.00 less than Dell XPS 13) "
+                "with 16GB RAM and 512GB SSD [SKU: 6534606]."
+            ),
+        },
+        {
+            "best_for": "Power Multitasking & High-Capacity Storage",
+            "sku": "6543210",
+            "product_name": "Dell XPS 13 Laptop",
+            "reason": (
+                "Upgrades memory to 32GB RAM and 1TB SSD storage with an OLED Touch display at $1299.00 "
+                "for intensive workloads [SKU: 6543210]."
+            ),
+        },
+    ]
+    rich_coherence, rich_5pt = compute_stage3_semantic_quality(
+        summary=rich_summary,
+        recommendations=rich_recs,
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert rich_coherence >= 0.85, f"Expected rich synthesis >= 0.85, got {rich_coherence}"
+    assert rich_5pt >= 4.4, f"Expected rich 5pt score >= 4.4, got {rich_5pt}"
+
+    # 2. Shallow price-only summary omitting hardware spec trade-offs
+    shallow_summary = (
+        "Apple MacBook Air 13-inch M3 [SKU: 6534606] costs $1099.00 with a 4.8★ rating, while "
+        "Dell XPS 13 Laptop [SKU: 6543210] costs $1299.00 with a 4.6★ rating."
+    )
+    shallow_recs = [
+        {
+            "best_for": "Budget Shoppers",
+            "sku": "6534606",
+            "product_name": "Apple MacBook Air 13-inch M3",
+            "reason": "Lower price at $1099.00 [SKU: 6534606].",
+        }
+    ]
+    shallow_coherence, shallow_5pt = compute_stage3_semantic_quality(
+        summary=shallow_summary,
+        recommendations=shallow_recs,
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert 0.45 <= shallow_coherence < 0.85, (
+        f"Expected shallow synthesis in [0.45, 0.85), got {shallow_coherence}"
+    )
+    assert shallow_5pt < rich_5pt
+
+    # 3. Contradictory summary (inverting cheapest winner + hallucinating SKU 9999999)
+    contradictory_summary = (
+        "Dell XPS 13 Laptop [SKU: 6543210] is the cheapest and lowest price laptop at $1299.00, "
+        "whereas [SKU: 9999999] is more expensive."
+    )
+    bad_coherence, _ = compute_stage3_semantic_quality(
+        summary=contradictory_summary,
+        recommendations=[],
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert bad_coherence < 0.50, f"Expected contradictory synthesis < 0.50, got {bad_coherence}"
+
+
+def test_no_hardcoded_model_bonuses_or_lookup_tables() -> None:
+    """Verify benchmark_models.py and generate_model_matrix.py contain no hardcoded score tables or model bonuses."""
+    import evals.benchmark_models as bm
+    import evals.generate_model_matrix as gmm
+
+    assert not hasattr(bm, "STAGE3_SEMANTIC_SYNTHESIS_QUALITY"), (
+        "STAGE3_SEMANTIC_SYNTHESIS_QUALITY static lookup table must be removed"
+    )
+
+    bm_source = Path(bm.__file__).read_text(encoding="utf-8")
+    assert "pro_bonus" not in bm_source, "pro_bonus must be removed from _s3_score"
+    assert 'c["model_id"] == "tiered-hybrid"' not in bm_source, (
+        "Hardcoded tiered-hybrid tiebreaker must be removed from sorted_candidates"
+    )
+
+    gmm_source = Path(gmm.__file__).read_text(encoding="utf-8")
+    assert "avg_input_tokens=890" not in gmm_source, (
+        "Hardcoded candidate literals must be removed from generate_model_matrix.py"
+    )
+
+
+def test_hermetic_adapter_forwards_model_parameter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify HermeticModelAdapter.synthesis_response and create_hermetic_genai_client forward model parameter."""
+    import app.agent.hermetic_adapter as ha
+
+    captured_models: list[str] = []
+
+    def fake_call_real_vertex_gemini(
+        prompt: str, model: str = "gemini-2.5-flash", temperature: float = 0.0
+    ) -> str | None:
+        captured_models.append(model)
+        return '{"summary": " Grounded [SKU: 6534606]", "recommendations": []}'
+
+    monkeypatch.setattr(ha, "_call_real_vertex_gemini", fake_call_real_vertex_gemini)
+
+    res = ha.HermeticModelAdapter.synthesis_response(
+        "Synthesize product comparison",
+        skip_vertex_call=False,
+        model="gemini-2.5-pro",
+    )
+    assert "6534606" in res
+    assert captured_models == ["gemini-2.5-pro"]
+
+    captured_models.clear()
+    client = ha.create_hermetic_genai_client()
+    client.models.generate_content(
+        model="gemini-3.8-flash",
+        contents="Provide JSON synthesis with summary and recommendations",
+    )
+    assert captured_models == ["gemini-3.8-flash"]
 
 
 def test_run_per_stage_benchmarks_stage3_semantic_quality(

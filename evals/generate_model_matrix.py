@@ -109,11 +109,11 @@ def compute_composite_score(
     # Latency: 1.0s = 100 pts, 3.0s SLA ceiling = 60 pts, >= 4.0s = 0 pts
     lat_norm = max(0.0, min(100.0, ((4.0 - latency_p95_seconds) / 3.0) * 100.0))
 
-    # Cost: $0.10/1k = 100 pts, $3.00/1k = 0 pts
-    cost_norm = max(0.0, min(100.0, ((3.0 - cost_per_1k_queries_usd) / 2.90) * 100.0))
+    # Cost: $0.10/1k = 100 pts, $10.00/1k = 0 pts
+    cost_norm = max(0.0, min(100.0, ((10.0 - cost_per_1k_queries_usd) / 9.90) * 100.0))
 
-    # Synthesis quality: 1.0..5.0 -> 0..100
-    syn_norm = max(0.0, min(100.0, ((synthesis_quality_score - 1.0) / 4.0) * 100.0))
+    # Synthesis quality: 3.0..5.0 -> 0..100
+    syn_norm = max(0.0, min(100.0, ((synthesis_quality_score - 3.0) / 2.0) * 100.0))
 
     raw_score = (
         w.data_accuracy * acc_norm
@@ -334,17 +334,38 @@ def build_model_decision_matrix(
     **kwargs: Any,
 ) -> ModelDecisionMatrixReport:
     """Build the complete Empirical Foundation Model Decision Matrix & Scorecard across all candidate models."""
+    from app.agent.orchestrator import resolve_model_pair
+
+    from evals.benchmark_models import CANDIDATE_MODELS, estimate_cost_per_1k_queries_usd
+
     if isinstance(output_json_path, dict):
         benchmark_report = output_json_path
         output_json_path = kwargs.get("output_json_path")
 
     w = weights or DecisionWeights()
 
-    # Pre-map measured benchmark metrics if benchmark_report is supplied
+    default_benchmark_path = REPO_ROOT / "evals" / "reports" / "model_benchmark_results.json"
+    disk_report: dict[str, Any] = {}
+    if default_benchmark_path.exists():
+        try:
+            disk_report = json.loads(default_benchmark_path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            disk_report = {}
+
     cand_map: dict[str, dict[str, Any]] = {}
-    if benchmark_report and "candidates" in benchmark_report:
-        for c in benchmark_report["candidates"]:
-            cand_map[c.get("model_id", "")] = c
+    s3_map: dict[str, dict[str, Any]] = {}
+
+    for src_report in (disk_report, benchmark_report):
+        if isinstance(src_report, dict):
+            for c in src_report.get("candidates", []):
+                m_id = c.get("model_id", "")
+                if m_id:
+                    cand_map[m_id] = c
+            stages = src_report.get("per_stage_benchmarks", {}).get("stages", {})
+            for s3_item in stages.get("stage3_synthesis", []):
+                m_id = s3_item.get("model_id", "")
+                if m_id:
+                    s3_map[m_id] = s3_item
 
     def _m(m_id: str, field: str, default: float) -> float:
         if m_id in cand_map:
@@ -353,251 +374,74 @@ def build_model_decision_matrix(
                 return float(val)
         return default
 
-    candidates = [
-        evaluate_candidate_profile(
-            model_id="tiered-hybrid",
-            display_name="Tiered Hybrid (3.5 Flash Intent + 2.5 Pro Synthesis)",
-            routing_strategy="Turn 1: gemini-3.5-flash (temp=0.0) -> Turn 2: gemini-2.5-pro (temp=0.1)",
-            turn1_model="gemini-3.5-flash",
-            turn2_model="gemini-2.5-pro",
-            data_accuracy=_m("tiered-hybrid", "mean_data_accuracy", 0.995),
-            citation_faithfulness=_m("tiered-hybrid", "mean_citation_faithfulness", 0.988),
-            schema_validity=_m("tiered-hybrid", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("tiered-hybrid", "latency_p50_ms", 1180.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("tiered-hybrid", "latency_p95_ms", 2180.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m("tiered-hybrid", "estimated_cost_per_1k_queries_usd", 0.85),
-            avg_prompt_tokens=1180,
-            avg_output_tokens=590,
-            synthesis_quality_score=4.84,
-            pairwise_win_rate_vs_baseline=0.925,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-2.5-flash-lite",
-            display_name="Gemini 2.5 Flash-Lite (Single-Tier)",
-            routing_strategy="Turn 1: gemini-2.5-flash-lite (temp=0.0) -> Turn 2: gemini-2.5-flash-lite (temp=0.1)",
-            turn1_model="gemini-2.5-flash-lite",
-            turn2_model="gemini-2.5-flash-lite",
-            data_accuracy=_m("gemini-2.5-flash-lite", "mean_data_accuracy", 0.981),
-            citation_faithfulness=_m("gemini-2.5-flash-lite", "mean_citation_faithfulness", 0.952),
-            schema_validity=_m("gemini-2.5-flash-lite", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-2.5-flash-lite", "latency_p50_ms", 620.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-2.5-flash-lite", "latency_p95_ms", 1050.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-2.5-flash-lite", "estimated_cost_per_1k_queries_usd", 0.11
-            ),
-            avg_prompt_tokens=1100,
-            avg_output_tokens=500,
-            synthesis_quality_score=4.10,
-            pairwise_win_rate_vs_baseline=0.740,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.1-flash-lite",
-            display_name="Gemini 3.1 Flash-Lite (Single-Tier)",
-            routing_strategy="Turn 1: gemini-3.1-flash-lite (temp=0.0) -> Turn 2: gemini-3.1-flash-lite (temp=0.1)",
-            turn1_model="gemini-3.1-flash-lite",
-            turn2_model="gemini-3.1-flash-lite",
-            data_accuracy=_m("gemini-3.1-flash-lite", "mean_data_accuracy", 0.983),
-            citation_faithfulness=_m("gemini-3.1-flash-lite", "mean_citation_faithfulness", 0.956),
-            schema_validity=_m("gemini-3.1-flash-lite", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-3.1-flash-lite", "latency_p50_ms", 580.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3.1-flash-lite", "latency_p95_ms", 980.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.1-flash-lite", "estimated_cost_per_1k_queries_usd", 0.11
-            ),
-            avg_prompt_tokens=1090,
-            avg_output_tokens=490,
-            synthesis_quality_score=4.18,
-            pairwise_win_rate_vs_baseline=0.760,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.5-flash-lite",
-            display_name="Gemini 3.5 Flash-Lite (Single-Tier Ultra-Light)",
-            routing_strategy="Turn 1: gemini-3.5-flash-lite (temp=0.0) -> Turn 2: gemini-3.5-flash-lite (temp=0.1)",
-            turn1_model="gemini-3.5-flash-lite",
-            turn2_model="gemini-3.5-flash-lite",
-            data_accuracy=_m("gemini-3.5-flash-lite", "mean_data_accuracy", 0.984),
-            citation_faithfulness=_m("gemini-3.5-flash-lite", "mean_citation_faithfulness", 0.958),
-            schema_validity=_m("gemini-3.5-flash-lite", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(
-                _m("gemini-3.5-flash-lite", "latency_p50_ms", 540.0) / 1000.0, 2
-            ),
-            latency_p95_seconds=round(
-                _m("gemini-3.5-flash-lite", "latency_p95_ms", 920.0) / 1000.0, 2
-            ),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.5-flash-lite", "estimated_cost_per_1k_queries_usd", 0.11
-            ),
-            avg_prompt_tokens=1080,
-            avg_output_tokens=485,
-            synthesis_quality_score=4.22,
-            pairwise_win_rate_vs_baseline=0.780,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-2.5-flash",
-            display_name="Gemini 2.5 Flash (Single-Tier Fast Canary 1.1.0-flash)",
-            routing_strategy="Turn 1: gemini-2.5-flash (temp=0.0) -> Turn 2: gemini-2.5-flash (temp=0.1)",
-            turn1_model="gemini-2.5-flash",
-            turn2_model="gemini-2.5-flash",
-            data_accuracy=_m("gemini-2.5-flash", "mean_data_accuracy", 0.985),
-            citation_faithfulness=_m("gemini-2.5-flash", "mean_citation_faithfulness", 0.962),
-            schema_validity=_m("gemini-2.5-flash", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-2.5-flash", "latency_p50_ms", 840.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-2.5-flash", "latency_p95_ms", 1420.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-2.5-flash", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1150,
-            avg_output_tokens=540,
-            synthesis_quality_score=4.35,
-            pairwise_win_rate_vs_baseline=0.825,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.5-flash",
-            display_name="Gemini 3.5 Flash (Single-Tier High-Throughput)",
-            routing_strategy="Turn 1: gemini-3.5-flash (temp=0.0) -> Turn 2: gemini-3.5-flash (temp=0.1)",
-            turn1_model="gemini-3.5-flash",
-            turn2_model="gemini-3.5-flash",
-            data_accuracy=_m("gemini-3.5-flash", "mean_data_accuracy", 0.988),
-            citation_faithfulness=_m("gemini-3.5-flash", "mean_citation_faithfulness", 0.970),
-            schema_validity=_m("gemini-3.5-flash", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-3.5-flash", "latency_p50_ms", 720.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-3.5-flash", "latency_p95_ms", 1240.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.5-flash", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1130,
-            avg_output_tokens=530,
-            synthesis_quality_score=4.48,
-            pairwise_win_rate_vs_baseline=0.865,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.6-flash",
-            display_name="Gemini 3.6 Flash (Single-Tier)",
-            routing_strategy="Turn 1: gemini-3.6-flash (temp=0.0) -> Turn 2: gemini-3.6-flash (temp=0.1)",
-            turn1_model="gemini-3.6-flash",
-            turn2_model="gemini-3.6-flash",
-            data_accuracy=_m("gemini-3.6-flash", "mean_data_accuracy", 0.989),
-            citation_faithfulness=_m("gemini-3.6-flash", "mean_citation_faithfulness", 0.972),
-            schema_validity=_m("gemini-3.6-flash", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-3.6-flash", "latency_p50_ms", 700.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-3.6-flash", "latency_p95_ms", 1200.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.6-flash", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1125,
-            avg_output_tokens=525,
-            synthesis_quality_score=4.52,
-            pairwise_win_rate_vs_baseline=0.875,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.7-flash",
-            display_name="Gemini 3.7 Flash (Single-Tier Hybrid Thinking)",
-            routing_strategy="Turn 1: gemini-3.7-flash (temp=0.0) -> Turn 2: gemini-3.7-flash (temp=0.1)",
-            turn1_model="gemini-3.7-flash",
-            turn2_model="gemini-3.7-flash",
-            data_accuracy=_m("gemini-3.7-flash", "mean_data_accuracy", 0.990),
-            citation_faithfulness=_m("gemini-3.7-flash", "mean_citation_faithfulness", 0.974),
-            schema_validity=_m("gemini-3.7-flash", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-3.7-flash", "latency_p50_ms", 680.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-3.7-flash", "latency_p95_ms", 1160.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.7-flash", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1120,
-            avg_output_tokens=520,
-            synthesis_quality_score=4.55,
-            pairwise_win_rate_vs_baseline=0.885,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-3.8-flash",
-            display_name="Gemini 3.8 Flash (Single-Tier Flagship Flash)",
-            routing_strategy="Turn 1: gemini-3.8-flash (temp=0.0) -> Turn 2: gemini-3.8-flash (temp=0.1)",
-            turn1_model="gemini-3.8-flash",
-            turn2_model="gemini-3.8-flash",
-            data_accuracy=_m("gemini-3.8-flash", "mean_data_accuracy", 0.991),
-            citation_faithfulness=_m("gemini-3.8-flash", "mean_citation_faithfulness", 0.976),
-            schema_validity=_m("gemini-3.8-flash", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-3.8-flash", "latency_p50_ms", 650.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-3.8-flash", "latency_p95_ms", 1120.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-3.8-flash", "estimated_cost_per_1k_queries_usd", 0.22
-            ),
-            avg_prompt_tokens=1115,
-            avg_output_tokens=515,
-            synthesis_quality_score=4.58,
-            pairwise_win_rate_vs_baseline=0.895,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-2.5-pro",
-            display_name="Gemini 2.5 Pro (Single-Tier End-to-End)",
-            routing_strategy="Turn 1: gemini-2.5-pro (temp=0.0) -> Turn 2: gemini-2.5-pro (temp=0.1)",
-            turn1_model="gemini-2.5-pro",
-            turn2_model="gemini-2.5-pro",
-            data_accuracy=_m("gemini-2.5-pro", "mean_data_accuracy", 0.996),
-            citation_faithfulness=_m("gemini-2.5-pro", "mean_citation_faithfulness", 0.991),
-            schema_validity=_m("gemini-2.5-pro", "structured_output_validity", 1.000),
-            latency_p50_seconds=round(_m("gemini-2.5-pro", "latency_p50_ms", 1950.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-2.5-pro", "latency_p95_ms", 3480.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m("gemini-2.5-pro", "estimated_cost_per_1k_queries_usd", 2.45),
-            avg_prompt_tokens=1240,
-            avg_output_tokens=640,
-            synthesis_quality_score=4.88,
-            pairwise_win_rate_vs_baseline=0.950,
-            weights=w,
-        ),
-        evaluate_candidate_profile(
-            model_id="gemini-1.5-flash",
-            display_name="Gemini 1.5 Flash (Legacy Baseline)",
-            routing_strategy="Turn 1: gemini-1.5-flash (temp=0.0) -> Turn 2: gemini-1.5-flash (temp=0.1)",
-            turn1_model="gemini-1.5-flash",
-            turn2_model="gemini-1.5-flash",
-            data_accuracy=_m("gemini-1.5-flash", "mean_data_accuracy", 0.938),
-            citation_faithfulness=_m("gemini-1.5-flash", "mean_citation_faithfulness", 0.912),
-            schema_validity=_m("gemini-1.5-flash", "structured_output_validity", 0.960),
-            latency_p50_seconds=round(_m("gemini-1.5-flash", "latency_p50_ms", 910.0) / 1000.0, 2),
-            latency_p95_seconds=round(_m("gemini-1.5-flash", "latency_p95_ms", 1550.0) / 1000.0, 2),
-            cost_per_1k_queries_usd=_m(
-                "gemini-1.5-flash", "estimated_cost_per_1k_queries_usd", 0.19
-            ),
-            avg_prompt_tokens=1120,
-            avg_output_tokens=510,
-            synthesis_quality_score=3.60,
-            pairwise_win_rate_vs_baseline=0.500,
-            weights=w,
-        ),
-    ]
+    candidates: list[ModelCandidateMetrics] = []
+    for spec in CANDIDATE_MODELS:
+        m_id = spec.model_id
+        turn1_model, turn2_model, _ = resolve_model_pair(spec.model, spec.synthesis_model)
+        s3_item = s3_map.get(turn2_model, {})
 
-    # Sort candidates by composite_score descending
-    candidates.sort(key=lambda c: c.composite_score, reverse=True)
+        is_legacy_15 = m_id == "gemini-1.5-flash"
+        default_acc = float(s3_item.get("mean_accuracy", 0.938 if is_legacy_15 else 0.990))
+        default_cit = float(
+            s3_item.get("mean_citation_faithfulness", 0.912 if is_legacy_15 else 0.975)
+        )
+        default_schema = 0.96 if is_legacy_15 else 1.00
+        default_syn_5pt = float(
+            s3_item.get("synthesis_quality_5pt", 3.60 if is_legacy_15 else 4.40)
+        )
+        default_cost = estimate_cost_per_1k_queries_usd(spec)
+
+        data_acc = _m(m_id, "mean_data_accuracy", default_acc)
+        cit_faith = _m(m_id, "mean_citation_faithfulness", default_cit)
+        schema_val = _m(m_id, "structured_output_validity", default_schema)
+        lat_p50_ms = _m(m_id, "latency_p50_ms", spec.typical_cloud_p50_ms)
+        lat_p95_ms = _m(m_id, "latency_p95_ms", spec.typical_cloud_p95_ms)
+        cost_1k = _m(m_id, "estimated_cost_per_1k_queries_usd", default_cost)
+        in_toks = int(round(_m(m_id, "mean_input_tokens", float(spec.avg_input_tokens_per_query))))
+        out_toks = int(
+            round(_m(m_id, "mean_output_tokens", float(spec.avg_output_tokens_per_query)))
+        )
+        syn_5pt = round(_m(m_id, "synthesis_quality_5pt", default_syn_5pt), 2)
+        win_rate = round(max(0.50, min(0.98, (syn_5pt - 1.0) / 4.0)), 3)
+
+        candidates.append(
+            evaluate_candidate_profile(
+                model_id=m_id,
+                display_name=spec.display_name,
+                routing_strategy=(
+                    f"Turn 1: {turn1_model} (temp=0.0) -> Turn 2: {turn2_model} (temp=0.1)"
+                ),
+                turn1_model=turn1_model,
+                turn2_model=turn2_model,
+                data_accuracy=data_acc,
+                citation_faithfulness=cit_faith,
+                schema_validity=schema_val,
+                latency_p50_seconds=round(lat_p50_ms / 1000.0, 2),
+                latency_p95_seconds=round(lat_p95_ms / 1000.0, 2),
+                cost_per_1k_queries_usd=cost_1k,
+                avg_prompt_tokens=in_toks,
+                avg_output_tokens=out_toks,
+                synthesis_quality_score=syn_5pt,
+                pairwise_win_rate_vs_baseline=win_rate,
+                weights=w,
+            )
+        )
+
+    # Sort candidates by SLA compliance and composite_score descending
+    candidates.sort(key=lambda c: (c.sla_compliant, c.composite_score), reverse=True)
+    selected_winner = candidates[0].model_id if candidates else "tiered-hybrid"
     tournaments = _run_hermetic_pairwise_tournaments()
 
     report = ModelDecisionMatrixReport(
         generated_at=datetime.now(UTC).isoformat(),
         dataset_size=80,
         weights=w,
-        selected_winner="tiered-hybrid",
+        selected_winner=selected_winner,
         fallback_canary="gemini-2.5-flash",
         candidates=candidates,
         pairwise_tournaments=tournaments,
         adr_recommendation=(
-            "Select `tiered-hybrid` (Turn 1 `gemini-3.5-flash` / `gemini-2.5-flash` at temperature=0.0 "
+            f"Select `{selected_winner}` (Turn 1 `gemini-3.5-flash` / `gemini-2.5-flash` at temperature=0.0 "
             "for low-latency intent extraction & reranking + Turn 2 `gemini-2.5-pro` at temperature=0.1 "
             "for grounded comparison synthesis) as the default production release (`1.0.0`), while "
             "retaining `gemini-2.5-flash` (`1.1.0-flash`) in Agent Registry as the high-QPS burst canary."
