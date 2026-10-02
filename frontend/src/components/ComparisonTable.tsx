@@ -130,7 +130,9 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
 
                 {/* Values per Product */}
                 {products.map((product) => {
-                  const isWinner = row.winner_sku === product.sku;
+                  const isWinner =
+                    row.winner_sku === product.sku ||
+                    Boolean(row.winner_skus?.includes(product.sku));
                   const rawVal = row.values?.[product.sku];
 
                   return (

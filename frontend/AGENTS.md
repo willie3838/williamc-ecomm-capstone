@@ -52,6 +52,7 @@ frontend/
 ### 1. Side-by-Side Comparison Matrix
 - Render attributes dynamically based on product category (e.g. RAM, Storage, CPU for Laptops; Battery Life, Noise Cancellation for Headphones).
 - Highlight winning / superior specifications with subtle badge indicators where unambiguous (e.g., higher battery life).
+- Support multi-winner ties across 3+ product comparisons using `winner_skus: string[]` on `MatrixRow`, ensuring all tied top products display Winner badges.
 
 ### 2. Verified SKU Citation Badges, Category Browsing, Multiselect & In-App Product Details
 - Every product claim must display an interactive SKU badge (`[SKU: 6534606]`).

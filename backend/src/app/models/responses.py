@@ -88,6 +88,10 @@ class MatrixRow(BaseModel):
         default=None,
         description="SKU of the winning product for this feature, or None if tied/neutral",
     )
+    winner_skus: list[str] = Field(
+        default_factory=list,
+        description="SKUs of winning product(s) for this feature, supporting multi-winner ties",
+    )
 
 
 class Citation(BaseModel):

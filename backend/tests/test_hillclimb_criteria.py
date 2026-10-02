@@ -112,14 +112,14 @@ def test_multi_category_spec_registry_and_cross_category_guard() -> None:
     assert row_by_feature["Refresh Rate"].winner_sku == "TV-1"
     assert row_by_feature["Response Time"].winner_sku == "TV-1"
 
-    # Cross-category (Laptops vs Headphones): Category row added, spec winners suppressed
+    # Cross-category (Laptops vs Headphones): Category row added, shared spec winners computed, unshared specs neutral
     laptop = ProductSpec(
         sku="LAP-1",
         name="Laptop X",
         brand="Apple",
         category="Laptops",
         price=1299.0,
-        specifications={"battery_life_hours": 18},
+        specifications={"battery_life_hours": 18, "ram_gb": 16},
     )
     headphone = ProductSpec(
         sku="HP-1",
@@ -127,12 +127,21 @@ def test_multi_category_spec_registry_and_cross_category_guard() -> None:
         brand="Sony",
         category="Headphones",
         price=349.0,
-        specifications={"battery_life_hours": 30},
+        specifications={"battery_life_hours": 30, "driver_size_mm": 40},
     )
     cross_matrix = orch.build_comparison_matrix([laptop, headphone])
     cross_features = {r.feature: r for r in cross_matrix}
     assert "Category" in cross_features
-    assert cross_features["Battery Life"].winner_sku is None
+    assert cross_features["Category"].winner_sku is None
+    assert cross_features["Category"].winner_skus == []
+    # Shared numeric spec across categories computes winner
+    assert cross_features["Battery Life"].winner_sku == "HP-1"
+    assert cross_features["Battery Life"].winner_skus == ["HP-1"]
+    # Unshared specs (present in only 1 of 2 products) have no winner
+    assert cross_features["Memory (RAM)"].winner_sku is None
+    assert cross_features["Memory (RAM)"].winner_skus == []
+    assert cross_features["Driver Size"].winner_sku is None
+    assert cross_features["Driver Size"].winner_skus == []
 
 
 def test_api_v1_routes_and_readiness_dependencies() -> None:

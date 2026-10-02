@@ -94,4 +94,67 @@ describe('ComparisonTable', () => {
     expect(screen.getByText('No')).toBeInTheDocument();
     expect(screen.getByText('—')).toBeInTheDocument();
   });
+
+  it('highlights multiple winning products in 3+ comparisons with ties via winner_skus', () => {
+    const threeProducts = [
+      { ...mockComparisonResponse.products[0], sku: 'SKU-1', name: 'Product 1' },
+      { ...mockComparisonResponse.products[1], sku: 'SKU-2', name: 'Product 2' },
+      {
+        ...mockComparisonResponse.products[0],
+        sku: 'SKU-3',
+        name: 'Product 3',
+        brand: 'HP',
+      },
+    ];
+
+    const tiedMatrix = [
+      {
+        feature: 'Refresh Rate',
+        values: {
+          'SKU-1': '120 Hz',
+          'SKU-2': '120 Hz',
+          'SKU-3': '60 Hz',
+        },
+        winner_sku: null,
+        winner_skus: ['SKU-1', 'SKU-2'],
+      },
+    ];
+
+    render(<ComparisonTable products={threeProducts} matrix={tiedMatrix} />);
+
+    // Both SKU-1 and SKU-2 should display Winner badges (total of 2)
+    const winnerBadges = screen.getAllByLabelText(/superior specification/i);
+    expect(winnerBadges).toHaveLength(2);
+  });
+
+  it('renders no winner badge when tied across all products with empty winner_skus', () => {
+    const threeProducts = [
+      { ...mockComparisonResponse.products[0], sku: 'SKU-1', name: 'Product 1' },
+      { ...mockComparisonResponse.products[1], sku: 'SKU-2', name: 'Product 2' },
+      {
+        ...mockComparisonResponse.products[0],
+        sku: 'SKU-3',
+        name: 'Product 3',
+        brand: 'HP',
+      },
+    ];
+
+    const neutralMatrix = [
+      {
+        feature: 'Refresh Rate',
+        values: {
+          'SKU-1': '120 Hz',
+          'SKU-2': '120 Hz',
+          'SKU-3': '120 Hz',
+        },
+        winner_sku: null,
+        winner_skus: [],
+      },
+    ];
+
+    render(<ComparisonTable products={threeProducts} matrix={neutralMatrix} />);
+
+    const winnerBadges = screen.queryAllByLabelText(/superior specification/i);
+    expect(winnerBadges).toHaveLength(0);
+  });
 });
