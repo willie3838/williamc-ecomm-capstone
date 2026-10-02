@@ -553,6 +553,181 @@ describe('App Integration', () => {
       expect(screen.getByText('Comparison Assistant')).toBeInTheDocument();
     });
   });
+
+  it('preserves existing compared products when adding a product via SearchBar "+ Add Product to Compare"', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // 1. Run initial comparison of 2 products (MacBook Air 6534606 & Dell XPS 6573822)
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    // Verify initial tagged products in SearchBar
+    expect(screen.getByText('SKU: 6534606')).toBeInTheDocument();
+    expect(screen.getByText('SKU: 6573822')).toBeInTheDocument();
+
+    // 2. Click "+ Add Product to Compare" inside SearchBar
+    const addBtn = screen.getByLabelText('Add product to compare');
+    fireEvent.click(addBtn);
+
+    // 3. Search and select a 3rd product in the picker (e.g. Lenovo ThinkPad)
+    const pickerSearch = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+    fireEvent.change(pickerSearch, { target: { value: 'Lenovo' } });
+
+    const lenovoOption = screen.getByText(/Lenovo ThinkPad X1 Carbon/i);
+    fireEvent.click(lenovoOption);
+
+    // 4. Verify that existing 2 products are STILL preserved and Lenovo was added (now 3 tagged products)
+    const taggedRow = screen.getByTestId('tagged-products-row');
+    expect(taggedRow).toHaveTextContent('SKU: 6534606');
+    expect(taggedRow).toHaveTextContent('SKU: 6573822');
+    expect(taggedRow).toHaveTextContent(/Lenovo ThinkPad X1 Carbon/i);
+
+    // 5. Verify the selection tray also reflects 3 products
+    expect(screen.getByText(/Ready to compare \(3\/5\)/i)).toBeInTheDocument();
+  });
+
+  it('preserves existing compared products when adding a product via autocomplete', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    // Type into main search input to trigger autocomplete dropdown
+    const textarea = screen.getByPlaceholderText(/add follow-up requirements/i);
+    fireEvent.change(textarea, { target: { value: 'Acer' } });
+
+    const dropdown = screen.getByRole('listbox', { name: /product suggestions/i });
+    expect(dropdown).toBeInTheDocument();
+
+    const acerOption = screen.getByText(/Acer Swift Edge/i);
+    fireEvent.click(acerOption);
+
+    // Verify existing 2 products are preserved and Acer was added
+    const taggedRow = screen.getByTestId('tagged-products-row');
+    expect(taggedRow).toHaveTextContent('SKU: 6534606');
+    expect(taggedRow).toHaveTextContent('SKU: 6573822');
+    expect(taggedRow).toHaveTextContent(/Acer Swift Edge/i);
+  });
+
+  it('searches across all categories in "+ Add Product to Compare Against" popover and passes category=null for cross-category comparison', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // Initial comparison with category "Laptops"
+    fireEvent.click(screen.getByRole('button', { name: /laptops/i }));
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    // Open "+ Add Product to Compare Against" popover
+    const addCompareBtn = screen.getByRole('button', {
+      name: /\+ Add Product to Compare Against/i,
+    });
+    fireEvent.click(addCompareBtn);
+
+    const popoverSearch = screen.getByPlaceholderText(/search product by name, brand, sku/i);
+
+    // Search for iPad Pro (which is in Tablets category, not Laptops!)
+    fireEvent.change(popoverSearch, { target: { value: 'iPad Pro' } });
+
+    // Verify cross-category product (Tablet) is found and visible
+    const ipadOption = screen.getByText(/Apple iPad Pro 11" OLED/i);
+    expect(ipadOption).toBeInTheDocument();
+    fireEvent.click(ipadOption);
+
+    // Verify new comparison request was initiated with category: null (cross-category)
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+
+    const secondCallArgs = vi.mocked(compareProducts).mock.calls[1][0];
+    expect(secondCallArgs.category).toBeNull();
+  });
+
+  it('updates taggedProducts when a new comparison completes with different products', async () => {
+    vi.mocked(compareProducts).mockResolvedValueOnce(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('SKU: 6534606')).toBeInTheDocument();
+    });
+
+    // Subsequent comparison completes with headphones (different SKUs)
+    const headphoneComparison = {
+      ...mockComparisonResponse,
+      products: [
+        {
+          sku: '6573888',
+          name: 'Sony WH-1000XM5 Wireless Headphones',
+          brand: 'Sony',
+          category: 'Headphones',
+          price: 399.99,
+          specifications: {},
+          in_stock: true,
+        },
+        {
+          sku: '6573999',
+          name: 'Bose QuietComfort Ultra Headphones',
+          brand: 'Bose',
+          category: 'Headphones',
+          price: 429.99,
+          specifications: {},
+          in_stock: true,
+        },
+      ],
+    };
+    vi.mocked(compareProducts).mockResolvedValueOnce(headphoneComparison);
+
+    const followUpInput = screen.getByPlaceholderText(/add follow-up requirements/i);
+    fireEvent.change(followUpInput, {
+      target: { value: 'Recommend headphones instead' },
+    });
+    fireEvent.submit(screen.getByRole('search'));
+
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('SKU: 6573888')).toBeInTheDocument();
+      expect(screen.getByText('SKU: 6573999')).toBeInTheDocument();
+    });
+
+    // Old SKUs should no longer be tagged
+    expect(screen.queryByText('SKU: 6534606')).not.toBeInTheDocument();
+  });
 });
 
 
