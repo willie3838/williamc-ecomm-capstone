@@ -205,4 +205,10 @@ Instead, GitHub Actions authenticates dynamically via **Workload Identity Federa
 - **Target Service Account**: `catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com` (granted `roles/iam.workloadIdentityUser`, `roles/iam.serviceAccountUser`, `roles/cloudbuild.builds.editor`, `roles/storage.admin`, `roles/serviceusage.serviceUsageConsumer`, `roles/artifactregistry.writer`, `roles/clouddeploy.releaser`, `roles/clouddeploy.jobRunner`, `roles/run.admin`, `roles/aiplatform.user`, and `roles/cloudtrace.agent`)
 - **Token Lifecycle**: GitHub dynamically mints a short-lived OIDC JWT per workflow step; Google STS exchanges it for a 1-hour short-lived OAuth2 access token with zero stored secrets.
 
+---
 
+## 8. Cloud Run Autoscaling & 1,000-Concurrency Burst Capacity
+
+- **Concurrency per Instance (`containerConcurrency: 80`)**: Each Cloud Run instance (`2 vCPU`, `2 GiB`) handles up to 80 simultaneous in-flight requests.
+- **Scale Bounds (`minScale: '0'`, `maxScale: '20'`)**: Scales from 0 at idle up to 20 container instances (`20 * 80 = 1,600` concurrent requests capacity) so a 1,000-concurrent-request Black Friday burst spins up ~13–15 instances in parallel without pending queue drops.
+- **Autoscaler Spin-Up Triggers**: New instances spin up automatically when active concurrent requests per instance approach `containerConcurrency` (80) or sustained container CPU utilization exceeds 60%.

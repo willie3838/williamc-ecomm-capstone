@@ -12,7 +12,7 @@ spec:
     metadata:
       annotations:
         autoscaling.knative.dev/minScale: '0'
-        autoscaling.knative.dev/maxScale: '10'
+        autoscaling.knative.dev/maxScale: '20'
     spec:
       serviceAccountName: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
       containerConcurrency: 80

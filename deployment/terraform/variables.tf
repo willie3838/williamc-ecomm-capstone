@@ -61,7 +61,7 @@ variable "min_instances" {
 variable "max_instances" {
   type        = number
   description = "Maximum number of Cloud Run instances for autoscaling"
-  default     = 10
+  default     = 20
 }
 
 variable "catalog_dataset_id" {
