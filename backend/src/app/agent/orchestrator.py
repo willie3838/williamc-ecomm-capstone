@@ -1445,9 +1445,9 @@ class ComparisonOrchestrator:
                 if p.brand.strip().lower() != first_brand
                 and (
                     p.brand.strip().lower() in kw_text
-                    or any(len(tok) >= 3 and tok in kw_text for tok in p.name.lower().split()[:2])
+                    or any(len(tok) >= 2 and tok in kw_text for tok in p.name.lower().split()[:2])
                     or any(
-                        len(kw.strip()) >= 3 and tok.startswith(kw.strip().lower())
+                        len(kw.strip()) >= 2 and tok.startswith(kw.strip().lower())
                         for tok in re.findall(r"[a-z0-9]+", p.name.lower())[:2]
                         for kw in keywords
                     )
