@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from google.adk.agents import Agent, SequentialAgent
-from google.adk.sessions import InMemorySessionService
 from google.cloud import bigquery
 
 from app.agent.orchestrator import (
@@ -540,6 +539,7 @@ class MultiAgentCoordinator:
         synthesis_model: str | None = None,
         use_llm_tool_call: bool = False,
         use_stage_optimal_models: bool = False,
+        user_id: str | None = None,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline."""
         from app.agent.prompts_service import get_active_prompt
@@ -595,6 +595,8 @@ class MultiAgentCoordinator:
         else:
             effective_model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
 
+        resolved_uid = user_id or "default_user"
+
         with tracer.start_as_current_span("agent.multi_agent_pipeline") as span:
             trace_id = get_current_trace_id()
             span.set_attribute("pipeline.architecture", "multi_node_cooperative")
@@ -605,6 +607,7 @@ class MultiAgentCoordinator:
             span.set_attribute("ai.model.tiered_hybrid", is_hybrid)
             span.set_attribute("ai.model.version", effective_model_version)
             span.set_attribute("ai.prompt.version", resolved_prompt_ver)
+            span.set_attribute("user_id", resolved_uid)
             if category:
                 span.set_attribute("category", category)
             if session_id:
@@ -625,18 +628,30 @@ class MultiAgentCoordinator:
                     "model_version": effective_model_version,
                     "prompt_version": resolved_prompt_ver,
                     "use_llm_tool_call": use_llm_tool_call,
+                    "user_id": resolved_uid,
                 },
             )
 
-            session_service = InMemorySessionService()
+            from app.agent.runner import (
+                get_default_session_service,
+            )
+
+            session_service = get_default_session_service()
             resolved_sid = session_id or f"session_{int(time.time() * 1000)}"
 
             async def _init_session():
-                return await session_service.create_session(
+                sess = await session_service.get_session(
                     app_name="catalog_multi_agent_pipeline",
-                    user_id="user_default",
+                    user_id=resolved_uid,
                     session_id=resolved_sid,
                 )
+                if sess is None:
+                    sess = await session_service.create_session(
+                        app_name="catalog_multi_agent_pipeline",
+                        user_id=resolved_uid,
+                        session_id=resolved_sid,
+                    )
+                return sess
 
             try:
                 asyncio.get_running_loop()
@@ -755,6 +770,7 @@ class MultiAgentCoordinator:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        user_id: str | None = None,
     ) -> ChatResponse:
         """Execute conversational follow-up chat using orchestrator with tracing."""
         with tracer.start_as_current_span("agent.conversational_chat") as span:
@@ -762,6 +778,8 @@ class MultiAgentCoordinator:
             span.set_attribute("chat.product_count", len(products))
             if session_id:
                 span.set_attribute("session_id", session_id)
+            if user_id:
+                span.set_attribute("user_id", user_id)
 
             active_model = model or self.model
             active_synthesis = synthesis_model or self.synthesis_model
@@ -777,4 +795,5 @@ class MultiAgentCoordinator:
                 model=active_model,
                 synthesis_model=active_synthesis,
                 agent_version=agent_version,
+                user_id=user_id,
             )

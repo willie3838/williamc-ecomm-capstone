@@ -72,6 +72,7 @@ backend/
     {
       "query": "Compare MacBook Air M3 and Dell XPS 13",
       "category": "Laptops",
+      "user_id": "williamwlchan@google.com",
       "agent_version": "1.0.0"
     }
     ```
@@ -111,7 +112,8 @@ backend/
       "comparison_matrix": [
         {"feature": "Battery Life", "values": {"6534606": "Up to 18 hours", "6575132": "Up to 14 hours"}, "winner_sku": "6534606"}
       ],
-      "session_id": "test-session-123"
+      "session_id": "test-session-123",
+      "user_id": "williamwlchan@google.com"
     }
     ```
   - Response:
@@ -227,7 +229,12 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
    - When deployed to Vertex AI Agent Runtime (`projects/{project}/locations/{location}/reasoningEngines/{id}` via `deployment/terraform/agent_runtime.tf` or `scripts/deploy_agent_runtime.py`), the agent appears directly in the Google Cloud Console under **Vertex AI -> Agent Runtime**.
    - Cloud Run hosts the public React 18 UI and serves as the secure API Gateway behind IAP. When `AGENT_RUNTIME_RESOURCE_NAME` is configured, `/api/compare` transparently delegates comparison queries to the Vertex AI Reasoning Engine with automated fallback to in-process execution during offline testing.
    - **Automated Cloud Build GitOps (`cloudbuild.yaml` Step 7)**: On pull request merges to `main`, Cloud Build runs a merge-aware diff (`FIRST_PARENT..HEAD`) against agent directories (`app/agent/`, `models/`, `tools/`, `requirements.txt`). When changes are present, it auto-detects the existing engine ID from `deployment_metadata.json` and updates the active instance in-place with `adk deploy agent_engine --agent_engine_id=... --otel_to_cloud`, preventing duplicate instances and activating OpenTelemetry tracing in the Google Cloud Console. It then executes `scripts/deploy_agent_runtime.py --clean-stale` (using REST API `?force=true` deletion) to safely prune any orphaned or superseded reasoning engine instances.
-   - **Google Cloud Console Playground & Multi-Turn Execution**: Native ADK Agent Engine registration (`adk deploy agent_engine`) enables the interactive conversational **Playground** chat tab under **Vertex AI -> Agents -> Agent Engines** (`console.cloud.google.com/vertex-ai/agents/agent-engines`). The `CatalogAdkLlm` hermetic adapter serves dual purposes: in hermetic/offline testing it supplies deterministic mock catalog data with zero LLM API cost, while in production live execution it reuses the shared `google.genai.Client(vertexai=True)` singleton (`_get_shared_vertex_client()`) and routes synthesis and tool turns through Gemini 2.5 Flash (`thinking_budget=0`) with right-sized token budgets (`256` for intent/ranking, `512` for synthesis), preserves `function_call` parts via `LlmResponse.create(response)`, records token usage, and forwards complete `llm_request.contents` conversation history across turns. Ephemeral specialist hops (`session_id=None`) execute with `InMemorySessionService` to avoid redundant remote session RPCs.
+    - **Google Cloud Console Playground & Multi-Turn Execution**: Native ADK Agent Engine registration (`adk deploy agent_engine`) enables the interactive conversational **Playground** chat tab under **Vertex AI -> Agents -> Agent Engines** (`console.cloud.google.com/vertex-ai/agents/agent-engines`). The `CatalogAdkLlm` hermetic adapter serves dual purposes: in hermetic/offline testing it supplies deterministic mock catalog data with zero LLM API cost, while in production live execution it reuses the shared `google.genai.Client(vertexai=True)` singleton (`_get_shared_vertex_client()`) and routes synthesis and tool turns through Gemini 2.5 Flash (`thinking_budget=0`) with right-sized token budgets (`256` for intent/ranking, `512` for synthesis), preserves `function_call` parts via `LlmResponse.create(response)`, records token usage, and forwards complete `llm_request.contents` conversation history across turns. Ephemeral specialist hops (`session_id=None`) execute with `InMemorySessionService` to avoid redundant remote session RPCs.
+7. **Cloud Run IAP User Email Identity & Memory Scoping (`app.routes.compare`, `app.agent.orchestrator`)**:
+    - **Identity Resolution (`resolve_iap_user_id`)**: Extracts user identity following strict priority: (1) `X-Goog-Authenticated-User-Email` header (strips `accounts.google.com:` or IDP prefix and lowercases); (2) `X-Goog-Authenticated-User-Id` header (strips prefix); (3) `X-Goog-IAP-JWT-Assertion` base64url payload (`email` or `sub` claims); (4) `explicit_user_id` from `ComparisonRequest.user_id` or `ChatRequest.user_id`; and (5) fallback `'default_user'`.
+    - **Session & Memory Scoping**: Resolves `user_id` and forwards to `MultiAgentCoordinator.execute`, `MultiAgentCoordinator.chat`, `ComparisonOrchestrator.compare`, `ComparisonOrchestrator.chat_with_products`, `run_adk_agent`, and `_persist_chat_session_and_memory`. Scopes `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` to the authenticated user.
+    - **Cross-Session Memory Recall**: In `ComparisonOrchestrator.chat_with_products`, prior preferences for `user_id` are preloaded via `memory_service.search_memory(app_name="app", user_id=resolved_user_id, query=clean_message)` and injected into prompt context under `<recalled_user_memories>`, enabling personalization across distinct sessions.
+    - **Multi-User Isolation**: Memory entries are strictly keyed by `user_id`, preventing cross-user preference leakage between different authenticated accounts.
 
 
 ---

@@ -49,6 +49,75 @@ _TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 )
 
 
+def resolve_iap_user_id(http_request: Request | None, explicit_user_id: str | None = None) -> str:
+    """Extract authenticated user identity from Cloud Run IAP headers or payload claims."""
+    if http_request is not None:
+        # 1. Check X-Goog-Authenticated-User-Email
+        email_header = http_request.headers.get("x-goog-authenticated-user-email")
+        if email_header:
+            email = email_header.strip()
+            if email.startswith("accounts.google.com:"):
+                email = email[len("accounts.google.com:") :].strip()
+            elif ":" in email and "@" not in email.split(":", 1)[0]:
+                email = email.split(":", 1)[1].strip()
+            if email:
+                return email.lower()
+
+        # 2. Check X-Goog-Authenticated-User-Id
+        user_id_header = http_request.headers.get("x-goog-authenticated-user-id")
+        if user_id_header:
+            uid = user_id_header.strip()
+            if uid.startswith("accounts.google.com:"):
+                uid = uid[len("accounts.google.com:") :].strip()
+            elif ":" in uid:
+                uid = uid.split(":", 1)[1].strip()
+            if uid:
+                return uid
+
+        # 3. Check X-Goog-IAP-JWT-Assertion
+        jwt_header = http_request.headers.get("x-goog-iap-jwt-assertion")
+        if jwt_header:
+            try:
+                import base64
+                import json
+
+                parts = jwt_header.split(".")
+                if len(parts) >= 2:
+                    payload_b64 = parts[1]
+                    rem = len(payload_b64) % 4
+                    if rem > 0:
+                        payload_b64 += "=" * (4 - rem)
+                    payload_data = json.loads(base64.urlsafe_b64decode(payload_b64.encode("utf-8")))
+                    if isinstance(payload_data, dict):
+                        email_claim = payload_data.get("email")
+                        if email_claim and isinstance(email_claim, str) and email_claim.strip():
+                            claim_clean = email_claim.strip()
+                            if claim_clean.startswith("accounts.google.com:"):
+                                claim_clean = claim_clean[len("accounts.google.com:") :].strip()
+                            elif ":" in claim_clean and "@" not in claim_clean.split(":", 1)[0]:
+                                claim_clean = claim_clean.split(":", 1)[1].strip()
+                            if claim_clean:
+                                return claim_clean.lower()
+                        sub_claim = payload_data.get("sub")
+                        if sub_claim and isinstance(sub_claim, str) and sub_claim.strip():
+                            sub_clean = sub_claim.strip()
+                            if sub_clean.startswith("accounts.google.com:"):
+                                sub_clean = sub_clean[len("accounts.google.com:") :].strip()
+                            elif ":" in sub_clean:
+                                sub_clean = sub_clean.split(":", 1)[1].strip()
+                            if sub_clean:
+                                return sub_clean
+            except Exception as e:
+                logger.debug("Failed parsing X-Goog-IAP-JWT-Assertion header: %s", e)
+
+    # 4. Check explicit user_id
+    if explicit_user_id and explicit_user_id.strip():
+        return explicit_user_id.strip()
+
+    # 5. Default fallback
+    return "default_user"
+
+
 def _get_coordinator(model: str | None, synthesis_model: str | None) -> Any:
     import sys
 
@@ -149,21 +218,35 @@ def _invoke_remote_reasoning_engine(
     request: ComparisonRequest,
     effective_model: str | None,
     effective_synthesis: str | None,
+    user_id: str | None = None,
 ) -> ComparisonResponse:
     """Invoke remote Vertex AI Agent Runtime (:query) via pooled HTTP session or unit-test mock."""
+    resolved_uid = user_id or request.user_id
     import sys
 
     re_mod = sys.modules.get("vertexai.preview.reasoning_engines")
     if re_mod is not None and hasattr(getattr(re_mod, "ReasoningEngine", None), "assert_called"):
         remote_agent = re_mod.ReasoningEngine(resource_name)
-        raw_response = remote_agent.query(
-            query=request.query,
-            category=request.category,
-            session_id=request.session_id,
-            agent_version=request.agent_version,
-            model=effective_model,
-            synthesis_model=effective_synthesis,
-        )
+        query_kwargs: dict[str, Any] = {
+            "query": request.query,
+            "category": request.category,
+            "session_id": request.session_id,
+            "agent_version": request.agent_version,
+            "model": effective_model,
+            "synthesis_model": effective_synthesis,
+        }
+        if resolved_uid:
+            try:
+                import inspect
+
+                sig = inspect.signature(remote_agent.query)
+                if "user_id" in sig.parameters or any(
+                    p.kind == p.VAR_KEYWORD for p in sig.parameters.values()
+                ):
+                    query_kwargs["user_id"] = resolved_uid
+            except Exception:
+                pass
+        raw_response = remote_agent.query(**query_kwargs)
         return ComparisonResponse.model_validate(raw_response)
 
     global _REMOTE_ENGINE_SESSION, _REMOTE_ENGINE_CREDS
@@ -193,11 +276,12 @@ def _invoke_remote_reasoning_engine(
 
     import json
 
+    gateway_uid = resolved_uid or request.session_id or "cloud-run-gateway"
     url = f"https://{region}-aiplatform.googleapis.com/v1beta1/{resource_name}:streamQuery"
     payload = {
         "class_method": "stream_query",
         "input": {
-            "user_id": request.session_id or "cloud-run-gateway",
+            "user_id": gateway_uid,
             "session_id": request.session_id,
             "message": json.dumps(
                 {
@@ -205,6 +289,7 @@ def _invoke_remote_reasoning_engine(
                     "query": request.query,
                     "category": request.category,
                     "session_id": request.session_id,
+                    "user_id": gateway_uid,
                     "agent_version": request.agent_version,
                     "model": effective_model,
                     "synthesis_model": effective_synthesis,
@@ -261,6 +346,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
                 request=request,
                 effective_model=effective_model,
                 effective_synthesis=effective_synthesis,
+                user_id=request.user_id,
             )
         except Exception as remote_err:
             logger.warning(
@@ -275,14 +361,25 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
             model=request.model,
             synthesis_model=request.synthesis_model,
         )
-        return orchestrator.compare(
-            query=request.query,
-            category=request.category,
-            session_id=request.session_id,
-            agent_version=request.agent_version,
-            model=request.model,
-            synthesis_model=request.synthesis_model,
-        )
+        compare_kwargs: dict[str, Any] = {
+            "query": request.query,
+            "category": request.category,
+            "session_id": request.session_id,
+            "agent_version": request.agent_version,
+            "model": request.model,
+            "synthesis_model": request.synthesis_model,
+        }
+        try:
+            import inspect
+
+            sig = inspect.signature(orchestrator.compare)
+            if "user_id" in sig.parameters or any(
+                p.kind == p.VAR_KEYWORD for p in sig.parameters.values()
+            ):
+                compare_kwargs["user_id"] = request.user_id
+        except Exception:
+            pass
+        return orchestrator.compare(**compare_kwargs)
 
     coordinator = _get_coordinator(
         model=effective_model,
@@ -295,6 +392,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
         agent_version=request.agent_version,
         model=effective_model,
         synthesis_model=effective_synthesis,
+        user_id=request.user_id,
     )
 
 
@@ -339,8 +437,10 @@ async def compare_products(
     request: ComparisonRequest,
     _app_settings: Annotated[Settings, Depends(get_settings)],
     http_response: Response,
+    http_request: Request,
 ) -> ComparisonResponse:
     """Compare products via non-blocking async MultiAgentCoordinator execution."""
+    request.user_id = resolve_iap_user_id(http_request, request.user_id)
     start_time = time.perf_counter()
 
     if not request.query.strip():
@@ -411,16 +511,27 @@ def _execute_chat_sync(request: ChatRequest) -> ChatResponse:
             model=request.model,
             synthesis_model=request.synthesis_model,
         )
-        return orchestrator.chat_with_products(
-            message=request.message,
-            products=request.products,
-            conversation_history=request.conversation_history,
-            comparison_matrix=request.comparison_matrix,
-            session_id=request.session_id,
-            model=request.model,
-            synthesis_model=request.synthesis_model,
-            agent_version=request.agent_version,
-        )
+        chat_kwargs: dict[str, Any] = {
+            "message": request.message,
+            "products": request.products,
+            "conversation_history": request.conversation_history,
+            "comparison_matrix": request.comparison_matrix,
+            "session_id": request.session_id,
+            "model": request.model,
+            "synthesis_model": request.synthesis_model,
+            "agent_version": request.agent_version,
+        }
+        try:
+            import inspect
+
+            sig = inspect.signature(orchestrator.chat_with_products)
+            if "user_id" in sig.parameters or any(
+                p.kind == p.VAR_KEYWORD for p in sig.parameters.values()
+            ):
+                chat_kwargs["user_id"] = request.user_id
+        except Exception:
+            pass
+        return orchestrator.chat_with_products(**chat_kwargs)
 
     coordinator = _get_coordinator(
         model=effective_model,
@@ -435,6 +546,7 @@ def _execute_chat_sync(request: ChatRequest) -> ChatResponse:
         agent_version=request.agent_version,
         model=effective_model,
         synthesis_model=effective_synthesis,
+        user_id=request.user_id,
     )
 
 
@@ -447,8 +559,10 @@ def _execute_chat_sync(request: ChatRequest) -> ChatResponse:
 async def chat_products(
     request: ChatRequest,
     _app_settings: Annotated[Settings, Depends(get_settings)],
+    http_request: Request,
 ) -> ChatResponse:
     """Answer conversational follow-up questions grounded strictly in compared ProductSpec list."""
+    request.user_id = resolve_iap_user_id(http_request, request.user_id)
     if not request.message.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
