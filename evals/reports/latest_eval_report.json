@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-09-18T20:32:05.489335+00:00",
+    "timestamp": "2026-10-02T01:02:22.860647+00:00",
     "dataset": "evals/dataset/benchmark_catalog.evalset.json",
     "judge_model": "gemini-3.5-flash",
     "mode": "hermetic",
@@ -11,15 +11,15 @@
   "summary": {
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "mean_retrieval_precision": 0.8396,
+    "mean_retrieval_precision": 0.95,
     "mean_retrieval_recall": 1.0,
     "mean_semantic_score": 1.0,
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 0.0061,
-    "latency_p90_seconds": 0.0232,
-    "latency_p95_seconds": 0.057,
+    "latency_p50_seconds": 0.0088,
+    "latency_p90_seconds": 0.0152,
+    "latency_p95_seconds": 0.017,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -37,7 +37,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0112
+      "mean_latency_seconds": 0.0098
     },
     "Tablets": {
       "total": 16,
@@ -46,7 +46,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0072
+      "mean_latency_seconds": 0.0108
     },
     "Headphones": {
       "total": 16,
@@ -55,7 +55,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0054
+      "mean_latency_seconds": 0.0096
     },
     "Smart Home": {
       "total": 16,
@@ -64,7 +64,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0219
+      "mean_latency_seconds": 0.0115
     },
     "TVs": {
       "total": 16,
@@ -73,7 +73,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0141
+      "mean_latency_seconds": 0.0085
     }
   },
   "details": [
@@ -87,11 +87,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6579840",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -103,7 +101,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0682,
+      "latency_seconds": 0.0164,
       "status": "PASS",
       "errors": []
     },
@@ -117,11 +115,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -133,7 +129,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0139,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -147,10 +143,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6579840",
-        "6534606"
+        "6579840"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -162,7 +157,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0069,
+      "latency_seconds": 0.0067,
       "status": "PASS",
       "errors": []
     },
@@ -176,11 +171,9 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6534606",
-        "6534640",
-        "6575132"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -192,7 +185,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0089,
       "status": "PASS",
       "errors": []
     },
@@ -207,36 +200,6 @@
       "retrieved_skus": [
         "6575132",
         "6534640",
-        "6534606",
-        "6579840"
-      ],
-      "retrieval_precision": 0.5,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.006,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "laptop-006",
-      "category": "Laptops",
-      "query": "Compare Apple MacBook Pro 14 M3 Pro and Lenovo ThinkPad X1 Carbon for software engineering",
-      "expected_skus": [
-        "6534640",
-        "6579840"
-      ],
-      "retrieved_skus": [
-        "6579840",
-        "6534640",
         "6534606"
       ],
       "retrieval_precision": 0.6667,
@@ -251,7 +214,35 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0061,
+      "latency_seconds": 0.0089,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-006",
+      "category": "Laptops",
+      "query": "Compare Apple MacBook Pro 14 M3 Pro and Lenovo ThinkPad X1 Carbon for software engineering",
+      "expected_skus": [
+        "6534640",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6579840",
+        "6534640"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -265,10 +256,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -280,7 +270,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -294,11 +284,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -310,7 +298,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0078,
       "status": "PASS",
       "errors": []
     },
@@ -324,11 +312,9 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6575132",
-        "6534606",
-        "6534640"
+        "6575132"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -340,7 +326,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0056,
+      "latency_seconds": 0.0114,
       "status": "PASS",
       "errors": []
     },
@@ -354,11 +340,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6579840",
-        "6534640",
-        "6575132"
+        "6579840"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -370,7 +354,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0051,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -384,11 +368,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534640",
-        "6534606",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -400,7 +382,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0054,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -429,7 +411,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0048,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -443,11 +425,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6579840",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -459,7 +439,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0055,
+      "latency_seconds": 0.0115,
       "status": "PASS",
       "errors": []
     },
@@ -473,11 +453,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -489,7 +467,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.007,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -503,10 +481,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6579840",
-        "6534606"
+        "6579840"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -518,7 +495,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0092,
+      "latency_seconds": 0.0072,
       "status": "PASS",
       "errors": []
     },
@@ -532,11 +509,9 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6534606",
-        "6534640",
-        "6575132"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -548,7 +523,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0133,
+      "latency_seconds": 0.0084,
       "status": "PASS",
       "errors": []
     },
@@ -562,10 +537,66 @@
       ],
       "retrieved_skus": [
         "6546522",
+        "6579601"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0091,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-002",
+      "category": "Tablets",
+      "query": "Compare Apple iPad Pro 11 M4 and Google Pixel Tablet 11 with Speaker Dock",
+      "expected_skus": [
         "6579601",
         "6542951"
       ],
+      "retrieved_skus": [
+        "6542951",
+        "6579601",
+        "6582105"
+      ],
       "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.008,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-003",
+      "category": "Tablets",
+      "query": "Samsung Galaxy Tab S9 vs Google Pixel Tablet: specs, battery, and price",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -582,64 +613,6 @@
       "errors": []
     },
     {
-      "id": "tablet-002",
-      "category": "Tablets",
-      "query": "Compare Apple iPad Pro 11 M4 and Google Pixel Tablet 11 with Speaker Dock",
-      "expected_skus": [
-        "6579601",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6542951",
-        "6579601",
-        "6546522"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0062,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-003",
-      "category": "Tablets",
-      "query": "Samsung Galaxy Tab S9 vs Google Pixel Tablet: specs, battery, and price",
-      "expected_skus": [
-        "6546522",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6546522",
-        "6542951",
-        "6579601"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0037,
-      "status": "PASS",
-      "errors": []
-    },
-    {
       "id": "tablet-004",
       "category": "Tablets",
       "query": "iPad Pro 11 M4 OLED versus Samsung Galaxy Tab S9 AMOLED screen comparison",
@@ -649,10 +622,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -664,7 +636,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0042,
+      "latency_seconds": 0.017,
       "status": "PASS",
       "errors": []
     },
@@ -678,10 +650,9 @@
       ],
       "retrieved_skus": [
         "6579601",
-        "6542951",
-        "6546522"
+        "6542951"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -693,7 +664,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0049,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -707,10 +678,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6542951",
-        "6579601"
+        "6542951"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -722,7 +692,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0156,
+      "latency_seconds": 0.0098,
       "status": "PASS",
       "errors": []
     },
@@ -737,181 +707,7 @@
       "retrieved_skus": [
         "6579601",
         "6546522",
-        "6542951"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0055,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-008",
-      "category": "Tablets",
-      "query": "Apple iPad Pro 11 M4 vs Google Pixel Tablet: battery life and weight comparison",
-      "expected_skus": [
-        "6579601",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6542951",
-        "6579601",
-        "6546522"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0042,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-009",
-      "category": "Tablets",
-      "query": "Compare battery endurance: Galaxy Tab S9 vs Google Pixel Tablet 11",
-      "expected_skus": [
-        "6546522",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6542951",
-        "6546522",
-        "6579601"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0055,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-010",
-      "category": "Tablets",
-      "query": "Apple M4 chip vs Snapdragon 8 Gen 2: iPad Pro 11 vs Galaxy Tab S9",
-      "expected_skus": [
-        "6579601",
-        "6546522"
-      ],
-      "retrieved_skus": [
-        "6579601",
-        "6546522",
-        "6542951"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0043,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-011",
-      "category": "Tablets",
-      "query": "Compare Google Pixel Tablet and iPad Pro 11 M4 for smart home and multimedia",
-      "expected_skus": [
-        "6579601",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6542951",
-        "6579601",
-        "6546522"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0057,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-012",
-      "category": "Tablets",
-      "query": "Galaxy Tab S9 11 AMOLED vs Google Pixel Tablet 11 display resolution and processor",
-      "expected_skus": [
-        "6546522",
-        "6542951"
-      ],
-      "retrieved_skus": [
-        "6546522",
-        "6542951",
-        "6579601"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0062,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tablet-013",
-      "category": "Tablets",
-      "query": "Price and storage comparison between Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9",
-      "expected_skus": [
-        "6579601",
-        "6546522"
-      ],
-      "retrieved_skus": [
-        "6546522",
-        "6579601",
-        "6542951"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -930,9 +726,93 @@
       "errors": []
     },
     {
-      "id": "tablet-014",
+      "id": "tablet-008",
       "category": "Tablets",
-      "query": "Which is lighter: Apple iPad Pro 11 M4 or Google Pixel Tablet with Dock?",
+      "query": "Apple iPad Pro 11 M4 vs Google Pixel Tablet: battery life and weight comparison",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6542951",
+        "6579601"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0078,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-009",
+      "category": "Tablets",
+      "query": "Compare battery endurance: Galaxy Tab S9 vs Google Pixel Tablet 11",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6542951",
+        "6546522"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0083,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-010",
+      "category": "Tablets",
+      "query": "Apple M4 chip vs Snapdragon 8 Gen 2: iPad Pro 11 vs Galaxy Tab S9",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0114,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-011",
+      "category": "Tablets",
+      "query": "Compare Google Pixel Tablet and iPad Pro 11 M4 for smart home and multimedia",
       "expected_skus": [
         "6579601",
         "6542951"
@@ -940,7 +820,7 @@
       "retrieved_skus": [
         "6542951",
         "6579601",
-        "6546522"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -954,7 +834,93 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0076,
+      "latency_seconds": 0.0163,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-012",
+      "category": "Tablets",
+      "query": "Galaxy Tab S9 11 AMOLED vs Google Pixel Tablet 11 display resolution and processor",
+      "expected_skus": [
+        "6546522",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6542951",
+        "6568419"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0152,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-013",
+      "category": "Tablets",
+      "query": "Price and storage comparison between Apple iPad Pro 11 M4 and Samsung Galaxy Tab S9",
+      "expected_skus": [
+        "6579601",
+        "6546522"
+      ],
+      "retrieved_skus": [
+        "6546522",
+        "6579601"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0084,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tablet-014",
+      "category": "Tablets",
+      "query": "Which is lighter: Apple iPad Pro 11 M4 or Google Pixel Tablet with Dock?",
+      "expected_skus": [
+        "6579601",
+        "6542951"
+      ],
+      "retrieved_skus": [
+        "6542951",
+        "6579601",
+        "6582105"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.007,
       "status": "PASS",
       "errors": []
     },
@@ -968,10 +934,9 @@
       ],
       "retrieved_skus": [
         "6542951",
-        "6546522",
-        "6579601"
+        "6546522"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -983,7 +948,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.006,
+      "latency_seconds": 0.0086,
       "status": "PASS",
       "errors": []
     },
@@ -997,10 +962,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1012,7 +976,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0049,
+      "latency_seconds": 0.0072,
       "status": "PASS",
       "errors": []
     },
@@ -1025,8 +989,8 @@
         "6553823"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6553823"
+        "6553823",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1040,7 +1004,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0038,
+      "latency_seconds": 0.0073,
       "status": "PASS",
       "errors": []
     },
@@ -1053,8 +1017,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6373460"
+        "6373460",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1068,7 +1032,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.004,
+      "latency_seconds": 0.009,
       "status": "PASS",
       "errors": []
     },
@@ -1096,7 +1060,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0044,
+      "latency_seconds": 0.0084,
       "status": "PASS",
       "errors": []
     },
@@ -1124,7 +1088,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0053,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -1137,8 +1101,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6373460"
+        "6373460",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1152,7 +1116,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0056,
+      "latency_seconds": 0.0063,
       "status": "PASS",
       "errors": []
     },
@@ -1180,7 +1144,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0037,
+      "latency_seconds": 0.0078,
       "status": "PASS",
       "errors": []
     },
@@ -1208,7 +1172,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0044,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -1236,7 +1200,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0062,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -1264,7 +1228,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.009,
+      "latency_seconds": 0.0081,
       "status": "PASS",
       "errors": []
     },
@@ -1292,7 +1256,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0075,
+      "latency_seconds": 0.0123,
       "status": "PASS",
       "errors": []
     },
@@ -1320,7 +1284,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0046,
+      "latency_seconds": 0.0096,
       "status": "PASS",
       "errors": []
     },
@@ -1348,7 +1312,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0041,
+      "latency_seconds": 0.0202,
       "status": "PASS",
       "errors": []
     },
@@ -1362,63 +1326,6 @@
       ],
       "retrieved_skus": [
         "6505727",
-        "6553823",
-        "6373460"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.007,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "headphone-014",
-      "category": "Headphones",
-      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
-      "expected_skus": [
-        "6505727",
-        "6373460"
-      ],
-      "retrieved_skus": [
-        "6505727",
-        "6373460"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0053,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "headphone-015",
-      "category": "Headphones",
-      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
-      "expected_skus": [
-        "6553823",
-        "6373460"
-      ],
-      "retrieved_skus": [
-        "6373460",
         "6553823"
       ],
       "retrieval_precision": 1.0,
@@ -1433,7 +1340,64 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0047,
+      "latency_seconds": 0.0092,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-014",
+      "category": "Headphones",
+      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6373460",
+        "6505727"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0085,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-015",
+      "category": "Headphones",
+      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6373460",
+        "6553823",
+        "6548219"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -1461,7 +1425,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0061,
+      "latency_seconds": 0.0104,
       "status": "PASS",
       "errors": []
     },
@@ -1489,7 +1453,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0052,
+      "latency_seconds": 0.0196,
       "status": "PASS",
       "errors": []
     },
@@ -1502,8 +1466,8 @@
         "6502275"
       ],
       "retrieved_skus": [
-        "6502275",
-        "6584201"
+        "6584201",
+        "6502275"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1517,7 +1481,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.006,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -1531,9 +1495,10 @@
       ],
       "retrieved_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6481592"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1545,7 +1510,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0083,
+      "latency_seconds": 0.0132,
       "status": "PASS",
       "errors": []
     },
@@ -1573,7 +1538,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0068,
+      "latency_seconds": 0.0092,
       "status": "PASS",
       "errors": []
     },
@@ -1601,7 +1566,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0067,
+      "latency_seconds": 0.0112,
       "status": "PASS",
       "errors": []
     },
@@ -1629,7 +1594,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0143,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -1657,7 +1622,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0171,
+      "latency_seconds": 0.0175,
       "status": "PASS",
       "errors": []
     },
@@ -1685,7 +1650,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0126,
+      "latency_seconds": 0.0109,
       "status": "PASS",
       "errors": []
     },
@@ -1713,7 +1678,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0101,
+      "latency_seconds": 0.0111,
       "status": "PASS",
       "errors": []
     },
@@ -1741,7 +1706,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0273,
+      "latency_seconds": 0.0077,
       "status": "PASS",
       "errors": []
     },
@@ -1769,7 +1734,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0703,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -1797,7 +1762,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.057,
+      "latency_seconds": 0.0071,
       "status": "PASS",
       "errors": []
     },
@@ -1825,7 +1790,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0777,
+      "latency_seconds": 0.0142,
       "status": "PASS",
       "errors": []
     },
@@ -1853,7 +1818,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0193,
+      "latency_seconds": 0.0094,
       "status": "PASS",
       "errors": []
     },
@@ -1867,9 +1832,10 @@
       ],
       "retrieved_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1881,7 +1847,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0054,
+      "latency_seconds": 0.0088,
       "status": "PASS",
       "errors": []
     },
@@ -1909,7 +1875,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0061,
+      "latency_seconds": 0.0136,
       "status": "PASS",
       "errors": []
     },
@@ -1937,7 +1903,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0054,
+      "latency_seconds": 0.014,
       "status": "PASS",
       "errors": []
     },
@@ -1950,8 +1916,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1965,7 +1931,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0075,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
@@ -1978,10 +1944,11 @@
         "6536965"
       ],
       "retrieved_skus": [
+        "6536965",
         "6535929",
-        "6536965"
+        "6569402"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1993,7 +1960,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0039,
+      "latency_seconds": 0.0147,
       "status": "PASS",
       "errors": []
     },
@@ -2006,8 +1973,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2021,7 +1988,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.005,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
@@ -2034,8 +2001,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2049,7 +2016,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0282,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -2062,92 +2029,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0128,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tv-007",
-      "category": "TVs",
-      "query": "HDMI 2.1 ports and connectivity: LG C3 65 OLED vs Samsung S90C 65 OLED",
-      "expected_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieved_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0102,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tv-008",
-      "category": "TVs",
-      "query": "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?",
-      "expected_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieved_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0179,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "tv-009",
-      "category": "TVs",
-      "query": "Compare screen size and display technology of LG C3 65-inch and Samsung S90C 65-inch",
-      "expected_skus": [
-        "6535929",
-        "6536965"
-      ],
-      "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2166,16 +2049,16 @@
       "errors": []
     },
     {
-      "id": "tv-010",
+      "id": "tv-007",
       "category": "TVs",
-      "query": "Which 65-inch OLED TV is cheaper: LG C3 or Samsung S90C?",
+      "query": "HDMI 2.1 ports and connectivity: LG C3 65 OLED vs Samsung S90C 65 OLED",
       "expected_skus": [
         "6535929",
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2189,7 +2072,92 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0654,
+      "latency_seconds": 0.0083,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-008",
+      "category": "TVs",
+      "query": "Which 65-inch OLED TV is better for bright rooms: LG C3 or Samsung S90C?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6536965",
+        "6535929"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0097,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-009",
+      "category": "TVs",
+      "query": "Compare screen size and display technology of LG C3 65-inch and Samsung S90C 65-inch",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6536965",
+        "6535929",
+        "6569402"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0076,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "tv-010",
+      "category": "TVs",
+      "query": "Which 65-inch OLED TV is cheaper: LG C3 or Samsung S90C?",
+      "expected_skus": [
+        "6535929",
+        "6536965"
+      ],
+      "retrieved_skus": [
+        "6536965",
+        "6535929"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0059,
       "status": "PASS",
       "errors": []
     },
@@ -2202,8 +2170,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2217,7 +2185,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0239,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2245,7 +2213,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0058,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2258,8 +2226,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2273,7 +2241,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0041,
+      "latency_seconds": 0.0055,
       "status": "PASS",
       "errors": []
     },
@@ -2286,8 +2254,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2301,7 +2269,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0048,
+      "latency_seconds": 0.0064,
       "status": "PASS",
       "errors": []
     },
@@ -2329,7 +2297,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0094,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2357,7 +2325,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0051,
+      "latency_seconds": 0.0075,
       "status": "PASS",
       "errors": []
     }

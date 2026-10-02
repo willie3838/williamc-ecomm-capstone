@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-09-21T18:52:26.761367+00:00",
+    "timestamp": "2026-10-02T01:02:22.860647+00:00",
     "dataset": "evals/dataset/benchmark_catalog.evalset.json",
     "judge_model": "gemini-3.5-flash",
     "mode": "hermetic",
@@ -11,15 +11,15 @@
   "summary": {
     "mean_data_accuracy": 1.0,
     "mean_citation_faithfulness": 1.0,
-    "mean_retrieval_precision": 0.8604,
+    "mean_retrieval_precision": 0.95,
     "mean_retrieval_recall": 1.0,
     "mean_semantic_score": 1.0,
     "mean_tool_trajectory_score": 1.0,
     "adk_tool_trajectory_score": 1.0,
     "structured_output_validity": 1.0,
-    "latency_p50_seconds": 2.1234,
-    "latency_p90_seconds": 2.4512,
-    "latency_p95_seconds": 2.65,
+    "latency_p50_seconds": 0.0088,
+    "latency_p90_seconds": 0.0152,
+    "latency_p95_seconds": 0.017,
     "target_threshold_met": true,
     "targets": {
       "target_accuracy": 0.98,
@@ -37,7 +37,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.1556
+      "mean_latency_seconds": 0.0098
     },
     "Tablets": {
       "total": 16,
@@ -46,7 +46,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.037
+      "mean_latency_seconds": 0.0108
     },
     "Headphones": {
       "total": 16,
@@ -55,7 +55,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0342
+      "mean_latency_seconds": 0.0096
     },
     "Smart Home": {
       "total": 16,
@@ -64,7 +64,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0355
+      "mean_latency_seconds": 0.0115
     },
     "TVs": {
       "total": 16,
@@ -73,7 +73,7 @@
       "mean_data_accuracy": 1.0,
       "mean_citation_faithfulness": 1.0,
       "mean_tool_trajectory_score": 1.0,
-      "mean_latency_seconds": 0.0365
+      "mean_latency_seconds": 0.0085
     }
   },
   "details": [
@@ -87,11 +87,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6579840",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -103,7 +101,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 1.9307,
+      "latency_seconds": 0.0164,
       "status": "PASS",
       "errors": []
     },
@@ -117,11 +115,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -133,7 +129,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0336,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -161,7 +157,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0302,
+      "latency_seconds": 0.0067,
       "status": "PASS",
       "errors": []
     },
@@ -175,10 +171,9 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6534606",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -190,7 +185,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0416,
+      "latency_seconds": 0.0089,
       "status": "PASS",
       "errors": []
     },
@@ -204,36 +199,6 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534640",
-        "6534606",
-        "6579840"
-      ],
-      "retrieval_precision": 0.5,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0446,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "laptop-006",
-      "category": "Laptops",
-      "query": "Compare Apple MacBook Pro 14 M3 Pro and Lenovo ThinkPad X1 Carbon for software engineering",
-      "expected_skus": [
-        "6534640",
-        "6579840"
-      ],
-      "retrieved_skus": [
-        "6579840",
         "6534640",
         "6534606"
       ],
@@ -249,7 +214,35 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0324,
+      "latency_seconds": 0.0089,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "laptop-006",
+      "category": "Laptops",
+      "query": "Compare Apple MacBook Pro 14 M3 Pro and Lenovo ThinkPad X1 Carbon for software engineering",
+      "expected_skus": [
+        "6534640",
+        "6579840"
+      ],
+      "retrieved_skus": [
+        "6579840",
+        "6534640"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -263,10 +256,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -278,7 +270,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0312,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -292,11 +284,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -308,7 +298,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0508,
+      "latency_seconds": 0.0078,
       "status": "PASS",
       "errors": []
     },
@@ -336,7 +326,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.043,
+      "latency_seconds": 0.0114,
       "status": "PASS",
       "errors": []
     },
@@ -350,10 +340,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6579840",
-        "6534640"
+        "6579840"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -365,7 +354,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0434,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -379,11 +368,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534640",
-        "6534606",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -395,7 +382,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0436,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -424,7 +411,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0317,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -438,11 +425,9 @@
       ],
       "retrieved_skus": [
         "6575132",
-        "6534606",
-        "6579840",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -454,7 +439,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0312,
+      "latency_seconds": 0.0115,
       "status": "PASS",
       "errors": []
     },
@@ -468,11 +453,9 @@
       ],
       "retrieved_skus": [
         "6534606",
-        "6534640",
-        "6575132",
-        "6579840"
+        "6534640"
       ],
-      "retrieval_precision": 0.5,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -484,7 +467,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0424,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -512,7 +495,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.029,
+      "latency_seconds": 0.0072,
       "status": "PASS",
       "errors": []
     },
@@ -526,10 +509,9 @@
       ],
       "retrieved_skus": [
         "6579840",
-        "6534606",
-        "6534640"
+        "6534606"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -541,7 +523,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0308,
+      "latency_seconds": 0.0084,
       "status": "PASS",
       "errors": []
     },
@@ -555,10 +537,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -570,7 +551,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0343,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -585,7 +566,7 @@
       "retrieved_skus": [
         "6542951",
         "6579601",
-        "6546522"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -599,7 +580,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0374,
+      "latency_seconds": 0.008,
       "status": "PASS",
       "errors": []
     },
@@ -613,10 +594,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6542951",
-        "6579601"
+        "6542951"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -628,7 +608,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0349,
+      "latency_seconds": 0.0232,
       "status": "PASS",
       "errors": []
     },
@@ -642,10 +622,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -657,7 +636,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0388,
+      "latency_seconds": 0.017,
       "status": "PASS",
       "errors": []
     },
@@ -671,10 +650,9 @@
       ],
       "retrieved_skus": [
         "6579601",
-        "6542951",
-        "6546522"
+        "6542951"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -686,7 +664,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0314,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -700,10 +678,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6542951",
-        "6579601"
+        "6542951"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -715,7 +692,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0323,
+      "latency_seconds": 0.0098,
       "status": "PASS",
       "errors": []
     },
@@ -730,7 +707,7 @@
       "retrieved_skus": [
         "6579601",
         "6546522",
-        "6542951"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -744,7 +721,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0422,
+      "latency_seconds": 0.0077,
       "status": "PASS",
       "errors": []
     },
@@ -758,10 +735,9 @@
       ],
       "retrieved_skus": [
         "6542951",
-        "6579601",
-        "6546522"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -773,7 +749,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0381,
+      "latency_seconds": 0.0078,
       "status": "PASS",
       "errors": []
     },
@@ -787,10 +763,9 @@
       ],
       "retrieved_skus": [
         "6542951",
-        "6546522",
-        "6579601"
+        "6546522"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -802,7 +777,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0341,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -816,10 +791,9 @@
       ],
       "retrieved_skus": [
         "6579601",
-        "6546522",
-        "6542951"
+        "6546522"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -831,7 +805,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0501,
+      "latency_seconds": 0.0114,
       "status": "PASS",
       "errors": []
     },
@@ -846,7 +820,7 @@
       "retrieved_skus": [
         "6542951",
         "6579601",
-        "6546522"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -860,7 +834,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0355,
+      "latency_seconds": 0.0163,
       "status": "PASS",
       "errors": []
     },
@@ -875,7 +849,7 @@
       "retrieved_skus": [
         "6546522",
         "6542951",
-        "6579601"
+        "6568419"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -889,7 +863,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0295,
+      "latency_seconds": 0.0152,
       "status": "PASS",
       "errors": []
     },
@@ -903,10 +877,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -918,7 +891,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.035,
+      "latency_seconds": 0.0084,
       "status": "PASS",
       "errors": []
     },
@@ -933,7 +906,7 @@
       "retrieved_skus": [
         "6542951",
         "6579601",
-        "6546522"
+        "6582105"
       ],
       "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
@@ -947,7 +920,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0309,
+      "latency_seconds": 0.007,
       "status": "PASS",
       "errors": []
     },
@@ -961,10 +934,9 @@
       ],
       "retrieved_skus": [
         "6542951",
-        "6546522",
-        "6579601"
+        "6546522"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -976,7 +948,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0403,
+      "latency_seconds": 0.0086,
       "status": "PASS",
       "errors": []
     },
@@ -990,10 +962,9 @@
       ],
       "retrieved_skus": [
         "6546522",
-        "6579601",
-        "6542951"
+        "6579601"
       ],
-      "retrieval_precision": 0.6667,
+      "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1005,7 +976,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0469,
+      "latency_seconds": 0.0072,
       "status": "PASS",
       "errors": []
     },
@@ -1018,8 +989,8 @@
         "6553823"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6553823"
+        "6553823",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1033,7 +1004,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0354,
+      "latency_seconds": 0.0073,
       "status": "PASS",
       "errors": []
     },
@@ -1046,8 +1017,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6373460"
+        "6373460",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1061,7 +1032,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0321,
+      "latency_seconds": 0.009,
       "status": "PASS",
       "errors": []
     },
@@ -1089,7 +1060,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0407,
+      "latency_seconds": 0.0084,
       "status": "PASS",
       "errors": []
     },
@@ -1117,7 +1088,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0338,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -1130,8 +1101,8 @@
         "6373460"
       ],
       "retrieved_skus": [
-        "6505727",
-        "6373460"
+        "6373460",
+        "6505727"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1145,7 +1116,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0301,
+      "latency_seconds": 0.0063,
       "status": "PASS",
       "errors": []
     },
@@ -1173,7 +1144,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0359,
+      "latency_seconds": 0.0078,
       "status": "PASS",
       "errors": []
     },
@@ -1201,7 +1172,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0299,
+      "latency_seconds": 0.0082,
       "status": "PASS",
       "errors": []
     },
@@ -1229,7 +1200,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0314,
+      "latency_seconds": 0.0099,
       "status": "PASS",
       "errors": []
     },
@@ -1257,7 +1228,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0347,
+      "latency_seconds": 0.0081,
       "status": "PASS",
       "errors": []
     },
@@ -1285,7 +1256,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0304,
+      "latency_seconds": 0.0123,
       "status": "PASS",
       "errors": []
     },
@@ -1313,7 +1284,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0317,
+      "latency_seconds": 0.0096,
       "status": "PASS",
       "errors": []
     },
@@ -1341,7 +1312,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0424,
+      "latency_seconds": 0.0202,
       "status": "PASS",
       "errors": []
     },
@@ -1355,63 +1326,6 @@
       ],
       "retrieved_skus": [
         "6505727",
-        "6553823",
-        "6373460"
-      ],
-      "retrieval_precision": 0.6667,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0322,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "headphone-014",
-      "category": "Headphones",
-      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
-      "expected_skus": [
-        "6505727",
-        "6373460"
-      ],
-      "retrieved_skus": [
-        "6505727",
-        "6373460"
-      ],
-      "retrieval_precision": 1.0,
-      "retrieval_recall": 1.0,
-      "data_accuracy": 1.0,
-      "citation_faithfulness": 1.0,
-      "semantic_score": 1.0,
-      "tool_trajectory_score": 1.0,
-      "tool_trajectory_passed": true,
-      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
-      "actual_tool_count": 1,
-      "expected_tool_count": 1,
-      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
-      "structured_output_valid": true,
-      "latency_seconds": 0.0352,
-      "status": "PASS",
-      "errors": []
-    },
-    {
-      "id": "headphone-015",
-      "category": "Headphones",
-      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
-      "expected_skus": [
-        "6553823",
-        "6373460"
-      ],
-      "retrieved_skus": [
-        "6373460",
         "6553823"
       ],
       "retrieval_precision": 1.0,
@@ -1426,7 +1340,64 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0385,
+      "latency_seconds": 0.0092,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-014",
+      "category": "Headphones",
+      "query": "30-hour battery Sony WH-1000XM5 vs 20-hour Apple AirPods Max comparison",
+      "expected_skus": [
+        "6505727",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6373460",
+        "6505727"
+      ],
+      "retrieval_precision": 1.0,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0085,
+      "status": "PASS",
+      "errors": []
+    },
+    {
+      "id": "headphone-015",
+      "category": "Headphones",
+      "query": "Weight comparison: Bose QuietComfort Ultra vs Apple AirPods Max over-ear",
+      "expected_skus": [
+        "6553823",
+        "6373460"
+      ],
+      "retrieved_skus": [
+        "6373460",
+        "6553823",
+        "6548219"
+      ],
+      "retrieval_precision": 0.6667,
+      "retrieval_recall": 1.0,
+      "data_accuracy": 1.0,
+      "citation_faithfulness": 1.0,
+      "semantic_score": 1.0,
+      "tool_trajectory_score": 1.0,
+      "tool_trajectory_passed": true,
+      "tool_trajectory_match_type": "FUZZY_SEMANTIC",
+      "actual_tool_count": 1,
+      "expected_tool_count": 1,
+      "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
+      "structured_output_valid": true,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -1454,7 +1425,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0321,
+      "latency_seconds": 0.0104,
       "status": "PASS",
       "errors": []
     },
@@ -1482,7 +1453,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0299,
+      "latency_seconds": 0.0196,
       "status": "PASS",
       "errors": []
     },
@@ -1495,8 +1466,8 @@
         "6502275"
       ],
       "retrieved_skus": [
-        "6502275",
-        "6584201"
+        "6584201",
+        "6502275"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1510,7 +1481,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0382,
+      "latency_seconds": 0.0126,
       "status": "PASS",
       "errors": []
     },
@@ -1524,9 +1495,10 @@
       ],
       "retrieved_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6481592"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1538,7 +1510,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0308,
+      "latency_seconds": 0.0132,
       "status": "PASS",
       "errors": []
     },
@@ -1566,7 +1538,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0306,
+      "latency_seconds": 0.0092,
       "status": "PASS",
       "errors": []
     },
@@ -1594,7 +1566,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0395,
+      "latency_seconds": 0.0112,
       "status": "PASS",
       "errors": []
     },
@@ -1622,7 +1594,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0357,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -1650,7 +1622,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0372,
+      "latency_seconds": 0.0175,
       "status": "PASS",
       "errors": []
     },
@@ -1678,7 +1650,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0432,
+      "latency_seconds": 0.0109,
       "status": "PASS",
       "errors": []
     },
@@ -1706,7 +1678,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0326,
+      "latency_seconds": 0.0111,
       "status": "PASS",
       "errors": []
     },
@@ -1734,7 +1706,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0388,
+      "latency_seconds": 0.0077,
       "status": "PASS",
       "errors": []
     },
@@ -1762,7 +1734,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0366,
+      "latency_seconds": 0.0091,
       "status": "PASS",
       "errors": []
     },
@@ -1790,7 +1762,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0333,
+      "latency_seconds": 0.0071,
       "status": "PASS",
       "errors": []
     },
@@ -1818,7 +1790,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0319,
+      "latency_seconds": 0.0142,
       "status": "PASS",
       "errors": []
     },
@@ -1846,7 +1818,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0423,
+      "latency_seconds": 0.0094,
       "status": "PASS",
       "errors": []
     },
@@ -1860,9 +1832,10 @@
       ],
       "retrieved_skus": [
         "6584201",
-        "6502275"
+        "6502275",
+        "6562418"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1874,7 +1847,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.034,
+      "latency_seconds": 0.0088,
       "status": "PASS",
       "errors": []
     },
@@ -1902,7 +1875,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0339,
+      "latency_seconds": 0.0136,
       "status": "PASS",
       "errors": []
     },
@@ -1930,7 +1903,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0428,
+      "latency_seconds": 0.014,
       "status": "PASS",
       "errors": []
     },
@@ -1943,8 +1916,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -1958,7 +1931,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0274,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
@@ -1971,10 +1944,11 @@
         "6536965"
       ],
       "retrieved_skus": [
+        "6536965",
         "6535929",
-        "6536965"
+        "6569402"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -1986,7 +1960,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0296,
+      "latency_seconds": 0.0147,
       "status": "PASS",
       "errors": []
     },
@@ -1999,8 +1973,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2014,7 +1988,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0542,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
@@ -2027,8 +2001,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2042,7 +2016,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0337,
+      "latency_seconds": 0.0085,
       "status": "PASS",
       "errors": []
     },
@@ -2055,8 +2029,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2070,7 +2044,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0334,
+      "latency_seconds": 0.0159,
       "status": "PASS",
       "errors": []
     },
@@ -2083,8 +2057,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2098,7 +2072,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0462,
+      "latency_seconds": 0.0083,
       "status": "PASS",
       "errors": []
     },
@@ -2111,8 +2085,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2126,7 +2100,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0389,
+      "latency_seconds": 0.0097,
       "status": "PASS",
       "errors": []
     },
@@ -2139,10 +2113,11 @@
         "6536965"
       ],
       "retrieved_skus": [
+        "6536965",
         "6535929",
-        "6536965"
+        "6569402"
       ],
-      "retrieval_precision": 1.0,
+      "retrieval_precision": 0.6667,
       "retrieval_recall": 1.0,
       "data_accuracy": 1.0,
       "citation_faithfulness": 1.0,
@@ -2154,7 +2129,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0413,
+      "latency_seconds": 0.0076,
       "status": "PASS",
       "errors": []
     },
@@ -2167,8 +2142,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2182,7 +2157,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0422,
+      "latency_seconds": 0.0059,
       "status": "PASS",
       "errors": []
     },
@@ -2195,8 +2170,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2210,7 +2185,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0289,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2238,7 +2213,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0274,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2251,8 +2226,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2266,7 +2241,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0361,
+      "latency_seconds": 0.0055,
       "status": "PASS",
       "errors": []
     },
@@ -2279,8 +2254,8 @@
         "6536965"
       ],
       "retrieved_skus": [
-        "6535929",
-        "6536965"
+        "6536965",
+        "6535929"
       ],
       "retrieval_precision": 1.0,
       "retrieval_recall": 1.0,
@@ -2294,7 +2269,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0292,
+      "latency_seconds": 0.0064,
       "status": "PASS",
       "errors": []
     },
@@ -2322,7 +2297,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0266,
+      "latency_seconds": 0.0056,
       "status": "PASS",
       "errors": []
     },
@@ -2350,7 +2325,7 @@
       "expected_tool_count": 1,
       "trajectory_diagnosis": "Fuzzy semantic match score: 1.00 (1/1 matched). Unmatched: 0, Unexpected: 0.",
       "structured_output_valid": true,
-      "latency_seconds": 0.0466,
+      "latency_seconds": 0.0075,
       "status": "PASS",
       "errors": []
     }

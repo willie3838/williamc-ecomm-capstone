@@ -189,16 +189,17 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
 2. **Stateless A2A Discovery (`app.agent.agent_card`) & Google Cloud Agent Registry**:
    - Serves the standard Agent-to-Agent (A2A) JSON manifest at `GET /.well-known/agent-card.json` (`build_a2a_agent_card`).
    - Provisioned in Terraform (`deployment/terraform/agent_registry.tf` enabling `agentregistry.googleapis.com`) so `gcloud agent-registry services` and Gemini Enterprise can discover our Cloud Run service's endpoints, skills (`spec-comparison`, `intent-classification`, `catalog-retrieval`), and active model/prompt metadata.
-3. **Dynamic Model Swappability, 13-Model Fleet Benchmarking & Tiered-Hybrid Architecture**:
+ 3. **Dynamic Model Swappability, 9-GA-Model Fleet Benchmarking & Tiered-Hybrid Architecture**:
    - `ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair`.
-   - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-2.5-flash` while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
-   - **13-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across all 4 specialist agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) supports:
-     - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite-preview`, `gemini-3.5-flash-lite`
-     - Flash models: `gemini-2.5-flash`, `gemini-3-flash-preview`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`
-     - Pro models: `gemini-2.5-pro`, `gemini-3-pro-preview`, `gemini-3.1-pro-preview`, `gemini-3.1-pro-preview-customtools`
+   - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-3.5-flash` (or `gemini-2.5-flash`) while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
+   - **9-GA-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across the 3 LLM specialist agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) supports:
+     - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`
+     - Flash models: `gemini-2.5-flash`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`
+     - Pro models: `gemini-2.5-pro`
+     - Architectures & Baselines: `tiered-hybrid` (Flash $\rightarrow$ Pro), `gemini-1.5-flash` baseline
    - **`BENCHMARK_ACTUAL_MODEL=true` Execution & Global Routing**:
-     - `CatalogAdkLlm` and `ComparisonOrchestrator` evaluate the exact specified candidate model without forcing fallbacks to `gemini-2.5-flash-lite` when `BENCHMARK_ACTUAL_MODEL=true` or `EVAL_MODE=live` is configured.
-     - Supports `location='global'` Vertex AI client routing (`_get_vertex_client_for_model`) for preview and 3.x generation models with transparent fallback to `us-central1`.
+     - `CatalogAdkLlm` and `ComparisonOrchestrator` evaluate the exact specified candidate model without forcing fallbacks when `BENCHMARK_ACTUAL_MODEL=true` or `EVAL_MODE=live` is configured.
+     - Supports `location='global'` Vertex AI client routing (`_get_vertex_client_for_model`) for 3.x generation models with transparent fallback to `us-central1`.
      - Speculative pre-launch cache keys incorporate the candidate model (`(skus, query, model)`) to prevent cross-model cache collisions while preserving backward compatibility with 2-tuple keys.
 4. **Traceability**:
    - Every comparison response outputs `agent_version`, `model_version`, `synthesis_model`, and `prompt_version`, and OpenTelemetry spans are annotated with `ai.agent.version`, `ai.model.name`, `ai.synthesis_model.name`, `ai.model.tiered_hybrid`, `ai.model.version`, and `ai.prompt.version`.
@@ -274,7 +275,7 @@ Never initiate network connections to Google Cloud services during unit tests. A
 12. **Forensic Audit Integrity & Production Calibration (5-Landmine Remediation)**:
     - **Genuine Benchmark Latencies**: In `evals/benchmark_models.py`, removed all artificial `min(p50, ...)` and `min(p95, ...)` latency clamping and hoisted `ComparisonOrchestrator` instantiation outside inner per-case loops, reporting true empirical latencies.
     - **Zero Model / Schema Spoofing & Flash Zero-Budget Thinking**: Eliminated test-vs-live model divergence and conditional `response_schema` omissions in `orchestrator.py` and `hermetic_adapter.py`. Configured `ThinkingConfig(thinking_budget=0)` for low-latency Flash stages (`gemini-2.5-flash`), eliminating thinking token latency overhead and keeping warm live comparison latency `< 3.0s` (verified via `backend/scripts/verify_live_latency.py`).
-    - **Authentic ADK Sequential Execution & Session State Handoffs**: In `multi_agent.py`, `MultiAgentCoordinator.execute()` orchestrates `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) using an authentic `InMemorySessionService`, recording stage transitions into `session.state` (`stage_1_intent`, `stage_2_retrieval`, `stage_3_relevance`, `stage_4_synthesis`). In `orchestrator.py`, `execute_with_adk_runner()` parses and honors `_final_text` from the runner.
+    - **Authentic ADK Sequential Execution & Session State Handoffs**: In `multi_agent.py`, `MultiAgentCoordinator.execute()` orchestrates `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) alongside the deterministic `CatalogRetrievalStep` using an authentic `InMemorySessionService`, recording stage transitions into `session.state` (`stage_1_intent`, `stage_2_retrieval`, `stage_3_relevance`, `stage_4_synthesis`). In `orchestrator.py`, `execute_with_adk_runner()` parses and honors `_final_text` from the runner.
     - **Uniform Parameterized BigQuery Catalog Access**: In `backend/src/app/tools/catalog.py`, removed the `not os.environ.get("PYTEST_CURRENT_TEST")` snapshot bypass branch, ensuring `query_catalog()` uniformly executes parameterized SQL with TTL caching (`catalog_cache`) across both test and live environments.
     - **Prompt-Grounded Price Deltas & Deterministic Verification**: In `hermetic_adapter.py` and `orchestrator.py`, removed post-LLM string concatenation (lines 850–880) by passing precomputed price deltas into the synthesis prompt and validating claims deterministically via `verify_and_scrub_synthesis_claims()`.
 

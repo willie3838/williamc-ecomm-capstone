@@ -240,6 +240,9 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
     assert "per_stage_benchmarks" in report
     assert output_json.exists()
     assert output_md.exists()
+    # Verify reports_out_dir writes scorecard and matrix to tmp_path without touching evals/reports/
+    assert (tmp_path / "model_decision_scorecard.md").exists()
+    assert (tmp_path / "model_decision_matrix.json").exists()
 
     md_text = generate_benchmark_markdown(report)
     assert "gemini-2.5-flash" in md_text

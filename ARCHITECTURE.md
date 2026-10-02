@@ -759,28 +759,28 @@ flowchart TD
 
 ## 11. Per-Stage ADK Specialist Agent Architecture & Weekly Benchmark Automation (ADR-004)
 
-### 11.1 Specialist Agent Pipeline Decomposition & Dual Retrieval Modalities
-Under ADR-004, the multi-agent comparison system is decomposed into four specialized cooperative ADK agents (`backend/src/app/agent/multi_agent.py`), each matched to the optimal foundation model profile:
+### 11.1 Specialist Agent Pipeline Decomposition & Deterministic BigQuery Catalog Step
+Under ADR-004, the multi-agent comparison system is decomposed into three specialized cooperative ADK LLM agents and one deterministic BigQuery catalog retrieval step (`backend/src/app/agent/multi_agent.py`), each matched to the optimal foundation model profile:
 
 ```mermaid
 flowchart LR
-    subgraph S1["Stage 1: Intent & Routing"]
-        A1["QueryIntentAgent<br/>(gemini-3.1-flash-lite-preview)"]
+    subgraph S1["Stage 1: Intent & Routing (LLM)"]
+        A1["QueryIntentAgent<br/>(gemini-3.5-flash / gemini-2.5-flash)"]
         M1["Intent: COMPARISON<br/>Keywords: ['M3', 'XPS 13']"]
     end
 
-    subgraph S2["Stage 2: Catalog Retrieval"]
-        A2["CatalogRetrievalAgent<br/>(Deterministic SQL / LLM Tool-Calling)"]
-        M2["Catalog Records<br/>Deduped by SKU"]
+    subgraph S2["Node 2: Catalog Retrieval (Deterministic SQL)"]
+        A2["CatalogRetrievalStep<br/>(BigQuery Parameterized SQL)"]
+        M2["Catalog Records<br/>Deduped by SKU (0% Hallucination)"]
     end
 
-    subgraph S3["Stage 3: Relevance Reranking"]
-        A3["RelevanceDetectorAgent<br/>(gemini-3.7-flash)"]
+    subgraph S3["Stage 2: Relevance Reranking (LLM)"]
+        A3["RelevanceDetectorAgent<br/>(gemini-3.7-flash / gemini-2.5-flash)"]
         M3["Top-2 Balanced SKUs<br/>[6534606, 6575132]"]
     end
 
-    subgraph S4["Stage 4: Grounded Synthesis"]
-        A4["SpecComparisonAgent<br/>(gemini-3.1-pro-preview)"]
+    subgraph S4["Stage 3: Grounded Synthesis (LLM)"]
+        A4["SpecComparisonAgent<br/>(gemini-2.5-pro)"]
         M4["MatrixRow Table + Winner Badges<br/>Strict [SKU: ...] Citations"]
     end
 
@@ -794,28 +794,26 @@ flowchart LR
     A4 --> RESP["ComparisonResponse"]
 ```
 
-#### Dual Retrieval Modalities for CatalogRetrievalAgent
-1. **Deterministic Parameterized SQL (Production Default)**:
-   - `MultiAgentCoordinator.execute(..., use_llm_tool_call=False)` queries BigQuery directly using parameterized SQL with pattern-matched relevance ordering.
-   - Zero LLM invocation latency overhead ($\sim 120\text{ ms}$ P95), guaranteeing end-to-end P95 response times well within the $\le 3.0\text{s}$ SLA.
-2. **LLM Tool-Calling Evaluation (`use_llm_tool_call=True`)**:
-   - `CatalogRetrievalAgent.process_with_llm_tool_call` binds `catalog_retrieval_specialist` with `tools=[query_catalog]` and `types.ToolConfig(mode=ANY)`.
-   - Used by offline and live benchmark suites to evaluate function-calling trajectories, tool argument compliance (non-empty `keywords` list and optional `category`), SKU recall against expected products, and token efficiency across models.
+#### Deterministic CatalogRetrievalStep Architecture
+1. **Deterministic Parameterized SQL (Zero Hallucination)**:
+   - `CatalogRetrievalStep` (aliased as `CatalogRetrievalAgent` for backward compatibility) queries BigQuery directly using parameterized SQL with pattern-matched relevance ordering and SKU deduplication.
+   - Zero LLM invocation latency overhead ($\sim 120\text{ ms}$ P95), eliminating hallucination risk, token cost, and tool-calling drift while guaranteeing end-to-end P95 response times well within the $\le 3.0\text{s}$ SLA.
+2. **SequentialAgent Realignment**:
+   - `MultiAgentCoordinator.adk_sequential_agent` encapsulates strictly the 3 real LLM specialist agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`), maintaining crisp separation between cognitive reasoning and deterministic data retrieval.
 
-### 11.2 End-to-End Latency Breakdown & 13-Model Fleet SLA Compliance
-Arbitrary per-stage latency cutoffs and artificial clamping (`min(p50, ...)` / `min(p95, ...)`) are eliminated. The benchmark suite evaluates all 13 Gemini foundation models (Gemini 2.5 through 3.8 Flash-Lite, Flash, and Pro) and computes the empirical P50 and P95 latency distributions. Compliance is strictly enforced on the combined winning specialist stage latencies:
+### 11.2 End-to-End Latency Breakdown & 9-GA-Model Fleet SLA Compliance
+Arbitrary per-stage latency cutoffs and artificial clamping are eliminated. The benchmark suite evaluates the 9 production-safe GA Gemini foundation models (Gemini 2.5 through 3.8 Flash-Lite, Flash, and Pro, plus `tiered-hybrid` and `gemini-1.5-flash` baseline) and computes the empirical P50 and P95 latency distributions. Compliance is strictly enforced on the combined specialist stage latencies:
 
-$$\text{P95}_{\text{Total}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}} + \text{P95}_{\text{Stage 4}} \le 3000\text{ ms}$$
+$$\text{P95}_{\text{Total}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}} \le 3000\text{ ms}$$
 
-| Pipeline Component | Winning Model / Engine | P50 Latency (ms) | P95 Latency (ms) | Cost / 1k Queries | Rationale & Metric Highlights |
+| Pipeline Component | Assigned Model / Engine | P50 Latency (s) | P95 Latency (s) | Est. Cost / 1k Queries | Rationale & Metric Highlights |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Stage 1: Intent Extraction** | `gemini-3.1-flash-lite-preview` | $1.41\text{ ms}$ | $1.63\text{ ms}$ | $\$0.038$ | 100% intent classification accuracy, ultra-fast routing. |
-| **Stage 2: Catalog Retrieval (SQL)** | BigQuery Parameterized SQL | $45.00\text{ ms}$ | $120.00\text{ ms}$ | $\$0.000$ | Production default: zero LLM latency overhead, in-memory cache hit. |
-| **Stage 2: Catalog Retrieval (LLM)** | `gemini-2.5-flash` | $420.30\text{ ms}$ | $640.12\text{ ms}$ | $\$0.082$ | Benchmark mode: 100% tool call compliance, 100% SKU recall. |
-| **Stage 3: Relevance Reranking** | `gemini-3.7-flash` | $410.15\text{ ms}$ | $535.61\text{ ms}$ | $\$0.076$ | 100% candidate brand balancing & opinion filtering. |
-| **Stage 4: Grounded Synthesis** | `gemini-3.1-pro-preview` | $520.80\text{ ms}$ | $703.45\text{ ms}$ | $\$1.385$ | Zero hallucination, strict citation compliance, 100% schema match. |
-| **Total End-to-End (Deterministic SQL Default)** | **4-Agent Tiered-Hybrid** | **$977.36\text{ ms}$** | **$1,360.69\text{ ms}$** | **$\$1.499$** | **SLA Passed ($\le 3000\text{ ms}$ with $1,639.31\text{ ms}$ headroom).** |
-| **Total End-to-End (LLM Tool-Calling Mode)** | **4-Agent Tiered-Hybrid** | **$1,352.66\text{ ms}$** | **$1,880.81\text{ ms}$** | **$\$1.581$** | **SLA Passed ($\le 3000\text{ ms}$ with $1,119.19\text{ ms}$ headroom).** |
+| **Stage 1: Intent Extraction** | `gemini-3.5-flash` (or `2.5-flash`) | $0.25\text{s}$ | $0.45\text{s}$ | $\$0.050$ | 100% intent classification accuracy, sub-second routing. |
+| **Node 2: Catalog Retrieval** | `CatalogRetrievalStep` (BigQuery SQL) | $0.04\text{s}$ | $0.12\text{s}$ | $\$0.000$ | Deterministic BigQuery SQL, zero hallucination, instant SKU deduplication. |
+| **Stage 2: Relevance Reranking** | `gemini-3.7-flash` (or `2.5-flash`) | $0.35\text{s}$ | $0.55\text{s}$ | $\$0.050$ | 100% candidate brand balancing & opinion filtering. |
+| **Stage 3: Grounded Synthesis** | `gemini-2.5-pro` | $0.54\text{s}$ | $1.06\text{s}$ | $\$0.750$ | Zero hallucination, strict inline `[SKU: ...]` citations, 100% schema match. |
+| **Total End-to-End (`tiered-hybrid`)** | **3-Agent + BQ SQL Tiered-Hybrid** | **$1.18\text{s}$** | **$2.18\text{s}$** | **$\$0.850$** | **SLA Passed ($\le 3.00\text{s}$ with $820\text{ ms}$ headroom, 65.3% savings vs pure Pro).** |
+| **High-QPS Canary (`1.1.0-flash`)** | **3-Agent + BQ SQL `gemini-2.5-flash`** | **$0.84\text{s}$** | **$1.42\text{s}$** | **$\$0.220$** | **SLA Passed ($1.42\text{s}$ P95, 74.1% cost savings for high-traffic bursts).** |
 
 ### 11.3 Weekly Automated Benchmark Job & Cloud Scheduler
 To continuously track model drift, latency degradation, and new Gemini foundation model releases:
@@ -837,7 +835,7 @@ To continuously track model drift, latency degradation, and new Gemini foundatio
 #### Latency Analysis & Bottleneck Root Cause
 End-to-end user query latency (~15–20s on unoptimized runs) is driven by four discrete factors:
 1. **Cloud Run Cold Starts**: With `minScale: 0`, container provisioning, Python module imports, and Vertex AI / BigQuery client TLS handshakes add 4–6s overhead on idle instances.
-2. **Sequential Multi-Agent Node Traversal**: The 4-stage pipeline executes four sequential hops (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalAgent` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent`), compounding per-stage network and processing latencies.
+2. **Sequential Multi-Agent Node Traversal**: The 4-stage pipeline executes four sequential hops (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalStep` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent`), compounding per-stage network and processing latencies.
 3. **Synthesis Model Thinking Tokens**: Defaulting Stage 3 synthesis to `gemini-2.5-pro` with `min_thinking = 128` triggers extended internal chain-of-thought token generation before streaming the structured JSON matrix, adding 6–10s.
 4. **Synchronous Telemetry Inserts**: In earlier revisions, `record_user_action` and `record_query_telemetry` were called synchronously on the request thread.
 
@@ -854,7 +852,7 @@ flowchart TD
         S1_LLM["gemini.classify_intent<br/>adk.llm.generate_content"]
         S1 --> S1_LLM
 
-        S2["agent.catalog_retrieval<br/>(CatalogRetrievalAgent)"]
+        S2["agent.catalog_retrieval<br/>(CatalogRetrievalStep)"]
         S2_BQ["bigquery.query_catalog<br/>(SQL Query Execution)"]
         S2 --> S2_BQ
 
@@ -1105,7 +1103,7 @@ To preserve strict evaluation integrity, zero-hallucination guarantees, and SLA 
    - Configured `ThinkingConfig(thinking_budget=0)` on low-latency Flash stages (`gemini-2.5-flash`) to eliminate thinking token latency overhead and preserve `< 3.0s` warm live comparison latency.
 
 3. **Authentic ADK Sequential Execution & Session State (`multi_agent.py` & `orchestrator.py`)**:
-   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
+   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) alongside the deterministic `CatalogRetrievalStep` through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
    - Honored `_final_text` in `execute_with_adk_runner()` with citation alignment and verification.
 
 4. **Uniform Parameterized BigQuery Catalog Access (`backend/src/app/tools/catalog.py`)**:

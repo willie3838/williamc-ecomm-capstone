@@ -205,25 +205,28 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 - **Inspect Before Mutating**: Always run `/google/bin/releases/gemini-agents-gslides/gslides readonly list-elements <deck_id> <slide_index> --json` to inspect the exact element IDs and existing text before mutating.
 - **Surgical Updates Only**: Use targeted `mutate update-text --element <ELEMENT_ID>` or batch updates targeting specific element IDs. Never delete or recreate entire slides unless explicitly requested.
 
-#### 3. Current 16-Slide Deck Architecture Reference
+#### 3. Current 19-Slide Deck Architecture Reference
 | Slide # | Slide ID | Title / Topic | Primary Content |
 | :---: | :---: | :--- | :--- |
 | **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $547.38/mo net Hybrid TCO |
 | **2** | `slide_02` | Customer Friction | "Spec Overload" drives 68% cart abandonment, 8+ browser tab fatigue |
 | **3** | `slide_03` | Live Demo & Impact | 4-Node ADK pipeline, side-by-side matrices, WINNER badges, clickable `[SKU: ...]` citations |
-| **4** | `slide_04` | Cloud FinOps & TCO | $547.38/mo net Hybrid ($190.38/mo Flash canary; 70.5% savings vs $1,858.20/mo GKE+GPU) |
-| **5** | `slide_05` | Observability & Guardrails | VPC-SC, 4-Node ADK pipeline, Model Armor, Cloud Deploy Canary, OpenTelemetry, Multi-Region Run, Evals |
-| **6** | `slide_06` | AI-Driven Development | Pre-coding `AGENTS.md` harness, Outside-the-Loop TDD hillclimbing, In-the-Loop skills, 4-pane tmux swarm |
-| **7** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Agent Gateway |
-| **8** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
-| **9** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–G) |
-| **10** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter (`fde-bestbuy-sandbox-dev-508321`), 4-Node ADK sequential pipeline, BigQuery catalog, CI/CD |
-| **11** | `slide_11` | Appendix B: ADR-004 Scorecard | 4-model evaluation (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
-| **12** | `slide_12` | Appendix C: Decisions D1–D4 | 4-node pipeline (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
-| **13** | `slide_13` | Appendix D: Decisions D5–D8 | Dual runtime (`D5`), 3-trigger GitOps (`D6`), Triple-Plane IAP (`D7`), bounded telemetry & de-overfitting (`D8`) |
-| **14** | `SLIDES_API1777442355_0` | Appendix E: Drift Dashboards | Live Cloud Monitoring Latency (2,180ms P95) & Token/FinOps ($0.0055/req, 2,060 tokens) drift guards |
-| **15** | `slide_15` | Appendix F: Eval Methodology | 4-stage benchmark & evaluation suite construction (`E1`–`E4`) |
-| **16** | `slide_16` | Appendix G: Executive Q&A Defense | Objection handling (`Q1` Why Not All-Flash vs Hybrid ROI, `Q2` Single-Agent SPEC.md, `Q3` SQL vs Vector DB, `Q4` Split GitOps) |
+| **4** | `slide_04` | 80-Pair Model Benchmark | Why We Chose Tiered-Hybrid (Flash -> Pro), 9 GA models benchmarked |
+| **5** | `slide_04_tco` | Cloud FinOps & TCO | $547.38/mo net Hybrid ($190.38/mo Flash canary; 70.5% savings vs $1,858.20/mo GKE+GPU) |
+| **6** | `slide_05` | Observability & Guardrails | VPC-SC, 4-Node ADK pipeline, Model Armor, Cloud Deploy Canary, OpenTelemetry, Multi-Region Run, Evals |
+| **7** | `slide_06` | AI-Driven Development | Pre-coding `AGENTS.md` harness, Outside-the-Loop TDD hillclimbing, In-the-Loop skills, 4-pane tmux swarm |
+| **8** | `slide_07` | Future Roadmap | 30-60-90 day evolution: Pilot Foundation, Scale & Hybrid Recall, Enterprise Agent Gateway |
+| **9** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
+| **10** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–I) |
+| **11** | `slide_10` | Appendix A: GCP Architecture | VPC-SC perimeter (`fde-bestbuy-sandbox-dev-508321`), 4-Node ADK sequential pipeline (Node 2: CatalogRetrievalStep), BigQuery catalog, CI/CD |
+| **12** | `slide_11` | Appendix B: ADR-004 Scorecard | 3-Agent x 9-GA-Model fleet benchmark (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
+| **13** | `slide_12` | Appendix C: Decisions D1–D4 | 3 LLM Agents + 1 Deterministic SQL Step (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
+| **14** | `slide_13` | Appendix D: Decisions D5–D8 | Dual runtime (`D5`), 3-trigger GitOps (`D6`), Triple-Plane IAP (`D7`), bounded telemetry & de-overfitting (`D8`) |
+| **15** | `SLIDES_API1777442355_0` | Appendix E: Drift Dashboards | Live Cloud Monitoring Latency (2,180ms P95) & Token/FinOps ($0.0055/req, 2,060 tokens) drift guards |
+| **16** | `slide_15` | Appendix F: Eval Methodology | Agent-First harness benchmarking 9 GA Gemini models across 3 LLM agents (27 Vertex AI Experiment runs) (`E1`–`E4`) |
+| **17** | `slide_17` | Appendix H: TCO Math | TCO assumptions, token estimation math, pricing models |
+| **18** | `SLIDES_API98052315_0` | Appendix I: Continuous Quality | Continuous quality, 9-GA-model weekly sweeps, and drift prevention cadence |
+| **19** | `slide_16` | Appendix G: Executive Q&A Defense | Objection handling (`Q1` Why Not All-Flash vs Hybrid ROI, `Q2` Single-Agent SPEC.md, `Q3` SQL vs Vector DB, `Q4` Split GitOps) |
 
 ---
 
