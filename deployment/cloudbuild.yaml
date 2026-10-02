@@ -176,8 +176,8 @@ steps:
           --image="$${IMAGE_URI}" \
           --memory=2Gi \
           --cpu=2 \
-          --concurrency=80 \
-          --max-instances=20 \
+          --concurrency=15 \
+          --max-instances=default \
           --iap \
           --quiet; then
           echo "=== Cloud Run Revision Update Failed — Dumping Recent Cloud Run Revision Logs ==="

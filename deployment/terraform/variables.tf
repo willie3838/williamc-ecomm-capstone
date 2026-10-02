@@ -37,7 +37,7 @@ variable "container_image" {
 variable "container_concurrency" {
   type        = number
   description = "Maximum concurrent requests per Cloud Run container instance"
-  default     = 80
+  default     = 15
 }
 
 variable "container_cpu" {
@@ -60,8 +60,8 @@ variable "min_instances" {
 
 variable "max_instances" {
   type        = number
-  description = "Maximum number of Cloud Run instances for autoscaling"
-  default     = 20
+  description = "Maximum number of Cloud Run instances for autoscaling (0 for unbounded)"
+  default     = 0
 }
 
 variable "catalog_dataset_id" {

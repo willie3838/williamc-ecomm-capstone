@@ -12,10 +12,9 @@ spec:
     metadata:
       annotations:
         autoscaling.knative.dev/minScale: '0'
-        autoscaling.knative.dev/maxScale: '20'
     spec:
       serviceAccountName: catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com
-      containerConcurrency: 80
+      containerConcurrency: 15
       containers:
         - image: us-central1-docker.pkg.dev/fde-bestbuy-sandbox-dev-508321/catalog-agent-repo/backend:latest
           resources:

@@ -209,6 +209,6 @@ Instead, GitHub Actions authenticates dynamically via **Workload Identity Federa
 
 ## 8. Cloud Run Autoscaling & 1,000-Concurrency Burst Capacity
 
-- **Concurrency per Instance (`containerConcurrency: 80`)**: Each Cloud Run instance (`2 vCPU`, `2 GiB`) handles up to 80 simultaneous in-flight requests.
-- **Scale Bounds (`minScale: '0'`, `maxScale: '20'`)**: Scales from 0 at idle up to 20 container instances (`20 * 80 = 1,600` concurrent requests capacity) so a 1,000-concurrent-request Black Friday burst spins up ~13–15 instances in parallel without pending queue drops.
-- **Autoscaler Spin-Up Triggers**: New instances spin up automatically when active concurrent requests per instance approach `containerConcurrency` (80) or sustained container CPU utilization exceeds 60%.
+- **Low Concurrency per Instance (`containerConcurrency: 15`)**: Each Cloud Run instance (`2 vCPU`, `2 GiB`) is capped at 15 simultaneous in-flight requests (`--concurrency=15`), eliminating Python GIL contention and internal thread-pool queuing during heavy bursts so P95 latency stays `< 3.0s`.
+- **Unbounded Max Scale (`minScale: '0'`, `maxScale` unbounded / `--max-instances=default`)**: Removes fixed instance caps so Cloud Run horizontally scales out across as many instances as required (~67+ instances for a 1,000-concurrent-request Black Friday burst).
+- **Autoscaler Spin-Up Triggers**: New instances spin up immediately when active concurrent requests per instance approach `containerConcurrency` (15) or sustained container CPU utilization exceeds 60%.

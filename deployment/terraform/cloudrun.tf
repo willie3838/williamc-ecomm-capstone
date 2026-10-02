@@ -34,7 +34,7 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
 
     scaling {
       min_instance_count = var.min_instances
-      max_instance_count = var.max_instances
+      max_instance_count = var.max_instances > 0 ? var.max_instances : null
     }
 
     containers {
