@@ -50,6 +50,12 @@ class ComparisonRequest(BaseModel):
         description="Optional client session identifier for distributed tracing and analytics",
         examples=["session-xyz-1234"],
     )
+    user_id: str | None = Field(
+        default=None,
+        max_length=256,
+        description="Optional authenticated user identity (e.g. Cloud Run IAP email or user ID) for scoping session state and memory bank",
+        examples=["williamwlchan@google.com"],
+    )
     agent_version: str | None = Field(
         default=None,
         description="Optional registered agent version to execute (e.g., '1.0.0', '1.1.0-flash', '1.2.0-tiered'). Defaults to active production release.",
@@ -199,6 +205,12 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional client session identifier for distributed tracing and analytics",
         examples=["session-xyz-1234"],
+    )
+    user_id: str | None = Field(
+        default=None,
+        max_length=256,
+        description="Optional authenticated user identity (e.g. Cloud Run IAP email or user ID) for scoping session state and memory bank",
+        examples=["williamwlchan@google.com"],
     )
     model: str | None = Field(
         default=None,

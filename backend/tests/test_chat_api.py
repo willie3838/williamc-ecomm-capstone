@@ -212,3 +212,105 @@ def test_chat_endpoint_persists_session_and_memory(mock_bq_client: MagicMock) ->
         call_kwargs = mock_persist.call_args.kwargs
         assert call_kwargs.get("session_id") == "test-chat-persist-session-999"
         assert call_kwargs.get("user_message") == "Which has more battery life?"
+
+
+def test_resolve_iap_user_id_email_header() -> None:
+    """Verify resolve_iap_user_id extracts and strips accounts.google.com: from email header."""
+    from starlette.requests import Request
+
+    from app.routes.compare import resolve_iap_user_id
+
+    scope = {
+        "type": "http",
+        "headers": [
+            (b"x-goog-authenticated-user-email", b"accounts.google.com:WilliamWLChan@Google.Com"),
+        ],
+    }
+    req = Request(scope)
+    resolved = resolve_iap_user_id(req)
+    assert resolved == "williamwlchan@google.com"
+
+
+def test_resolve_iap_user_id_user_id_header() -> None:
+    """Verify resolve_iap_user_id falls back to X-Goog-Authenticated-User-Id."""
+    from starlette.requests import Request
+
+    from app.routes.compare import resolve_iap_user_id
+
+    scope = {
+        "type": "http",
+        "headers": [
+            (b"x-goog-authenticated-user-id", b"accounts.google.com:11823948271"),
+        ],
+    }
+    req = Request(scope)
+    resolved = resolve_iap_user_id(req)
+    assert resolved == "11823948271"
+
+
+def test_resolve_iap_user_id_jwt_assertion() -> None:
+    """Verify resolve_iap_user_id decodes JWT payload claims for email and sub."""
+    import base64
+    import json
+
+    from starlette.requests import Request
+
+    from app.routes.compare import resolve_iap_user_id
+
+    # Test with email claim
+    payload_email = {"email": "accounts.google.com:jwt_user@example.com", "sub": "sub_123"}
+    b64_payload = base64.urlsafe_b64encode(json.dumps(payload_email).encode()).decode().rstrip("=")
+    fake_jwt = f"eyJhbGciOiJSUzI1NiJ9.{b64_payload}.signature"
+
+    scope1 = {
+        "type": "http",
+        "headers": [(b"x-goog-iap-jwt-assertion", fake_jwt.encode())],
+    }
+    assert resolve_iap_user_id(Request(scope1)) == "jwt_user@example.com"
+
+    # Test with sub claim only
+    payload_sub = {"sub": "accounts.google.com:sub_user_456"}
+    b64_sub = base64.urlsafe_b64encode(json.dumps(payload_sub).encode()).decode().rstrip("=")
+    fake_jwt_sub = f"eyJhbGciOiJSUzI1NiJ9.{b64_sub}.signature"
+
+    scope2 = {
+        "type": "http",
+        "headers": [(b"x-goog-iap-jwt-assertion", fake_jwt_sub.encode())],
+    }
+    assert resolve_iap_user_id(Request(scope2)) == "sub_user_456"
+
+
+def test_resolve_iap_user_id_explicit_and_default() -> None:
+    """Verify fallback to explicit_user_id and default_user."""
+    from starlette.requests import Request
+
+    from app.routes.compare import resolve_iap_user_id
+
+    # Explicit user_id without headers
+    empty_req = Request({"type": "http", "headers": []})
+    assert (
+        resolve_iap_user_id(empty_req, explicit_user_id="alice@example.com") == "alice@example.com"
+    )
+
+    # Default fallback when no headers and no explicit user_id
+    assert resolve_iap_user_id(empty_req) == "default_user"
+    assert resolve_iap_user_id(None) == "default_user"
+
+
+def test_chat_endpoint_iap_header_propagation(mock_bq_client: MagicMock) -> None:
+    """Verify POST /api/chat extracts IAP email and scopes persistence and memory bank."""
+    p1 = _make_sample_product("6534606", "Apple MacBook Air M3", "Apple", 1099.0, 18.0, 16)
+    payload = {
+        "message": "Which laptop is best for battery?",
+        "products": [p1.model_dump()],
+        "session_id": "test-chat-iap-sess",
+    }
+    headers = {
+        "X-Goog-Authenticated-User-Email": "accounts.google.com:engineer@google.com",
+    }
+    with patch("app.agent.orchestrator._persist_chat_session_and_memory") as mock_persist:
+        response = client.post("/api/chat", json=payload, headers=headers)
+        assert response.status_code == 200
+        mock_persist.assert_called_once()
+        call_kwargs = mock_persist.call_args.kwargs
+        assert call_kwargs.get("user_id") == "engineer@google.com"

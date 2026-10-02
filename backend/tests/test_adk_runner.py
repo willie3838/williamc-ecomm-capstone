@@ -451,3 +451,141 @@ class TestADKRunnerIntegration:
             sh_synth = json.loads(ha.HermeticModelAdapter.synthesis_response(sh_prompt))
             assert "Google Assistant" in sh_synth["summary"]
             assert "Matter" in sh_synth["summary"]
+
+    @pytest.mark.asyncio
+    async def test_cross_session_memory_recall_and_user_isolation(self):
+        """Verify cross-session memory recall by IAP user email and strict multi-user memory isolation."""
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        from app.agent.orchestrator import ComparisonOrchestrator
+        from app.agent.runner import get_default_memory_service, get_default_session_service
+        from app.models.responses import ProductSpec
+
+        session_service = get_default_session_service(hermetic=True)
+        memory_service = get_default_memory_service(hermetic=True)
+
+        user_alice = "alice@google.com"
+        user_bob = "bob@google.com"
+
+        # 1. User Alice records preference in Session 1
+        sess_alice_1 = await session_service.create_session(
+            app_name="app",
+            user_id=user_alice,
+            session_id="alice-session-1",
+        )
+        evt_alice = Event(
+            author="user",
+            content=genai_types.Content(
+                role="user",
+                parts=[
+                    genai_types.Part.from_text(
+                        text="I strictly need at least 32GB RAM and 1TB SSD."
+                    )
+                ],
+            ),
+        )
+        await session_service.append_event(session=sess_alice_1, event=evt_alice)
+        await memory_service.add_session_to_memory(sess_alice_1)
+
+        # 2. Search memory directly for Alice
+        mem_alice = await memory_service.search_memory(
+            app_name="app",
+            user_id=user_alice,
+            query="RAM",
+        )
+        assert len(mem_alice.memories) >= 1
+        alice_text = mem_alice.memories[0].content.parts[0].text
+        assert "32GB RAM" in alice_text
+
+        # 3. Verify strict multi-user memory isolation: User Bob has 0 memories recalled
+        mem_bob = await memory_service.search_memory(
+            app_name="app",
+            user_id=user_bob,
+            query="RAM",
+        )
+        assert len(mem_bob.memories) == 0
+
+        # 4. In Session 2 (distinct session_id), verify chat_with_products preloads Alice's memory
+        p1 = ProductSpec(
+            sku="6534606",
+            name="MacBook Air M3",
+            brand="Apple",
+            category="Laptops",
+            price=1299.0,
+            rating=4.8,
+            review_count=50,
+            specifications={"ram_gb": 16, "storage_gb": 512},
+            in_stock=True,
+        )
+        orch = ComparisonOrchestrator(model="gemini-2.5-flash", hermetic=True)
+        resp_alice_sess2 = orch.chat_with_products(
+            message="Do these laptops match my RAM requirements?",
+            products=[p1],
+            session_id="alice-session-2",
+            user_id=user_alice,
+        )
+        assert resp_alice_sess2 is not None
+        assert resp_alice_sess2.reply is not None
+
+    def test_chat_with_products_memory_injection_in_prompt(self):
+        """Verify recalled memories are injected into the prompt context under <recalled_user_memories>."""
+        from unittest.mock import MagicMock, patch
+
+        from google.adk.memory.base_memory_service import MemoryEntry, SearchMemoryResponse
+        from google.genai import types as genai_types
+
+        from app.agent.orchestrator import ComparisonOrchestrator
+        from app.models.responses import ProductSpec
+
+        p1 = ProductSpec(
+            sku="6534606",
+            name="MacBook Air M3",
+            brand="Apple",
+            category="Laptops",
+            price=1099.0,
+            specifications={"battery_life_hours": 18.0},
+            in_stock=True,
+        )
+        fake_mem = SearchMemoryResponse(
+            memories=[
+                MemoryEntry(
+                    content=genai_types.Content(
+                        role="user",
+                        parts=[
+                            genai_types.Part.from_text(
+                                text="Customer preference: lightweight under 3 lbs"
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+
+        mock_genai_client = MagicMock()
+        mock_genai_client.models.generate_content.return_value = MagicMock(
+            text='{"reply": "The MacBook Air [SKU: 6534606] weighs only 2.7 lbs.", "suggested_followups": []}'
+        )
+        orch = ComparisonOrchestrator(
+            model="gemini-2.5-flash", genai_client=mock_genai_client, hermetic=False
+        )
+
+        with patch(
+            "app.agent.runner.CatalogVertexAiMemoryBankService.search_memory", return_value=fake_mem
+        ):
+            with patch.object(orch, "_get_genai_client", return_value=mock_genai_client):
+                resp = orch.chat_with_products(
+                    message="Which laptop is lighter?",
+                    products=[p1],
+                    session_id="sess-injection-test",
+                    user_id="user_memory_injection@example.com",
+                )
+                assert resp is not None
+                # Assert generate_content was called and prompt contained <recalled_user_memories>
+                assert mock_genai_client.models.generate_content.called
+                call_args = mock_genai_client.models.generate_content.call_args
+                prompt_arg = call_args.kwargs.get("contents") or (
+                    call_args.args[1] if len(call_args.args) > 1 else ""
+                )
+                assert "<recalled_user_memories>" in str(prompt_arg)
+                assert "lightweight under 3 lbs" in str(prompt_arg)

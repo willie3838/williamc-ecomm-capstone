@@ -789,6 +789,16 @@ sequenceDiagram
 6. **Frontend Side-by-Side Follow-up Chat Matrix Layout**:
    - `ConversationSidebar` defaults to open (`isChatOpen=true`) immediately after a product comparison finishes.
    - `<RecommendationCard />` sits inside the left column flex-container beside the sidebar, giving shoppers an instant side-by-side conversational matrix exploration view.
+7. **Cloud Run IAP User Identity Resolution & Cross-Session Memory Scoping (`resolve_iap_user_id`)**:
+   - **Identity Resolution**: Ingests requests at `/api/compare` and `/api/chat`, resolving the user identity with strict fallback:
+     1. `X-Goog-Authenticated-User-Email` header (strips `accounts.google.com:` or IDP prefix, lowercasing, e.g. `williamwlchan@google.com`).
+     2. `X-Goog-Authenticated-User-Id` header (stripping prefix).
+     3. `X-Goog-IAP-JWT-Assertion` base64url-encoded payload (`email` or `sub` claims).
+     4. `explicit_user_id` from `ComparisonRequest.user_id` or `ChatRequest.user_id`.
+     5. Fallback `'default_user'`.
+   - **ADK Scoping**: Forwards the resolved `user_id` through `MultiAgentCoordinator`, `ComparisonOrchestrator`, `run_adk_agent`, and `_persist_chat_session_and_memory`. Scopes `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` to the specific user.
+   - **Cross-Session Memory Preloading & Prompt Injection**: In `ComparisonOrchestrator.chat_with_products`, prior preferences for `user_id` are preloaded via `memory_service.search_memory(app_name="app", user_id=resolved_user_id, query=clean_message)` and injected into prompt context under `<recalled_user_memories>`, grounding conversational replies with user preferences established in prior sessions.
+   - **Multi-User Memory Isolation**: Memory entries are strictly partitioned by `user_id`, guaranteeing zero cross-tenant or cross-user preference leakage.
 
 ### 10.2 Out-of-Distribution Generalization & Anti-Overfitting Protocol
 

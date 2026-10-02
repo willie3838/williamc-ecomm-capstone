@@ -554,22 +554,23 @@ def get_adk_runner(
 async def run_adk_agent(
     query: str,
     session_id: str | None = None,
-    user_id: str = "user_default",
+    user_id: str | None = None,
     runner: Runner | None = None,
     app_name: str = "app",
 ) -> AsyncGenerator[Event, None]:
     """Execute the ADK agent asynchronously via Runner and yield all execution events."""
     active_runner = runner or get_adk_runner()
     target_session_id = session_id or f"sess_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+    effective_user_id = user_id or "default_user"
 
     try:
         if hasattr(active_runner.session_service, "get_session"):
             session = await active_runner.session_service.get_session(
-                app_name=app_name, user_id=user_id, session_id=target_session_id
+                app_name=app_name, user_id=effective_user_id, session_id=target_session_id
             )
             if session is None and hasattr(active_runner.session_service, "create_session"):
                 await active_runner.session_service.create_session(
-                    app_name=app_name, user_id=user_id, session_id=target_session_id
+                    app_name=app_name, user_id=effective_user_id, session_id=target_session_id
                 )
     except Exception as sess_err:
         logger.debug("Session initialization note: %s", sess_err)
@@ -582,11 +583,11 @@ async def run_adk_agent(
     with tracer.start_as_current_span("adk.runner.run_async") as span:
         span.set_attribute("adk.query", query[:200])
         span.set_attribute("adk.session_id", target_session_id)
-        span.set_attribute("adk.user_id", user_id)
+        span.set_attribute("adk.user_id", effective_user_id)
 
         try:
             async for event in active_runner.run_async(
-                user_id=user_id,
+                user_id=effective_user_id,
                 session_id=target_session_id,
                 new_message=user_message,
             ):
@@ -601,10 +602,11 @@ def run_adk_agent_sync(
     agent: BaseAgent,
     prompt: str,
     session_id: str | None = None,
-    user_id: str = "user_default",
+    user_id: str | None = None,
     hermetic: bool = False,
 ) -> tuple[str, list[Event]]:
     """Synchronously execute an ADK Agent through CatalogAdkRunner and return (final_text, events)."""
+    effective_user_id = user_id or "default_user"
     runner = create_catalog_runner(
         agent=agent,
         session_service=get_default_session_service(hermetic=hermetic),
@@ -617,7 +619,7 @@ def run_adk_agent_sync(
         async for evt in run_adk_agent(
             query=prompt,
             session_id=session_id,
-            user_id=user_id,
+            user_id=effective_user_id,
             runner=runner,
         ):
             events.append(evt)

@@ -2201,6 +2201,7 @@ class ComparisonOrchestrator:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        user_id: str | None = None,
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
         self.last_input_tokens = 0
@@ -2251,6 +2252,8 @@ class ComparisonOrchestrator:
             span.set_attribute("category", category or "")
             if session_id:
                 span.set_attribute("session_id", session_id)
+            if user_id:
+                span.set_attribute("user_id", user_id)
             span.set_attribute("ai.agent.version", resolved_agent_ver)
             span.set_attribute("ai.model.name", active_routing_model)
             span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
@@ -2435,9 +2438,10 @@ class ComparisonOrchestrator:
         query: str,
         category: str | None = None,
         session_id: str | None = None,
-        user_id: str = "default_user",
+        user_id: str | None = None,
     ) -> CompareResponse:
         """Execute comparison integrated with Google ADK Runner and VertexAiSessionService."""
+        effective_user_id = user_id or "default_user"
         target_session = session_id or f"sess_{int(time.time() * 1000)}"
         safe_query = sanitize_user_prompt(query)
 
@@ -2497,7 +2501,7 @@ class ComparisonOrchestrator:
                 agent=bound_agent,
                 prompt=query,
                 session_id=session_id,
-                user_id=user_id,
+                user_id=effective_user_id,
                 hermetic=self.hermetic,
             )
             self.last_input_tokens += adk_llm.last_input_tokens
@@ -2615,12 +2619,46 @@ class ComparisonOrchestrator:
         model: str | None = None,
         synthesis_model: str | None = None,
         agent_version: str | None = None,
+        user_id: str | None = None,
     ) -> ChatResponse:
         """Answer conversational follow-up questions grounded strictly in compared ProductSpecs and matrix."""
         start_time = time.perf_counter()
         clean_message = sanitize_user_prompt(message)
         active_model = synthesis_model or model or self.synthesis_model
         resolved_agent_version = agent_version or settings.agent_version
+        resolved_user_id = user_id or "default_user"
+
+        # Preload cross-session memories for authenticated user
+        recalled_memories: list[str] = []
+        try:
+            from app.agent.runner import get_default_memory_service
+
+            memory_service = get_default_memory_service(hermetic=self.hermetic)
+            if memory_service is not None and hasattr(memory_service, "search_memory"):
+
+                async def _search() -> Any:
+                    return await memory_service.search_memory(
+                        app_name="app",
+                        user_id=resolved_user_id,
+                        query=clean_message or message,
+                    )
+
+                raw_memories = _run_async_safely(_search)
+                entries = getattr(raw_memories, "memories", raw_memories)
+                if isinstance(entries, list):
+                    for entry in entries:
+                        content = getattr(entry, "content", None)
+                        if content and hasattr(content, "parts") and content.parts:
+                            for part in content.parts:
+                                t = getattr(part, "text", None)
+                                if t and isinstance(t, str) and t.strip():
+                                    recalled_memories.append(t.strip())
+                        elif hasattr(entry, "text") and entry.text:
+                            recalled_memories.append(str(entry.text).strip())
+                        elif isinstance(entry, str) and entry.strip():
+                            recalled_memories.append(entry.strip())
+        except Exception as mem_err:
+            logger.debug("Cross-session memory search note: %s", mem_err)
 
         # Build citations for compared products
         citations = [
@@ -2763,6 +2801,21 @@ class ComparisonOrchestrator:
                         f"All compared products are priced equally at ${cheapest_p.price:,.2f} "
                         f"([SKU: {cheapest_p.sku}])."
                     )
+            elif recalled_memories and (
+                "ram" in lower_msg
+                or "requirement" in lower_msg
+                or "prefer" in lower_msg
+                or "match" in lower_msg
+                or "memory" in lower_msg
+            ):
+                p_specs = [
+                    f"{p.name} [SKU: {p.sku}] ({(p.specifications or {}).get('ram_gb', 'N/A')}GB RAM)"
+                    for p in products
+                ]
+                reply_text = (
+                    f"Recalled customer preferences: {'; '.join(recalled_memories)}. "
+                    f"Evaluating compared products: " + ", ".join(p_specs) + "."
+                )
             else:
                 p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:5])
                 reply_text = (
@@ -2779,6 +2832,13 @@ class ComparisonOrchestrator:
                 "Which option is better for daily multitasking?",
             ]
         else:
+            memory_section = ""
+            if recalled_memories:
+                memory_lines = "\n".join(f"- {mem}" for mem in recalled_memories)
+                memory_section = (
+                    f"<recalled_user_memories>\n{memory_lines}\n</recalled_user_memories>\n\n"
+                )
+
             prompt = (
                 "You are an expert consumer electronics comparison assistant.\n"
                 "A customer is asking a follow-up question regarding the products they just compared.\n"
@@ -2788,7 +2848,8 @@ class ComparisonOrchestrator:
                 "2. NEVER invent, extrapolate, or hallucinate specs not in the provided catalog data.\n"
                 "3. If the user asks about an unrelated topic or unavailable spec, clearly state that the specification is not in the catalog.\n"
                 "4. Provide 2-3 concise, relevant suggested follow-up questions.\n\n"
-                "<compared_products>\n"
+                + memory_section
+                + "<compared_products>\n"
                 + "\n".join(product_blocks)
                 + "\n</compared_products>\n\n"
                 + (
@@ -2949,6 +3010,7 @@ class ComparisonOrchestrator:
                 session_id=session_id,
                 user_message=clean_message or message,
                 model_reply=reply_scrubbed,
+                user_id=resolved_user_id,
             )
         else:
             _CHAT_PERSIST_POOL.submit(
@@ -2956,6 +3018,7 @@ class ComparisonOrchestrator:
                 session_id,
                 clean_message or message,
                 reply_scrubbed,
+                resolved_user_id,
             )
 
         latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
@@ -2987,11 +3050,13 @@ def _persist_chat_session_and_memory(
     session_id: str | None,
     user_message: str,
     model_reply: str,
-    user_id: str = "user_default",
+    user_id: str | None = None,
 ) -> None:
     """Persist follow-up chat turns in VertexAiSessionService and commit to VertexAiMemoryBankService."""
     if not session_id:
         return
+
+    effective_user_id = user_id or "default_user"
 
     async def _persist() -> None:
         from google.adk.events import Event
@@ -3007,13 +3072,13 @@ def _persist_chat_session_and_memory(
 
         sess = await session_service.get_session(
             app_name="app",
-            user_id=user_id,
+            user_id=effective_user_id,
             session_id=session_id,
         )
         if sess is None:
             sess = await session_service.create_session(
                 app_name="app",
-                user_id=user_id,
+                user_id=effective_user_id,
                 session_id=session_id,
                 state={"last_query": user_message},
             )

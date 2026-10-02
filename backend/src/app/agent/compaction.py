@@ -241,7 +241,7 @@ async def flush_events_to_memory_before_compaction(
     events: list[Event],
     memory_service: BaseMemoryService | None = None,
     app_name: str = "app",
-    user_id: str = "user_default",
+    user_id: str | None = None,
 ) -> bool:
     """Tier 2: Best-effort pre-compaction Vertex AI Memory Bank flush.
 
@@ -257,10 +257,11 @@ async def flush_events_to_memory_before_compaction(
 
             resolved_service = get_default_memory_service()
 
+        effective_user_id = user_id or "default_user"
         if resolved_service is not None and hasattr(resolved_service, "add_events_to_memory"):
             await resolved_service.add_events_to_memory(
                 app_name=app_name,
-                user_id=user_id,
+                user_id=effective_user_id,
                 events=events,
             )
         return True
