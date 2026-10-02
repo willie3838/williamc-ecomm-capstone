@@ -71,7 +71,6 @@ def test_no_local_markdown_slides_exist():
         )
 
 
-
 def check_docs_sync(modified_files: list[str], bypass: bool = False) -> tuple[bool, str]:
     """Evaluate whether modified files satisfy the strict documentation synchronization rule.
 

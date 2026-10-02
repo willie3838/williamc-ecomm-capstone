@@ -230,7 +230,7 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 | **1** | `p` | Title & Hook | Grounded SKU specs, +20% pilot conversion lift, 2.18s P95, $547.38/mo net Hybrid TCO |
 | **2** | `slide_02` | Customer Friction | "Spec Overload" drives 68% cart abandonment, 8+ browser tab fatigue |
 | **3** | `slide_03` | Live Demo & Impact | 4-Node ADK pipeline, side-by-side matrices, WINNER badges, clickable `[SKU: ...]` citations |
-| **4** | `slide_04` | 80-Pair Model Benchmark | Why We Chose Tiered-Hybrid (Flash -> Pro), 9 GA models benchmarked |
+| **4** | `slide_04` | 80-Case Model Benchmark (2–5 SKUs) | Why We Chose Tiered-Hybrid (Flash -> Pro), 9 GA models benchmarked across 2–5 SKU scaling & Stage 3 Semantic Quality (`0.976` Pro vs `0.916` Flash) |
 | **5** | `slide_04_tco` | Cloud FinOps & TCO | $547.38/mo net Hybrid ($190.38/mo Flash canary; 70.5% savings vs $1,858.20/mo GKE+GPU) |
 | **6** | `slide_05` | Observability & Guardrails | VPC-SC, 4-Node ADK pipeline, Model Armor, Cloud Deploy Canary, OpenTelemetry, Multi-Region Run, Evals |
 | **7** | `slide_06` | AI-Driven Development | Pre-coding `AGENTS.md` harness, Outside-the-Loop TDD hillclimbing, In-the-Loop skills, 4-pane tmux swarm |
@@ -238,13 +238,13 @@ When the user mentions "slides", "presentation", or asks to modify slides:
 | **9** | `slide_08` | Executive Summary & Q&A | Summary metrics (+20% lift, 0% hallucination, $547.38 net TCO, 99.4% eval accuracy) & Q&A |
 | **10** | `slide_09` | Appendix Divider | Reference divider for technical deep-dives (Appendices A–J) |
 | **11** | `slide_10` | Appendix A: Agent Architecture — Matrix Generation & Conversation | Dual-path ADK runtime (`/api/compare` + `/api/chat`), IAP-scoped session/memory bank, 3-tier lazy compaction & speculative latency optimizations |
-| **12** | `slide_11` | Appendix B: ADR-004 Scorecard | 3-Agent x 9-GA-Model fleet benchmark (All-Pro 3.48s SLA breach vs Hybrid 2.18s), 80-pair counterfactual eval suite |
+| **12** | `slide_11` | Appendix B: ADR-004 Scorecard | 3-Agent x 9-GA-Model fleet benchmark (2-SKU `2.05s` to 5-SKU `2.45s` Hybrid P95 vs All-Pro `3.48s`/`3.95s` SLA breach), Stage 3 Semantic Quality (`0.976`) & 80-case + 31-case counterfactual eval suite |
 | **13** | `slide_12` | Appendix C: Decisions D1–D4 | 3 LLM Agents + 1 Deterministic SQL Step (`D1`), Tiered-Hybrid vs All-Pro & All-Flash (`D2`), deterministic matrix/scrubber (`D3`), concurrent Model Armor (`D4`) |
 | **14** | `slide_13` | Appendix D: Decisions D5–D8 | Dual runtime (`D5`), 3-trigger GitOps (`D6`), Triple-Plane IAP (`D7`), bounded telemetry & de-overfitting (`D8`) |
 | **15** | `SLIDES_API1777442355_0` | Appendix E: Drift Dashboards | Live Cloud Monitoring Latency (2,180ms P95) & Token/FinOps ($0.0055/req, 2,060 tokens) drift guards |
-| **16** | `slide_15` | Appendix F: Eval Methodology | Agent-First harness benchmarking 9 GA Gemini models across 3 LLM agents (27 Vertex AI Experiment runs) (`E1`–`E4`) |
+| **16** | `slide_15` | Appendix F: Eval Methodology | Agent-First harness benchmarking 9 GA Gemini models across 3 LLM agents (27 Vertex AI Experiment runs), 2–5 SKU scaling, Stage 3 Semantic Quality & 31-case holdout (`E1`–`E4`) |
 | **17** | `slide_17` | Appendix H: TCO Math | TCO assumptions, token estimation math, pricing models |
-| **18** | `SLIDES_API98052315_0` | Appendix I: Continuous Quality | Continuous quality, 9-GA-model weekly sweeps, and drift prevention cadence |
+| **18** | `SLIDES_API98052315_0` | Appendix I: Continuous Quality | Continuous quality, 80-case (2–5 SKU) + 31-case holdout PR/nightly gates, 9-GA-model weekly sweeps, and drift prevention cadence |
 | **19** | `slide_16` | Appendix G: Executive Q&A Defense | Objection handling (`Q1` Why Not All-Flash vs Hybrid ROI, `Q2` Single-Agent SPEC.md, `Q3` SQL vs Vector DB, `Q4` Split GitOps) |
 | **20** | `SLIDES_API510898368_0` | Appendix J: Enterprise Defense-in-Depth Security Architecture | 8-layer zero-trust posture (`S1` Edge IAP + Tenant Scoping + VPC-SC, `S2` Dual-Region Model Armor + XML/SKU Scrubber, `S3` PoLP IAM + SQL/FinOps Caps, `S4` DLP + Audit Logs + Keyless WIF) |
 
