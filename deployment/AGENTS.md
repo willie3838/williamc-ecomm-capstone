@@ -129,6 +129,20 @@ The automated delivery pipeline cleanly decouples Continuous Integration (Cloud 
   - Administrator / UI tester: `admin@williamwlchan.altostrat.com`
 - Verification probes (`deployment/clouddeploy/skaffold.yaml`) automatically acquire Google Compute Metadata OIDC Identity Tokens (`Metadata-Flavor: Google` with `audience=${TARGET_URL}`) to execute hermetic `/health` and `/health/ready` assertions.
 
+### 4.4 Mandatory Post-Merge Main CI/CD Monitoring & Auto-Remediation Protocol
+Whenever an agent merges a Pull Request into `main` or pushes a commit to `main`:
+1. **Monitor the Active Workflow Run**: Immediately query and watch the triggered `CI Quality Gate & Cloud Build Sync` run on `main`:
+   ```bash
+   sleep 5
+   RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')
+   gh run watch "$RUN_ID" --exit-status
+   ```
+2. **Automatic Failure Diagnosis & Remediation**: If `gh run watch` exits non-zero (whether in `Pre-Merge Quality & Docs Sync Gate` or `Continuous Deployment (Google Cloud Build)`):
+   - Inspect the failed step logs immediately via `gh run view "$RUN_ID" --log-failed`.
+   - Fix the underlying lint, formatting, test, or build failure in the repository.
+   - Verify locally (`ruff check backend/ evals/`, `ruff format --check backend/ evals/`, `pytest`).
+   - Commit, push to `main`, and re-run `gh run watch` until the `main` CI/CD pipeline completes with `success`. Never leave `main` in a failing state.
+
 ---
 
 ## 5. Rollback Automation & Incident Recovery

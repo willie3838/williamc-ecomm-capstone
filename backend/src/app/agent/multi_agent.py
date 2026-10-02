@@ -489,9 +489,7 @@ class MultiAgentCoordinator:
         self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
             model=model, synthesis_model=synthesis_model
         )
-        self.intent_agent = QueryIntentAgent(
-            model=self.model, synthesis_model=self.synthesis_model
-        )
+        self.intent_agent = QueryIntentAgent(model=self.model, synthesis_model=self.synthesis_model)
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
         self.relevance_agent = RelevanceDetectorAgent(
             bq_client=bq_client, model=self.model, synthesis_model=self.synthesis_model

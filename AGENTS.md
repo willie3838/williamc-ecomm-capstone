@@ -78,11 +78,17 @@ Every feature implementation, architectural change, or bug fix MUST maintain ful
      - **Buganizer Ticket**: Fixes b/<ISSUE_ID> (https://b.corp.google.com/issues/<ISSUE_ID>)
      - **Taskflow Workspace**: `6062895` (Iteration: `6062377`)
      ```
-4. **PR Merge & Bidirectional Buganizer Closure (`Buganizer -> PR Link`)**:
+4. **PR Merge, Mandatory Post-Merge CI Monitoring & Bidirectional Buganizer Closure (`Buganizer -> PR Link`)**:
    - After passing pre-merge verification (Pytest + Ruff + Doc Sync Gate), merge the PR into `main` (`gh pr merge --merge --delete-branch`).
+   - **Mandatory Post-Merge CI/CD Monitoring & Auto-Remediation**: Immediately monitor the GitHub Actions & Cloud Build CD run triggered on `main`:
+     ```bash
+     RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')
+     gh run watch "$RUN_ID" --exit-status
+     ```
+     If the `main` CI/CD run fails at any step (`quality-gate` or `deploy-cloudbuild`), you **MUST automatically inspect the logs (`gh run view "$RUN_ID" --log-failed`), fix the root cause, verify locally (`ruff check backend/ evals/`, `ruff format --check backend/ evals/`, `pytest`), push the fix to `main`, and re-monitor `gh run watch` until the `main` pipeline turns green**. Never leave `main` with a failing CI/CD run.
    - Close the Buganizer ticket (`FIXED`) with a comment that explicitly links the **GitHub PR URL**, **merge commit SHA**, and **What + Why summary**:
      ```bash
-     /google/bin/releases/issues-cli/issues comment --issue_id <ISSUE_ID> --comment "Completed and merged in GitHub PR <PR_URL> (commit $(git rev-parse --short HEAD)).\n\nWhat was implemented: <Summary>\nWhy: <Rationale>\nAll unit tests, doc-sync gates, and eval suites passing."
+     /google/bin/releases/issues-cli/issues comment --issue_id <ISSUE_ID> --comment "Completed and merged in GitHub PR <PR_URL> (commit $(git rev-parse --short HEAD)).\n\nWhat was implemented: <Summary>\nWhy: <Rationale>\nAll unit tests, doc-sync gates, eval suites, and main CI/CD pipeline passing."
      /google/bin/releases/issues-cli/issues update status --issue_id <ISSUE_ID> --status FIXED
      ```
 
@@ -114,7 +120,10 @@ flowchart TD
     D --> E[Run Pytest, Ruff & Doc Sync Gate]
     E -->|Fails| D
     E -->|Passes| F[Open GitHub PR with What + Why + b/ID Link]
-    F --> G[Merge PR to Main & Post PR URL to Buganizer Ticket]
+    F --> G[Merge PR to Main & Monitor Main CI/CD Run]
+    G -->|Main CI/CD Fails| H[Inspect Failed Logs & Auto-Fix on Main]
+    H --> G
+    G -->|Main CI/CD Passes| I[Post PR URL to Buganizer Ticket & Close]
 ```
 
 ### Operational Rules for Hillclimbing
@@ -122,10 +131,11 @@ flowchart TD
 2. **No Regression**: Never delete or weaken existing tests to make a build pass. Coverage must remain $\ge 80\%$.
 3. **No Muted Errors**: All exceptions must be explicitly typed, handled, and logged with OpenTelemetry spans.
 4. **Documentation Sync**: When updating any API, data model, or workflow, immediately update the corresponding `AGENTS.md`, `ARCHITECTURE.md`, or `SKILLS.md`.
+5. **Mandatory Main CI/CD Monitoring & Auto-Fix**: Whenever merging a PR or pushing to `main`, always monitor the GitHub Actions + Cloud Build pipeline (`gh run watch --exit-status`). If it fails, automatically inspect `gh run view --log-failed`, fix the failure, push, and re-verify until `main` CI/CD passes.
 
 ### 5.1 Feature Branch, GitHub Pull Request & Main Merge Protocol
 Whenever implementing any change (in main workspace or an isolated worktree `feat/*`):
-1. **Pre-PR Verification**: Run all unit tests, linters, doc-sync gates, and eval suites (`pytest --cov=src --cov-fail-under=80`, `ruff check`, `ruff format --check`).
+1. **Pre-PR Verification**: Run all unit tests, linters, doc-sync gates, and eval suites (`pytest --cov=src --cov-fail-under=80`, `ruff check backend/ evals/`, `ruff format --check backend/ evals/`).
 2. **Push Feature Branch & Create GitHub PR**:
    ```bash
    git push -u origin feat/b-<ISSUE_ID>-<short-slug>
@@ -150,8 +160,17 @@ Whenever implementing any change (in main workspace or an isolated worktree `fea
      gh pr merge --merge --delete-branch
      git checkout main && git pull origin main
      ```
-4. **Post-Merge Verification & Buganizer Closure**:
-   - Run verification suite on `main` to verify zero regressions.
+4. **Post-Merge Verification, Main CI/CD Monitoring & Auto-Remediation**:
+   - Run verification suite on `main` locally to verify zero merge/rebase regressions (`ruff check backend/ evals/`, `ruff format --check backend/ evals/`, `pytest`).
+   - **Always monitor the CI/CD run on `main`**:
+     ```bash
+     sleep 5
+     RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')
+     gh run watch "$RUN_ID" --exit-status || {
+       gh run view "$RUN_ID" --log-failed
+       # Automatically diagnose, fix, commit, push, and re-watch until green!
+     }
+     ```
    - Update Buganizer issue `b/<ISSUE_ID>` with the merged GitHub PR URL and commit hash, and mark status `FIXED`.
 5. **Worktree Cleanup**: Remove feature worktree once merged (`git worktree remove .swarm/worktrees/<task>`).
 

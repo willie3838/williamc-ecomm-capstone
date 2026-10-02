@@ -1195,7 +1195,7 @@ class ComparisonOrchestrator:
                 response = None
                 if spec_future is not None:
                     try:
-                        response = spec_future.result(timeout=20.0)
+                        response = spec_future.result(timeout=8.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -1987,7 +1987,7 @@ class ComparisonOrchestrator:
                 response = None
                 if rerank_future is not None:
                     try:
-                        response = rerank_future.result(timeout=15.0)
+                        response = rerank_future.result(timeout=8.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -2940,7 +2940,7 @@ def _run_async_safely(coro_fn: Any) -> Any:
     try:
         asyncio.get_running_loop()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(coro_fn())).result(timeout=15.0)
+            return pool.submit(lambda: asyncio.run(coro_fn())).result(timeout=8.0)
     except RuntimeError:
         return asyncio.run(coro_fn())
 

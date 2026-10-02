@@ -103,11 +103,32 @@ def build_pr_body(
 
 
 def verify_live_latency_gate(branch: str, repo_dir: Path, task: str) -> None:
-    """Run backend/scripts/verify_live_latency.py (< 3.0s against live GCP) if present in the repo."""
+    """Run Ruff lint/format gate and backend/scripts/verify_live_latency.py (< 3.0s against live GCP) if present in the repo."""
     import os as _os
 
     worktree_dir = repo_dir / ".swarm" / "worktrees" / task
     target_root = worktree_dir if worktree_dir.exists() else repo_dir
+
+    venv_ruff = repo_dir / "backend" / ".venv" / "bin" / "ruff"
+    if venv_ruff.exists() and (target_root / "backend").exists():
+        print(f"\n--- [PRE-MERGE GATE] Running Ruff lint & format check in {target_root} ---")
+        targets = [d for d in ("backend", "evals") if (target_root / d).exists()]
+        if targets:
+            chk = subprocess.run(
+                [str(venv_ruff), "check", *targets], cwd=target_root, capture_output=True, text=True
+            )
+            fmt = subprocess.run(
+                [str(venv_ruff), "format", "--check", *targets],
+                cwd=target_root,
+                capture_output=True,
+                text=True,
+            )
+            if chk.returncode != 0 or fmt.returncode != 0:
+                print(chk.stdout + chk.stderr + fmt.stdout + fmt.stderr, file=sys.stderr)
+                raise RuntimeError(
+                    f"Ruff lint/format gate failed on branch '{branch}'. Run 'ruff check --fix && ruff format' before merging!"
+                )
+
     script_path = target_root / "backend" / "scripts" / "verify_live_latency.py"
     if not script_path.exists():
         return
@@ -136,6 +157,57 @@ def verify_live_latency_gate(branch: str, repo_dir: Path, task: str) -> None:
         )
 
 
+def verify_post_merge_ci_on_base(base: str, repo_dir: Path) -> None:
+    """Monitor the GitHub Actions CI/CD workflow triggered on base after merge and surface failures immediately."""
+    import time as _time
+
+    print(f"\n--- [POST-MERGE CI MONITOR] Checking GitHub Actions CI run on '{base}' ---")
+    _time.sleep(5)
+    list_res = run_cmd(
+        [
+            "gh",
+            "run",
+            "list",
+            "--branch",
+            base,
+            "--limit",
+            "1",
+            "--json",
+            "databaseId,status,conclusion,name",
+        ],
+        cwd=repo_dir,
+    )
+    if list_res.returncode != 0 or not list_res.stdout.strip():
+        print("[WARN] Could not query gh run list; skipping CI watch.")
+        return
+
+    try:
+        runs = json.loads(list_res.stdout)
+        if not runs:
+            return
+        run_id = str(runs[0].get("databaseId", ""))
+        run_name = runs[0].get("name", "CI")
+        if not run_id:
+            return
+        print(f"[INFO] Watching GitHub Actions run {run_id} ({run_name}) on '{base}'...")
+        watch_res = run_cmd(["gh", "run", "watch", run_id, "--exit-status"], cwd=repo_dir)
+        if watch_res.returncode != 0:
+            print(
+                f"[ERROR] Post-merge CI run {run_id} FAILED on '{base}'! Fetching failed logs...",
+                file=sys.stderr,
+            )
+            log_res = run_cmd(["gh", "run", "view", run_id, "--log-failed"], cwd=repo_dir)
+            print(log_res.stdout[-4000:] if log_res.stdout else log_res.stderr, file=sys.stderr)
+            raise RuntimeError(
+                f"Post-merge CI run {run_id} failed on '{base}'! Automatically fix the failure on '{base}', push, and re-verify until CI is green."
+            )
+        print(f"[SUCCESS] Post-merge CI run {run_id} passed on '{base}'.")
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        print(f"[WARN] CI monitor note: {exc}")
+
+
 def merge_git_branch(
     branch: str,
     base: str,
@@ -159,7 +231,9 @@ def merge_git_branch(
     pr_url: str | None = None
 
     if has_origin:
-        print(f"[INFO] Remote 'origin' detected ({remote_res.stdout.strip()}). Executing GitHub PR workflow...")
+        print(
+            f"[INFO] Remote 'origin' detected ({remote_res.stdout.strip()}). Executing GitHub PR workflow..."
+        )
         push_res = run_cmd(["git", "push", "-u", "origin", branch], cwd=repo_dir)
         if push_res.returncode == 0:
             title_prefix = f"[b/{issue}] " if issue else ""
@@ -211,6 +285,7 @@ def merge_git_branch(
                     print(
                         f"[SUCCESS] Merged GitHub PR {pr_url} into '{base}' (commit: {commit_hash})"
                     )
+                    verify_post_merge_ci_on_base(base=base, repo_dir=repo_dir)
                     return commit_hash, pr_url
                 print(
                     "[WARN] 'gh pr merge' did not succeed; falling back to local branch merge and push."
@@ -231,6 +306,7 @@ def merge_git_branch(
 
     if has_origin:
         run_cmd(["git", "push", "origin", base], cwd=repo_dir)
+        verify_post_merge_ci_on_base(base=base, repo_dir=repo_dir)
 
     rev_res = run_cmd(["git", "rev-parse", "--short", "HEAD"], cwd=repo_dir)
     commit_hash = rev_res.stdout.strip()
@@ -349,13 +425,21 @@ def close_tmux_pane(pane_id: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Complete Swarm Task with GitHub PR & Buganizer Link")
+    parser = argparse.ArgumentParser(
+        description="Complete Swarm Task with GitHub PR & Buganizer Link"
+    )
     parser.add_argument("--task", required=True, help="Task ID (e.g. feat-auth, task-1)")
     parser.add_argument("--issue", default=None, help="Buganizer/Taskflow issue ID")
-    parser.add_argument("--what", default=None, help="Summary of what was implemented for the PR description")
-    parser.add_argument("--why", default=None, help="Summary of why / design rationale for the PR description")
+    parser.add_argument(
+        "--what", default=None, help="Summary of what was implemented for the PR description"
+    )
+    parser.add_argument(
+        "--why", default=None, help="Summary of why / design rationale for the PR description"
+    )
     parser.add_argument("--pane", default=None, help="Tmux pane ID to close (e.g. %%5)")
-    parser.add_argument("--branch", default=None, help="Git branch to merge (defaults to feat/<task>)")
+    parser.add_argument(
+        "--branch", default=None, help="Git branch to merge (defaults to feat/<task>)"
+    )
     parser.add_argument("--base", default="main", help="Git base branch (defaults to main)")
     parser.add_argument("--repo-dir", default=".", type=Path, help="Path to repository root")
     parser.add_argument(

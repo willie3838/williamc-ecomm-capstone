@@ -67,4 +67,5 @@ Before issuing a GREEN LIGHT on any feature, verify every item:
 1. Read `.swarm/state.json` to inspect the active swarm members, feature assignments, and pane IDs.
 2. Check `.swarm/reviews/` for submissions.
 3. Review submissions as they arrive. If no submissions are ready, monitor `.swarm/reviews/` or inspect active git branches.
-4. When all tasks in `.swarm/state.json` are completed and all Senior Engineer panes have been closed, print a final summary of completed features and git commits.
+4. **Mandatory Post-Merge CI/CD Monitoring & Auto-Fix**: Immediately after merging any branch into `main`, always monitor the CI/CD run on `main` (`sleep 5 && RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId') && gh run watch "$RUN_ID" --exit-status`). If the `main` CI/CD run fails, automatically inspect `gh run view "$RUN_ID" --log-failed`, fix the root cause on `main`, verify locally, push, and re-monitor until `main` CI/CD turns green.
+5. When all tasks in `.swarm/state.json` are completed, all Senior Engineer panes have been closed, and `main` CI/CD is green, print a final summary of completed features and git commits.

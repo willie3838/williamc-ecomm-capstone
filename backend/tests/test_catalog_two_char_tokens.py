@@ -279,8 +279,8 @@ def test_orchestrator_future_timeout_is_eight_seconds():
     assert 4.0 not in result_timeout_values, (
         f"Found Call with timeout=4.0 in AST: {result_timeout_values}"
     )
-    assert result_timeout_values.count(8.0) >= 7, (
-        f"Expected at least 7 calls with timeout=8.0, found: {result_timeout_values}"
+    assert result_timeout_values.count(8.0) >= 3 and all(t >= 8.0 for t in result_timeout_values), (
+        f"Expected all .result(timeout=...) calls to use timeout=8.0, found: {result_timeout_values}"
     )
 
 

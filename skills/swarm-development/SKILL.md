@@ -128,6 +128,7 @@ This command automatically:
 2. Updates **Buganizer / Taskflow** (`b/<issue_id>`) to status `FIXED` with a comment linking the **GitHub PR URL**, **merge commit hash**, and **What + Why summary**.
 3. Updates `.swarm/state.json` with `merge_commit` and `pr_url`.
 4. Closes the Senior Engineer's tmux pane via `tmux kill-pane`.
+5. **Mandatory Post-Merge CI/CD Monitoring & Auto-Fix**: Immediately after merging to `main`, the Tech Lead MUST monitor the triggered CI/CD run on `main` (`RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId') && gh run watch "$RUN_ID" --exit-status`). If the CI/CD run fails, the Tech Lead MUST inspect `gh run view "$RUN_ID" --log-failed` and automatically fix, commit, push, and re-verify on `main` until the pipeline turns green.
 
 ---
 

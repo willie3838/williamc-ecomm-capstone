@@ -131,7 +131,9 @@ def test_build_thinking_config_coverage():
     assert _build_thinking_config("gemini-3.8-flash") is None
     assert _build_thinking_config("gemini-2.5-flash-lite") is None
     assert _build_thinking_config("gemini-3.1-flash-lite") is None
-    assert _build_thinking_config("gemini-2.5-pro") is None
+    cfg_25_pro = _build_thinking_config("gemini-2.5-pro")
+    assert cfg_25_pro is not None
+    assert getattr(cfg_25_pro, "thinking_budget", None) == 128
     assert _build_thinking_config("gemini-1.5-flash") is None
 
 

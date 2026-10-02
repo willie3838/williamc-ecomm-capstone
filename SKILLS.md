@@ -194,6 +194,10 @@ gcloud run services describe catalog-comparison-service \
 # 4. Test live service health endpoint
 SERVICE_URL=$(gcloud run services describe catalog-comparison-service --region=us-central1 --format='value(status.url)')
 curl -i "${SERVICE_URL}/health"
+
+# 5. Mandatory Post-Merge Main CI/CD Monitoring & Auto-Fix Loop
+RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status || gh run view "$RUN_ID" --log-failed
 ```
 
 ---

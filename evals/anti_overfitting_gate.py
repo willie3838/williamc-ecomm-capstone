@@ -365,6 +365,7 @@ def run_holdout_evaluation(
 ) -> dict[str, Any]:
     """Execute holdout evaluation across comparisons, counterfactual mutations, and negative queries."""
     import copy
+
     from evals.runner import run_benchmark
 
     resolved_base_catalog = base_catalog_path or (

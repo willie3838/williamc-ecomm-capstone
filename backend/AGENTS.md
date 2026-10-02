@@ -173,7 +173,7 @@ backend/
     - **Explicit Tagged Query Parsing**: `ComparisonOrchestrator.extract_tagged_products` detects structured prompt entries (`Product N: <Name> ... [SKU: <sku>]` and `[SKU: <sku>]`). `extract_keywords` extracts only the tagged product names as `target_keywords`, skipping prompt body specification lines and user follow-up text.
     - **User Focus Line Decoupling**: `build_comparison_matrix` and `HermeticModelAdapter.synthesis_response` extract the `User Focus / Follow-up:` line when present, preventing spec keys in the prompt body (e.g. `* battery_life_hours: Up to 18 hours`) from false-triggering priority row ordering.
 9. **Stage 1 Intent Classification & Stage 3 Reranking Hardening (`orchestrator.py`)**:
-    - **Timeout Widening (`timeout=8.0`)**: All speculative and in-flight Vertex AI futures across `orchestrator.py` (synthesis, intent classification, candidate reranking, chat follow-up) use `future.result(timeout=8.0)` to safely accommodate cold-start Vertex AI responses (~4.008s) without premature TimeoutError while adhering to the overall 3.0s P95 SLA.
+    - **Timeout Widening (`timeout=8.0`) & Bounded Pro Thinking (`thinking_budget=128`)**: All intra-request speculative Vertex AI futures (`spec_future`, `rerank_future`, and `_run_async_safely`) across `orchestrator.py` use `future.result(timeout=8.0)` to safely accommodate cold-start Vertex AI responses (~4.008s) without premature TimeoutError while adhering to the overall 3.0s P95 SLA, and `_build_thinking_config("gemini-2.5-pro")` sets `thinking_budget=128` for fast structured JSON synthesis.
     - **Entity-Only Keyword Extraction & Spec Scrubbing**: `classify_intent_with_llm` prompt explicitly commands the model to extract only distinct product/brand/model entities. Standalone spec attributes/formats (`Dolby Vision`, `HDR10+`, `OLED`, `4K TVs`, `RAM`, `battery life`) are stripped via `SPEC_ATTRIBUTES_BLOCKLIST`.
     - **Comparative Query Normalization**: Non-opinion comparative queries containing `vs`, `versus`, `compare`, `comparison`, `between`, `difference` with $\ge 2$ target keywords automatically normalize to `intent_type="COMPARISON"` with `is_comparison_eligible=True`.
     - **Transient JSON Parse Retry & Safety Verification**: Both `classify_intent_with_llm` and `_rerank_with_llm` implement 1 clean retry of `client.models.generate_content` when JSON parsing fails on the first attempt, explicitly verifying `finish_reason` for Model Armor / safety filter blocks before parsing, while preserving fail-fast exceptions if the retry also fails.
@@ -225,16 +225,20 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
 
 ---
 
-## 6. Testing & Code Quality Protocol
+## 6. Testing, Code Quality & Post-Merge CI Monitoring Protocol
 
-Every backend change must pass the automated gate before pushing:
+Every backend change must pass the automated gate before pushing, and every merge to `main` must be monitored until CI/CD succeeds:
 ```bash
-# Lint and format
-ruff check . --fix
-ruff format .
+# Lint and format across both backend/ and evals/ (matches Cloud Build Step 0)
+ruff check backend/ evals/ --fix
+ruff format backend/ evals/
 
 # Run unit tests with mandatory >=80% code coverage
 pytest --cov=src --cov-report=term-missing --cov-fail-under=80 tests/
+
+# After merging or pushing to main, ALWAYS monitor the CI/CD run and auto-fix any failure:
+RUN_ID=$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
 ```
 
 ### Model Swappability & Benchmark Testing

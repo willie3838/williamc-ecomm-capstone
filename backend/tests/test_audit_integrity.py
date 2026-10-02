@@ -380,5 +380,3 @@ def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists()
     assert coordinator.intent_agent.synthesis_model == "gemini-2.5-pro"
     assert coordinator.relevance_agent.synthesis_model == "gemini-2.5-pro"
     assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
-
-

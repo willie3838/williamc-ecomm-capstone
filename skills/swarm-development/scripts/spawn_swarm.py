@@ -106,7 +106,19 @@ def main() -> None:
     if args.window_target:
         target_window = args.window_target
     elif args.new_window:
-        res_win = run_cmd(["tmux", "new-window", "-n", "swarm", "-c", str(repo_dir), "-P", "-F", "#{session_name}:#{window_index}"])
+        res_win = run_cmd(
+            [
+                "tmux",
+                "new-window",
+                "-n",
+                "swarm",
+                "-c",
+                str(repo_dir),
+                "-P",
+                "-F",
+                "#{session_name}:#{window_index}",
+            ]
+        )
         if res_win.returncode != 0:
             sys.exit(1)
         target_window = res_win.stdout.strip()
@@ -137,14 +149,36 @@ def main() -> None:
         # If live Buganizer issue attached, advance stage from ASSIGNED to ACCEPTED
         if issue_id and issue_id not in ("None", "DRY_RUN"):
             issues_cli = "/google/bin/releases/issues-cli/issues"
-            run_cmd([issues_cli, "update", "status", "--issue_id", str(issue_id), "--status", "ACCEPTED"])
-            run_cmd([issues_cli, "comment", "--issue_id", str(issue_id), "--comment", f"Senior Engineer began implementation for '{feature_desc}'."])
+            run_cmd(
+                [
+                    issues_cli,
+                    "update",
+                    "status",
+                    "--issue_id",
+                    str(issue_id),
+                    "--status",
+                    "ACCEPTED",
+                ]
+            )
+            run_cmd(
+                [
+                    issues_cli,
+                    "comment",
+                    "--issue_id",
+                    str(issue_id),
+                    "--comment",
+                    f"Senior Engineer began implementation for '{feature_desc}'.",
+                ]
+            )
 
         # Setup isolated git worktree for each Senior Engineer
         if task_worktree_dir.exists():
             run_cmd(["git", "worktree", "remove", "--force", str(task_worktree_dir)], cwd=repo_dir)
         run_cmd(["git", "branch", "-D", branch_name], cwd=repo_dir)
-        res_wt = run_cmd(["git", "worktree", "add", "-b", branch_name, str(task_worktree_dir), "main"], cwd=repo_dir)
+        res_wt = run_cmd(
+            ["git", "worktree", "add", "-b", branch_name, str(task_worktree_dir), "main"],
+            cwd=repo_dir,
+        )
         if res_wt.returncode != 0:
             print(f"[WARN] Worktree creation warning for {branch_name}: {res_wt.stderr}")
 
@@ -157,10 +191,20 @@ def main() -> None:
             split_flag = "-v"
             split_target = previous_pane
 
-        res_split = run_cmd([
-            "tmux", "split-window", split_flag, "-t", split_target,
-            "-c", str(task_worktree_dir), "-P", "-F", "#{pane_id}"
-        ])
+        res_split = run_cmd(
+            [
+                "tmux",
+                "split-window",
+                split_flag,
+                "-t",
+                split_target,
+                "-c",
+                str(task_worktree_dir),
+                "-P",
+                "-F",
+                "#{pane_id}",
+            ]
+        )
         se_pane_id = res_split.stdout.strip()
         previous_pane = se_pane_id
         se_panes.append(se_pane_id)
@@ -187,7 +231,7 @@ def main() -> None:
 
 - **Task ID**: `{task_slug}`
 - **Feature**: {feature_desc}
-- **Buganizer Issue**: `{issue_id or 'None'}`
+- **Buganizer Issue**: `{issue_id or "None"}`
 - **Branch**: `{branch_name}`
 - **Senior Engineer Pane**: `{se_pane_id}`
 - **Status**: `PROPOSAL_PENDING`
@@ -227,7 +271,9 @@ def main() -> None:
 
     # 4. Generate prompts and launch agents
     # Generate Tech Lead prompt
-    tl_custom_prompt = tl_template + f"""
+    tl_custom_prompt = (
+        tl_template
+        + f"""
 
 ---
 
@@ -237,6 +283,7 @@ def main() -> None:
 - **Tech Lead Pane**: `{tl_pane_id}`
 - **Active Tasks**:
 """
+    )
     for t in tasks_meta:
         tl_custom_prompt += (
             f"  * **Task**: `{t['task_id']}` | Feature: {t['feature']} | "
@@ -254,27 +301,30 @@ def main() -> None:
 
     # Generate Senior Engineer prompts and launch
     for t in tasks_meta:
-        se_custom_prompt = se_template + f"""
+        se_custom_prompt = (
+            se_template
+            + f"""
 
 ---
 
 ## 2. YOUR ASSIGNED FEATURE CONTEXT
 
 - **Repository**: `{repo_dir}`
-- **Your Isolated Worktree Directory**: `{t['worktree_dir']}`
-- **Your Task ID**: `{t['task_id']}`
-- **Feature Name**: {t['feature']}
-- **Buganizer / Taskflow Issue**: `{t['issue_id'] or 'None'}`
-- **Your Target Branch**: `{t['branch']}`
-- **Your Pane ID**: `{t['pane_id']}`
+- **Your Isolated Worktree Directory**: `{t["worktree_dir"]}`
+- **Your Task ID**: `{t["task_id"]}`
+- **Feature Name**: {t["feature"]}
+- **Buganizer / Taskflow Issue**: `{t["issue_id"] or "None"}`
+- **Your Target Branch**: `{t["branch"]}`
+- **Your Pane ID**: `{t["pane_id"]}`
 - **Tech Lead Pane ID**: `{tl_pane_id}`
-- **Shared Review File**: `{t['review_file']}`
+- **Shared Review File**: `{t["review_file"]}`
 
 ### Immediate First Steps:
-1. You are ALREADY in your isolated git worktree directory on branch `{t['branch']}`. Do NOT run git checkout on other branches.
-2. Open `{t['review_file']}` and write your architecture proposal.
+1. You are ALREADY in your isolated git worktree directory on branch `{t["branch"]}`. Do NOT run git checkout on other branches.
+2. Open `{t["review_file"]}` and write your architecture proposal.
 3. Commit and begin your test-driven implementation in your worktree directory.
 """
+        )
         se_prompt_file = prompts_dir / f"{t['task_id']}_prompt.md"
         with open(se_prompt_file, "w") as f:
             f.write(se_custom_prompt)

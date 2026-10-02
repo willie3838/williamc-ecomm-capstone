@@ -182,3 +182,28 @@ def test_any_code_change_requires_doc_change_or_no_doc_flag(pytestconfig):
     passed, message = check_docs_sync(diff_output, bypass=bypass)
     if not passed:
         pytest.fail(message)
+
+
+def test_ruff_lint_and_format_clean():
+    """Enforce Cloud Build Step 0 parity: ruff check and ruff format --check must pass across backend/ and evals/."""
+    import sys
+
+    check_res = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", "backend/", "evals/"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert check_res.returncode == 0, (
+        f"Ruff lint check failed (Cloud Build Step 0 parity):\n{check_res.stdout}\n{check_res.stderr}"
+    )
+
+    fmt_res = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", "backend/", "evals/"],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    assert fmt_res.returncode == 0, (
+        f"Ruff format check failed (Cloud Build Step 0 parity):\n{fmt_res.stdout}\n{fmt_res.stderr}"
+    )
