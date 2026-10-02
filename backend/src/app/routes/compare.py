@@ -35,11 +35,17 @@ _COORDINATOR_LOCK = threading.Lock()
 _REQUEST_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=80, thread_name_prefix="api-worker"
 )
+_CHAT_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=64, thread_name_prefix="chat-worker"
+)
 _CATALOG_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=32, thread_name_prefix="catalog-worker"
 )
+_ANALYTICS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=64, thread_name_prefix="analytics-worker"
+)
 _TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=4, thread_name_prefix="telemetry-bg"
+    max_workers=32, thread_name_prefix="telemetry-bg"
 )
 
 
@@ -455,7 +461,7 @@ async def chat_products(
         )
 
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_REQUEST_EXECUTOR, _execute_chat_sync, request)
+    return await loop.run_in_executor(_CHAT_EXECUTOR, _execute_chat_sync, request)
 
 
 def _fetch_catalog_sync(
@@ -650,10 +656,10 @@ async def log_action(
     _app_settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
     """Log user behavior events such as copy markdown or sku click to Firestore."""
-    if not analytics_service._is_client_mocked():
-        doc_id = analytics_service.record_user_action(action)
-    else:
-        doc_id = await asyncio.to_thread(analytics_service.record_user_action, action)
+    loop = asyncio.get_running_loop()
+    doc_id = await loop.run_in_executor(
+        _ANALYTICS_EXECUTOR, analytics_service.record_user_action, action
+    )
     return {"status": "recorded", "action_id": doc_id}
 
 
@@ -668,8 +674,8 @@ async def submit_feedback(
     _app_settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
     """Record thumbs-up / thumbs-down user evaluation feedback to Firestore."""
-    if not analytics_service._is_client_mocked():
-        doc_id = analytics_service.record_feedback(feedback)
-    else:
-        doc_id = await asyncio.to_thread(analytics_service.record_feedback, feedback)
+    loop = asyncio.get_running_loop()
+    doc_id = await loop.run_in_executor(
+        _ANALYTICS_EXECUTOR, analytics_service.record_feedback, feedback
+    )
     return {"status": "recorded", "feedback_id": doc_id}

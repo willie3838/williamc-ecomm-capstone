@@ -1,5 +1,6 @@
 """BigQuery product catalog query tool with parameterized SQL, distributed tracing, TTL cache, and circuit breaker."""
 
+import contextlib
 import json
 import logging
 import os
@@ -70,6 +71,18 @@ class CatalogResponseCache:
         self.ttl_seconds = ttl_seconds
         self._store: OrderedDict[str, tuple[float, list[dict[str, Any]]]] = OrderedDict()
         self._lock = threading.Lock()
+        self._inflight_locks: dict[str, threading.Lock] = {}
+
+    def get_inflight_lock(self, key: str) -> threading.Lock:
+        """Return a per-key lock so concurrent cache misses for the same key coalesce."""
+        with self._lock:
+            lock = self._inflight_locks.get(key)
+            if lock is None:
+                if len(self._inflight_locks) >= self.max_size * 2:
+                    self._inflight_locks.clear()
+                lock = threading.Lock()
+                self._inflight_locks[key] = lock
+            return lock
 
     def get(self, key: str) -> list[dict[str, Any]] | None:
         with self._lock:
@@ -96,6 +109,7 @@ class CatalogResponseCache:
     def clear(self) -> None:
         with self._lock:
             self._store.clear()
+            self._inflight_locks.clear()
 
 
 catalog_circuit_breaker = CatalogCircuitBreaker()
@@ -113,7 +127,17 @@ def _get_shared_bq_client() -> bigquery.Client:
     global _SHARED_BQ_CLIENT
     with _BQ_CLIENT_LOCK:
         if _SHARED_BQ_CLIENT is None:
-            _SHARED_BQ_CLIENT = bigquery.Client(project=settings.gcp_project)
+            client = bigquery.Client(project=settings.gcp_project)
+            try:
+                from requests.adapters import HTTPAdapter
+
+                adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
+                if hasattr(client, "_http") and hasattr(client._http, "mount"):
+                    client._http.mount("https://", adapter)
+                    client._http.mount("http://", adapter)
+            except Exception:
+                pass
+            _SHARED_BQ_CLIENT = client
         return _SHARED_BQ_CLIENT
 
 
@@ -318,352 +342,367 @@ def query_catalog(
                 span.set_attribute("bq.bytes_billed", 0)
                 span.set_status(StatusCode.OK)
                 return cached_products
-        span.set_attribute("bq.cache_hit", False)
 
-        injected_client = client is not None
-        if client is None:
-            import app.agent.hermetic_adapter as ha
+        with contextlib.ExitStack() as _inflight_stack:
+            if should_cache:
+                _inflight_stack.enter_context(catalog_cache.get_inflight_lock(cache_key))
+                cached_products = catalog_cache.get(cache_key)
+                if cached_products is not None:
+                    span.set_attribute("bq.cache_hit", True)
+                    span.set_attribute("bq.result_count", len(cached_products))
+                    span.set_attribute("bq.bytes_billed", 0)
+                    span.set_status(StatusCode.OK)
+                    return cached_products
+            span.set_attribute("bq.cache_hit", False)
 
-            if (
-                os.environ.get("PYTEST_CURRENT_TEST")
-                or getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
-            ) and not hasattr(bigquery.Client, "assert_called"):
-                client = ha.create_hermetic_bq_client()
-            elif hasattr(bigquery.Client, "assert_called"):
-                client = bigquery.Client(project=settings.gcp_project)
-            else:
-                client = _get_shared_bq_client()
+            injected_client = client is not None
+            if client is None:
+                import app.agent.hermetic_adapter as ha
 
-        patterns = [f"%{k}%" for k in clean_keywords]
-        # Also include individual model/brand sub-tokens so non-contiguous catalog names match
-        stopwords = {
-            "about",
-            "an",
-            "and",
-            "are",
-            "as",
-            "at",
-            "be",
-            "been",
-            "best",
-            "better",
-            "by",
-            "describe",
-            "details",
-            "do",
-            "feature",
-            "features",
-            "find",
-            "for",
-            "from",
-            "give",
-            "go",
-            "good",
-            "he",
-            "how",
-            "if",
-            "in",
-            "info",
-            "information",
-            "is",
-            "it",
-            "look",
-            "looking",
-            "me",
-            "my",
-            "need",
-            "no",
-            "of",
-            "on",
-            "or",
-            "search",
-            "show",
-            "so",
-            "spec",
-            "specs",
-            "speed",
-            "tell",
-            "the",
-            "to",
-            "top",
-            "up",
-            "us",
-            "versus",
-            "vs",
-            "want",
-            "was",
-            "we",
-            "were",
-            "what",
-            "when",
-            "where",
-            "which",
-            "who",
-            "why",
-            "with",
-        }
-        for k in clean_keywords:
-            tokens = [
-                t.lower()
-                for t in re.findall(r"[a-zA-Z0-9]+", k)
-                if t.lower() not in stopwords and len(t) >= 2
-            ]
-            for t in tokens:
-                patterns.append(f"%{t}%")
-        # Deduplicate while preserving order
-        patterns = list(dict.fromkeys(patterns))
-
-        query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
-            bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),
-        ]
-
-        where_clauses = [
-            "(EXISTS (SELECT 1 FROM UNNEST(@product_patterns) AS pat "
-            "WHERE LOWER(name) LIKE LOWER(pat) "
-            "OR LOWER(brand) LIKE LOWER(pat) "
-            "OR LOWER(category) LIKE LOWER(pat)))"
-        ]
-
-        if category:
-            where_clauses.append("LOWER(category) = LOWER(@category)")
-            query_params.append(
-                bigquery.ScalarQueryParameter("category", "STRING", category.strip())
-            )
-
-        if min_price is not None:
-            where_clauses.append("price >= @min_price")
-            query_params.append(
-                bigquery.ScalarQueryParameter("min_price", "FLOAT64", float(min_price))
-            )
-
-        if max_price is not None:
-            where_clauses.append("price <= @max_price")
-            query_params.append(
-                bigquery.ScalarQueryParameter("max_price", "FLOAT64", float(max_price))
-            )
-
-        where_sql = " AND ".join(where_clauses)
-        query_sql = f"""
-        SELECT sku, name, brand, category, price, rating, review_count, specifications, url, image_url, in_stock
-        FROM `{settings.catalog_table_id}`
-        WHERE {where_sql}
-        QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
-        ORDER BY
-          (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat)) DESC,
-          price ASC
-        LIMIT @limit
-        """.strip()
-
-        query_params.append(bigquery.ScalarQueryParameter("limit", "INT64", int(limit)))
-        max_bytes = int(getattr(settings, "bq_max_bytes_billed", 50 * 1024 * 1024))
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=query_params,
-            maximum_bytes_billed=max_bytes,
-        )
-        span.set_attribute("bq.max_bytes_billed", max_bytes)
-        span.set_attribute("bq.circuit_state", catalog_circuit_breaker.state)
-
-        if not catalog_circuit_breaker.allow_request():
-            cb_err = RuntimeError("CatalogCircuitBreaker is OPEN; fast-failing BigQuery request")
-            span.record_exception(cb_err)
-            span.set_status(StatusCode.ERROR, str(cb_err))
-            raise cb_err
-
-        # Resilient execution with timeout and randomized full-jitter exponential backoff retry
-        max_retries = max(0, settings.bq_max_retries)
-        timeout_seconds = max(0.1, settings.bq_timeout_seconds)
-        total_attempts = max_retries + 1
-        last_error: Exception | None = None
-        results = None
-        query_job = None
-
-        start_time = time.perf_counter()
-
-        for attempt in range(1, total_attempts + 1):
-            try:
-                logger.info(
-                    "Executing BigQuery catalog query (attempt %d/%d) for keywords: %s",
-                    attempt,
-                    total_attempts,
-                    clean_keywords,
-                    extra={
-                        "sql_query": query_sql,
-                        "sql_query_parameters": {
-                            "product_patterns": patterns,
-                            "category": category,
-                            "min_price": min_price,
-                            "max_price": max_price,
-                            "limit": limit,
-                        },
-                        "attempt": attempt,
-                    },
-                )
                 if (
-                    not injected_client
-                    and not hasattr(bigquery.Client, "assert_called")
-                    and not hasattr(client.query, "assert_called")
-                    and hasattr(client, "query_and_wait")
-                ):
-                    results = client.query_and_wait(
-                        query_sql, job_config=job_config, wait_timeout=timeout_seconds
-                    )
-                    query_job = results
+                    os.environ.get("PYTEST_CURRENT_TEST")
+                    or getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
+                ) and not hasattr(bigquery.Client, "assert_called"):
+                    client = ha.create_hermetic_bq_client()
+                elif hasattr(bigquery.Client, "assert_called"):
+                    client = bigquery.Client(project=settings.gcp_project)
                 else:
-                    query_job = client.query(query_sql, job_config=job_config)
-                    # Enforce query result timeout
-                    results = query_job.result(timeout=timeout_seconds)
-                catalog_circuit_breaker.record_success()
-                break
-            except Exception as err:
-                last_error = err
-                catalog_circuit_breaker.record_failure()
-                logger.warning(
-                    "BigQuery catalog query attempt %d failed: %s",
-                    attempt,
-                    err,
+                    client = _get_shared_bq_client()
+
+            patterns = [f"%{k}%" for k in clean_keywords]
+            # Also include individual model/brand sub-tokens so non-contiguous catalog names match
+            stopwords = {
+                "about",
+                "an",
+                "and",
+                "are",
+                "as",
+                "at",
+                "be",
+                "been",
+                "best",
+                "better",
+                "by",
+                "describe",
+                "details",
+                "do",
+                "feature",
+                "features",
+                "find",
+                "for",
+                "from",
+                "give",
+                "go",
+                "good",
+                "he",
+                "how",
+                "if",
+                "in",
+                "info",
+                "information",
+                "is",
+                "it",
+                "look",
+                "looking",
+                "me",
+                "my",
+                "need",
+                "no",
+                "of",
+                "on",
+                "or",
+                "search",
+                "show",
+                "so",
+                "spec",
+                "specs",
+                "speed",
+                "tell",
+                "the",
+                "to",
+                "top",
+                "up",
+                "us",
+                "versus",
+                "vs",
+                "want",
+                "was",
+                "we",
+                "were",
+                "what",
+                "when",
+                "where",
+                "which",
+                "who",
+                "why",
+                "with",
+            }
+            for k in clean_keywords:
+                tokens = [
+                    t.lower()
+                    for t in re.findall(r"[a-zA-Z0-9]+", k)
+                    if t.lower() not in stopwords and len(t) >= 2
+                ]
+                for t in tokens:
+                    patterns.append(f"%{t}%")
+            # Deduplicate while preserving order
+            patterns = list(dict.fromkeys(patterns))
+
+            query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
+                bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),
+            ]
+
+            where_clauses = [
+                "(EXISTS (SELECT 1 FROM UNNEST(@product_patterns) AS pat "
+                "WHERE LOWER(name) LIKE LOWER(pat) "
+                "OR LOWER(brand) LIKE LOWER(pat) "
+                "OR LOWER(category) LIKE LOWER(pat)))"
+            ]
+
+            if category:
+                where_clauses.append("LOWER(category) = LOWER(@category)")
+                query_params.append(
+                    bigquery.ScalarQueryParameter("category", "STRING", category.strip())
                 )
-                err_low = str(err).lower()
-                if any(k in err_low for k in ("reauth", "credentials", "unauthenticated")):
+
+            if min_price is not None:
+                where_clauses.append("price >= @min_price")
+                query_params.append(
+                    bigquery.ScalarQueryParameter("min_price", "FLOAT64", float(min_price))
+                )
+
+            if max_price is not None:
+                where_clauses.append("price <= @max_price")
+                query_params.append(
+                    bigquery.ScalarQueryParameter("max_price", "FLOAT64", float(max_price))
+                )
+
+            where_sql = " AND ".join(where_clauses)
+            query_sql = f"""
+            SELECT sku, name, brand, category, price, rating, review_count, specifications, url, image_url, in_stock
+            FROM `{settings.catalog_table_id}`
+            WHERE {where_sql}
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
+            ORDER BY
+              (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat)) DESC,
+              price ASC
+            LIMIT @limit
+            """.strip()
+
+            query_params.append(bigquery.ScalarQueryParameter("limit", "INT64", int(limit)))
+            max_bytes = int(getattr(settings, "bq_max_bytes_billed", 50 * 1024 * 1024))
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=query_params,
+                maximum_bytes_billed=max_bytes,
+            )
+            span.set_attribute("bq.max_bytes_billed", max_bytes)
+            span.set_attribute("bq.circuit_state", catalog_circuit_breaker.state)
+
+            if not catalog_circuit_breaker.allow_request():
+                cb_err = RuntimeError(
+                    "CatalogCircuitBreaker is OPEN; fast-failing BigQuery request"
+                )
+                span.record_exception(cb_err)
+                span.set_status(StatusCode.ERROR, str(cb_err))
+                raise cb_err
+
+            # Resilient execution with timeout and randomized full-jitter exponential backoff retry
+            max_retries = max(0, settings.bq_max_retries)
+            timeout_seconds = max(0.1, settings.bq_timeout_seconds)
+            total_attempts = max_retries + 1
+            last_error: Exception | None = None
+            results = None
+            query_job = None
+
+            start_time = time.perf_counter()
+
+            for attempt in range(1, total_attempts + 1):
+                try:
+                    logger.info(
+                        "Executing BigQuery catalog query (attempt %d/%d) for keywords: %s",
+                        attempt,
+                        total_attempts,
+                        clean_keywords,
+                        extra={
+                            "sql_query": query_sql,
+                            "sql_query_parameters": {
+                                "product_patterns": patterns,
+                                "category": category,
+                                "min_price": min_price,
+                                "max_price": max_price,
+                                "limit": limit,
+                            },
+                            "attempt": attempt,
+                        },
+                    )
                     if (
                         not injected_client
                         and not hasattr(bigquery.Client, "assert_called")
-                        and not os.environ.get("PYTEST_CURRENT_TEST")
+                        and not hasattr(client.query, "assert_called")
+                        and hasattr(client, "query_and_wait")
                     ):
-                        import app.agent.hermetic_adapter as ha
-
-                        ha._VERTEX_AUTH_UNAVAILABLE = True
-                        catalog_circuit_breaker.reset()
-                        herm_client = ha.create_hermetic_bq_client()
-                        query_job = herm_client.query(query_sql, job_config=job_config)
+                        results = client.query_and_wait(
+                            query_sql, job_config=job_config, wait_timeout=timeout_seconds
+                        )
+                        query_job = results
+                    else:
+                        query_job = client.query(query_sql, job_config=job_config)
+                        # Enforce query result timeout
                         results = query_job.result(timeout=timeout_seconds)
-                        last_error = None
+                    catalog_circuit_breaker.record_success()
                     break
-                if attempt < total_attempts:
-                    max_backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
-                    backoff = random.uniform(0.005, max_backoff)
-                    time.sleep(backoff)
+                except Exception as err:
+                    last_error = err
+                    catalog_circuit_breaker.record_failure()
+                    logger.warning(
+                        "BigQuery catalog query attempt %d failed: %s",
+                        attempt,
+                        err,
+                    )
+                    err_low = str(err).lower()
+                    if any(k in err_low for k in ("reauth", "credentials", "unauthenticated")):
+                        if (
+                            not injected_client
+                            and not hasattr(bigquery.Client, "assert_called")
+                            and not os.environ.get("PYTEST_CURRENT_TEST")
+                        ):
+                            import app.agent.hermetic_adapter as ha
 
-        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
-        span.set_attribute("bq.latency_ms", latency_ms)
+                            ha._VERTEX_AUTH_UNAVAILABLE = True
+                            catalog_circuit_breaker.reset()
+                            herm_client = ha.create_hermetic_bq_client()
+                            query_job = herm_client.query(query_sql, job_config=job_config)
+                            results = query_job.result(timeout=timeout_seconds)
+                            last_error = None
+                        break
+                    if attempt < total_attempts:
+                        max_backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
+                        backoff = random.uniform(0.005, max_backoff)
+                        time.sleep(backoff)
 
-        if results is None:
-            if injected_client:
-                catalog_circuit_breaker.reset()
-            # All retry attempts exhausted; record exception and re-raise to avoid muted errors
-            if last_error:
-                span.record_exception(last_error)
-                span.set_status(StatusCode.ERROR, str(last_error))
-                logger.error(
-                    "BigQuery query failed after %d attempts: %s",
-                    total_attempts,
-                    last_error,
-                    exc_info=True,
-                )
-                raise last_error
-            return []
+            latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            span.set_attribute("bq.latency_ms", latency_ms)
 
-        # Extract bytes billed metric for Cloud Trace attribute
-        bytes_billed = 0
-        if query_job is not None:
-            raw_billed = getattr(query_job, "total_bytes_billed", None)
-            if raw_billed is None:
-                raw_billed = getattr(query_job, "bytes_billed", 0)
-            try:
-                bytes_billed = int(raw_billed)
-            except (TypeError, ValueError):
-                bytes_billed = 0
+            if results is None:
+                if injected_client:
+                    catalog_circuit_breaker.reset()
+                # All retry attempts exhausted; record exception and re-raise to avoid muted errors
+                if last_error:
+                    span.record_exception(last_error)
+                    span.set_status(StatusCode.ERROR, str(last_error))
+                    logger.error(
+                        "BigQuery query failed after %d attempts: %s",
+                        total_attempts,
+                        last_error,
+                        exc_info=True,
+                    )
+                    raise last_error
+                return []
 
-        span.set_attribute("bq.bytes_billed", bytes_billed)
-        span.set_attribute("bq_bytes_billed", bytes_billed)
-
-        products: list[dict[str, Any]] = []
-        seen_skus: set[str] = set()
-        for row in results:
-            row_dict = dict(row) if hasattr(row, "keys") else row
-            sku = str(row_dict.get("sku") or "").strip()
-
-            if not sku:
-                logger.warning("Quarantining row with missing primary key SKU: %s", row_dict)
-                continue
-
-            if sku in seen_skus:
-                logger.debug("Deduplicating already retrieved product with SKU: %s", sku)
-                continue
-
-            specs_raw = row_dict.get("specifications")
-            if isinstance(specs_raw, str):
+            # Extract bytes billed metric for Cloud Trace attribute
+            bytes_billed = 0
+            if query_job is not None:
+                raw_billed = getattr(query_job, "total_bytes_billed", None)
+                if raw_billed is None:
+                    raw_billed = getattr(query_job, "bytes_billed", 0)
                 try:
-                    specifications = json.loads(specs_raw)
-                except Exception as e:
-                    logger.warning("Failed to parse specifications JSON for sku %s: %s", sku, e)
+                    bytes_billed = int(raw_billed)
+                except (TypeError, ValueError):
+                    bytes_billed = 0
+
+            span.set_attribute("bq.bytes_billed", bytes_billed)
+            span.set_attribute("bq_bytes_billed", bytes_billed)
+
+            products: list[dict[str, Any]] = []
+            seen_skus: set[str] = set()
+            for row in results:
+                row_dict = dict(row) if hasattr(row, "keys") else row
+                sku = str(row_dict.get("sku") or "").strip()
+
+                if not sku:
+                    logger.warning("Quarantining row with missing primary key SKU: %s", row_dict)
+                    continue
+
+                if sku in seen_skus:
+                    logger.debug("Deduplicating already retrieved product with SKU: %s", sku)
+                    continue
+
+                specs_raw = row_dict.get("specifications")
+                if isinstance(specs_raw, str):
+                    try:
+                        specifications = json.loads(specs_raw)
+                    except Exception as e:
+                        logger.warning("Failed to parse specifications JSON for sku %s: %s", sku, e)
+                        specifications = {}
+                elif isinstance(specs_raw, dict):
+                    specifications = specs_raw
+                else:
                     specifications = {}
-            elif isinstance(specs_raw, dict):
-                specifications = specs_raw
-            else:
-                specifications = {}
 
-            url = row_dict.get("url")
-            if not url and sku:
-                url = f"https://www.techbuy.com/site/sku/{sku}.p"
+                url = row_dict.get("url")
+                if not url and sku:
+                    url = f"https://www.techbuy.com/site/sku/{sku}.p"
 
-            try:
-                raw_price = row_dict.get("price")
-                price = float(raw_price) if raw_price is not None else 0.0
-            except (ValueError, TypeError):
-                logger.warning(
-                    "Quarantining row with corrupted price '%s' for sku '%s'",
-                    row_dict.get("price"),
-                    sku,
-                )
-                continue
+                try:
+                    raw_price = row_dict.get("price")
+                    price = float(raw_price) if raw_price is not None else 0.0
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "Quarantining row with corrupted price '%s' for sku '%s'",
+                        row_dict.get("price"),
+                        sku,
+                    )
+                    continue
 
-            try:
-                rating = float(row_dict["rating"]) if row_dict.get("rating") is not None else None
-            except (ValueError, TypeError):
-                rating = None
+                try:
+                    rating = (
+                        float(row_dict["rating"]) if row_dict.get("rating") is not None else None
+                    )
+                except (ValueError, TypeError):
+                    rating = None
 
-            try:
-                review_count = (
-                    int(row_dict["review_count"])
-                    if row_dict.get("review_count") is not None
-                    else None
-                )
-            except (ValueError, TypeError):
-                review_count = None
+                try:
+                    review_count = (
+                        int(row_dict["review_count"])
+                        if row_dict.get("review_count") is not None
+                        else None
+                    )
+                except (ValueError, TypeError):
+                    review_count = None
 
-            product = {
-                "sku": sku,
-                "name": str(row_dict.get("name") or ""),
-                "brand": str(row_dict.get("brand") or ""),
-                "category": row_dict.get("category"),
-                "price": price,
-                "rating": rating,
-                "review_count": review_count,
-                "specifications": specifications,
-                "url": url,
-                "image_url": row_dict.get("image_url"),
-                "in_stock": bool(row_dict.get("in_stock", True)),
-            }
-            seen_skus.add(sku)
-            products.append(product)
+                product = {
+                    "sku": sku,
+                    "name": str(row_dict.get("name") or ""),
+                    "brand": str(row_dict.get("brand") or ""),
+                    "category": row_dict.get("category"),
+                    "price": price,
+                    "rating": rating,
+                    "review_count": review_count,
+                    "specifications": specifications,
+                    "url": url,
+                    "image_url": row_dict.get("image_url"),
+                    "in_stock": bool(row_dict.get("in_stock", True)),
+                }
+                seen_skus.add(sku)
+                products.append(product)
 
-        span.set_attribute("bq.result_count", len(products))
-        target_skus = [p["sku"] for p in products if p.get("sku")]
-        span.set_attribute("target_skus", ",".join(target_skus))
-        span.set_status(StatusCode.OK)
+            span.set_attribute("bq.result_count", len(products))
+            target_skus = [p["sku"] for p in products if p.get("sku")]
+            span.set_attribute("target_skus", ",".join(target_skus))
+            span.set_status(StatusCode.OK)
 
-        logger.info(
-            "Retrieved %d matched products from catalog (bytes billed: %d, latency: %.2fms)",
-            len(products),
-            bytes_billed,
-            latency_ms,
-            extra={
-                "bq_bytes_billed": bytes_billed,
-                "result_count": len(products),
-                "target_skus": target_skus,
-                "latency_ms": latency_ms,
-            },
-        )
-        if should_cache:
-            catalog_cache.set(cache_key, products)
-        return products
+            logger.info(
+                "Retrieved %d matched products from catalog (bytes billed: %d, latency: %.2fms)",
+                len(products),
+                bytes_billed,
+                latency_ms,
+                extra={
+                    "bq_bytes_billed": bytes_billed,
+                    "result_count": len(products),
+                    "target_skus": target_skus,
+                    "latency_ms": latency_ms,
+                },
+            )
+            if should_cache:
+                catalog_cache.set(cache_key, products)
+            return products

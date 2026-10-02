@@ -67,9 +67,13 @@ class ComparisonAgentState:
 class QueryIntentAgent:
     """Specialist agent responsible for query parsing, intent extraction, and security sanitization."""
 
-    def __init__(self, model: str | None = None) -> None:
-        self.model, _, _ = resolve_model_pair(model=model)
-        self.orchestrator = ComparisonOrchestrator(model=self.model)
+    def __init__(self, model: str | None = None, synthesis_model: str | None = None) -> None:
+        self.model, self.synthesis_model, _ = resolve_model_pair(
+            model=model, synthesis_model=synthesis_model
+        )
+        self.orchestrator = ComparisonOrchestrator(
+            model=self.model, synthesis_model=self.synthesis_model
+        )
         self.adk_agent = Agent(
             name="query_intent_specialist",
             model=self.model,
@@ -87,6 +91,7 @@ class QueryIntentAgent:
             state.sanitized_query = sanitize_user_prompt(state.raw_query)
             span.set_attribute("agent.input_length", len(state.raw_query))
             active_model = state.model or self.model
+            active_synthesis = state.synthesis_model or self.synthesis_model
             span.set_attribute("ai.model.name", active_model)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
@@ -95,8 +100,9 @@ class QueryIntentAgent:
             orchestrator = (
                 self.orchestrator
                 if active_model == self.model
-                else ComparisonOrchestrator(model=active_model)
+                else ComparisonOrchestrator(model=active_model, synthesis_model=active_synthesis)
             )
+            orchestrator.synthesis_model = active_synthesis
             orchestrator._active_category_hint = state.detected_category
             intent_analysis = orchestrator.classify_intent(
                 state.sanitized_query, model=active_model
@@ -199,9 +205,20 @@ CatalogRetrievalAgent = CatalogRetrievalStep
 class RelevanceDetectorAgent:
     """Specialist agent responsible for evaluating retrieved product relevance using LLM reranker."""
 
-    def __init__(self, bq_client: bigquery.Client | None = None, model: str | None = None) -> None:
-        self.model, _, _ = resolve_model_pair(model=model)
-        self.orchestrator = ComparisonOrchestrator(bq_client=bq_client, model=self.model)
+    def __init__(
+        self,
+        bq_client: bigquery.Client | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+    ) -> None:
+        self.model, self.synthesis_model, _ = resolve_model_pair(
+            model=model, synthesis_model=synthesis_model
+        )
+        self.orchestrator = ComparisonOrchestrator(
+            bq_client=bq_client,
+            model=self.model,
+            synthesis_model=self.synthesis_model,
+        )
         self.adk_agent = Agent(
             name="relevance_detector_specialist",
             model=self.model,
@@ -216,6 +233,8 @@ class RelevanceDetectorAgent:
         """Execute LLM reranker and verify whether selected products genuinely match query intent."""
         with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as span:
             active_model = state.model or self.model
+            active_synthesis = state.synthesis_model or self.synthesis_model
+            self.orchestrator.synthesis_model = active_synthesis
             span.set_attribute("ai.model.name", active_model)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
@@ -470,9 +489,13 @@ class MultiAgentCoordinator:
         self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
             model=model, synthesis_model=synthesis_model
         )
-        self.intent_agent = QueryIntentAgent(model=self.model)
+        self.intent_agent = QueryIntentAgent(
+            model=self.model, synthesis_model=self.synthesis_model
+        )
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
-        self.relevance_agent = RelevanceDetectorAgent(bq_client=bq_client, model=self.model)
+        self.relevance_agent = RelevanceDetectorAgent(
+            bq_client=bq_client, model=self.model, synthesis_model=self.synthesis_model
+        )
         self.comparison_agent = SpecComparisonAgent(
             bq_client=bq_client,
             model=self.model,
@@ -650,6 +673,17 @@ class MultiAgentCoordinator:
             span.set_attribute("pipeline.timing.synthesis_ms", synthesis_ms)
             span.set_attribute("pipeline.timing.total_ms", total_ms)
 
+            total_in_tokens = (
+                self.intent_agent.orchestrator.last_input_tokens
+                + self.relevance_agent.orchestrator.last_input_tokens
+                + self.comparison_agent.orchestrator.last_input_tokens
+            )
+            total_out_tokens = (
+                self.intent_agent.orchestrator.last_output_tokens
+                + self.relevance_agent.orchestrator.last_output_tokens
+                + self.comparison_agent.orchestrator.last_output_tokens
+            )
+
             if state.comparison_response is None:
                 return CompareResponse(
                     summary="Unable to process comparison query.",
@@ -662,9 +696,15 @@ class MultiAgentCoordinator:
                     synthesis_model=active_synthesis,
                     prompt_version=resolved_prompt_ver,
                     timing_breakdown_ms=timing_breakdown,
+                    input_tokens=total_in_tokens if total_in_tokens > 0 else None,
+                    output_tokens=total_out_tokens if total_out_tokens > 0 else None,
                 )
 
             state.comparison_response.timing_breakdown_ms = timing_breakdown
+            if total_in_tokens > 0:
+                state.comparison_response.input_tokens = total_in_tokens
+            if total_out_tokens > 0:
+                state.comparison_response.output_tokens = total_out_tokens
             return state.comparison_response
 
     def chat(

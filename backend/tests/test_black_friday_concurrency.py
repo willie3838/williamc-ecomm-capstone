@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import threading
-from typing import Any
 from unittest.mock import MagicMock
 
 from opentelemetry import trace
@@ -14,8 +13,8 @@ from app.agent.orchestrator import (
     _SPECULATIVE_RERANK_FUTURES,
     _SPECULATIVE_SYNTH_FUTURES,
     ComparisonOrchestrator,
-    _get_or_create_speculative_future,
-    _get_speculative_future,
+    _has_speculative_future,
+    _pop_speculative_future,
     _store_speculative_future,
 )
 from app.data.analytics import _MAX_LOCAL_SESSIONS, AnalyticsService
@@ -65,36 +64,40 @@ def test_speculative_futures_bounded_fifo_eviction() -> None:
         _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{i}"), fut)
 
     assert len(_SPECULATIVE_SYNTH_FUTURES) == _MAX_SPECULATIVE_FUTURES
-    assert _get_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), "q-0")) is None
-    latest = _get_speculative_future(
+    assert not _has_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), "q-0"))
+    latest = _pop_speculative_future(
         _SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{total_to_insert - 1}")
     )
     assert latest is not None
     assert latest.result() == f"val-{total_to_insert - 1}"
+    # Once popped by the request that launched it, subsequent calls must not reuse it
+    assert (
+        _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{total_to_insert - 1}"))
+        is None
+    )
     _SPECULATIVE_SYNTH_FUTURES.clear()
 
 
-def test_speculative_future_non_destructive_coalescing() -> None:
-    """Multiple concurrent callers asking the same query must share a single in-flight Future."""
-    cache: dict[tuple[Any, ...], concurrent.futures.Future[Any]] = {}
-    call_count = 0
-    call_lock = threading.Lock()
+def test_speculative_future_pop_on_claim_no_cross_request_reuse() -> None:
+    """Each request must claim and pop its own speculative future without cross-request reuse."""
+    _SPECULATIVE_SYNTH_FUTURES.clear()
+    key = (("SKU1", "SKU2"), "MacBook vs XPS", "gemini-2.5-pro")
+    fut1: concurrent.futures.Future[str] = concurrent.futures.Future()
+    fut1.set_result("req-1-synthesis")
+    fut2: concurrent.futures.Future[str] = concurrent.futures.Future()
+    fut2.set_result("req-2-synthesis")
 
-    def _expensive_llm_call() -> str:
-        nonlocal call_count
-        with call_lock:
-            call_count += 1
-        return "coalesced-response"
+    _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key, fut1)
+    _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key, fut2)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-        futures = [
-            _get_or_create_speculative_future(cache, ("MacBook vs XPS",), pool, _expensive_llm_call)
-            for _ in range(16)
-        ]
-        outputs = [f.result(timeout=2.0) for f in futures]
+    claimed1 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
+    claimed2 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
+    claimed3 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
 
-    assert all(o == "coalesced-response" for o in outputs)
-    assert call_count == 1
+    assert claimed1 is not None and claimed1.result() == "req-1-synthesis"
+    assert claimed2 is not None and claimed2.result() == "req-2-synthesis"
+    assert claimed3 is None
+    _SPECULATIVE_SYNTH_FUTURES.clear()
 
 
 def test_analytics_local_sessions_bounded_and_thread_safe() -> None:

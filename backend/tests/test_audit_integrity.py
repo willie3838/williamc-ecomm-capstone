@@ -325,3 +325,60 @@ def test_verify_and_scrub_synthesis_claims_no_artificial_concatenation():
     assert "[SKU: 6575132]" not in scrubbed_s, (
         "Must not artificially inject missing SKU into summary!"
     )
+
+
+def test_no_cross_request_llm_future_caching() -> None:
+    """orchestrator.py must pop intra-request speculative futures and never cache LLM responses across requests."""
+    source = (BACKEND_DIR / "src" / "app" / "agent" / "orchestrator.py").read_text(encoding="utf-8")
+    assert "_SPECULATIVE_INTENT_FUTURES" not in source, (
+        "Cross-request intent future cache is forbidden!"
+    )
+    assert "_SPECULATIVE_CHAT_FUTURES" not in source, (
+        "Cross-request chat future cache is forbidden!"
+    )
+    assert "def _get_speculative_future(" not in source, (
+        "Non-destructive _get_speculative_future cross-request cache lookup is forbidden!"
+    )
+    assert "def _get_or_create_speculative_future(" not in source, (
+        "Cross-request _get_or_create_speculative_future is forbidden!"
+    )
+
+
+def test_chat_with_products_uses_active_model_not_flash_lite() -> None:
+    """chat_with_products must use active_model rather than hardcoding gemini-2.5-flash-lite."""
+    source = (BACKEND_DIR / "src" / "app" / "agent" / "orchestrator.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "chat_with_products":
+            fn_src = ast.get_source_segment(source, node) or ""
+            assert 'call_model = "gemini-2.5-flash-lite"' not in fn_src, (
+                "chat_with_products must not downgrade active_model to gemini-2.5-flash-lite!"
+            )
+            assert "call_model = active_model" in fn_src
+            return
+    raise AssertionError("Could not find chat_with_products in orchestrator.py")
+
+
+def test_analytics_service_no_fake_uuid_shortcut() -> None:
+    """analytics.py must not use _is_client_mocked or return synthetic act-/fb- UUIDs before Firestore write."""
+    source = (BACKEND_DIR / "src" / "app" / "data" / "analytics.py").read_text(encoding="utf-8")
+    assert "_is_client_mocked" not in source, "analytics.py must not branch on _is_client_mocked!"
+    assert 'f"act-{uuid' not in source, "analytics.py must not fabricate act-<uuid> document IDs!"
+    assert 'f"fb-{uuid' not in source, "analytics.py must not fabricate fb-<uuid> document IDs!"
+
+
+def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists() -> None:
+    """MultiAgentCoordinator must propagate synthesis_model to QueryIntentAgent and RelevanceDetectorAgent."""
+    from app.agent.multi_agent import MultiAgentCoordinator
+
+    mock_bq = MagicMock()
+    coordinator = MultiAgentCoordinator(
+        bq_client=mock_bq,
+        model="gemini-2.5-flash",
+        synthesis_model="gemini-2.5-pro",
+    )
+    assert coordinator.intent_agent.synthesis_model == "gemini-2.5-pro"
+    assert coordinator.relevance_agent.synthesis_model == "gemini-2.5-pro"
+    assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
+
+
