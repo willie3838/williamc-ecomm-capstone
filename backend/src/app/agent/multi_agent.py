@@ -25,6 +25,7 @@ from google.cloud import bigquery
 from app.agent.orchestrator import (
     ComparisonOrchestrator,
     resolve_model_pair,
+    resolve_stage_models,
     sanitize_user_prompt,
 )
 from app.agent.prompts import SYSTEM_INSTRUCTION
@@ -62,6 +63,9 @@ class ComparisonAgentState:
     trace_id: str | None = None
     model: str | None = None
     synthesis_model: str | None = None
+    stage1_model: str | None = None
+    stage2_model: str | None = None
+    stage3_model: str | None = None
 
 
 class QueryIntentAgent:
@@ -90,8 +94,8 @@ class QueryIntentAgent:
         with tracer.start_as_current_span("agent.stage_1.query_intent") as span:
             state.sanitized_query = sanitize_user_prompt(state.raw_query)
             span.set_attribute("agent.input_length", len(state.raw_query))
-            active_model = state.model or self.model
-            active_synthesis = state.synthesis_model or self.synthesis_model
+            active_model = state.stage1_model or state.model or self.model
+            active_synthesis = state.stage3_model or state.synthesis_model or self.synthesis_model
             span.set_attribute("ai.model.name", active_model)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
@@ -232,8 +236,8 @@ class RelevanceDetectorAgent:
     def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
         """Execute LLM reranker and verify whether selected products genuinely match query intent."""
         with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as span:
-            active_model = state.model or self.model
-            active_synthesis = state.synthesis_model or self.synthesis_model
+            active_model = state.stage2_model or state.model or self.model
+            active_synthesis = state.stage3_model or state.synthesis_model or self.synthesis_model
             self.orchestrator.synthesis_model = active_synthesis
             span.set_attribute("ai.model.name", active_model)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
@@ -342,8 +346,8 @@ class SpecComparisonAgent:
         self.orchestrator.last_input_tokens = 0
         self.orchestrator.last_output_tokens = 0
         with tracer.start_as_current_span("agent.stage_4.spec_synthesis") as span:
-            active_synthesis = state.synthesis_model or self.synthesis_model
-            active_routing = state.model or self.model
+            active_synthesis = state.stage3_model or state.synthesis_model or self.synthesis_model
+            active_routing = state.stage1_model or state.model or self.model
             span.set_attribute("ai.synthesis_model.name", active_synthesis)
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
@@ -481,22 +485,37 @@ class MultiAgentCoordinator:
         bq_client: bigquery.Client | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        use_stage_optimal_models: bool = False,
     ) -> None:
         from app.agent.hermetic_adapter import _warm_vertex_client_and_auth
 
         _warm_vertex_client_and_auth()
         self.bq_client = bq_client
+        self.use_stage_optimal_models = use_stage_optimal_models or (
+            model is not None and model.lower() == "stage-optimal"
+        )
         self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
             model=model, synthesis_model=synthesis_model
         )
-        self.intent_agent = QueryIntentAgent(model=self.model, synthesis_model=self.synthesis_model)
+
+        if self.use_stage_optimal_models:
+            stage_cfg = resolve_stage_models()
+            s1_model = stage_cfg["stage1_intent"]
+            s2_model = stage_cfg["stage2_relevance"]
+            s3_model = stage_cfg["stage3_synthesis"]
+        else:
+            s1_model = self.model
+            s2_model = self.model
+            s3_model = self.synthesis_model
+
+        self.intent_agent = QueryIntentAgent(model=s1_model, synthesis_model=self.synthesis_model)
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
         self.relevance_agent = RelevanceDetectorAgent(
-            bq_client=bq_client, model=self.model, synthesis_model=self.synthesis_model
+            bq_client=bq_client, model=s2_model, synthesis_model=self.synthesis_model
         )
         self.comparison_agent = SpecComparisonAgent(
             bq_client=bq_client,
-            model=self.model,
+            model=s3_model,
             synthesis_model=self.synthesis_model,
         )
         self.orchestrator = self.comparison_agent.orchestrator
@@ -520,6 +539,7 @@ class MultiAgentCoordinator:
         model: str | None = None,
         synthesis_model: str | None = None,
         use_llm_tool_call: bool = False,
+        use_stage_optimal_models: bool = False,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline."""
         from app.agent.prompts_service import get_active_prompt
@@ -551,7 +571,24 @@ class MultiAgentCoordinator:
             default_model=settings.gemini_model,
         )
 
-        if (model and model.lower() == "tiered-hybrid") or is_hybrid:
+        use_optimal = (
+            use_stage_optimal_models
+            or self.use_stage_optimal_models
+            or (model is not None and model.lower() == "stage-optimal")
+        )
+        if use_optimal:
+            stage_cfg = resolve_stage_models()
+            s1_active = stage_cfg["stage1_intent"]
+            s2_active = stage_cfg["stage2_relevance"]
+            s3_active = stage_cfg["stage3_synthesis"]
+        else:
+            s1_active = active_routing
+            s2_active = active_routing
+            s3_active = active_synthesis
+
+        if (model and model.lower() == "stage-optimal") or use_optimal:
+            effective_model_version = f"stage-optimal({s1_active}+{s2_active}+{s3_active})@001"
+        elif (model and model.lower() == "tiered-hybrid") or is_hybrid:
             effective_model_version = f"tiered-hybrid({active_routing}+{active_synthesis})@001"
         elif model:
             effective_model_version = f"{active_routing}@001"
@@ -580,6 +617,9 @@ class MultiAgentCoordinator:
                 trace_id=trace_id,
                 model=active_routing,
                 synthesis_model=active_synthesis,
+                stage1_model=s1_active,
+                stage2_model=s2_active,
+                stage3_model=s3_active,
                 metadata={
                     "agent_version": resolved_agent_ver,
                     "model_version": effective_model_version,

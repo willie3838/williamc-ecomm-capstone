@@ -356,18 +356,56 @@ def get_model_armor_config() -> types.ModelArmorConfig | None:
     )
 
 
+STAGE_OPTIMAL_MODELS: dict[str, str] = {
+    "stage1_intent": "gemini-3.5-flash-lite",
+    "stage2_retrieval": "deterministic-bq-sql",
+    "stage2_relevance": "gemini-2.5-flash-lite",
+    "stage3_synthesis": "gemini-2.5-pro",
+    "stage3_fast_synthesis": "gemini-2.5-flash-lite",
+}
+
+
+def resolve_stage_models(fast_synthesis: bool = False) -> dict[str, str]:
+    """Resolve optimal models per specialist pipeline stage from settings or defaults."""
+    s1 = getattr(settings, "stage1_intent_model", STAGE_OPTIMAL_MODELS["stage1_intent"])
+    s2 = getattr(settings, "stage2_relevance_model", STAGE_OPTIMAL_MODELS["stage2_relevance"])
+    s3 = (
+        getattr(
+            settings, "stage3_fast_synthesis_model", STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"]
+        )
+        if fast_synthesis
+        else getattr(settings, "stage3_synthesis_model", STAGE_OPTIMAL_MODELS["stage3_synthesis"])
+    )
+    return {
+        "stage1_intent": s1,
+        "stage2_retrieval": "deterministic-bq-sql",
+        "stage2_relevance": s2,
+        "stage3_synthesis": s3,
+    }
+
+
 def resolve_model_pair(
     model: str | None = None,
     synthesis_model: str | None = None,
     default_model: str | None = None,
 ) -> tuple[str, str, bool]:
-    """Resolve routing/intent model and synthesis model, supporting 'tiered-hybrid' routing.
+    """Resolve routing/intent model and synthesis model, supporting 'tiered-hybrid' and 'stage-optimal' routing.
 
     Returns:
         tuple[str, str, bool]: (routing_model, synthesis_model, is_tiered_hybrid)
     """
     fallback = default_model or getattr(settings, "gemini_model", "gemini-2.5-flash")
     raw_model = (model or fallback or "").strip()
+
+    if raw_model.lower() == "stage-optimal":
+        routing = getattr(settings, "stage1_intent_model", "gemini-3.5-flash-lite")
+        syn = (synthesis_model or "").strip()
+        synthesis = (
+            syn
+            if syn and syn.lower() not in ("stage-optimal", "tiered-hybrid")
+            else getattr(settings, "stage3_synthesis_model", "gemini-2.5-pro")
+        )
+        return routing, synthesis, True
 
     if raw_model.lower() == "tiered-hybrid":
         routing = "gemini-2.5-flash"

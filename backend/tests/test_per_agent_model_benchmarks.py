@@ -9,6 +9,7 @@ from evals.benchmark_models import (
     CANDIDATE_MODELS,
     MODEL_PRICING_DEFAULTS,
     STAGE_MODELS,
+    compute_stage3_semantic_quality,
     generate_benchmark_markdown,
     run_per_stage_benchmarks,
 )
@@ -17,6 +18,14 @@ from evals.generate_model_matrix import (
     build_model_decision_matrix,
 )
 from evals.runner import create_hermetic_bq_client
+
+from app.agent.multi_agent import MultiAgentCoordinator
+from app.agent.orchestrator import (
+    STAGE_OPTIMAL_MODELS,
+    resolve_model_pair,
+    resolve_stage_models,
+)
+from app.config import settings
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CATALOG_PATH = REPO_ROOT / "backend" / "src" / "app" / "data" / "catalog_seed.json"
@@ -271,3 +280,82 @@ def test_build_model_decision_matrix_from_dict_report(tmp_path):
         output_md_path=tmp_path / "scorecard2.md",
     )
     assert report is not None
+
+
+def test_stage3_semantic_synthesis_quality_scores() -> None:
+    """Verify compute_stage3_semantic_quality returns exact 0.0-1.0 and 1.0-5.0 normalized scores."""
+    expected_scores = {
+        "gemini-2.5-pro": (0.9760, 4.88),
+        "gemini-3.8-flash": (0.9160, 4.58),
+        "gemini-3.7-flash": (0.9100, 4.55),
+        "gemini-3.6-flash": (0.9040, 4.52),
+        "gemini-3.5-flash": (0.8960, 4.48),
+        "gemini-2.5-flash": (0.8700, 4.35),
+        "gemini-3.5-flash-lite": (0.8440, 4.22),
+        "gemini-3.1-flash-lite": (0.8360, 4.18),
+        "gemini-2.5-flash-lite": (0.8200, 4.10),
+    }
+    for model_id, (expected_coherence, expected_5pt) in expected_scores.items():
+        coherence, score_5pt = compute_stage3_semantic_quality(model_id)
+        assert coherence == expected_coherence, f"{model_id} coherence mismatch"
+        assert score_5pt == expected_5pt, f"{model_id} 5pt score mismatch"
+
+
+def test_run_per_stage_benchmarks_stage3_semantic_quality(
+    hermetic_bq, sample_benchmark_cases
+) -> None:
+    """Verify run_per_stage_benchmarks includes semantic coherence and records winners."""
+    res = run_per_stage_benchmarks(
+        cases=sample_benchmark_cases,
+        bq_client=hermetic_bq,
+        live=False,
+        log_vertex=False,
+    )
+    stages = res["stages"]
+    syn_results = stages.get("stage3_synthesis")
+    assert syn_results is not None
+    assert len(syn_results) == 9
+
+    for entry in syn_results:
+        assert "mean_semantic_coherence" in entry
+        assert "synthesis_quality_5pt" in entry
+        assert 0.0 <= entry["mean_semantic_coherence"] <= 1.0
+        assert 1.0 <= entry["synthesis_quality_5pt"] <= 5.0
+
+    win = res["winning_combination"]
+    assert win.get("stage3_synthesis_quality_winner") == "gemini-2.5-pro"
+    assert win.get("stage3_synthesis_latency_winner") == "gemini-2.5-flash-lite"
+
+
+def test_per_stage_optimal_models_configuration() -> None:
+    """Verify settings and orchestrator expose per-stage optimal models."""
+    assert settings.stage1_intent_model == "gemini-3.5-flash-lite"
+    assert settings.stage2_relevance_model == "gemini-2.5-flash-lite"
+    assert settings.stage3_synthesis_model == "gemini-2.5-pro"
+    assert settings.stage3_fast_synthesis_model == "gemini-2.5-flash-lite"
+
+    assert STAGE_OPTIMAL_MODELS["stage1_intent"] == "gemini-3.5-flash-lite"
+    assert STAGE_OPTIMAL_MODELS["stage2_relevance"] == "gemini-2.5-flash-lite"
+    assert STAGE_OPTIMAL_MODELS["stage3_synthesis"] == "gemini-2.5-pro"
+    assert STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"] == "gemini-2.5-flash-lite"
+
+    resolved_default = resolve_stage_models(fast_synthesis=False)
+    assert resolved_default["stage1_intent"] == "gemini-3.5-flash-lite"
+    assert resolved_default["stage2_relevance"] == "gemini-2.5-flash-lite"
+    assert resolved_default["stage3_synthesis"] == "gemini-2.5-pro"
+
+    resolved_fast = resolve_stage_models(fast_synthesis=True)
+    assert resolved_fast["stage3_synthesis"] == "gemini-2.5-flash-lite"
+
+    routing, syn, is_hybrid = resolve_model_pair("stage-optimal", None)
+    assert routing == "gemini-3.5-flash-lite"
+    assert syn == "gemini-2.5-pro"
+    assert is_hybrid is True
+
+
+def test_multi_agent_coordinator_stage_optimal_routing(hermetic_bq) -> None:
+    """Verify MultiAgentCoordinator supports stage-optimal routing across specialists."""
+    coord = MultiAgentCoordinator(bq_client=hermetic_bq, model="stage-optimal")
+    assert coord.intent_agent.model == "gemini-3.5-flash-lite"
+    assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"

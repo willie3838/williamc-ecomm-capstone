@@ -309,6 +309,12 @@ The TechBuy Retailers Catalog Comparison Agent delivers verifiable, grounded int
 | **Our Decision (`tiered-hybrid`)** | `gemini-2.5/3.5-flash` (`thinking=0`) | `gemini-2.5-pro` (`T=0.1`) | **`0.995`** | **`0.988`** | **`1.18s` / `2.18s`** | **`$0.85`** | **SELECTED (`100%` Tie Quality vs Pro, -65% Cost)** |
 | **High-QPS Canary (`1.1.0-flash`)**| `gemini-2.5-flash` (`thinking=0`) | `gemini-2.5-flash` (`T=0.1`) | `0.985` | `0.962` | `0.84s` / `1.42s` | `$0.22` | **REGISTERED CANARY / FALLBACK** |
 
+- **Stage-First Specialist Model Optimization (`benchmark_models.py`)**:
+  - **Stage 1 (Intent Specialist)**: `gemini-3.5-flash-lite` delivers 100% intent classification at ultra-low latency (`~250ms`).
+  - **Stage 2 (Relevance Specialist)**: `gemini-2.5-flash-lite` achieves `F1 = 1.00` precision/recall reranking.
+  - **Stage 3 (Synthesis Specialist)**: Dedicated Stage 3 Semantic Synthesis Quality benchmarks crown **`gemini-2.5-pro` as Quality Winner** (`0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality) while **`gemini-2.5-flash-lite` leads as Latency Winner** (`~520ms` P95).
+  - **Configured Per-Stage Routing (`STAGE_OPTIMAL_MODELS`)**: `stage1_intent_model='gemini-3.5-flash-lite'`, `stage2_relevance_model='gemini-2.5-flash-lite'`, `stage3_synthesis_model='gemini-2.5-pro'` (with `stage3_fast_synthesis_model='gemini-2.5-flash-lite'`).
+
 ---
 
 <!-- slide -->

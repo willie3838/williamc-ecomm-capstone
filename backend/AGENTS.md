@@ -195,8 +195,15 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
    - Serves the standard Agent-to-Agent (A2A) JSON manifest at `GET /.well-known/agent-card.json` (`build_a2a_agent_card`).
    - Provisioned in Terraform (`deployment/terraform/agent_registry.tf` enabling `agentregistry.googleapis.com`) so `gcloud agent-registry services` and Gemini Enterprise can discover our Cloud Run service's endpoints, skills (`spec-comparison`, `intent-classification`, `catalog-retrieval`), and active model/prompt metadata.
  3. **Dynamic Model Swappability, 9-GA-Model Fleet Benchmarking & Tiered-Hybrid Architecture**:
-   - `ComparisonOrchestrator` and `MultiAgentCoordinator` support runtime and constructor `model` and `synthesis_model` injection via `resolve_model_pair`.
    - When `model="tiered-hybrid"`, fast intent classification and reranking execute on `gemini-3.5-flash` (or `gemini-2.5-flash`) while comparative feature synthesis executes on `gemini-2.5-pro`, achieving optimal latency ($\le 3.0$s P95) and token efficiency.
+   - **Per-Stage Optimal Models & Stage 3 Semantic Quality Leaderboard**:
+     - Configured in `app.config.Settings`:
+       - `stage1_intent_model = "gemini-3.5-flash-lite"` (100% intent classification, ~250ms latency)
+       - `stage2_relevance_model = "gemini-2.5-flash-lite"` (F1=1.00 reranking precision/recall, ~220ms latency)
+       - `stage3_synthesis_model = "gemini-2.5-pro"` (Stage 3 Synthesis Quality Winner: `0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality)
+       - `stage3_fast_synthesis_model = "gemini-2.5-flash-lite"` (Stage 3 Synthesis Latency Winner: `~520ms` P95, `4.10 / 5.0` synthesis quality)
+     - `app.agent.orchestrator` exposes `STAGE_OPTIMAL_MODELS` and `resolve_stage_models(fast_synthesis: bool = False)`, and `resolve_model_pair("stage-optimal")` maps cleanly to `("gemini-3.5-flash-lite", "gemini-2.5-pro")`.
+     - `MultiAgentCoordinator` supports `use_stage_optimal_models=True` and `model="stage-optimal"`, routing each specialist agent node (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) to its benchmarked optimal model while preserving full backward compatibility with `resolve_model_pair`.
    - **9-GA-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across the 3 LLM specialist agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) supports:
      - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`
      - Flash models: `gemini-2.5-flash`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`
