@@ -1,0 +1,57 @@
+{
+  "total_requests": 1000,
+  "concurrency": 80,
+  "wall_seconds": 67.22,
+  "rps": 14.88,
+  "status_counts": {
+    "200": 1000
+  },
+  "errors": [],
+  "overall_p50_ms": 2355.17,
+  "overall_p95_ms": 8123.71,
+  "overall_p99_ms": 15384.33,
+  "overall_max_ms": 55034.01,
+  "endpoint_breakdown": {
+    "POST /api/compare (Live Vertex AI)": {
+      "count": 150,
+      "p50_ms": 6097.78,
+      "p95_ms": 25263.28,
+      "max_ms": 55034.01
+    },
+    "POST /api/chat (Live Vertex AI)": {
+      "count": 100,
+      "p50_ms": 3650.41,
+      "p95_ms": 5291.42,
+      "max_ms": 5843.89
+    },
+    "GET /api/catalog": {
+      "count": 400,
+      "p50_ms": 1335.55,
+      "p95_ms": 2554.55,
+      "max_ms": 3620.87
+    },
+    "POST /api/actions": {
+      "count": 200,
+      "p50_ms": 2757.77,
+      "p95_ms": 8727.86,
+      "max_ms": 9318.31
+    },
+    "POST /api/feedback": {
+      "count": 150,
+      "p50_ms": 2736.05,
+      "p95_ms": 8860.39,
+      "max_ms": 9312.3
+    }
+  },
+  "total_input_tokens": 731224,
+  "total_output_tokens": 47495,
+  "max_input_tokens_single_req": 5876,
+  "estimated_gcp_cost_usd": 0.6415,
+  "unclaimed_synth_futures": 0,
+  "unclaimed_rerank_futures": 1,
+  "session_cache_size": 149,
+  "catalog_cache_entries": 16,
+  "rss_start_mb": 1143.92,
+  "rss_end_mb": 1143.92,
+  "rss_delta_mb": 0.0
+}
