@@ -8,7 +8,13 @@ Tests:
 5. Verification of BigQuery parameter binding for 2-character tokens.
 """
 
+import ast
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
+from pydantic import ValidationError
 
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import ProductSpec
@@ -247,3 +253,243 @@ def test_balance_entities_with_two_char_model_token():
     assert top_two[1].sku == "2222222", (
         f"Expected 2-char model 'C3' to balance into slot 2, got: {top_two[1].name}"
     )
+
+
+def test_orchestrator_future_timeout_is_eight_seconds():
+    """Verify that all speculative and in-flight .result(timeout=...) calls use timeout=8.0 via AST analysis."""
+    orch_path = Path(__file__).resolve().parent.parent / "src" / "app" / "agent" / "orchestrator.py"
+    content = orch_path.read_text(encoding="utf-8")
+
+    # Assert no timeout=4.0 remains
+    assert "timeout=4.0" not in content, "Found lingering timeout=4.0 in orchestrator.py!"
+
+    # AST-level inspection of all Call nodes invoking .result(timeout=...)
+    tree = ast.parse(content)
+    result_timeout_values: list[float] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "result"
+        ):
+            for kw in node.keywords:
+                if kw.arg == "timeout" and isinstance(kw.value, ast.Constant):
+                    result_timeout_values.append(float(kw.value.value))
+
+    assert 4.0 not in result_timeout_values, (
+        f"Found Call with timeout=4.0 in AST: {result_timeout_values}"
+    )
+    assert result_timeout_values.count(8.0) >= 7, (
+        f"Expected at least 7 calls with timeout=8.0, found: {result_timeout_values}"
+    )
+
+
+def test_classify_intent_prompt_and_keywords_exclude_spec_attributes():
+    """Verify prompt instructs excluding spec attributes and post-processor filters them."""
+    mock_client = MagicMock()
+    mock_resp = MagicMock()
+    # LLM returns spec attributes mixed in target_keywords
+    mock_resp.text = json.dumps(
+        {
+            "intent_type": "COMPARISON",
+            "is_comparison_eligible": True,
+            "detected_category": "TVs",
+            "target_keywords": [
+                "LG C3",
+                "Samsung S90C",
+                "Dolby Vision",
+                "HDR10+",
+                "OLED",
+                "4K TVs",
+            ],
+            "reasoning": "Comparison request.",
+        }
+    )
+    mock_resp.usage_metadata.prompt_token_count = 120
+    mock_resp.usage_metadata.candidates_token_count = 60
+    mock_client.models.generate_content.return_value = mock_resp
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    res = orchestrator.classify_intent_with_llm(
+        "LG C3 vs Samsung S90C for Dolby Vision and HDR10+ OLED 4K TVs"
+    )
+
+    # Verify prompt instructions
+    call_args = mock_client.models.generate_content.call_args
+    prompt_used = call_args.kwargs.get("contents", "")
+    assert "CRITICAL KEYWORD EXTRACTION RULES" in prompt_used
+    assert (
+        "target_keywords MUST extract only distinct product, brand, or model entities"
+        in prompt_used
+    )
+
+    # Verify spec attributes were scrubbed/filtered
+    assert "LG C3" in res.target_keywords
+    assert "Samsung S90C" in res.target_keywords
+    assert "Dolby Vision" not in res.target_keywords
+    assert "HDR10+" not in res.target_keywords
+    assert "OLED" not in res.target_keywords
+    assert "4K TVs" not in res.target_keywords
+    assert len(res.target_keywords) == 2
+
+
+def test_classify_intent_normalizes_comparative_query_to_comparison():
+    """Verify non-opinion comparative queries with >= 2 target_keywords normalize to COMPARISON with is_comparison_eligible=True."""
+    mock_client = MagicMock()
+    mock_resp = MagicMock()
+    # Mock LLM returning PRODUCT_SEARCH and is_comparison_eligible=False by mistake
+    mock_resp.text = json.dumps(
+        {
+            "intent_type": "PRODUCT_SEARCH",
+            "is_comparison_eligible": False,
+            "detected_category": "Laptops",
+            "target_keywords": ["Dell XPS 13", "HP Envy"],
+            "reasoning": "Product lookup.",
+        }
+    )
+    mock_resp.usage_metadata.prompt_token_count = 100
+    mock_resp.usage_metadata.candidates_token_count = 40
+    mock_client.models.generate_content.return_value = mock_resp
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    # Query with 'versus'
+    res = orchestrator.classify_intent_with_llm("Dell XPS 13 versus HP Envy")
+    assert res.intent_type == "COMPARISON"
+    assert res.is_comparison_eligible is True
+
+    # Query with 'compare'
+    res_compare = orchestrator.classify_intent_with_llm("compare Dell XPS 13 and HP Envy")
+    assert res_compare.intent_type == "COMPARISON"
+    assert res_compare.is_comparison_eligible is True
+
+    # Query with 'difference between'
+    res_diff = orchestrator.classify_intent_with_llm("difference between Dell XPS 13 and HP Envy")
+    assert res_diff.intent_type == "COMPARISON"
+    assert res_diff.is_comparison_eligible is True
+
+
+def test_classify_intent_retries_on_json_parse_failure_and_succeeds():
+    """Verify classify_intent_with_llm executes 1 clean retry when initial JSON parsing fails and succeeds on 2nd attempt."""
+    mock_client = MagicMock()
+    bad_resp = MagicMock()
+    bad_resp.text = "NOT JSON at all { malformed"
+    bad_resp.usage_metadata.prompt_token_count = 100
+    bad_resp.usage_metadata.candidates_token_count = 20
+
+    good_resp = MagicMock()
+    good_resp.text = json.dumps(
+        {
+            "intent_type": "COMPARISON",
+            "is_comparison_eligible": True,
+            "detected_category": "Laptops",
+            "target_keywords": ["MacBook Air", "Dell XPS 13"],
+            "reasoning": "Comparison request.",
+        }
+    )
+    good_resp.usage_metadata.prompt_token_count = 100
+    good_resp.usage_metadata.candidates_token_count = 40
+
+    mock_client.models.generate_content.side_effect = [bad_resp, good_resp]
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    result = orchestrator.classify_intent_with_llm("MacBook Air vs Dell XPS 13")
+
+    assert mock_client.models.generate_content.call_count == 2
+    assert result.intent_type == "COMPARISON"
+    assert result.is_comparison_eligible is True
+    assert result.target_keywords == ["MacBook Air", "Dell XPS 13"]
+
+
+def test_classify_intent_retries_on_json_parse_failure_and_fails_fast_on_second_failure():
+    """Verify classify_intent_with_llm preserves fail-fast exception when retry also fails."""
+    mock_client = MagicMock()
+    bad_resp1 = MagicMock()
+    bad_resp1.text = "Bad response 1"
+    bad_resp2 = MagicMock()
+    bad_resp2.text = "Bad response 2"
+
+    mock_client.models.generate_content.side_effect = [bad_resp1, bad_resp2]
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    with pytest.raises((ValidationError, RuntimeError, ValueError)):
+        orchestrator.classify_intent_with_llm("MacBook Air vs Dell XPS 13")
+
+    assert mock_client.models.generate_content.call_count == 2
+
+
+def test_rerank_with_llm_retries_on_json_parse_failure_and_succeeds():
+    """Verify _rerank_with_llm executes 1 clean retry when initial JSON parsing fails and succeeds on 2nd attempt."""
+    mock_client = MagicMock()
+    bad_resp = MagicMock()
+    bad_resp.text = "NOT JSON"
+
+    good_resp = MagicMock()
+    good_resp.text = json.dumps(
+        {
+            "rankings": [
+                {"sku": "6543210", "score": 10},
+                {"sku": "6535928", "score": 9},
+            ]
+        }
+    )
+    mock_client.models.generate_content.side_effect = [bad_resp, good_resp]
+
+    candidates = [
+        ProductSpec(
+            sku="6543210",
+            name="Samsung S90C",
+            brand="Samsung",
+            category="TVs",
+            price=1599.99,
+        ),
+        ProductSpec(
+            sku="6535928",
+            name="LG C3",
+            brand="LG",
+            category="TVs",
+            price=1499.99,
+        ),
+    ]
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    ranked = orchestrator._rerank_with_llm(candidates, query="Samsung S90C vs LG C3")
+
+    assert mock_client.models.generate_content.call_count == 2
+    assert ranked is not None
+    assert len(ranked) == 2
+    assert ranked[0].sku == "6543210"
+    assert ranked[1].sku == "6535928"
+
+
+def test_rerank_with_llm_retries_on_json_parse_failure_and_fails_fast_on_second_failure():
+    """Verify _rerank_with_llm raises RuntimeError when retry also fails to produce valid JSON."""
+    mock_client = MagicMock()
+    bad_resp1 = MagicMock()
+    bad_resp1.text = "Bad rerank 1"
+    bad_resp2 = MagicMock()
+    bad_resp2.text = "Bad rerank 2"
+
+    mock_client.models.generate_content.side_effect = [bad_resp1, bad_resp2]
+
+    candidates = [
+        ProductSpec(
+            sku="6543210",
+            name="Samsung S90C",
+            brand="Samsung",
+            category="TVs",
+            price=1599.99,
+        ),
+        ProductSpec(
+            sku="6535928",
+            name="LG C3",
+            brand="LG",
+            category="TVs",
+            price=1499.99,
+        ),
+    ]
+
+    orchestrator = ComparisonOrchestrator(genai_client=mock_client)
+    with pytest.raises(RuntimeError, match="Gemini reranking LLM"):
+        orchestrator._rerank_with_llm(candidates, query="Samsung S90C vs LG C3")
+
+    assert mock_client.models.generate_content.call_count == 2
