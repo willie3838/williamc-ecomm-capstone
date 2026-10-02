@@ -202,6 +202,35 @@ CATEGORY_SPEC_REGISTRY: dict[str, dict[str, Any]] = {
     "connectivity": {"label": "Wireless Connectivity", "polarity": "none", "unit": ""},
 }
 
+# Standalone spec attributes blocklist to prevent spec features from being extracted as distinct product entities
+SPEC_ATTRIBUTES_BLOCKLIST: set[str] = {
+    "dolby vision",
+    "hdr10+",
+    "hdr10",
+    "hdr",
+    "oled",
+    "qled",
+    "mini-led",
+    "4k",
+    "4k tv",
+    "4k tvs",
+    "8k",
+    "1080p",
+    "ram",
+    "battery life",
+    "battery",
+    "weight",
+    "refresh rate",
+    "hdmi",
+    "bluetooth",
+    "wifi",
+    "anc",
+    "noise canceling",
+    "display",
+    "screen",
+    "price",
+}
+
 
 def sanitize_user_prompt(prompt: str) -> str:
     """Sanitize user input to neutralize prompt injection, jailbreak attacks, and XML delimiter escaping.
@@ -971,7 +1000,7 @@ class ComparisonOrchestrator:
                 response = None
                 if spec_future is not None:
                     try:
-                        response = spec_future.result(timeout=4.0)
+                        response = spec_future.result(timeout=8.0)
                     except Exception:
                         _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
                         _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, legacy_spec_key)
@@ -988,7 +1017,7 @@ class ComparisonOrchestrator:
                                 contents=prompt,
                                 config=config,
                             )
-                            response = synth_fut.result(timeout=4.0)
+                            response = synth_fut.result(timeout=8.0)
                         else:
                             response = client.models.generate_content(
                                 model=call_model,
@@ -1253,7 +1282,11 @@ class ComparisonOrchestrator:
             "- 'COMPARISON': The customer explicitly or implicitly wants to compare two or more products, models, or brands. is_comparison_eligible must be true.\n"
             "- 'PRODUCT_SEARCH': The customer is searching for a single product, spec lookup, or category browsing without requesting a comparison. is_comparison_eligible must be false.\n"
             "- 'OPINION_OR_CHATTER': The customer is expressing a subjective opinion, personal rant, complaint, insult, casual greeting, or vague statement without seeking a product comparison. is_comparison_eligible must be false.\n\n"
-            "Extract target product keywords (brands, models, key specs) and detected category if applicable.\n"
+            "CRITICAL KEYWORD EXTRACTION RULES:\n"
+            "- target_keywords MUST extract only distinct product, brand, or model entities (e.g. ['LG C3', 'Samsung S90C'] or ['MacBook Air', 'Dell XPS 13']).\n"
+            "- NEVER extract spec attributes, features, or display formats (such as 'Dolby Vision', 'HDR10+', 'OLED', '4K TVs', '16GB RAM', 'battery life') as separate list items in target_keywords.\n"
+            "- For comparative queries (containing vs, versus, compare, comparison, between, difference), if two or more distinct products, models, or brands are identified, classify as 'COMPARISON' with is_comparison_eligible=true.\n\n"
+            "Extract detected category if applicable.\n"
             "Keep 'reasoning' under 4 words.\n"
             'Return a valid JSON object matching the requested schema with exact keys: {"intent_type": "COMPARISON", "is_comparison_eligible": true, "detected_category": "Laptops", "target_keywords": ["..."], "reasoning": "..."}.'
         )
@@ -1299,7 +1332,7 @@ class ComparisonOrchestrator:
                 response = None
                 if intent_future is not None:
                     try:
-                        response = intent_future.result(timeout=4.0)
+                        response = intent_future.result(timeout=8.0)
                     except Exception:
                         _pop_speculative_future(_SPECULATIVE_INTENT_FUTURES, intent_key)
                         response = None
@@ -1315,7 +1348,7 @@ class ComparisonOrchestrator:
                                 contents=prompt,
                                 config=config,
                             )
-                            response = in_flight_intent.result(timeout=4.0)
+                            response = in_flight_intent.result(timeout=8.0)
                         else:
                             response = client.models.generate_content(
                                 model=call_model,
@@ -1378,9 +1411,69 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-            if response.text:
-                return QueryIntentAnalysis.model_validate_json(response.text)
-            raise RuntimeError("Empty response from Gemini intent classification LLM")
+        def _parse_intent_payload(resp_obj: Any) -> QueryIntentAnalysis:
+            text = ""
+            try:
+                text = (getattr(resp_obj, "text", "") or "").strip()
+            except Exception:
+                pass
+            if not text and getattr(resp_obj, "candidates", None):
+                for cand in resp_obj.candidates:
+                    content = getattr(cand, "content", None)
+                    if content and getattr(content, "parts", None):
+                        for part in content.parts:
+                            txt = getattr(part, "text", None)
+                            if txt:
+                                text += txt
+            if not text:
+                raise RuntimeError("Empty response from Gemini intent classification LLM")
+            clean_json = _extract_json_snippet(text)
+            return QueryIntentAnalysis.model_validate_json(clean_json)
+
+        parsed_intent: QueryIntentAnalysis | None = None
+        try:
+            parsed_intent = _parse_intent_payload(response)
+        except Exception as parse_err:
+            logger.warning(
+                "Intent classification JSON parsing failed on initial attempt (%s); retrying generate_content...",
+                parse_err,
+            )
+            retry_response = client.models.generate_content(
+                model=call_model,
+                contents=prompt,
+                config=config,
+            )
+            retry_usage = getattr(retry_response, "usage_metadata", None)
+            if retry_usage:
+                in_toks = int(getattr(retry_usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(retry_usage, "candidates_token_count", 0) or 0)
+                self.last_input_tokens += in_toks
+                self.last_output_tokens += out_toks
+            # If retry also fails, exception propagates cleanly (fail-fast preserved)
+            parsed_intent = _parse_intent_payload(retry_response)
+
+        # Filter out standalone spec attributes from target_keywords
+        if parsed_intent.target_keywords:
+            cleaned_kws: list[str] = []
+            for kw in parsed_intent.target_keywords:
+                raw_kw = kw.strip()
+                if not raw_kw:
+                    continue
+                lower_kw = raw_kw.lower()
+                if lower_kw in SPEC_ATTRIBUTES_BLOCKLIST:
+                    continue
+                cleaned_kws.append(raw_kw)
+            parsed_intent.target_keywords = cleaned_kws
+
+        # Normalize non-opinion comparative queries with >= 2 target_keywords to COMPARISON
+        comparative_pattern = r"\b(?:vs\.?|versus|compare|comparison|between|difference)\b"
+        is_comparative = bool(re.search(comparative_pattern, query, re.IGNORECASE))
+        valid_kws = [kw for kw in (parsed_intent.target_keywords or []) if kw.strip()]
+        if not self._is_opinion_query(query) and is_comparative and len(valid_kws) >= 2:
+            parsed_intent.intent_type = "COMPARISON"
+            parsed_intent.is_comparison_eligible = True
+
+        return parsed_intent
 
     def classify_intent(
         self, query: str, model: str = settings.gemini_model
@@ -1627,7 +1720,7 @@ class ComparisonOrchestrator:
                 response = None
                 if rerank_future is not None:
                     try:
-                        response = rerank_future.result(timeout=4.0)
+                        response = rerank_future.result(timeout=8.0)
                     except Exception:
                         _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, rerank_key)
                         _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, legacy_rerank_key)
@@ -1644,7 +1737,7 @@ class ComparisonOrchestrator:
                                 contents=prompt,
                                 config=config,
                             )
-                            response = in_flight_rerank.result(timeout=4.0)
+                            response = in_flight_rerank.result(timeout=8.0)
                         else:
                             response = client.models.generate_content(
                                 model=call_model,
@@ -1724,44 +1817,68 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
-        resp_text = ""
-        try:
-            resp_text = (response.text or "").strip()
-        except Exception:
-            pass
-        if not resp_text and getattr(response, "candidates", None):
-            for cand in response.candidates:
-                content = getattr(cand, "content", None)
-                if content and getattr(content, "parts", None):
-                    for part in content.parts:
-                        txt = getattr(part, "text", None)
-                        if txt:
-                            resp_text += txt
-        raw_text = _extract_json_snippet(resp_text)
+        def _parse_rerank_payload(resp_obj: Any) -> list[dict[str, Any]]:
+            resp_text = ""
+            try:
+                resp_text = (getattr(resp_obj, "text", "") or "").strip()
+            except Exception:
+                pass
+            if not resp_text and getattr(resp_obj, "candidates", None):
+                for cand in resp_obj.candidates:
+                    content = getattr(cand, "content", None)
+                    if content and getattr(content, "parts", None):
+                        for part in content.parts:
+                            txt = getattr(part, "text", None)
+                            if txt:
+                                resp_text += txt
+            raw_text = _extract_json_snippet(resp_text)
+            parsed_items: list[dict[str, Any]] | None = None
+            try:
+                parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
+                parsed_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
+            except Exception:
+                try:
+                    parsed_raw = json.loads(raw_text)
+                    if isinstance(parsed_raw, list):
+                        parsed_items = [
+                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                            for item in parsed_raw
+                            if isinstance(item, dict)
+                        ]
+                    elif isinstance(parsed_raw, dict) and "rankings" in parsed_raw:
+                        parsed_items = [
+                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
+                            for item in parsed_raw["rankings"]
+                            if isinstance(item, dict)
+                        ]
+                except Exception:
+                    parsed_items = None
+
+            if parsed_items is None:
+                raise RuntimeError("Invalid JSON response from Gemini reranking LLM")
+            return parsed_items
+
         ranked_items: list[dict[str, Any]] | None = None
         try:
-            parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
-            ranked_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
-        except Exception:
-            try:
-                parsed_raw = json.loads(raw_text)
-                if isinstance(parsed_raw, list):
-                    ranked_items = [
-                        {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
-                        for item in parsed_raw
-                        if isinstance(item, dict)
-                    ]
-                elif isinstance(parsed_raw, dict) and "rankings" in parsed_raw:
-                    ranked_items = [
-                        {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
-                        for item in parsed_raw["rankings"]
-                        if isinstance(item, dict)
-                    ]
-            except Exception:
-                ranked_items = None
-
-        if ranked_items is None:
-            raise RuntimeError("Invalid JSON response from Gemini reranking LLM")
+            ranked_items = _parse_rerank_payload(response)
+        except Exception as parse_err:
+            logger.warning(
+                "Candidate reranking JSON parsing failed on initial attempt (%s); retrying generate_content...",
+                parse_err,
+            )
+            retry_response = client.models.generate_content(
+                model=call_model,
+                contents=prompt,
+                config=config,
+            )
+            retry_usage = getattr(retry_response, "usage_metadata", None)
+            if retry_usage:
+                in_toks = int(getattr(retry_usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(retry_usage, "candidates_token_count", 0) or 0)
+                self.last_input_tokens += in_toks
+                self.last_output_tokens += out_toks
+            # If retry also fails, exception propagates cleanly (fail-fast preserved)
+            ranked_items = _parse_rerank_payload(retry_response)
 
         sku_to_product = {p.sku: p for p in products}
         ordered_products: list[ProductSpec] = []
@@ -2441,7 +2558,7 @@ class ComparisonOrchestrator:
                             contents=prompt,
                             config=config,
                         )
-                        resp = chat_fut.result(timeout=4.0)
+                        resp = chat_fut.result(timeout=8.0)
                     else:
                         resp = client.models.generate_content(
                             model=call_model,
