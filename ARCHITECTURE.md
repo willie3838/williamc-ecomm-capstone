@@ -479,9 +479,9 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 | **Output Validation & JSON Serialization**| 10 ms | 20 ms | Pydantic model dump with fast JSON serialization. |
 | **Total End-to-End Latency** | **~1,270 ms** | **$\le 2,400$ ms** | **Comfortably within the 3.0s non-negotiable SLA.** |
 
-### 6.2.1 Two-Tier Speculative Stage Execution
+### 6.2.1 Two-Tier Speculative Stage Execution & Exact-Match SKU Key Verification (orchestrator.py)
 
-To guarantee the non-negotiable **P95 $\le 3.0$s latency SLA** without sacrificing 4-stage pipeline rigor (Stage 1: Intent Classification $\rightarrow$ Stage 2: Catalog Retrieval $\rightarrow$ Stage 3: Candidate Reranking $\rightarrow$ Stage 4: Grounded Synthesis), `ComparisonOrchestrator` (`backend/src/app/agent/orchestrator.py`) implements an autonomous **Two-Tier Speculative Stage Execution** concurrency model.
+To guarantee the non-negotiable **P95 $\le 3.0$s latency SLA** without sacrificing 4-stage pipeline rigor (Stage 1: Intent Classification $\rightarrow$ Stage 2: Catalog Retrieval $\rightarrow$ Stage 3: Candidate Reranking $\rightarrow$ Stage 4: Grounded Synthesis), `ComparisonOrchestrator` (`backend/src/app/agent/orchestrator.py`) implements an autonomous **Two-Tier Speculative Stage Execution** concurrency model with exact-match SKU key verification.
 
 ```mermaid
 sequenceDiagram
@@ -532,6 +532,7 @@ sequenceDiagram
 - All speculative futures (`_SPECULATIVE_SYNTH_FUTURES`, `_SPECULATIVE_RERANK_FUTURES`, `_SPECULATIVE_INTENT_FUTURES`, `_SPECULATIVE_CHAT_FUTURES`) are managed inside `OrderedDict` containers governed by a thread-safe mutex (`_SPECULATIVE_LOCK`).
 - Stores are capped at `_MAX_SPECULATIVE_FUTURES = 128`. Once capacity is reached, the oldest in-flight or completed futures are evicted via LRU policy (`popitem(last=False)`), preventing memory bloat under sustained traffic.
 - Retrieval via `_get_speculative_future()` is non-destructive (allowing concurrent reads), while consumption in final pipeline stages uses `_pop_speculative_future()` to release resources immediately.
+- **Exact-Match SKU Key Verification**: Speculative synthesis futures are strictly keyed via `_get_speculative_synth_key(products, query, model)`, which incorporates the deterministic SHA-256 hash of sorted candidate SKUs, sanitized user query, and target LLM model. This guarantees that speculative synthesis results are only consumed if the finalized reranked products match the speculative candidate set with 100% SKU fidelity, preventing cross-product prompt hallucination.
 
 #### 3. 2-Character Sub-Token & Entity Balancing Integration
 - **2-Character Sub-Token SQL Tokenization (`catalog.py`)**: Sub-token extraction enforces `len(t) >= 2` coupled with an exhaustive 2-letter English grammatical stopword filter (`an`, `as`, `at`, `be`, `by`, `do`, `go`, `he`, `if`, `in`, `is`, `it`, `me`, `my`, `no`, `of`, `on`, `or`, `so`, `to`, `up`, `us`, `we`, `vs`). This allows critical consumer electronics brand tokens (e.g., `LG`, `HP`) and model tokens (e.g., `C3`, `G3`, `M3`) to be tokenized into parameterized SQL `LIKE` patterns (`%lg%`, `%c3%`, `%hp%`) without incurring table scan overhead from grammatical prepositions.
