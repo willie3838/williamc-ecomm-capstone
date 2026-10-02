@@ -1315,7 +1315,7 @@ class ComparisonOrchestrator:
                 response = None
                 if spec_future is not None:
                     try:
-                        response = spec_future.result(timeout=25.0)
+                        response = spec_future.result(timeout=8.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -2163,7 +2163,7 @@ class ComparisonOrchestrator:
                 response = None
                 if rerank_future is not None:
                     try:
-                        response = rerank_future.result(timeout=15.0)
+                        response = rerank_future.result(timeout=8.0)
                     except Exception:
                         response = None
                 if response is None:
@@ -3063,7 +3063,7 @@ class ComparisonOrchestrator:
                         )
                         if ma_guard_future is not None:
                             try:
-                                ma_blocked, ma_reason = ma_guard_future.result(timeout=2.5)
+                                ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
                             except Exception:
                                 ma_blocked, ma_reason = False, ""
                         else:
@@ -3101,7 +3101,7 @@ class ComparisonOrchestrator:
 
                 if ma_guard_future is not None:
                     try:
-                        ma_blocked, ma_reason = ma_guard_future.result(timeout=2.5)
+                        ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
                         if ma_blocked:
                             return _make_refusal(
                                 ma_reason or "The prompt violated Model Armor security filters."
