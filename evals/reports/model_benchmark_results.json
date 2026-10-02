@@ -1,11 +1,11 @@
 {
   "metadata": {
-    "timestamp": "2026-10-02T15:11:29.961405+00:00",
+    "timestamp": "2026-10-02T16:09:04.220937+00:00",
     "experiment_name": "bestbuy-catalog-model-selection-benchmark",
     "project_id": "fde-bestbuy-sandbox-dev-508321",
     "location": "us-central1",
     "dataset": "evals/dataset/benchmark_catalog.evalset.json",
-    "cases_evaluated": 15,
+    "cases_evaluated": 80,
     "mode": "hermetic",
     "rubrics": {
       "data_accuracy": {
@@ -47,14 +47,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.78,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 50.61,
-        "latency_p95_ms": 143.89,
-        "workstation_wan_p50_ms": 50.61,
-        "workstation_wan_p95_ms": 143.89,
+        "latency_p50_ms": 46.68,
+        "latency_p95_ms": 130.46,
+        "workstation_wan_p50_ms": 46.68,
+        "workstation_wan_p95_ms": 130.46,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 2.28,
-        "composite_utility_score": 0.9442
+        "estimated_cost_per_1k_queries_usd": 11.5424,
+        "composite_utility_score": 0.867
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -79,14 +79,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 50.37,
-        "latency_p95_ms": 139.02,
-        "workstation_wan_p50_ms": 50.37,
-        "workstation_wan_p95_ms": 139.02,
+        "latency_p50_ms": 47.98,
+        "latency_p95_ms": 130.84,
+        "workstation_wan_p50_ms": 47.98,
+        "workstation_wan_p95_ms": 130.84,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 2.28,
-        "composite_utility_score": 0.9097
+        "estimated_cost_per_1k_queries_usd": 11.5424,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -111,14 +111,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.39,
-        "latency_p95_ms": 131.22,
-        "workstation_wan_p50_ms": 47.39,
-        "workstation_wan_p95_ms": 131.22,
+        "latency_p50_ms": 48.24,
+        "latency_p95_ms": 131.73,
+        "workstation_wan_p50_ms": 48.24,
+        "workstation_wan_p95_ms": 131.73,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 2.28,
-        "composite_utility_score": 0.9097
+        "estimated_cost_per_1k_queries_usd": 11.5424,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -143,14 +143,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.78,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.34,
-        "latency_p95_ms": 131.71,
-        "workstation_wan_p50_ms": 47.34,
-        "workstation_wan_p95_ms": 131.71,
+        "latency_p50_ms": 47.62,
+        "latency_p95_ms": 131.96,
+        "workstation_wan_p50_ms": 47.62,
+        "workstation_wan_p95_ms": 131.96,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 4.56,
-        "composite_utility_score": 0.9214
+        "estimated_cost_per_1k_queries_usd": 23.0849,
+        "composite_utility_score": 0.867
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -175,14 +175,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.44,
-        "latency_p95_ms": 130.96,
-        "workstation_wan_p50_ms": 47.44,
-        "workstation_wan_p95_ms": 130.96,
+        "latency_p50_ms": 46.98,
+        "latency_p95_ms": 129.64,
+        "workstation_wan_p50_ms": 46.98,
+        "workstation_wan_p95_ms": 129.64,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 4.56,
-        "composite_utility_score": 0.8869
+        "estimated_cost_per_1k_queries_usd": 23.0849,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -207,14 +207,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.42,
-        "latency_p95_ms": 130.37,
-        "workstation_wan_p50_ms": 47.42,
-        "workstation_wan_p95_ms": 130.37,
+        "latency_p50_ms": 46.51,
+        "latency_p95_ms": 129.98,
+        "workstation_wan_p50_ms": 46.51,
+        "workstation_wan_p95_ms": 129.98,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 4.56,
-        "composite_utility_score": 0.8869
+        "estimated_cost_per_1k_queries_usd": 23.0849,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -239,14 +239,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 48.49,
-        "latency_p95_ms": 130.66,
-        "workstation_wan_p50_ms": 48.49,
-        "workstation_wan_p95_ms": 130.66,
+        "latency_p50_ms": 46.64,
+        "latency_p95_ms": 130.0,
+        "workstation_wan_p50_ms": 46.64,
+        "workstation_wan_p95_ms": 130.0,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 4.56,
-        "composite_utility_score": 0.8869
+        "estimated_cost_per_1k_queries_usd": 23.0849,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -271,14 +271,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.55,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 46.92,
-        "latency_p95_ms": 129.62,
-        "workstation_wan_p50_ms": 46.92,
-        "workstation_wan_p95_ms": 129.62,
+        "latency_p50_ms": 47.16,
+        "latency_p95_ms": 130.62,
+        "workstation_wan_p50_ms": 47.16,
+        "workstation_wan_p95_ms": 130.62,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 4.56,
-        "composite_utility_score": 0.8869
+        "estimated_cost_per_1k_queries_usd": 23.0849,
+        "composite_utility_score": 0.8325
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -303,13 +303,13 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 0.92,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 46.02,
-        "latency_p95_ms": 129.8,
-        "workstation_wan_p50_ms": 46.02,
-        "workstation_wan_p95_ms": 129.8,
+        "latency_p50_ms": 47.04,
+        "latency_p95_ms": 131.94,
+        "workstation_wan_p50_ms": 47.04,
+        "workstation_wan_p95_ms": 131.94,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 70.0,
+        "estimated_cost_per_1k_queries_usd": 354.3751,
         "composite_utility_score": 0.888
       },
       "rubric_compliance": {
@@ -367,14 +367,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 1.0,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.57,
-        "latency_p95_ms": 131.44,
-        "workstation_wan_p50_ms": 47.57,
-        "workstation_wan_p95_ms": 131.44,
+        "latency_p50_ms": 46.78,
+        "latency_p95_ms": 129.55,
+        "workstation_wan_p50_ms": 46.78,
+        "workstation_wan_p95_ms": 129.55,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 2.85,
-        "composite_utility_score": 0.9715
+        "estimated_cost_per_1k_queries_usd": 11.5424,
+        "composite_utility_score": 0.9
       },
       "rubric_compliance": {
         "data_accuracy_passed": true,
@@ -385,7 +385,7 @@
       "architecture_notes": "Dynamic ADK routing: Gemini 3.5 Flash for sub-second intent & reranking + Gemini 2.5 Pro for grounded synthesis.",
       "vertex_experiment_run": {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-tiered-hybrid-pipeline-1790953889",
+        "run_name": "run-tiered-hybrid-pipeline-1790957344",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -396,7 +396,7 @@
           "synthesis_model": "gemini-2.5-pro",
           "is_tiered_hybrid": "True",
           "dataset": "benchmark_catalog.evalset.json",
-          "total_cases": 15,
+          "total_cases": 80,
           "data_accuracy_rubric": "data_accuracy.md",
           "citation_faithfulness_rubric": "citation_faithfulness.md"
         },
@@ -405,14 +405,14 @@
           "mean_citation_faithfulness": 1.0,
           "mean_semantic_coherence": 1.0,
           "structured_output_validity": 1.0,
-          "latency_p50_ms": 47.57,
-          "latency_p95_ms": 131.44,
-          "workstation_wan_p50_ms": 47.57,
-          "workstation_wan_p95_ms": 131.44,
+          "latency_p50_ms": 46.78,
+          "latency_p95_ms": 129.55,
+          "workstation_wan_p50_ms": 46.78,
+          "workstation_wan_p95_ms": 129.55,
           "mean_input_tokens": 2800.0,
           "mean_output_tokens": 650.0,
-          "estimated_cost_per_1k_queries_usd": 2.85,
-          "composite_utility_score": 0.9715
+          "estimated_cost_per_1k_queries_usd": 11.5424,
+          "composite_utility_score": 0.9
         }
       }
     }
@@ -424,192 +424,246 @@
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.76,
-          "latency_p95_ms": 9.19,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage1-intent-gemini-2-5-flash-lite-1790953888"
+          "latency_p50_ms": 1.77,
+          "latency_p95_ms": 3.34,
+          "latency_2prod_p95_ms": 3.34,
+          "latency_5prod_p95_ms": 2.1,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage1-intent-gemini-2-5-flash-lite-1790957338"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.66,
-          "latency_p95_ms": 2.72,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage1-intent-gemini-3-1-flash-lite-1790953888"
+          "latency_p50_ms": 1.73,
+          "latency_p95_ms": 2.36,
+          "latency_2prod_p95_ms": 2.36,
+          "latency_5prod_p95_ms": 1.78,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage1-intent-gemini-3-1-flash-lite-1790957338"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.72,
-          "latency_p95_ms": 2.18,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage1-intent-gemini-3-5-flash-lite-1790953888"
+          "latency_p50_ms": 2.13,
+          "latency_p95_ms": 3.55,
+          "latency_2prod_p95_ms": 3.55,
+          "latency_5prod_p95_ms": 2.41,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage1-intent-gemini-3-5-flash-lite-1790957338"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.9,
-          "latency_p95_ms": 2.8,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage1-intent-gemini-2-5-flash-1790953888"
+          "latency_p50_ms": 2.13,
+          "latency_p95_ms": 3.74,
+          "latency_2prod_p95_ms": 3.74,
+          "latency_5prod_p95_ms": 2.39,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage1-intent-gemini-2-5-flash-1790957338"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 2.12,
-          "latency_p95_ms": 3.12,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage1-intent-gemini-3-5-flash-1790953888"
+          "latency_p50_ms": 1.53,
+          "latency_p95_ms": 2.06,
+          "latency_2prod_p95_ms": 2.1,
+          "latency_5prod_p95_ms": 1.52,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage1-intent-gemini-3-5-flash-1790957338"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 2.05,
-          "latency_p95_ms": 3.08,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage1-intent-gemini-3-6-flash-1790953888"
+          "latency_p50_ms": 1.49,
+          "latency_p95_ms": 2.48,
+          "latency_2prod_p95_ms": 3.21,
+          "latency_5prod_p95_ms": 1.57,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage1-intent-gemini-3-6-flash-1790957338"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 2.61,
-          "latency_p95_ms": 3.22,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage1-intent-gemini-3-7-flash-1790953888"
+          "latency_p50_ms": 1.55,
+          "latency_p95_ms": 2.68,
+          "latency_2prod_p95_ms": 2.41,
+          "latency_5prod_p95_ms": 1.88,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage1-intent-gemini-3-7-flash-1790957339"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.83,
-          "latency_p95_ms": 2.3,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage1-intent-gemini-3-8-flash-1790953888"
+          "latency_p50_ms": 1.55,
+          "latency_p95_ms": 2.32,
+          "latency_2prod_p95_ms": 2.32,
+          "latency_5prod_p95_ms": 2.04,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage1-intent-gemini-3-8-flash-1790957339"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "QueryIntentSpecialist",
           "mean_accuracy": 1.0,
-          "latency_p50_ms": 1.37,
-          "latency_p95_ms": 2.59,
-          "cost_per_1k_usd": 17.5,
-          "vertex_run": "run-stage1-intent-gemini-2-5-pro-1790953888"
+          "latency_p50_ms": 1.28,
+          "latency_p95_ms": 2.34,
+          "latency_2prod_p95_ms": 2.68,
+          "latency_5prod_p95_ms": 1.26,
+          "cost_per_1k_usd": 88.5938,
+          "vertex_run": "run-stage1-intent-gemini-2-5-pro-1790957339"
         }
       ],
       "stage2_relevance": [
         {
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.67,
-          "latency_p95_ms": 13.08,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.59,
+          "latency_p95_ms": 5.07,
+          "latency_2prod_p95_ms": 4.88,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790957339"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.48,
-          "latency_p95_ms": 14.88,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.87,
+          "latency_p95_ms": 6.48,
+          "latency_2prod_p95_ms": 6.35,
+          "latency_5prod_p95_ms": 8.24,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.59,
-          "latency_p95_ms": 7.34,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.65,
+          "latency_p95_ms": 6.06,
+          "latency_2prod_p95_ms": 5.86,
+          "latency_5prod_p95_ms": 6.06,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.54,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.17,
+          "latency_p95_ms": 6.35,
+          "latency_2prod_p95_ms": 5.8,
+          "latency_5prod_p95_ms": 6.34,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.57,
-          "latency_p95_ms": 4.08,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.16,
+          "latency_p95_ms": 5.59,
+          "latency_2prod_p95_ms": 5.61,
+          "latency_5prod_p95_ms": 4.68,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.92,
-          "latency_p95_ms": 4.47,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.75,
+          "latency_p95_ms": 5.65,
+          "latency_2prod_p95_ms": 5.73,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790957341"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.62,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.74,
+          "latency_p95_ms": 5.23,
+          "latency_2prod_p95_ms": 5.23,
+          "latency_5prod_p95_ms": 4.57,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790957342"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.83,
-          "latency_p95_ms": 5.4,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.25,
+          "latency_p95_ms": 5.64,
+          "latency_2prod_p95_ms": 5.64,
+          "latency_5prod_p95_ms": 5.03,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790957342"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.51,
-          "latency_p95_ms": 5.45,
-          "cost_per_1k_usd": 35.0,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.13,
+          "latency_p95_ms": 7.03,
+          "latency_2prod_p95_ms": 6.36,
+          "latency_5prod_p95_ms": 5.29,
+          "cost_per_1k_usd": 177.1875,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790957342"
         }
       ],
       "stage3_synthesis": [
@@ -618,328 +672,436 @@
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.82,
           "synthesis_quality_5pt": 4.1,
-          "latency_p50_ms": 1.18,
-          "latency_p95_ms": 1.62,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790953889"
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 2.05,
+          "latency_2prod_p95_ms": 1.77,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790957342"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.836,
           "synthesis_quality_5pt": 4.18,
-          "latency_p50_ms": 1.23,
-          "latency_p95_ms": 1.42,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-3-1-flash-lite-1790953889"
+          "latency_p50_ms": 1.38,
+          "latency_p95_ms": 2.0,
+          "latency_2prod_p95_ms": 2.0,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-3-1-flash-lite-1790957343"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.844,
           "synthesis_quality_5pt": 4.22,
-          "latency_p50_ms": 1.08,
-          "latency_p95_ms": 1.7,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-lite-1790953889"
+          "latency_p50_ms": 1.46,
+          "latency_p95_ms": 2.12,
+          "latency_2prod_p95_ms": 1.89,
+          "latency_5prod_p95_ms": 2.37,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-lite-1790957343"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.87,
           "synthesis_quality_5pt": 4.35,
-          "latency_p50_ms": 1.9,
-          "latency_p95_ms": 3.59,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790953889"
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 1.87,
+          "latency_2prod_p95_ms": 1.87,
+          "latency_5prod_p95_ms": 1.65,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790957343"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.896,
           "synthesis_quality_5pt": 4.48,
-          "latency_p50_ms": 1.75,
-          "latency_p95_ms": 3.76,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-1790953889"
+          "latency_p50_ms": 1.29,
+          "latency_p95_ms": 1.99,
+          "latency_2prod_p95_ms": 1.95,
+          "latency_5prod_p95_ms": 3.06,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-1790957343"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.904,
           "synthesis_quality_5pt": 4.52,
-          "latency_p50_ms": 1.45,
-          "latency_p95_ms": 2.82,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-6-flash-1790953889"
+          "latency_p50_ms": 1.27,
+          "latency_p95_ms": 1.85,
+          "latency_2prod_p95_ms": 1.8,
+          "latency_5prod_p95_ms": 1.63,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-6-flash-1790957343"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.91,
           "synthesis_quality_5pt": 4.55,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 2.12,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-7-flash-1790953889"
+          "latency_p50_ms": 1.35,
+          "latency_p95_ms": 2.09,
+          "latency_2prod_p95_ms": 1.9,
+          "latency_5prod_p95_ms": 1.97,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-7-flash-1790957343"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.916,
           "synthesis_quality_5pt": 4.58,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 1.92,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-8-flash-1790953889"
+          "latency_p50_ms": 1.36,
+          "latency_p95_ms": 2.66,
+          "latency_2prod_p95_ms": 2.11,
+          "latency_5prod_p95_ms": 2.51,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-8-flash-1790957344"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.976,
           "synthesis_quality_5pt": 4.88,
-          "latency_p50_ms": 1.14,
-          "latency_p95_ms": 1.76,
-          "cost_per_1k_usd": 17.5,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790953889"
+          "latency_p50_ms": 1.63,
+          "latency_p95_ms": 2.57,
+          "latency_2prod_p95_ms": 2.66,
+          "latency_5prod_p95_ms": 1.88,
+          "cost_per_1k_usd": 88.5938,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790957344"
         }
       ],
       "stage2_rerank": [
         {
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.67,
-          "latency_p95_ms": 13.08,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.59,
+          "latency_p95_ms": 5.07,
+          "latency_2prod_p95_ms": 4.88,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790957339"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.48,
-          "latency_p95_ms": 14.88,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.87,
+          "latency_p95_ms": 6.48,
+          "latency_2prod_p95_ms": 6.35,
+          "latency_5prod_p95_ms": 8.24,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.59,
-          "latency_p95_ms": 7.34,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.65,
+          "latency_p95_ms": 6.06,
+          "latency_2prod_p95_ms": 5.86,
+          "latency_5prod_p95_ms": 6.06,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.54,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.17,
+          "latency_p95_ms": 6.35,
+          "latency_2prod_p95_ms": 5.8,
+          "latency_5prod_p95_ms": 6.34,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.57,
-          "latency_p95_ms": 4.08,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.16,
+          "latency_p95_ms": 5.59,
+          "latency_2prod_p95_ms": 5.61,
+          "latency_5prod_p95_ms": 4.68,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.92,
-          "latency_p95_ms": 4.47,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.75,
+          "latency_p95_ms": 5.65,
+          "latency_2prod_p95_ms": 5.73,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790957341"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.62,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.74,
+          "latency_p95_ms": 5.23,
+          "latency_2prod_p95_ms": 5.23,
+          "latency_5prod_p95_ms": 4.57,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790957342"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.83,
-          "latency_p95_ms": 5.4,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.25,
+          "latency_p95_ms": 5.64,
+          "latency_2prod_p95_ms": 5.64,
+          "latency_5prod_p95_ms": 5.03,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790957342"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.51,
-          "latency_p95_ms": 5.45,
-          "cost_per_1k_usd": 35.0,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.13,
+          "latency_p95_ms": 7.03,
+          "latency_2prod_p95_ms": 6.36,
+          "latency_5prod_p95_ms": 5.29,
+          "cost_per_1k_usd": 177.1875,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790957342"
         }
       ],
       "stage3_relevance": [
         {
           "model_id": "gemini-2.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.67,
-          "latency_p95_ms": 13.08,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.59,
+          "latency_p95_ms": 5.07,
+          "latency_2prod_p95_ms": 4.88,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-lite-1790957339"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 7.48,
-          "latency_p95_ms": 14.88,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.87,
+          "latency_p95_ms": 6.48,
+          "latency_2prod_p95_ms": 6.35,
+          "latency_5prod_p95_ms": 8.24,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-1-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.59,
-          "latency_p95_ms": 7.34,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.65,
+          "latency_p95_ms": 6.06,
+          "latency_2prod_p95_ms": 5.86,
+          "latency_5prod_p95_ms": 6.06,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-lite-1790957340"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.54,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.17,
+          "latency_p95_ms": 6.35,
+          "latency_2prod_p95_ms": 5.8,
+          "latency_5prod_p95_ms": 6.34,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.57,
-          "latency_p95_ms": 4.08,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.16,
+          "latency_p95_ms": 5.59,
+          "latency_2prod_p95_ms": 5.61,
+          "latency_5prod_p95_ms": 4.68,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-5-flash-1790957341"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.92,
-          "latency_p95_ms": 4.47,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.75,
+          "latency_p95_ms": 5.65,
+          "latency_2prod_p95_ms": 5.73,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-6-flash-1790957341"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 4.62,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.74,
+          "latency_p95_ms": 5.23,
+          "latency_2prod_p95_ms": 5.23,
+          "latency_5prod_p95_ms": 4.57,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-7-flash-1790957342"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.83,
-          "latency_p95_ms": 5.4,
-          "cost_per_1k_usd": 2.28,
-          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.25,
+          "latency_p95_ms": 5.64,
+          "latency_2prod_p95_ms": 5.64,
+          "latency_5prod_p95_ms": 5.03,
+          "cost_per_1k_usd": 11.5425,
+          "vertex_run": "run-stage2-relevance-gemini-3-8-flash-1790957342"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "RelevanceDetectorSpecialist",
-          "mean_accuracy": 0.8,
-          "mean_precision": 0.9333,
+          "mean_accuracy": 0.9,
+          "mean_precision": 0.9667,
           "mean_recall": 1.0,
-          "mean_f1": 0.9655,
-          "latency_p50_ms": 3.51,
-          "latency_p95_ms": 5.45,
-          "cost_per_1k_usd": 35.0,
-          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790953889"
+          "mean_f1": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.13,
+          "latency_p95_ms": 7.03,
+          "latency_2prod_p95_ms": 6.36,
+          "latency_5prod_p95_ms": 5.29,
+          "cost_per_1k_usd": 177.1875,
+          "vertex_run": "run-stage2-relevance-gemini-2-5-pro-1790957342"
         }
       ],
       "stage4_synthesis": [
@@ -948,115 +1110,151 @@
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.82,
           "synthesis_quality_5pt": 4.1,
-          "latency_p50_ms": 1.18,
-          "latency_p95_ms": 1.62,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790953889"
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 2.05,
+          "latency_2prod_p95_ms": 1.77,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-lite-1790957342"
         },
         {
           "model_id": "gemini-3.1-flash-lite",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.836,
           "synthesis_quality_5pt": 4.18,
-          "latency_p50_ms": 1.23,
-          "latency_p95_ms": 1.42,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-3-1-flash-lite-1790953889"
+          "latency_p50_ms": 1.38,
+          "latency_p95_ms": 2.0,
+          "latency_2prod_p95_ms": 2.0,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-3-1-flash-lite-1790957343"
         },
         {
           "model_id": "gemini-3.5-flash-lite",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.844,
           "synthesis_quality_5pt": 4.22,
-          "latency_p50_ms": 1.08,
-          "latency_p95_ms": 1.7,
-          "cost_per_1k_usd": 0.57,
-          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-lite-1790953889"
+          "latency_p50_ms": 1.46,
+          "latency_p95_ms": 2.12,
+          "latency_2prod_p95_ms": 1.89,
+          "latency_5prod_p95_ms": 2.37,
+          "cost_per_1k_usd": 2.8856,
+          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-lite-1790957343"
         },
         {
           "model_id": "gemini-2.5-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.87,
           "synthesis_quality_5pt": 4.35,
-          "latency_p50_ms": 1.9,
-          "latency_p95_ms": 3.59,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790953889"
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 1.87,
+          "latency_2prod_p95_ms": 1.87,
+          "latency_5prod_p95_ms": 1.65,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-flash-1790957343"
         },
         {
           "model_id": "gemini-3.5-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.896,
           "synthesis_quality_5pt": 4.48,
-          "latency_p50_ms": 1.75,
-          "latency_p95_ms": 3.76,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-1790953889"
+          "latency_p50_ms": 1.29,
+          "latency_p95_ms": 1.99,
+          "latency_2prod_p95_ms": 1.95,
+          "latency_5prod_p95_ms": 3.06,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-5-flash-1790957343"
         },
         {
           "model_id": "gemini-3.6-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.904,
           "synthesis_quality_5pt": 4.52,
-          "latency_p50_ms": 1.45,
-          "latency_p95_ms": 2.82,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-6-flash-1790953889"
+          "latency_p50_ms": 1.27,
+          "latency_p95_ms": 1.85,
+          "latency_2prod_p95_ms": 1.8,
+          "latency_5prod_p95_ms": 1.63,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-6-flash-1790957343"
         },
         {
           "model_id": "gemini-3.7-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.91,
           "synthesis_quality_5pt": 4.55,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 2.12,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-7-flash-1790953889"
+          "latency_p50_ms": 1.35,
+          "latency_p95_ms": 2.09,
+          "latency_2prod_p95_ms": 1.9,
+          "latency_5prod_p95_ms": 1.97,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-7-flash-1790957343"
         },
         {
           "model_id": "gemini-3.8-flash",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.916,
           "synthesis_quality_5pt": 4.58,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 1.92,
-          "cost_per_1k_usd": 1.14,
-          "vertex_run": "run-stage3-synthesis-gemini-3-8-flash-1790953889"
+          "latency_p50_ms": 1.36,
+          "latency_p95_ms": 2.66,
+          "latency_2prod_p95_ms": 2.11,
+          "latency_5prod_p95_ms": 2.51,
+          "cost_per_1k_usd": 5.7712,
+          "vertex_run": "run-stage3-synthesis-gemini-3-8-flash-1790957344"
         },
         {
           "model_id": "gemini-2.5-pro",
           "specialist": "SpecComparisonSpecialist",
           "mean_accuracy": 1.0,
           "mean_citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "mean_semantic_coherence": 0.976,
           "synthesis_quality_5pt": 4.88,
-          "latency_p50_ms": 1.14,
-          "latency_p95_ms": 1.76,
-          "cost_per_1k_usd": 17.5,
-          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790953889"
+          "latency_p50_ms": 1.63,
+          "latency_p95_ms": 2.57,
+          "latency_2prod_p95_ms": 2.66,
+          "latency_5prod_p95_ms": 1.88,
+          "cost_per_1k_usd": 88.5938,
+          "vertex_run": "run-stage3-synthesis-gemini-2-5-pro-1790957344"
         }
       ]
     },
     "vertex_experiment_runs": [
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790953888",
+        "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1065,18 +1263,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.76,
-          "latency_p95_ms": 9.19,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 1.77,
+          "latency_p95_ms": 3.34,
+          "latency_2prod_p95_ms": 3.34,
+          "latency_5prod_p95_ms": 2.1,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-1-flash-lite-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-1-flash-lite-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1085,18 +1285,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.1-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.66,
-          "latency_p95_ms": 2.72,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 1.73,
+          "latency_p95_ms": 2.36,
+          "latency_2prod_p95_ms": 2.36,
+          "latency_5prod_p95_ms": 1.78,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-5-flash-lite-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-5-flash-lite-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1105,18 +1307,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.72,
-          "latency_p95_ms": 2.18,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 2.13,
+          "latency_p95_ms": 3.55,
+          "latency_2prod_p95_ms": 3.55,
+          "latency_5prod_p95_ms": 2.41,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-flash-1790953888",
+        "run_name": "run-stage1-intent-gemini-2-5-flash-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1125,18 +1329,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.9,
-          "latency_p95_ms": 2.8,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 2.13,
+          "latency_p95_ms": 3.74,
+          "latency_2prod_p95_ms": 3.74,
+          "latency_5prod_p95_ms": 2.39,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-5-flash-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-5-flash-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1145,18 +1351,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 2.12,
-          "latency_p95_ms": 3.12,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.53,
+          "latency_p95_ms": 2.06,
+          "latency_2prod_p95_ms": 2.1,
+          "latency_5prod_p95_ms": 1.52,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-6-flash-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-6-flash-1790957338",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1165,18 +1373,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.6-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 2.05,
-          "latency_p95_ms": 3.08,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.49,
+          "latency_p95_ms": 2.48,
+          "latency_2prod_p95_ms": 3.21,
+          "latency_5prod_p95_ms": 1.57,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-7-flash-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-7-flash-1790957339",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1185,18 +1395,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.7-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 2.61,
-          "latency_p95_ms": 3.22,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.55,
+          "latency_p95_ms": 2.68,
+          "latency_2prod_p95_ms": 2.41,
+          "latency_5prod_p95_ms": 1.88,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-3-8-flash-1790953888",
+        "run_name": "run-stage1-intent-gemini-3-8-flash-1790957339",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1205,18 +1417,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-3.8-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.83,
-          "latency_p95_ms": 2.3,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.55,
+          "latency_p95_ms": 2.32,
+          "latency_2prod_p95_ms": 2.32,
+          "latency_5prod_p95_ms": 2.04,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage1-intent-gemini-2-5-pro-1790953888",
+        "run_name": "run-stage1-intent-gemini-2-5-pro-1790957339",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1225,18 +1439,20 @@
           "stage": "stage1_intent",
           "specialist": "QueryIntentSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
-          "latency_p50_ms": 1.37,
-          "latency_p95_ms": 2.59,
-          "cost_per_1k_usd": 17.5
+          "latency_p50_ms": 1.28,
+          "latency_p95_ms": 2.34,
+          "latency_2prod_p95_ms": 2.68,
+          "latency_5prod_p95_ms": 1.26,
+          "cost_per_1k_usd": 88.5938
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-2-5-flash-lite-1790953889",
+        "run_name": "run-stage2-relevance-gemini-2-5-flash-lite-1790957339",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1245,21 +1461,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 7.67,
-          "latency_p95_ms": 13.08,
-          "cost_per_1k_usd": 1.14
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.59,
+          "latency_p95_ms": 5.07,
+          "latency_2prod_p95_ms": 4.88,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-1-flash-lite-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-1-flash-lite-1790957340",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1268,21 +1488,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.1-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 7.48,
-          "latency_p95_ms": 14.88,
-          "cost_per_1k_usd": 1.14
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.87,
+          "latency_p95_ms": 6.48,
+          "latency_2prod_p95_ms": 6.35,
+          "latency_5prod_p95_ms": 8.24,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-5-flash-lite-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-5-flash-lite-1790957340",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1291,21 +1515,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 4.59,
-          "latency_p95_ms": 7.34,
-          "cost_per_1k_usd": 1.14
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.65,
+          "latency_p95_ms": 6.06,
+          "latency_2prod_p95_ms": 5.86,
+          "latency_5prod_p95_ms": 6.06,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-2-5-flash-1790953889",
+        "run_name": "run-stage2-relevance-gemini-2-5-flash-1790957341",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1314,21 +1542,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 3.54,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.17,
+          "latency_p95_ms": 6.35,
+          "latency_2prod_p95_ms": 5.8,
+          "latency_5prod_p95_ms": 6.34,
+          "cost_per_1k_usd": 11.5425
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-5-flash-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-5-flash-1790957341",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1337,21 +1569,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 3.57,
-          "latency_p95_ms": 4.08,
-          "cost_per_1k_usd": 2.28
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.16,
+          "latency_p95_ms": 5.59,
+          "latency_2prod_p95_ms": 5.61,
+          "latency_5prod_p95_ms": 4.68,
+          "cost_per_1k_usd": 11.5425
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-6-flash-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-6-flash-1790957341",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1360,21 +1596,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.6-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 3.92,
-          "latency_p95_ms": 4.47,
-          "cost_per_1k_usd": 2.28
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.75,
+          "latency_p95_ms": 5.65,
+          "latency_2prod_p95_ms": 5.73,
+          "latency_5prod_p95_ms": 4.6,
+          "cost_per_1k_usd": 11.5425
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-7-flash-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-7-flash-1790957342",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1383,21 +1623,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.7-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 4.62,
-          "latency_p95_ms": 5.32,
-          "cost_per_1k_usd": 2.28
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 3.74,
+          "latency_p95_ms": 5.23,
+          "latency_2prod_p95_ms": 5.23,
+          "latency_5prod_p95_ms": 4.57,
+          "cost_per_1k_usd": 11.5425
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-3-8-flash-1790953889",
+        "run_name": "run-stage2-relevance-gemini-3-8-flash-1790957342",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1406,21 +1650,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-3.8-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 3.83,
-          "latency_p95_ms": 5.4,
-          "cost_per_1k_usd": 2.28
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.25,
+          "latency_p95_ms": 5.64,
+          "latency_2prod_p95_ms": 5.64,
+          "latency_5prod_p95_ms": 5.03,
+          "cost_per_1k_usd": 11.5425
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage2-relevance-gemini-2-5-pro-1790953889",
+        "run_name": "run-stage2-relevance-gemini-2-5-pro-1790957342",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1429,21 +1677,25 @@
           "stage": "stage2_relevance",
           "specialist": "RelevanceDetectorSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
-          "accuracy": 0.8,
-          "precision": 0.9333,
+          "accuracy": 0.9,
+          "precision": 0.9667,
           "recall": 1.0,
-          "f1_score": 0.9655,
-          "latency_p50_ms": 3.51,
-          "latency_p95_ms": 5.45,
-          "cost_per_1k_usd": 35.0
+          "f1_score": 0.9831,
+          "f1_2prod": 0.9709,
+          "f1_5prod": 1.0,
+          "latency_p50_ms": 4.13,
+          "latency_p95_ms": 7.03,
+          "latency_2prod_p95_ms": 6.36,
+          "latency_5prod_p95_ms": 5.29,
+          "cost_per_1k_usd": 177.1875
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790957342",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1452,21 +1704,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.82,
           "synthesis_quality_5pt": 4.1,
-          "latency_p50_ms": 1.18,
-          "latency_p95_ms": 1.62,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 2.05,
+          "latency_2prod_p95_ms": 1.77,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-1-flash-lite-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-1-flash-lite-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1475,21 +1731,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.1-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.836,
           "synthesis_quality_5pt": 4.18,
-          "latency_p50_ms": 1.23,
-          "latency_p95_ms": 1.42,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 1.38,
+          "latency_p95_ms": 2.0,
+          "latency_2prod_p95_ms": 2.0,
+          "latency_5prod_p95_ms": 1.89,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-5-flash-lite-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-5-flash-lite-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1498,21 +1758,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.5-flash-lite",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.844,
           "synthesis_quality_5pt": 4.22,
-          "latency_p50_ms": 1.08,
-          "latency_p95_ms": 1.7,
-          "cost_per_1k_usd": 0.57
+          "latency_p50_ms": 1.46,
+          "latency_p95_ms": 2.12,
+          "latency_2prod_p95_ms": 1.89,
+          "latency_5prod_p95_ms": 2.37,
+          "cost_per_1k_usd": 2.8856
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1521,21 +1785,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.87,
           "synthesis_quality_5pt": 4.35,
-          "latency_p50_ms": 1.9,
-          "latency_p95_ms": 3.59,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.32,
+          "latency_p95_ms": 1.87,
+          "latency_2prod_p95_ms": 1.87,
+          "latency_5prod_p95_ms": 1.65,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-5-flash-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-5-flash-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1544,21 +1812,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.5-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.896,
           "synthesis_quality_5pt": 4.48,
-          "latency_p50_ms": 1.75,
-          "latency_p95_ms": 3.76,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.29,
+          "latency_p95_ms": 1.99,
+          "latency_2prod_p95_ms": 1.95,
+          "latency_5prod_p95_ms": 3.06,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-6-flash-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-6-flash-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1567,21 +1839,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.6-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.904,
           "synthesis_quality_5pt": 4.52,
-          "latency_p50_ms": 1.45,
-          "latency_p95_ms": 2.82,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.27,
+          "latency_p95_ms": 1.85,
+          "latency_2prod_p95_ms": 1.8,
+          "latency_5prod_p95_ms": 1.63,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-7-flash-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-7-flash-1790957343",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1590,21 +1866,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.7-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.91,
           "synthesis_quality_5pt": 4.55,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 2.12,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.35,
+          "latency_p95_ms": 2.09,
+          "latency_2prod_p95_ms": 1.9,
+          "latency_5prod_p95_ms": 1.97,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-3-8-flash-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-3-8-flash-1790957344",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1613,21 +1893,25 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-3.8-flash",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.916,
           "synthesis_quality_5pt": 4.58,
-          "latency_p50_ms": 1.26,
-          "latency_p95_ms": 1.92,
-          "cost_per_1k_usd": 1.14
+          "latency_p50_ms": 1.36,
+          "latency_p95_ms": 2.66,
+          "latency_2prod_p95_ms": 2.11,
+          "latency_5prod_p95_ms": 2.51,
+          "cost_per_1k_usd": 5.7712
         }
       },
       {
         "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-        "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790953889",
+        "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790957344",
         "project_id": "fde-bestbuy-sandbox-dev-508321",
         "location": "us-central1",
         "logged_to_vertex": false,
@@ -1636,45 +1920,49 @@
           "stage": "stage3_synthesis",
           "specialist": "SpecComparisonSpecialist",
           "model_id": "gemini-2.5-pro",
-          "total_cases": 15
+          "total_cases": 80
         },
         "metrics": {
           "accuracy": 1.0,
           "citation_faithfulness": 1.0,
+          "citation_2prod": 1.0,
+          "citation_5prod": 1.0,
           "semantic_coherence": 0.976,
           "synthesis_quality_5pt": 4.88,
-          "latency_p50_ms": 1.14,
-          "latency_p95_ms": 1.76,
-          "cost_per_1k_usd": 17.5
+          "latency_p50_ms": 1.63,
+          "latency_p95_ms": 2.57,
+          "latency_2prod_p95_ms": 2.66,
+          "latency_5prod_p95_ms": 1.88,
+          "cost_per_1k_usd": 88.5938
         }
       }
     ],
     "winning_combination": {
-      "stage1_intent": "gemini-3.5-flash-lite",
-      "stage2_relevance": "gemini-3.5-flash-lite",
-      "stage3_synthesis": "gemini-3.8-flash",
+      "stage1_intent": "gemini-3.1-flash-lite",
+      "stage2_relevance": "gemini-2.5-flash-lite",
+      "stage3_synthesis": "gemini-3.5-flash-lite",
       "stage3_synthesis_quality_winner": "gemini-2.5-pro",
       "stage3_synthesis_latency_winner": "gemini-2.5-flash-lite",
       "stage2_retrieval": "deterministic-bq-sql",
-      "stage2_rerank": "gemini-3.5-flash-lite",
-      "stage3_relevance": "gemini-3.5-flash-lite",
-      "stage4_synthesis": "gemini-3.8-flash",
-      "stage1_p95_ms": 2.18,
+      "stage2_rerank": "gemini-2.5-flash-lite",
+      "stage3_relevance": "gemini-2.5-flash-lite",
+      "stage4_synthesis": "gemini-3.5-flash-lite",
+      "stage1_p95_ms": 2.36,
       "stage2_retrieval_p95_ms": 120.0,
       "bq_retrieval_p95_ms": 120.0,
-      "stage2_relevance_p95_ms": 7.34,
-      "stage3_synthesis_p95_ms": 1.92,
-      "stage2_p95_ms": 7.34,
-      "stage3_p95_ms": 1.92,
-      "total_pipeline_p95_ms": 131.44,
-      "tool_call_pipeline_p95_ms": 131.44,
+      "stage2_relevance_p95_ms": 5.07,
+      "stage3_synthesis_p95_ms": 2.12,
+      "stage2_p95_ms": 5.07,
+      "stage3_p95_ms": 2.12,
+      "total_pipeline_p95_ms": 129.55,
+      "tool_call_pipeline_p95_ms": 129.55,
       "sla_p95_3000ms_passed": true
     }
   },
   "vertex_experiment_runs": [
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790953888",
+      "run_name": "run-stage1-intent-gemini-2-5-flash-lite-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1683,18 +1971,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.76,
-        "latency_p95_ms": 9.19,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 1.77,
+        "latency_p95_ms": 3.34,
+        "latency_2prod_p95_ms": 3.34,
+        "latency_5prod_p95_ms": 2.1,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-1-flash-lite-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-1-flash-lite-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1703,18 +1993,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.1-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.66,
-        "latency_p95_ms": 2.72,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 1.73,
+        "latency_p95_ms": 2.36,
+        "latency_2prod_p95_ms": 2.36,
+        "latency_5prod_p95_ms": 1.78,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-5-flash-lite-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-5-flash-lite-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1723,18 +2015,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.72,
-        "latency_p95_ms": 2.18,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 2.13,
+        "latency_p95_ms": 3.55,
+        "latency_2prod_p95_ms": 3.55,
+        "latency_5prod_p95_ms": 2.41,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-flash-1790953888",
+      "run_name": "run-stage1-intent-gemini-2-5-flash-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1743,18 +2037,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.9,
-        "latency_p95_ms": 2.8,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 2.13,
+        "latency_p95_ms": 3.74,
+        "latency_2prod_p95_ms": 3.74,
+        "latency_5prod_p95_ms": 2.39,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-5-flash-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-5-flash-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1763,18 +2059,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 2.12,
-        "latency_p95_ms": 3.12,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.53,
+        "latency_p95_ms": 2.06,
+        "latency_2prod_p95_ms": 2.1,
+        "latency_5prod_p95_ms": 1.52,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-6-flash-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-6-flash-1790957338",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1783,18 +2081,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.6-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 2.05,
-        "latency_p95_ms": 3.08,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.49,
+        "latency_p95_ms": 2.48,
+        "latency_2prod_p95_ms": 3.21,
+        "latency_5prod_p95_ms": 1.57,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-7-flash-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-7-flash-1790957339",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1803,18 +2103,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.7-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 2.61,
-        "latency_p95_ms": 3.22,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.55,
+        "latency_p95_ms": 2.68,
+        "latency_2prod_p95_ms": 2.41,
+        "latency_5prod_p95_ms": 1.88,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-3-8-flash-1790953888",
+      "run_name": "run-stage1-intent-gemini-3-8-flash-1790957339",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1823,18 +2125,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-3.8-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.83,
-        "latency_p95_ms": 2.3,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.55,
+        "latency_p95_ms": 2.32,
+        "latency_2prod_p95_ms": 2.32,
+        "latency_5prod_p95_ms": 2.04,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage1-intent-gemini-2-5-pro-1790953888",
+      "run_name": "run-stage1-intent-gemini-2-5-pro-1790957339",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1843,18 +2147,20 @@
         "stage": "stage1_intent",
         "specialist": "QueryIntentSpecialist",
         "model_id": "gemini-2.5-pro",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
-        "latency_p50_ms": 1.37,
-        "latency_p95_ms": 2.59,
-        "cost_per_1k_usd": 17.5
+        "latency_p50_ms": 1.28,
+        "latency_p95_ms": 2.34,
+        "latency_2prod_p95_ms": 2.68,
+        "latency_5prod_p95_ms": 1.26,
+        "cost_per_1k_usd": 88.5938
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-2-5-flash-lite-1790953889",
+      "run_name": "run-stage2-relevance-gemini-2-5-flash-lite-1790957339",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1863,21 +2169,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 7.67,
-        "latency_p95_ms": 13.08,
-        "cost_per_1k_usd": 1.14
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 3.59,
+        "latency_p95_ms": 5.07,
+        "latency_2prod_p95_ms": 4.88,
+        "latency_5prod_p95_ms": 4.6,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-1-flash-lite-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-1-flash-lite-1790957340",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1886,21 +2196,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.1-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 7.48,
-        "latency_p95_ms": 14.88,
-        "cost_per_1k_usd": 1.14
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.87,
+        "latency_p95_ms": 6.48,
+        "latency_2prod_p95_ms": 6.35,
+        "latency_5prod_p95_ms": 8.24,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-5-flash-lite-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-5-flash-lite-1790957340",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1909,21 +2223,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 4.59,
-        "latency_p95_ms": 7.34,
-        "cost_per_1k_usd": 1.14
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.65,
+        "latency_p95_ms": 6.06,
+        "latency_2prod_p95_ms": 5.86,
+        "latency_5prod_p95_ms": 6.06,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-2-5-flash-1790953889",
+      "run_name": "run-stage2-relevance-gemini-2-5-flash-1790957341",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1932,21 +2250,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-2.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 3.54,
-        "latency_p95_ms": 5.32,
-        "cost_per_1k_usd": 2.28
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.17,
+        "latency_p95_ms": 6.35,
+        "latency_2prod_p95_ms": 5.8,
+        "latency_5prod_p95_ms": 6.34,
+        "cost_per_1k_usd": 11.5425
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-5-flash-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-5-flash-1790957341",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1955,21 +2277,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 3.57,
-        "latency_p95_ms": 4.08,
-        "cost_per_1k_usd": 2.28
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.16,
+        "latency_p95_ms": 5.59,
+        "latency_2prod_p95_ms": 5.61,
+        "latency_5prod_p95_ms": 4.68,
+        "cost_per_1k_usd": 11.5425
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-6-flash-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-6-flash-1790957341",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -1978,21 +2304,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.6-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 3.92,
-        "latency_p95_ms": 4.47,
-        "cost_per_1k_usd": 2.28
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 3.75,
+        "latency_p95_ms": 5.65,
+        "latency_2prod_p95_ms": 5.73,
+        "latency_5prod_p95_ms": 4.6,
+        "cost_per_1k_usd": 11.5425
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-7-flash-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-7-flash-1790957342",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2001,21 +2331,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.7-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 4.62,
-        "latency_p95_ms": 5.32,
-        "cost_per_1k_usd": 2.28
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 3.74,
+        "latency_p95_ms": 5.23,
+        "latency_2prod_p95_ms": 5.23,
+        "latency_5prod_p95_ms": 4.57,
+        "cost_per_1k_usd": 11.5425
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-3-8-flash-1790953889",
+      "run_name": "run-stage2-relevance-gemini-3-8-flash-1790957342",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2024,21 +2358,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-3.8-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 3.83,
-        "latency_p95_ms": 5.4,
-        "cost_per_1k_usd": 2.28
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.25,
+        "latency_p95_ms": 5.64,
+        "latency_2prod_p95_ms": 5.64,
+        "latency_5prod_p95_ms": 5.03,
+        "cost_per_1k_usd": 11.5425
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage2-relevance-gemini-2-5-pro-1790953889",
+      "run_name": "run-stage2-relevance-gemini-2-5-pro-1790957342",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2047,21 +2385,25 @@
         "stage": "stage2_relevance",
         "specialist": "RelevanceDetectorSpecialist",
         "model_id": "gemini-2.5-pro",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
-        "accuracy": 0.8,
-        "precision": 0.9333,
+        "accuracy": 0.9,
+        "precision": 0.9667,
         "recall": 1.0,
-        "f1_score": 0.9655,
-        "latency_p50_ms": 3.51,
-        "latency_p95_ms": 5.45,
-        "cost_per_1k_usd": 35.0
+        "f1_score": 0.9831,
+        "f1_2prod": 0.9709,
+        "f1_5prod": 1.0,
+        "latency_p50_ms": 4.13,
+        "latency_p95_ms": 7.03,
+        "latency_2prod_p95_ms": 6.36,
+        "latency_5prod_p95_ms": 5.29,
+        "cost_per_1k_usd": 177.1875
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-2-5-flash-lite-1790957342",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2070,21 +2412,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-2.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.82,
         "synthesis_quality_5pt": 4.1,
-        "latency_p50_ms": 1.18,
-        "latency_p95_ms": 1.62,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 1.32,
+        "latency_p95_ms": 2.05,
+        "latency_2prod_p95_ms": 1.77,
+        "latency_5prod_p95_ms": 1.89,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-1-flash-lite-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-1-flash-lite-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2093,21 +2439,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.1-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.836,
         "synthesis_quality_5pt": 4.18,
-        "latency_p50_ms": 1.23,
-        "latency_p95_ms": 1.42,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 1.38,
+        "latency_p95_ms": 2.0,
+        "latency_2prod_p95_ms": 2.0,
+        "latency_5prod_p95_ms": 1.89,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-5-flash-lite-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-5-flash-lite-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2116,21 +2466,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.5-flash-lite",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.844,
         "synthesis_quality_5pt": 4.22,
-        "latency_p50_ms": 1.08,
-        "latency_p95_ms": 1.7,
-        "cost_per_1k_usd": 0.57
+        "latency_p50_ms": 1.46,
+        "latency_p95_ms": 2.12,
+        "latency_2prod_p95_ms": 1.89,
+        "latency_5prod_p95_ms": 2.37,
+        "cost_per_1k_usd": 2.8856
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-2-5-flash-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2139,21 +2493,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-2.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.87,
         "synthesis_quality_5pt": 4.35,
-        "latency_p50_ms": 1.9,
-        "latency_p95_ms": 3.59,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.32,
+        "latency_p95_ms": 1.87,
+        "latency_2prod_p95_ms": 1.87,
+        "latency_5prod_p95_ms": 1.65,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-5-flash-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-5-flash-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2162,21 +2520,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.5-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.896,
         "synthesis_quality_5pt": 4.48,
-        "latency_p50_ms": 1.75,
-        "latency_p95_ms": 3.76,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.29,
+        "latency_p95_ms": 1.99,
+        "latency_2prod_p95_ms": 1.95,
+        "latency_5prod_p95_ms": 3.06,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-6-flash-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-6-flash-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2185,21 +2547,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.6-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.904,
         "synthesis_quality_5pt": 4.52,
-        "latency_p50_ms": 1.45,
-        "latency_p95_ms": 2.82,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.27,
+        "latency_p95_ms": 1.85,
+        "latency_2prod_p95_ms": 1.8,
+        "latency_5prod_p95_ms": 1.63,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-7-flash-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-7-flash-1790957343",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2208,21 +2574,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.7-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.91,
         "synthesis_quality_5pt": 4.55,
-        "latency_p50_ms": 1.26,
-        "latency_p95_ms": 2.12,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.35,
+        "latency_p95_ms": 2.09,
+        "latency_2prod_p95_ms": 1.9,
+        "latency_5prod_p95_ms": 1.97,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-3-8-flash-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-3-8-flash-1790957344",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2231,21 +2601,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-3.8-flash",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.916,
         "synthesis_quality_5pt": 4.58,
-        "latency_p50_ms": 1.26,
-        "latency_p95_ms": 1.92,
-        "cost_per_1k_usd": 1.14
+        "latency_p50_ms": 1.36,
+        "latency_p95_ms": 2.66,
+        "latency_2prod_p95_ms": 2.11,
+        "latency_5prod_p95_ms": 2.51,
+        "cost_per_1k_usd": 5.7712
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790953889",
+      "run_name": "run-stage3-synthesis-gemini-2-5-pro-1790957344",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2254,21 +2628,25 @@
         "stage": "stage3_synthesis",
         "specialist": "SpecComparisonSpecialist",
         "model_id": "gemini-2.5-pro",
-        "total_cases": 15
+        "total_cases": 80
       },
       "metrics": {
         "accuracy": 1.0,
         "citation_faithfulness": 1.0,
+        "citation_2prod": 1.0,
+        "citation_5prod": 1.0,
         "semantic_coherence": 0.976,
         "synthesis_quality_5pt": 4.88,
-        "latency_p50_ms": 1.14,
-        "latency_p95_ms": 1.76,
-        "cost_per_1k_usd": 17.5
+        "latency_p50_ms": 1.63,
+        "latency_p95_ms": 2.57,
+        "latency_2prod_p95_ms": 2.66,
+        "latency_5prod_p95_ms": 1.88,
+        "cost_per_1k_usd": 88.5938
       }
     },
     {
       "experiment_name": "bestbuy-catalog-model-selection-benchmark",
-      "run_name": "run-tiered-hybrid-pipeline-1790953889",
+      "run_name": "run-tiered-hybrid-pipeline-1790957344",
       "project_id": "fde-bestbuy-sandbox-dev-508321",
       "location": "us-central1",
       "logged_to_vertex": false,
@@ -2279,7 +2657,7 @@
         "synthesis_model": "gemini-2.5-pro",
         "is_tiered_hybrid": "True",
         "dataset": "benchmark_catalog.evalset.json",
-        "total_cases": 15,
+        "total_cases": 80,
         "data_accuracy_rubric": "data_accuracy.md",
         "citation_faithfulness_rubric": "citation_faithfulness.md"
       },
@@ -2288,14 +2666,14 @@
         "mean_citation_faithfulness": 1.0,
         "mean_semantic_coherence": 1.0,
         "structured_output_validity": 1.0,
-        "latency_p50_ms": 47.57,
-        "latency_p95_ms": 131.44,
-        "workstation_wan_p50_ms": 47.57,
-        "workstation_wan_p95_ms": 131.44,
+        "latency_p50_ms": 46.78,
+        "latency_p95_ms": 129.55,
+        "workstation_wan_p50_ms": 46.78,
+        "workstation_wan_p95_ms": 129.55,
         "mean_input_tokens": 2800.0,
         "mean_output_tokens": 650.0,
-        "estimated_cost_per_1k_queries_usd": 2.85,
-        "composite_utility_score": 0.9715
+        "estimated_cost_per_1k_queries_usd": 11.5424,
+        "composite_utility_score": 0.9
       }
     }
   ]

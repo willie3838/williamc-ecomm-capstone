@@ -1501,6 +1501,385 @@
           }
         }
       ]
+    },
+    {
+      "id": "holdout-multi-001",
+      "eval_id": "holdout-multi-001",
+      "category": "Laptops",
+      "archetype": "holdout_comparison",
+      "query": "I want to compare three high-end laptops for remote development: Apple MacBook Pro 14 M3 Pro, ASUS ROG Zephyrus G14, and HP Spectre x360",
+      "expected_skus": [
+        "6534640",
+        "6570214",
+        "6572088"
+      ],
+      "key_differential_features": [
+        "processor",
+        "ram_gb",
+        "storage_gb",
+        "weight_lbs"
+      ],
+      "ground_truth_specs": {
+        "6534640": {
+          "name": "Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD",
+          "brand": "Apple",
+          "price": 1799.0,
+          "processor": "Apple M3 Pro 11-core",
+          "ram_gb": 18,
+          "storage_gb": 512,
+          "weight_lbs": 3.5
+        },
+        "6570214": {
+          "name": "ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD",
+          "brand": "ASUS",
+          "price": 1599.99,
+          "processor": "AMD Ryzen 9 8945HS 8-core",
+          "ram_gb": 16,
+          "storage_gb": 1000,
+          "weight_lbs": 3.31
+        },
+        "6572088": {
+          "name": "HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD",
+          "brand": "HP",
+          "price": 1449.99,
+          "processor": "Intel Core Ultra 5 125H",
+          "ram_gb": 16,
+          "storage_gb": 1000,
+          "weight_lbs": 3.19
+        }
+      },
+      "conversation": [
+        {
+          "invocation_id": "inv-holdout-multi-001",
+          "user_content": {
+            "parts": [
+              {
+                "text": "I want to compare three high-end laptops for remote development: Apple MacBook Pro 14 M3 Pro, ASUS ROG Zephyrus G14, and HP Spectre x360"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Detailed comparison of Apple MacBook Pro 14\" Laptop - M3 Pro chip - 18GB Memory - 512GB SSD [SKU: 6534640] ($1,799.00), ASUS ROG Zephyrus G14 14\" OLED Gaming Notebook - AMD Ryzen 9 8945HS - 16GB Memory - 1TB SSD [SKU: 6570214] ($1,599.99), and HP Spectre x360 2-in-1 14\" 2.8K OLED Touch-Screen Notebook - Intel Core Ultra 5 - 16GB Memory - 1TB SSD [SKU: 6572088] ($1,449.99)."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Laptops"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {}
+    },
+    {
+      "id": "holdout-multi-002",
+      "eval_id": "holdout-multi-002",
+      "category": "Headphones",
+      "archetype": "holdout_comparison",
+      "query": "Help me choose between three premium noise-cancelling headphones: Sony WH-1000XM5, Bose QuietComfort Ultra, and Bowers & Wilkins Px7 S2e",
+      "expected_skus": [
+        "6505727",
+        "6553823",
+        "6561844"
+      ],
+      "key_differential_features": [
+        "battery_life_hours",
+        "weight_oz",
+        "noise_cancellation"
+      ],
+      "ground_truth_specs": {
+        "6505727": {
+          "name": "Sony WH-1000XM5 Wireless Noise-Canceling Headphones",
+          "brand": "Sony",
+          "price": 399.99,
+          "battery_life_hours": 30.0,
+          "weight_oz": 8.8,
+          "noise_cancellation": "Active Noise Canceling with Auto NC Optimizer"
+        },
+        "6553823": {
+          "name": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones",
+          "brand": "Bose",
+          "price": 429.0,
+          "battery_life_hours": 24.0,
+          "weight_oz": 8.9,
+          "noise_cancellation": "CustomTune Active Noise Cancelling"
+        },
+        "6561844": {
+          "name": "Bowers & Wilkins Px7 S2e Wireless Audiophile Over-Ear Headphones",
+          "brand": "Bowers & Wilkins",
+          "price": 399.0,
+          "battery_life_hours": 30.0,
+          "weight_oz": 10.8,
+          "noise_cancellation": "6-Microphone Hybrid Active Noise Cancellation"
+        }
+      },
+      "conversation": [
+        {
+          "invocation_id": "inv-holdout-multi-002",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Help me choose between three premium noise-cancelling headphones: Sony WH-1000XM5, Bose QuietComfort Ultra, and Bowers & Wilkins Px7 S2e"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Detailed comparison of Sony WH-1000XM5 Wireless Noise-Canceling Headphones [SKU: 6505727] ($399.99), Bose QuietComfort Ultra Wireless Noise Cancelling Headphones [SKU: 6553823] ($429.00), and Bowers & Wilkins Px7 S2e Wireless Audiophile Over-Ear Headphones [SKU: 6561844] ($399.00)."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Headphones"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {}
+    },
+    {
+      "id": "holdout-multi-003",
+      "eval_id": "holdout-multi-003",
+      "category": "Smart Home",
+      "archetype": "holdout_comparison",
+      "query": "Compare four smart home controllers: Google Nest Learning Thermostat 4th Gen, ecobee Smart Thermostat Premium, Honeywell Home T9, and Amazon Echo Show 10",
+      "expected_skus": [
+        "6584201",
+        "6502275",
+        "6562418",
+        "6481592"
+      ],
+      "key_differential_features": [
+        "voice_assistant",
+        "connectivity",
+        "display"
+      ],
+      "ground_truth_specs": {
+        "6584201": {
+          "name": "Google Nest Learning Thermostat 4th Gen with Temperature Sensor",
+          "brand": "Google",
+          "price": 279.99,
+          "voice_assistant": "Google Assistant",
+          "connectivity": "Matter, Thread, Wi-Fi, Bluetooth",
+          "display": "Polished glass high-res Dynamic Farsight display"
+        },
+        "6502275": {
+          "name": "ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor",
+          "brand": "ecobee",
+          "price": 249.99,
+          "voice_assistant": "Alexa built-in, Apple Siri compatible",
+          "connectivity": "Matter, Wi-Fi, Bluetooth",
+          "display": "Vibrant color touchscreen"
+        },
+        "6562418": {
+          "name": "Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor",
+          "brand": "Honeywell Home",
+          "price": 199.99,
+          "voice_assistant": "Amazon Alexa, Google Assistant, Apple HomeKit",
+          "connectivity": "Dual-Band Wi-Fi (2.4GHz / 5GHz)",
+          "display": "3.5-inch IPS Color LCD Touchscreen"
+        },
+        "6481592": {
+          "name": "Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub",
+          "brand": "Amazon",
+          "price": 249.99,
+          "voice_assistant": "Amazon Alexa",
+          "connectivity": "Matter, Zigbee, Thread Border Router, Dual-Band Wi-Fi, Bluetooth",
+          "display": "10.1-inch 1280 x 800 HD Motorized Swivel Touchscreen"
+        }
+      },
+      "conversation": [
+        {
+          "invocation_id": "inv-holdout-multi-003",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Compare four smart home controllers: Google Nest Learning Thermostat 4th Gen, ecobee Smart Thermostat Premium, Honeywell Home T9, and Amazon Echo Show 10"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Detailed comparison of Google Nest Learning Thermostat 4th Gen with Temperature Sensor [SKU: 6584201] ($279.99), ecobee Smart Thermostat Premium with SmartSensor and Air Quality Monitor [SKU: 6502275] ($249.99), Honeywell Home T9 Wi-Fi 7-Day Programmable Climate Controller with Room Sensor [SKU: 6562418] ($199.99), and Amazon Echo Show 10 (3rd Gen) 10.1\" HD Motion-Tracking Smart Hub [SKU: 6481592] ($249.99)."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "Smart Home"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {}
+    },
+    {
+      "id": "holdout-multi-004",
+      "eval_id": "holdout-multi-004",
+      "category": "TVs",
+      "archetype": "holdout_comparison",
+      "query": "Provide a full comparison across 5 4K smart TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L 55, TCL QM8 75, and Vizio Quantum Pro 75",
+      "expected_skus": [
+        "6535929",
+        "6536965",
+        "6543908",
+        "6551173",
+        "6544890"
+      ],
+      "key_differential_features": [
+        "display_technology",
+        "refresh_rate_hz",
+        "screen_size_in"
+      ],
+      "ground_truth_specs": {
+        "6535929": {
+          "name": "LG C3 Series 65\" Class OLED evo 4K Smart TV",
+          "brand": "LG",
+          "price": 1499.99,
+          "display_technology": "OLED evo",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 65
+        },
+        "6536965": {
+          "name": "Samsung S90C Series 65\" Class OLED 4K Smart TV",
+          "brand": "Samsung",
+          "price": 1599.99,
+          "display_technology": "QD-OLED",
+          "refresh_rate_hz": 144,
+          "screen_size_in": 65
+        },
+        "6543908": {
+          "name": "Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display",
+          "brand": "Sony",
+          "price": 1399.99,
+          "display_technology": "XR Contrast Booster Panel",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 55
+        },
+        "6551173": {
+          "name": "TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display",
+          "brand": "TCL",
+          "price": 1499.99,
+          "display_technology": "QD-Mini LED",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 75
+        },
+        "6544890": {
+          "name": "Vizio Quantum Pro 75\" Class WiFi 6E QLED 4K HDR Smart Display",
+          "brand": "Vizio",
+          "price": 899.99,
+          "display_technology": "QLED Full Array Local Dimming",
+          "refresh_rate_hz": 120,
+          "screen_size_in": 75
+        }
+      },
+      "conversation": [
+        {
+          "invocation_id": "inv-holdout-multi-004",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Provide a full comparison across 5 4K smart TVs: LG C3 65 OLED, Samsung S90C 65 OLED, Sony BRAVIA XR A80L 55, TCL QM8 75, and Vizio Quantum Pro 75"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Detailed comparison of LG C3 Series 65\" Class OLED evo 4K Smart TV [SKU: 6535929] ($1,499.99), Samsung S90C Series 65\" Class OLED 4K Smart TV [SKU: 6536965] ($1,599.99), Sony BRAVIA XR A80L 55\" Class Cognitive Processor XR 4K HDR Google Display [SKU: 6543908] ($1,399.99), TCL QM8 Series 75\" Class QD-Mini LED 4K UHD HDR Smart Google Display [SKU: 6551173] ($1,499.99), and Vizio Quantum Pro 75\" Class WiFi 6E QLED 4K HDR Smart Display [SKU: 6544890] ($899.99)."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "id": null,
+                "args": {
+                  "category": "TVs"
+                },
+                "name": "query_catalog",
+                "partial_args": null,
+                "will_continue": null
+              }
+            ],
+            "tool_responses": [],
+            "intermediate_responses": []
+          },
+          "creation_timestamp": 0.0,
+          "rubrics": null,
+          "app_details": null
+        }
+      ],
+      "conversation_scenario": null,
+      "session_input": null,
+      "creation_timestamp": 0.0,
+      "rubrics": null,
+      "final_session_state": {}
     }
   ]
 }

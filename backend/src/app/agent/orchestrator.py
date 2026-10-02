@@ -782,6 +782,12 @@ class ComparisonOrchestrator:
                 re.match(r"^\s*(?:which|what|how|is|are)\b", after, re.IGNORECASE)
             ):
                 cleaned = after.strip()
+            elif re.match(
+                r"^\s*(?:compare|comparison|side-by-side|breakdown|evaluate|review)\b",
+                prefix,
+                re.IGNORECASE,
+            ) and ("," in after or re.search(r"\b(?:and|vs\.?|versus|or)\b", after, re.IGNORECASE)):
+                cleaned = after.strip()
             else:
                 attr_words = r"\b(?:battery|price|weight|specs?|specifications?|display|screen|performance|features?|breakdown|differences?|comparison|chip|cheaper|better|faster|longer|lighter)\b"
                 prefix_attrs = len(re.findall(attr_words, prefix, re.IGNORECASE))
@@ -1076,14 +1082,19 @@ class ComparisonOrchestrator:
             else:
                 price_grounding = f"Precomputed Price Grounding: All compared products are priced equally at ${cheapest.price:,.2f}."
 
+        num_prods = len(products)
+        summary_word_limit = 45 if num_prods <= 2 else min(110, 45 + num_prods * 15)
+        recs_word_limit = 25 if num_prods <= 2 else min(60, 25 + num_prods * 8)
+        sku_tags_list = ", ".join(f"'{p.name}' [SKU: {p.sku}]" for p in products)
+
         return (
             "You are an expert Best Buy Catalog Product Comparison Specialist.\n"
             "Analyze the side-by-side technical specifications and customer query to produce a grounded comparison narrative and persona buying recommendations.\n\n"
             "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
-            "2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). Do not omit citations or relegate them to the end.\n"
-            "3. TARGETED RECOMMENDATIONS: Provide 2 concise one-line persona recommendations (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
-            "4. CONCISE SYNTHESIS: Keep 'summary' to 2 concise sentences (under 45 words) and 'recommendations' under 25 words.\n"
+            f"2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). You must explicitly cite each of the {num_prods} products: {sku_tags_list}. Do not omit citations or relegate them to the end.\n"
+            "3. TARGETED RECOMMENDATIONS: Provide concise persona recommendations citing compared products (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
+            f"4. CONCISE SYNTHESIS: Keep 'summary' under {summary_word_limit} words and 'recommendations' under {recs_word_limit} words.\n"
             "5. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
@@ -1946,6 +1957,8 @@ class ComparisonOrchestrator:
             unique_products, original_query or " ".join(keywords), model=model
         )
         if llm_ranked is not None:
+            if len(entity_kw) >= 3:
+                return self._select_best_entity_candidates(llm_ranked, entity_kw, target_count)
             return self._balance_entities(llm_ranked, entity_kw)[:target_count]
 
         raise RuntimeError("LLM candidate reranking failed")
