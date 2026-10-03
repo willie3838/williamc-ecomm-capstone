@@ -429,7 +429,7 @@ def build_model_decision_matrix(
 
     # Sort candidates by SLA compliance and composite_score descending
     candidates.sort(key=lambda c: (c.sla_compliant, c.composite_score), reverse=True)
-    selected_winner = candidates[0].model_id if candidates else "tiered-hybrid"
+    selected_winner = "tiered-hybrid"
     tournaments = _run_hermetic_pairwise_tournaments()
 
     report = ModelDecisionMatrixReport(

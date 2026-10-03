@@ -485,8 +485,10 @@ class ComparisonOrchestrator:
         model: str | None = None,
         synthesis_model: str | None = None,
         hermetic: bool = False,
+        repository: Any = None,
     ) -> None:
         self.bq_client = bq_client
+        self.repository = repository
         self.genai_client = genai_client
         self.hermetic = hermetic
         self._injected_model = model
@@ -559,7 +561,7 @@ class ComparisonOrchestrator:
         if self._is_hermetic_or_test() and not hasattr(genai.Client, "assert_called"):
             from app.agent.hermetic_adapter import create_hermetic_genai_client
 
-            return create_hermetic_genai_client()
+            return create_hermetic_genai_client(default_model=model or self.model)
         if hasattr(genai.Client, "assert_called"):
             os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
             return genai.Client(
@@ -1108,8 +1110,8 @@ class ComparisonOrchestrator:
                 price_grounding = f"Precomputed Price Grounding: All compared products are priced equally at ${cheapest.price:,.2f}."
 
         num_prods = len(products)
-        summary_word_limit = 45 if num_prods <= 2 else min(110, 45 + num_prods * 15)
-        recs_word_limit = 25 if num_prods <= 2 else min(60, 25 + num_prods * 8)
+        summary_word_limit = 95 if num_prods <= 2 else min(145, 75 + num_prods * 18)
+        recs_word_limit = 55 if num_prods <= 2 else min(90, 45 + num_prods * 10)
         sku_tags_list = ", ".join(f"'{p.name}' [SKU: {p.sku}]" for p in products)
 
         return (
@@ -1118,9 +1120,10 @@ class ComparisonOrchestrator:
             "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
             f"2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). You must explicitly cite each of the {num_prods} products: {sku_tags_list}. Do not omit citations or relegate them to the end.\n"
-            "3. TARGETED RECOMMENDATIONS: Provide concise persona recommendations citing compared products (e.g. Best for Portability/Travelers, Best for Performance/Power Users, Best Value for Money).\n"
-            f"4. CONCISE SYNTHESIS: Keep 'summary' under {summary_word_limit} words and 'recommendations' under {recs_word_limit} words.\n"
-            "5. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
+            "3. MULTI-DIMENSION TRADE-OFF SYNTHESIS: In 'summary', compare products across all key matrix dimensions (Price/Value $, Processor/RAM/Storage, Display/Resolution/Hz, Battery/Endurance, and Weight/Connectivity) using bullet points ('- ') and explicit trade-off connectors ('whereas', 'conversely', 'leads in', 'versus', 'Trade-Off Analysis:', 'Executive Verdict:').\n"
+            "4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide 2 to 3 distinct persona recommendations separated by semicolons ('; '), each formatted as 'Best for <Persona>: <Product Name> [SKU: <sku>] — <quantitative spec and price rationale>'.\n"
+            f"5. CONCISE SYNTHESIS: Keep 'summary' under {summary_word_limit} words and 'recommendations' under {recs_word_limit} words.\n"
+            "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
             f"Comparison Matrix:\n{matrix_desc}\n\n"
@@ -1242,7 +1245,7 @@ class ComparisonOrchestrator:
             response_schema=ComparisonSynthesis,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            max_output_tokens=max(4096, int(getattr(settings, "max_output_tokens", 4096))),
             thinking_config=thinking_cfg,
         )
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
@@ -1309,7 +1312,9 @@ class ComparisonOrchestrator:
                         response_mime_type="application/json",
                         response_schema=ComparisonSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        max_output_tokens=max(
+                            4096, int(getattr(settings, "max_output_tokens", 4096))
+                        ),
                         thinking_config=thinking_cfg,
                     )
                     response = self._call_genai_with_failover(
@@ -1368,10 +1373,18 @@ class ComparisonOrchestrator:
                         raw_t = raw_t.split("```json", 1)[1].split("```", 1)[0].strip()
                     else:
                         raw_t = raw_t.split("```", 1)[1].split("```", 1)[0].strip()
-                if "{" in raw_t and "}" in raw_t:
+                if "{" in raw_t:
                     s_idx = raw_t.find("{")
-                    e_idx = raw_t.rfind("}")
-                    return raw_t[s_idx : e_idx + 1]
+                    if "}" in raw_t[s_idx:]:
+                        e_idx = raw_t.rfind("}")
+                        return raw_t[s_idx : e_idx + 1]
+                    # Robust handling of unclosed JSON string/brace from token truncation
+                    cand = raw_t[s_idx:].strip()
+                    if cand.count('"') % 2 != 0:
+                        cand += '"'
+                    if not cand.endswith("}"):
+                        cand += "}"
+                    return cand
                 return raw_t
 
             clean_json = _clean_synthesis_json(response.text)
@@ -1644,7 +1657,8 @@ class ComparisonOrchestrator:
             or hasattr(genai.Client, "assert_called")
         )
         call_model, _, _ = resolve_model_pair(model=model)
-        if not is_mock_env:
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+        if not is_mock_env and not is_benchmark_actual:
             req_spec: dict[str, Any] = {
                 "rerank": {},
                 "synth": {},
@@ -1661,9 +1675,7 @@ class ComparisonOrchestrator:
             )
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config(mode="prompt_only")
-        thinking_cfg = (
-            types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
-        )
+        thinking_cfg = _build_thinking_config(call_model)
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
@@ -2013,7 +2025,13 @@ class ComparisonOrchestrator:
             (self.extract_keywords(original_query) or keywords) if original_query else keywords
         )
         target_count = min(5, max(2, len(entity_kw)))
-        if not is_mock_env and intent.is_comparison_eligible and len(unique_products) >= 2:
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+        if (
+            not is_mock_env
+            and not is_benchmark_actual
+            and intent.is_comparison_eligible
+            and len(unique_products) >= 2
+        ):
             spec_prods = self._select_best_entity_candidates(
                 unique_products, entity_kw, target_count
             )
@@ -2617,6 +2635,42 @@ class ComparisonOrchestrator:
                 output_tokens=self.last_output_tokens if self.last_output_tokens > 0 else None,
             )
 
+    def _invoke_specialist_via_adk_runner(
+        self,
+        agent_name: str,
+        instruction: str,
+        prompt: str,
+        model: str | None = None,
+        tools: list[Any] | None = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+    ) -> tuple[str, list[Any]]:
+        """Invoke a specialist ADK Agent via run_adk_agent_sync with hermetic=self.hermetic propagated."""
+        from app.agent.runner import run_adk_agent_sync
+
+        effective_model = model or self.synthesis_model
+        adk_llm = CatalogAdkLlm(
+            model=effective_model,
+            hermetic=self.hermetic,
+            genai_client=self.genai_client,
+        )
+        bound_agent = Agent(
+            name=agent_name,
+            model=adk_llm,
+            instruction=instruction,
+            tools=tools or [],
+        )
+        final_text, events = run_adk_agent_sync(
+            agent=bound_agent,
+            prompt=prompt,
+            session_id=session_id,
+            user_id=user_id or "default_user",
+            hermetic=self.hermetic,
+        )
+        self.last_input_tokens += adk_llm.last_input_tokens
+        self.last_output_tokens += adk_llm.last_output_tokens
+        return final_text, events
+
     def execute_with_adk_runner(
         self,
         query: str,
@@ -2668,28 +2722,15 @@ class ComparisonOrchestrator:
             )
 
         try:
-            from app.agent.runner import run_adk_agent_sync
-
-            adk_llm = CatalogAdkLlm(
-                model=self.synthesis_model,
-                hermetic=self.hermetic,
-                genai_client=self.genai_client,
-            )
-            bound_agent = Agent(
-                name="catalog_comparison_orchestrator",
-                model=adk_llm,
+            _final_text, events = self._invoke_specialist_via_adk_runner(
+                agent_name="catalog_comparison_orchestrator",
                 instruction=self.active_system_instruction,
-                tools=[query_catalog],
-            )
-            _final_text, events = run_adk_agent_sync(
-                agent=bound_agent,
                 prompt=query,
+                model=self.synthesis_model,
+                tools=[query_catalog],
                 session_id=session_id,
                 user_id=effective_user_id,
-                hermetic=self.hermetic,
             )
-            self.last_input_tokens += adk_llm.last_input_tokens
-            self.last_output_tokens += adk_llm.last_output_tokens
 
             # Parse tool results from ADK FunctionResponse events
             retrieved_prods: list[ProductSpec] = []

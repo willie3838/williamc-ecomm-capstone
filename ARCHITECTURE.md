@@ -241,7 +241,9 @@ flowchart TD
 Node 2 is implemented as **`CatalogRetrievalStep`** (aliased to `CatalogRetrievalAgent` for backward compatibility). To ensure zero hallucination on product specifications, pricing, and availability, Node 2 operates as a pure deterministic BigQuery SQL step without an LLM tool-calling layer (`self.adk_agent`, `model`, and `use_llm_tool_call` are removed). Consequently, the Google ADK `SequentialAgent` pipeline encapsulates only the 3 real LLM specialist agents:
 1. **Node 1: `QueryIntentAgent`**: Structured intent classification and entity extraction (`gemini-3.5-flash`).
 2. **Node 3: `RelevanceDetectorAgent`**: Pure LLM candidate reranking and relevance gating (`gemini-3.5-flash`).
-3. **Node 4: `SpecComparisonAgent`**: Grounded spec comparison matrix construction and executive synthesis (`gemini-2.5-pro`).
+3. **Node 4: `SpecComparisonAgent`**: Grounded spec comparison matrix construction and executive synthesis (`gemini-2.5-pro` with `thinking_budget=128`, or `gemini-3.5-flash` with `max_output_tokens=4096` to allocate sufficient candidate token budget for internal reasoning tokens without truncating structured JSON output).
+
+ThinkingConfig routing across all 9 evaluation fleet models (`STAGE_MODELS`) strictly enforces that Gemini 3.x and Flash-Lite models omit explicit `thinking_budget=0` overrides to avoid Vertex AI API validation errors, while allocating 4096 output tokens for synthesis generation.
 
 #### 3.2.1 Semantic Query Intent Classification & `QueryIntentAnalysis` Schema
 

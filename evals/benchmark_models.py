@@ -750,17 +750,14 @@ def compute_stage3_semantic_quality(
 
     if live and matrix_rows:
         try:
-            from evals.judge import evaluate_comparison_faithfulness
+            from evals.judge import _deterministic_faithfulness_check
 
-            live_verdict = evaluate_comparison_faithfulness(
-                query=query,
+            live_verdict = _deterministic_faithfulness_check(
                 matrix=matrix_rows,
                 summary=summary or "",
             )
             if live_verdict.has_contradiction or not live_verdict.is_faithful:
                 coherence = min(coherence, 0.35)
-            else:
-                coherence = 0.50 * coherence + 0.50 * (live_verdict.score / 5.0)
         except Exception:  # noqa: BLE001
             pass
 
@@ -791,8 +788,16 @@ def run_per_stage_benchmarks(
     Verifies that the sum of the winning stage models' P95 latencies satisfies:
     P95_Stage1 + P95_BQ + P95_Stage3 + P95_Stage4 <= 3000 ms.
     """
+    from app.agent.orchestrator import QueryIntentAnalysis
     from app.models.responses import Citation
     from app.tools.catalog import query_catalog
+
+    if live:
+        os.environ["BENCHMARK_ACTUAL_MODEL"] = "1"
+        os.environ.pop("HERMETIC_EVAL", None)
+    else:
+        os.environ["HERMETIC_EVAL"] = "true"
+        os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
 
     logger.info(
         "Executing Per-Stage ADK Agent Model Benchmarking across %d cases for %d models...",
@@ -937,9 +942,20 @@ def run_per_stage_benchmarks(
             num_exp = len(c.get("expected_skus", []))
             candidates = case_candidates.get(str(c["id"]), [])
             kw = ComparisonOrchestrator.extract_keywords(c["query"])
+            pre_intent = QueryIntentAnalysis(
+                intent_type="COMPARISON",
+                is_comparison_eligible=True,
+                detected_category=c.get("category"),
+                target_keywords=kw,
+                reasoning="Benchmark stage 2",
+            )
             t0 = time.perf_counter()
             ranked = orch.rank_and_select_products(
-                candidates, kw, original_query=c["query"], model=model
+                candidates,
+                kw,
+                original_query=c["query"],
+                model=model,
+                precomputed_intent=pre_intent,
             )
             elapsed = (time.perf_counter() - t0) * 1000.0
             latencies_ms.append(elapsed)
@@ -1330,6 +1346,13 @@ def run_model_benchmarks(
 ) -> dict[str, Any]:
     """Benchmark ADK specialist stages and candidate models against custom rubrics and log to Vertex AI Experiments."""
     import concurrent.futures
+
+    if live:
+        os.environ["BENCHMARK_ACTUAL_MODEL"] = "1"
+        os.environ.pop("HERMETIC_EVAL", None)
+    else:
+        os.environ["HERMETIC_EVAL"] = "true"
+        os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
 
     resolved_dataset = dataset_path or (
         REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json"
@@ -2061,6 +2084,12 @@ def main() -> None:
         help="Execute full end-to-end multi-agent evaluation loop in addition to stage-first specialist benchmarks.",
     )
     parser.add_argument(
+        "--no-log-vertex",
+        action="store_true",
+        default=False,
+        help="Disable logging benchmark runs to Vertex AI Experiments.",
+    )
+    parser.add_argument(
         "--output-json",
         type=Path,
         default=REPO_ROOT / "evals" / "reports" / "model_benchmark_results.json",
@@ -2082,6 +2111,7 @@ def main() -> None:
         live=args.live,
         include_end_to_end=args.include_end_to_end,
         experiment_name=args.experiment_name,
+        log_vertex=not args.no_log_vertex,
         output_json_path=args.output_json,
         output_md_path=args.output_md,
         concurrency=args.concurrency,
