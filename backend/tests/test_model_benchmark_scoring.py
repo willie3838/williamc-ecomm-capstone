@@ -332,7 +332,6 @@ class TestModelArmorRegionalRouting:
     ) -> None:
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
-        monkeypatch.setattr(orch, "_MODEL_ARMOR_AVAILABLE", True)
         monkeypatch.setattr(
             ha.settings,
             "model_armor_prompt_template",
@@ -384,7 +383,6 @@ class TestModelArmorRegionalRouting:
         monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
-        monkeypatch.setattr(orch, "_MODEL_ARMOR_AVAILABLE", True)
         monkeypatch.setattr(
             ha.settings,
             "model_armor_prompt_template",

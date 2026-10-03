@@ -473,7 +473,11 @@ def _call_real_vertex_gemini(
     thinking_cfg = _build_thinking_config(target_model)
     if thinking_cfg is not None:
         cfg_kwargs["thinking_config"] = thinking_cfg
-    if getattr(settings, "enable_model_armor", True) and not os.environ.get("PYTEST_CURRENT_TEST"):
+    if (
+        getattr(settings, "enable_model_armor", True)
+        and not _is_preview_or_3x_model(target_model)
+        and not os.environ.get("PYTEST_CURRENT_TEST")
+    ):
         cfg_kwargs["model_armor_config"] = types.ModelArmorConfig(
             prompt_template_name=settings.model_armor_prompt_template,
             response_template_name=settings.model_armor_response_template,
@@ -2045,6 +2049,7 @@ class CatalogAdkLlm(BaseLlm):
 
             if (
                 getattr(settings, "enable_model_armor", True)
+                and not _is_preview_or_3x_model(target_model)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):
