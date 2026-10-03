@@ -8,12 +8,6 @@ import catalogSeedJson from './catalog_seed.json';
  */
 export const CATALOG_PRODUCTS: ProductSpec[] = catalogSeedJson as unknown as ProductSpec[];
 
-interface IndexedCatalogEntry {
-  product: ProductSpec;
-  categoryLower: string;
-  searchBlob: string;
-}
-
 function buildSearchBlob(product: ProductSpec): string {
   const specParts: string[] = [];
   if (product.specifications) {
@@ -46,47 +40,22 @@ function buildSearchBlob(product: ProductSpec): string {
     .toLowerCase();
 }
 
-const CATEGORY_PRODUCTS_MAP = new Map<string, ProductSpec[]>();
-const CATEGORY_INDEXED_MAP = new Map<string, IndexedCatalogEntry[]>();
-const ALL_INDEXED_PRODUCTS: IndexedCatalogEntry[] = new Array(CATALOG_PRODUCTS.length);
-
-for (let i = 0; i < CATALOG_PRODUCTS.length; i++) {
-  const product = CATALOG_PRODUCTS[i];
-  const categoryLower = (product.category ?? '').toLowerCase();
-  const entry: IndexedCatalogEntry = {
-    product,
-    categoryLower,
-    searchBlob: buildSearchBlob(product),
-  };
-  ALL_INDEXED_PRODUCTS[i] = entry;
-
-  if (categoryLower) {
-    let catProducts = CATEGORY_PRODUCTS_MAP.get(categoryLower);
-    let catIndexed = CATEGORY_INDEXED_MAP.get(categoryLower);
-    if (!catProducts || !catIndexed) {
-      catProducts = [];
-      catIndexed = [];
-      CATEGORY_PRODUCTS_MAP.set(categoryLower, catProducts);
-      CATEGORY_INDEXED_MAP.set(categoryLower, catIndexed);
-    }
-    catProducts.push(product);
-    catIndexed.push(entry);
-  }
-}
-
 /**
- * Returns all catalog SKUs when category is null/undefined, or filters SKUs matching the specified category.
+ * Returns all catalog SKUs when category is null/undefined, or filters SKUs matching the specified category on demand.
  */
 export function getCatalogProducts(category?: string | null): ProductSpec[] {
   if (!category) {
     return CATALOG_PRODUCTS;
   }
-  return CATEGORY_PRODUCTS_MAP.get(category.toLowerCase()) ?? [];
+  const categoryLower = category.toLowerCase();
+  return CATALOG_PRODUCTS.filter(
+    (product) => (product.category ?? '').toLowerCase() === categoryLower
+  );
 }
 
 /**
- * Searches the catalog products matching query across pre-indexed name, brand, SKU, category, and specifications.
- * Supports case-insensitive multi-word token matching and optional category filtering in <2ms across 10,040 SKUs.
+ * Searches the catalog products matching query across name, brand, SKU, category, and specifications directly on demand.
+ * Supports case-insensitive multi-word token matching and optional category filtering.
  */
 export function searchCatalogProducts(
   query: string,
@@ -98,22 +67,24 @@ export function searchCatalogProducts(
   }
 
   const tokens = trimmed.split(/\s+/).filter(Boolean);
-  const candidates = category
-    ? (CATEGORY_INDEXED_MAP.get(category.toLowerCase()) ?? [])
-    : ALL_INDEXED_PRODUCTS;
+  const categoryLower = category ? category.toLowerCase() : null;
 
   const results: ProductSpec[] = [];
-  for (let i = 0; i < candidates.length; i++) {
-    const entry = candidates[i];
+  for (let i = 0; i < CATALOG_PRODUCTS.length; i++) {
+    const product = CATALOG_PRODUCTS[i];
+    if (categoryLower && (product.category ?? '').toLowerCase() !== categoryLower) {
+      continue;
+    }
+    const searchBlob = buildSearchBlob(product);
     let matchesAll = true;
     for (let t = 0; t < tokens.length; t++) {
-      if (!entry.searchBlob.includes(tokens[t])) {
+      if (!searchBlob.includes(tokens[t])) {
         matchesAll = false;
         break;
       }
     }
     if (matchesAll) {
-      results.push(entry.product);
+      results.push(product);
     }
   }
   return results;

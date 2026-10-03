@@ -268,7 +268,6 @@ class TestADKRunnerIntegration:
 
         from app.tools import catalog
 
-        catalog.catalog_cache.clear()
         catalog.catalog_circuit_breaker.reset()
         failing_client = MagicMock()
         failing_client.query.side_effect = RuntimeError(

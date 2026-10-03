@@ -174,30 +174,21 @@ def test_query_catalog_invalid_specifications_json(mock_bq_client):
     assert results[1]["specifications"] == {}
 
 
-def test_catalog_cache_and_snapshot_helpers(monkeypatch):
-    """Verify CatalogResponseCache, CatalogCircuitBreaker, warm_full_catalog_cache, and _match_from_snapshot behavior."""
+def test_catalog_circuit_breaker_and_stateless_execution():
+    """Verify CatalogCircuitBreaker and stateless execution without in-memory catalog caching."""
     import app.tools.catalog as catalog_mod
-    from app.tools.catalog import (
-        CatalogCircuitBreaker,
-        CatalogResponseCache,
-        _match_from_snapshot,
-        warm_full_catalog_cache,
-    )
+    from app.tools.catalog import CatalogCircuitBreaker, query_catalog
 
-    cache = CatalogResponseCache(max_size=2, ttl_seconds=60)
-    assert cache.get("missing") is None
-    lock1 = cache.get_inflight_lock("k1")
-    assert lock1 is cache.get_inflight_lock("k1")
-    for idx in range(5):
-        cache.get_inflight_lock(f"overflow-{idx}")
-    cache.set("k1", [{"sku": "1"}])
-    cache.set("k2", [{"sku": "2"}])
-    cache.set("k3", [{"sku": "3"}])
-    assert cache.get("k1") is None
-    assert cache.get("k2") == [{"sku": "2"}]
-    cache.clear()
-    assert cache.get("k2") is None
+    # 1. Verify that all in-memory catalog cache symbols have been removed
+    assert not hasattr(catalog_mod, "CatalogResponseCache")
+    assert not hasattr(catalog_mod, "catalog_cache")
+    assert not hasattr(catalog_mod, "warm_full_catalog_cache")
+    assert not hasattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT")
+    assert not hasattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT_EXPIRES")
+    assert not hasattr(catalog_mod, "_FULL_CATALOG_LOCK")
+    assert not hasattr(catalog_mod, "_match_from_snapshot")
 
+    # 2. Verify CatalogCircuitBreaker state transitions
     cb = CatalogCircuitBreaker(failure_threshold=2, recovery_timeout_sec=10.0)
     assert cb.allow_request() is True
     cb.record_failure()
@@ -207,72 +198,7 @@ def test_catalog_cache_and_snapshot_helpers(monkeypatch):
     cb.reset()
     assert cb.state == "CLOSED"
 
-    snapshot = [
-        {
-            "sku": "101",
-            "name": "Apple MacBook Pro",
-            "brand": "Apple",
-            "category": "Laptops",
-            "price": 1999.0,
-        },
-        {
-            "sku": "102",
-            "name": "Dell XPS 13",
-            "brand": "Dell",
-            "category": "Laptops",
-            "price": 1199.0,
-        },
-        {
-            "sku": "103",
-            "name": "Sony Bravia TV",
-            "brand": "Sony",
-            "category": "TVs",
-            "price": 999.0,
-        },
-    ]
-    matched = _match_from_snapshot(
-        snapshot,
-        patterns=["%macbook%", "%dell%"],
-        category="Laptops",
-        min_price=1000.0,
-        max_price=2500.0,
-        limit=5,
-    )
-    assert [m["sku"] for m in matched] == ["102", "101"]
-
-    # Verify warm_full_catalog_cache with non-mock client stub
-    class FakeBQClient:
-        def query(self, sql, job_config=None):
-            return None
-
-        def query_and_wait(self, sql, job_config=None, wait_timeout=None):
-            return [
-                {
-                    "sku": "101",
-                    "name": "Apple MacBook Pro",
-                    "brand": "Apple",
-                    "category": "Laptops",
-                    "price": 1999.0,
-                    "rating": 4.9,
-                    "review_count": 120,
-                    "specifications": '{"ram": "16GB"}',
-                    "url": None,
-                    "image_url": "https://example.com/img.jpg",
-                    "in_stock": True,
-                }
-            ]
-
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    monkeypatch.setattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT", None)
-    monkeypatch.setattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT_EXPIRES", 0.0)
-    monkeypatch.setattr(catalog_mod, "_get_shared_bq_client", lambda: FakeBQClient())
-    warmed = warm_full_catalog_cache()
-    assert warmed is not None and len(warmed) == 1
-    assert warm_full_catalog_cache() == warmed
-    monkeypatch.setattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT", None)
-    monkeypatch.setattr(catalog_mod, "_FULL_CATALOG_SNAPSHOT_EXPIRES", 0.0)
-
-    # Verify query_catalog cache hit path with use_cache=True
+    # 3. Verify query_catalog always executes direct BigQuery queries (stateless, zero in-memory cache)
     local_bq = MagicMock()
     mock_query_job = MagicMock()
     mock_query_job.result.return_value = [
@@ -288,7 +214,8 @@ def test_catalog_cache_and_snapshot_helpers(monkeypatch):
         }
     ]
     local_bq.query.return_value = mock_query_job
-    res1 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq, use_cache=True)
-    res2 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq, use_cache=True)
+    res1 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq)
+    res2 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq)
     assert res1 == res2
-    assert local_bq.query.call_count == 1
+    # Stateless: Every query invokes client.query, no in-memory cache hit
+    assert local_bq.query.call_count == 2

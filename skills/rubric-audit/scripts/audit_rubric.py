@@ -170,10 +170,10 @@ def run_programmatic_code_probes(repo_root: Path) -> dict[str, str]:
             violations["s2_21"] = (
                 "Programmatic Code Probe Failed (s2_21): Dead-path CatalogCircuitBreaker; allow_request() is never checked before executing BigQuery queries in catalog.py"
             )
-        # s2_24: maximum_bytes_billed and catalog_cache must be active
-        if "maximum_bytes_billed" not in cat_code or "catalog_cache.get(" not in cat_code:
+        # s2_24: maximum_bytes_billed guard must be active on BigQuery QueryJobConfig
+        if "maximum_bytes_billed" not in cat_code:
             violations["s2_24"] = (
-                "Programmatic Code Probe Failed (s2_24): Missing maximum_bytes_billed or catalog_cache lookup in catalog.py"
+                "Programmatic Code Probe Failed (s2_24): Missing maximum_bytes_billed in catalog.py"
             )
 
     return violations
