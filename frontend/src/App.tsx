@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -26,6 +26,8 @@ import { ConversationSidebar } from './components/ConversationSidebar';
 import { ProductSpec } from './types/comparison';
 import { buildComparisonPrompt } from './utils/promptBuilder';
 
+const INITIAL_VISIBLE_CARDS = 40;
+
 export const App: React.FC = () => {
   const [sessionId] = useState<string>(() => {
     const existing = sessionStorage.getItem('bb_session_id');
@@ -45,6 +47,7 @@ export const App: React.FC = () => {
   } | null>({ category: null });
 
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [visibleCardCount, setVisibleCardCount] = useState<number>(INITIAL_VISIBLE_CARDS);
   const [isAddCompareOpen, setIsAddCompareOpen] = useState(false);
   const [addCompareQuery, setAddCompareQuery] = useState('');
 
@@ -52,6 +55,11 @@ export const App: React.FC = () => {
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
+
+  // Reset visible card pagination when browse category or search query changes
+  useEffect(() => {
+    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
+  }, [browseCategory, catalogSearchQuery]);
 
 
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
@@ -682,21 +690,39 @@ export const App: React.FC = () => {
             </div>
 
             {browsedProducts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {browsedProducts.map((product) => {
-                  const isSelected = selectedProducts.some((p) => p.sku === product.sku);
-                  return (
-                    <ProductCard
-                      key={product.sku}
-                      product={product}
-                      selectable={true}
-                      isSelected={isSelected}
-                      onToggleSelect={handleToggleSelectProduct}
-                      onViewDetails={handleOpenProductDetails}
-                    />
-                  );
-                })}
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {browsedProducts.slice(0, visibleCardCount).map((product) => {
+                    const isSelected = selectedProducts.some((p) => p.sku === product.sku);
+                    return (
+                      <ProductCard
+                        key={product.sku}
+                        product={product}
+                        selectable={true}
+                        isSelected={isSelected}
+                        onToggleSelect={handleToggleSelectProduct}
+                        onViewDetails={handleOpenProductDetails}
+                      />
+                    );
+                  })}
+                </div>
+                {browsedProducts.length > visibleCardCount && (
+                  <div className="flex justify-center pt-6 pb-2">
+                    <button
+                      type="button"
+                      data-testid="load-more-products-btn"
+                      onClick={() => setVisibleCardCount((prev) => prev + INITIAL_VISIBLE_CARDS)}
+                      aria-label="Load more products"
+                      className="px-6 py-3 rounded-xl font-extrabold text-sm bg-bb-yellow text-bb-slate hover:bg-bb-yellow-hover shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4 text-bb-slate" aria-hidden="true" />
+                      <span>
+                        Load More Products ({browsedProducts.length - visibleCardCount} remaining)
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-3">
                 <p className="text-gray-600 font-medium text-sm">

@@ -581,6 +581,58 @@ async def chat_products(
     return await loop.run_in_executor(_CHAT_EXECUTOR, _execute_chat_sync, request)
 
 
+_CATALOG_SEED_CACHE: dict[tuple[str, int], list[dict[str, Any]]] = {}
+
+
+def _get_cached_seed_products(seed_path: Any) -> list[dict[str, Any]]:
+    """Load and cache deduplicated catalog_seed.json records in memory keyed by path and mtime_ns."""
+    import json
+
+    resolved = seed_path.resolve()
+    mtime_ns = resolved.stat().st_mtime_ns
+    cache_key = (str(resolved), mtime_ns)
+    with _CATALOG_CACHE_LOCK:
+        cached = _CATALOG_SEED_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+
+    with open(resolved, encoding="utf-8") as f:
+        seed_data = json.load(f)
+
+    dedup: dict[str, dict[str, Any]] = {}
+    for item in seed_data:
+        sku = str(item.get("sku", "")).strip()
+        if sku:
+            dedup[sku] = item
+
+    normalized: list[dict[str, Any]] = []
+    for item in dedup.values():
+        item_price = float(item.get("price", 0.0))
+        normalized.append(
+            {
+                "sku": item["sku"],
+                "name": str(item.get("name", "")),
+                "brand": str(item.get("brand", "")),
+                "category": item.get("category"),
+                "price": item_price,
+                "rating": float(item["rating"]) if item.get("rating") is not None else None,
+                "review_count": int(item["review_count"])
+                if item.get("review_count") is not None
+                else None,
+                "specifications": item.get("specifications") or {},
+                "url": item.get("url") or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
+                "image_url": item.get("image_url"),
+                "in_stock": bool(item.get("in_stock", True)),
+            }
+        )
+
+    with _CATALOG_CACHE_LOCK:
+        if len(_CATALOG_SEED_CACHE) >= 4:
+            _CATALOG_SEED_CACHE.clear()
+        _CATALOG_SEED_CACHE[cache_key] = normalized
+    return normalized
+
+
 def _fetch_catalog_sync(
     category: str | None = None,
     min_price: float | None = None,
@@ -588,7 +640,6 @@ def _fetch_catalog_sync(
     limit: int = 50,
 ) -> CatalogResponse:
     """Fetch product catalog records synchronously inside worker thread."""
-    import json
     from pathlib import Path
 
     from app.tools.catalog import query_catalog
@@ -621,47 +672,22 @@ def _fetch_catalog_sync(
         )
         raw_products = []
 
-    # 2. Fallback to catalog_seed.json if query_catalog returned empty in offline / test mode
+    # 2. Fallback to cached catalog_seed.json if query_catalog returned empty in offline / test mode
     if not raw_products:
         seed_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
         if seed_path.exists():
             try:
-                with open(seed_path, encoding="utf-8") as f:
-                    seed_data = json.load(f)
-                dedup: dict[str, dict[str, Any]] = {}
-                for item in seed_data:
-                    sku = str(item.get("sku", "")).strip()
-                    if sku:
-                        dedup[sku] = item
-                for item in dedup.values():
-                    item_cat = str(item.get("category", "")).strip()
-                    if category and item_cat.lower() != category.strip().lower():
+                cat_norm = category.strip().lower() if category else None
+                for item in _get_cached_seed_products(seed_path):
+                    item_cat = str(item.get("category") or "").strip().lower()
+                    if cat_norm and item_cat != cat_norm:
                         continue
                     item_price = float(item.get("price", 0.0))
                     if min_price is not None and item_price < min_price:
                         continue
                     if max_price is not None and item_price > max_price:
                         continue
-                    raw_products.append(
-                        {
-                            "sku": item["sku"],
-                            "name": str(item.get("name", "")),
-                            "brand": str(item.get("brand", "")),
-                            "category": item.get("category"),
-                            "price": item_price,
-                            "rating": float(item["rating"])
-                            if item.get("rating") is not None
-                            else None,
-                            "review_count": int(item["review_count"])
-                            if item.get("review_count") is not None
-                            else None,
-                            "specifications": item.get("specifications") or {},
-                            "url": item.get("url")
-                            or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
-                            "image_url": item.get("image_url"),
-                            "in_stock": bool(item.get("in_stock", True)),
-                        }
-                    )
+                    raw_products.append(item)
                     if len(raw_products) >= limit:
                         break
             except Exception as read_err:
