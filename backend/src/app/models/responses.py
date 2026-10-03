@@ -176,6 +176,14 @@ class ComparisonResponse(BaseModel):
         default=None,
         description="Per-stage latency breakdown in milliseconds (intent, retrieval, relevance, synthesis)",
     )
+    status: str = Field(
+        default="completed",
+        description="Execution status of the comparison request ('completed' or 'refused')",
+    )
+    blocked_by_model_armor: bool = Field(
+        default=False,
+        description="True when Google Cloud Model Armor blocked the prompt or response",
+    )
 
 
 # Backward compatibility alias

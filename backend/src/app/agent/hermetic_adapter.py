@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import threading
+import urllib.request
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -163,15 +164,8 @@ def _warm_vertex_client_and_auth() -> None:
                         model_armor_config=get_model_armor_config(),
                     ),
                 )
-            except Exception as w_exc:
-                err_str = str(w_exc).lower()
-                if "template" in err_str or "not found" in err_str or "400" in err_str:
-                    try:
-                        import app.agent.orchestrator as orch
-
-                        orch._MODEL_ARMOR_AVAILABLE = False
-                    except Exception:
-                        pass
+            except Exception:
+                pass
 
         def _warm_bq() -> None:
             try:
@@ -185,11 +179,12 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_ma() -> None:
             try:
-                region = settings.region or "us-central1"
-                url = (
-                    f"https://modelarmor.{region}.rep.googleapis.com/v1/"
-                    f"projects/{settings.gcp_project}/locations/{region}/templates/catalog-prompt-guard:sanitizeUserPrompt"
+                tmpl = (
+                    settings.model_armor_prompt_template
+                    or f"projects/{settings.gcp_project}/locations/us-central1/templates/catalog-prompt-guard"
                 )
+                loc = _extract_model_armor_location(tmpl)
+                url = f"https://modelarmor.{loc}.rep.googleapis.com/v1/{tmpl}:sanitizeUserPrompt"
                 _SHARED_MA_SESSION.post(
                     url,
                     headers={
@@ -217,6 +212,104 @@ def _warm_vertex_client_and_auth() -> None:
 
 
 _VERTEX_CALL_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+
+
+def _extract_model_armor_location(template_path: str) -> str:
+    """Extract location segment from projects/<p>/locations/<loc>/templates/<t>."""
+    parts = (template_path or "").split("/")
+    if "locations" in parts:
+        idx = parts.index("locations")
+        if idx + 1 < len(parts) and parts[idx + 1]:
+            return parts[idx + 1]
+    return "us-central1"
+
+
+def _get_gcp_access_token() -> str:
+    """Return a valid GCP Bearer token for Regional Endpoint Model Armor REST calls."""
+    global _SHARED_GCP_CREDS
+    if (
+        os.environ.get("PYTEST_CURRENT_TEST")
+        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
+        or hasattr(genai.Client, "assert_called")
+    ):
+        return ""
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+
+        if _SHARED_GCP_CREDS is None:
+            _SHARED_GCP_CREDS, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        if not getattr(_SHARED_GCP_CREDS, "valid", False):
+            _SHARED_GCP_CREDS.refresh(Request())
+        return str(getattr(_SHARED_GCP_CREDS, "token", "") or "")
+    except Exception:
+        return ""
+
+
+def _check_model_armor_response_guard(text: str) -> tuple[bool, str]:
+    """Sanitize LLM output via the regional Model Armor REST API (sanitizeModelResponse)."""
+    if not getattr(settings, "enable_model_armor", True) or not text or not text.strip():
+        return False, ""
+    tmpl = getattr(settings, "model_armor_response_template", "") or ""
+    if not tmpl:
+        return False, ""
+    token = _get_gcp_access_token()
+    if not token:
+        return False, ""
+    loc = _extract_model_armor_location(tmpl)
+    url = f"https://modelarmor.{loc}.rep.googleapis.com/v1/{tmpl}:sanitizeModelResponse"
+    payload = json.dumps({"modelResponseData": {"text": text[:8000]}}).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        san_res = data.get("sanitizationResult", {})
+        if san_res.get("filterMatchState") == "MATCH_FOUND":
+            f_res = san_res.get("filterResults", {})
+            reasons: list[str] = []
+            if (
+                f_res.get("pi_and_jailbreak", {})
+                .get("piAndJailbreakFilterResult", {})
+                .get("matchState")
+                == "MATCH_FOUND"
+            ):
+                reasons.append("Prompt Injection and Jailbreak")
+            if (
+                f_res.get("sdp", {})
+                .get("sdpFilterResult", {})
+                .get("inspectResult", {})
+                .get("matchState")
+                == "MATCH_FOUND"
+            ):
+                reasons.append("SDP/PII")
+            if (
+                f_res.get("malicious_uris", {})
+                .get("maliciousUriFilterResult", {})
+                .get("matchState")
+                == "MATCH_FOUND"
+            ):
+                reasons.append("Malicious URIs")
+            rai_types = (
+                f_res.get("rai", {}).get("raiFilterResult", {}).get("raiFilterTypeResults", {})
+            )
+            for r_name, r_obj in rai_types.items():
+                if isinstance(r_obj, dict) and r_obj.get("matchState") == "MATCH_FOUND":
+                    reasons.append(f"RAI ({r_name})")
+            reason_str = ", ".join(reasons) if reasons else "Safety / Policy"
+            return True, f"The model response violated {reason_str} filters."
+    except Exception as exc:
+        logger.debug("Model Armor response guard REST check skipped: %s", exc)
+    return False, ""
 
 
 def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
@@ -251,12 +344,12 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
             _ma_adapter = HTTPAdapter(pool_connections=256, pool_maxsize=256)
             _SHARED_MA_SESSION.mount("https://", _ma_adapter)
             _SHARED_MA_SESSION.mount("http://", _ma_adapter)
-        project_id = settings.gcp_project
-        region = settings.region or "us-central1"
-        url = (
-            f"https://modelarmor.{region}.rep.googleapis.com/v1/"
-            f"projects/{project_id}/locations/{region}/templates/catalog-prompt-guard:sanitizeUserPrompt"
+        tmpl = (
+            getattr(settings, "model_armor_prompt_template", "")
+            or f"projects/{settings.gcp_project}/locations/us-central1/templates/catalog-prompt-guard"
         )
+        loc = _extract_model_armor_location(tmpl)
+        url = f"https://modelarmor.{loc}.rep.googleapis.com/v1/{tmpl}:sanitizeUserPrompt"
         resp = _SHARED_MA_SESSION.post(
             url,
             headers={
@@ -369,7 +462,7 @@ def _call_real_vertex_gemini(
             "Hermetic eval, pytest, or Vertex AI ADC unavailable; using deterministic adapter."
         )
 
-    from app.agent.orchestrator import _build_thinking_config, get_model_armor_config
+    from app.agent.orchestrator import _build_thinking_config
 
     target_model = "gemini-2.5-flash" if model in ("tiered-hybrid", "") else model
     client = _get_vertex_client_for_model(target_model)
@@ -380,15 +473,11 @@ def _call_real_vertex_gemini(
     thinking_cfg = _build_thinking_config(target_model)
     if thinking_cfg is not None:
         cfg_kwargs["thinking_config"] = thinking_cfg
-    if (
-        getattr(settings, "enable_model_armor", True)
-        and "lite" not in target_model
-        and not _is_preview_or_3x_model(target_model)
-        and not os.environ.get("PYTEST_CURRENT_TEST")
-    ):
-        armor_cfg = get_model_armor_config()
-        if armor_cfg is not None:
-            cfg_kwargs["model_armor_config"] = armor_cfg
+    if getattr(settings, "enable_model_armor", True) and not os.environ.get("PYTEST_CURRENT_TEST"):
+        cfg_kwargs["model_armor_config"] = types.ModelArmorConfig(
+            prompt_template_name=settings.model_armor_prompt_template,
+            response_template_name=settings.model_armor_response_template,
+        )
     if system_instruction:
         cfg_kwargs["system_instruction"] = system_instruction
     if schema_cls is not None:
@@ -1956,8 +2045,6 @@ class CatalogAdkLlm(BaseLlm):
 
             if (
                 getattr(settings, "enable_model_armor", True)
-                and ("lite" not in target_model or is_test_env)
-                and not _is_preview_or_3x_model(target_model)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):
@@ -2065,6 +2152,21 @@ class CatalogAdkLlm(BaseLlm):
                             contents=contents_payload,
                             config=fallback_cfg,
                         )
+                        orig_ma = getattr(effective_config, "model_armor_config", None)
+                        if orig_ma and getattr(orig_ma, "response_template_name", None):
+                            resp_blocked, resp_reason = _check_model_armor_response_guard(
+                                getattr(response, "text", "") or ""
+                            )
+                            if resp_blocked:
+                                span.set_attribute("ai.safety.blocked", True)
+                                span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR_RESPONSE")
+                                yield _build_model_armor_refusal_response(
+                                    reason_code="MODEL_ARMOR_RESPONSE",
+                                    detail_message=resp_reason,
+                                    template_name=settings.model_armor_response_template,
+                                    inferred_schema=inferred_schema,
+                                )
+                                return
                     else:
                         raise
 

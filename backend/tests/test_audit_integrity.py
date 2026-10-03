@@ -380,3 +380,25 @@ def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists()
     assert coordinator.intent_agent.synthesis_model == "gemini-2.5-pro"
     assert coordinator.relevance_agent.synthesis_model == "gemini-2.5-pro"
     assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
+
+
+def test_no_model_armor_global_rewrite_or_lite_bypass() -> None:
+    """hermetic_adapter.py and orchestrator.py must never disable Model Armor globally or skip 'lite' models."""
+    ha_src = (BACKEND_DIR / "src" / "app" / "agent" / "hermetic_adapter.py").read_text(
+        encoding="utf-8"
+    )
+    orch_src = (BACKEND_DIR / "src" / "app" / "agent" / "orchestrator.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "modelarmor.googleapis.com/v1/" not in ha_src, (
+        "Global modelarmor.googleapis.com endpoint is forbidden; use modelarmor.{loc}.rep.googleapis.com!"
+    )
+    assert "_MODEL_ARMOR_AVAILABLE = False" not in ha_src, (
+        "Permanently disabling _MODEL_ARMOR_AVAILABLE in hermetic_adapter.py is forbidden!"
+    )
+    assert "_MODEL_ARMOR_AVAILABLE = False" not in orch_src, (
+        "Permanently disabling _MODEL_ARMOR_AVAILABLE in orchestrator.py is forbidden!"
+    )
+    assert '"lite" not in' not in ha_src, "Skipping Model Armor on 'lite' models is forbidden!"
+    assert '"lite" not in' not in orch_src, "Skipping Model Armor on 'lite' models is forbidden!"

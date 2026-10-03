@@ -113,12 +113,12 @@ resource "google_cloud_run_v2_service" "catalog_comparison_service" {
 
       env {
         name  = "MODEL_ARMOR_PROMPT_TEMPLATE"
-        value = "projects/${var.project_id}/locations/us/templates/catalog-prompt-guard"
+        value = "projects/${var.project_id}/locations/${var.region}/templates/${local.prompt_guard_template_id}"
       }
 
       env {
         name  = "MODEL_ARMOR_RESPONSE_TEMPLATE"
-        value = "projects/${var.project_id}/locations/us/templates/catalog-resp-guard"
+        value = "projects/${var.project_id}/locations/${var.region}/templates/${local.response_guard_template_id}"
       }
 
       startup_probe {

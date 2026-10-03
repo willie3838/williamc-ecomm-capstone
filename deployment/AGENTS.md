@@ -71,7 +71,7 @@ deployment/
 
 ### 3.6 Google Cloud Model Armor IaC Guardrails (`model_armor.tf`)
 1. **Templates & Topologies**:
-   - Codifies `catalog-prompt-guard` and `catalog-resp-guard` across multi-region `'us'` (for Vertex AI Groot multi-region dataplane) and regional `'us-central1'`.
+   - Codifies `catalog-prompt-guard` and `catalog-resp-guard` in regional `'us-central1'` (`projects/${var.project_id}/locations/${var.region}/templates/...`), matching `cloudrun.tf` and `outputs.tf`.
    - Maintains exact `terraform_data.model_armor_prompt_template` and `terraform_data.model_armor_response_template` interfaces and `outputs.tf` compatibility.
 2. **Canonical Guardrail Configuration**:
    - **Responsible AI (`raiSettings.raiFilters`)**: All 4 filters (`HATE_SPEECH`, `HARASSMENT`, `SEXUALLY_EXPLICIT`, `DANGEROUS`) strictly configured at `MEDIUM_AND_ABOVE`.
@@ -79,8 +79,8 @@ deployment/
    - **Sensitive Data Protection (`sdpSettings`)**: `basicConfig = { filterEnforcement = "ENABLED" }`.
    - **Malicious URI Defense (`maliciousUriFilterSettings`)**: `filterEnforcement = "ENABLED"`.
    - **Audit & Compliance Metadata (`templateMetadata`)**: `logTemplateOperations = true`, `logSanitizeOperations = true`, and `dataResidencyCompliant = true`.
-3. **Idempotent REST API Provisioning (`provisioner "local-exec"`)**:
-   - Uses `modelarmor.googleapis.com/v1/projects/{project}/locations/{location}/templates` with GET status check: executes `PATCH` if existing (HTTP 200) or `POST` if new (HTTP 404).
+3. **Idempotent Regional Endpoint REST API Provisioning (`provisioner "local-exec"`)**:
+   - Uses the Model Armor Regional Endpoint (`https://modelarmor.${var.region}.rep.googleapis.com/v1/projects/${var.project_id}/locations/${var.region}/templates`) with GET status check: executes `PATCH` if existing (HTTP 200) or `POST` if new (HTTP 404), failing hard (`exit 1`) on any non-2xx HTTP status.
    - Preserves `providers.tf` (`~> 5.15`) without provider version churn.
 
 ### 3.7 Cloud Monitoring Service Level Objectives (SLOs) & FinOps Alert Policies (`monitoring.tf`)
