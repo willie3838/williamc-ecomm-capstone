@@ -138,6 +138,7 @@ class TestThinkingConfigAcrossAllStageModels:
     def test_catalog_adk_llm_generate_content_async_uses_build_thinking_config(
         self, monkeypatch: pytest.MonkeyPatch, model_id: str
     ) -> None:
+        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -380,6 +381,7 @@ class TestModelArmorRegionalRouting:
     def test_catalog_adk_llm_preserves_regional_model_armor_and_omits_on_global(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
         monkeypatch.setattr(orch, "_MODEL_ARMOR_AVAILABLE", True)
@@ -496,18 +498,22 @@ class TestBenchmarkModelsEnvFlags:
             }
         ]
 
-        bm.run_per_stage_benchmarks(
-            cases=sample_cases,
-            bq_client=mock_bq,
-            live=False,
-            log_vertex=False,
-        )
-        assert recorded_envs[-1] == (None, "true")
+        try:
+            bm.run_per_stage_benchmarks(
+                cases=sample_cases,
+                bq_client=mock_bq,
+                live=False,
+                log_vertex=False,
+            )
+            assert recorded_envs[-1] == (None, "true")
 
-        bm.run_per_stage_benchmarks(
-            cases=sample_cases,
-            bq_client=mock_bq,
-            live=True,
-            log_vertex=False,
-        )
-        assert recorded_envs[-1] == ("1", None)
+            bm.run_per_stage_benchmarks(
+                cases=sample_cases,
+                bq_client=mock_bq,
+                live=True,
+                log_vertex=False,
+            )
+            assert recorded_envs[-1] == ("1", None)
+        finally:
+            os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
+            os.environ.pop("HERMETIC_EVAL", None)
