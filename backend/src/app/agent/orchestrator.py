@@ -2023,7 +2023,7 @@ class ComparisonOrchestrator:
             unique_products, original_query or " ".join(keywords), model=model
         )
         if llm_ranked is not None:
-            if len(entity_kw) >= 3:
+            if len(entity_kw) >= 2:
                 return self._select_best_entity_candidates(llm_ranked, entity_kw, target_count)
             return self._balance_entities(llm_ranked, entity_kw)[:target_count]
 

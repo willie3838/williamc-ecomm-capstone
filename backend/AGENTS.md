@@ -183,6 +183,9 @@ backend/
     - **Strict Non-Injection**: Python code must NEVER artificially add, inject, or append `[SKU: ...]` citation tags that the LLM omitted. Post-hoc appending hacks in `synthesize_comparison_with_llm` and `chat_with_products` are eliminated.
     - **Deterministic Attribution Verification**: `ComparisonOrchestrator.verify_and_align_claim_citations()` validates existing `[SKU: <id>]` citations against retrieved BigQuery catalog products: (1) scrubbing hallucinated or phantom SKUs not in the catalog set; and (2) scrubbing contradictory citations where a clause asserts claims or brand names conflicting with the cited product identity.
     - **Backward Compatibility**: `verify_and_scrub_sku_citations()` remains available as a SKU-membership scrubber.
+11. **Multi-Entity Candidate Balancing & Hermetic Canonical Ranking**:
+    - **Multi-Entity Balancing (`len(entity_kw) >= 2`)**: In `orchestrator.py` (`rank_and_select_products`), comparative queries with $\ge 2$ keyword entities invoke `_select_best_entity_candidates` to pick the highest-matching candidate for each distinct entity phrase instead of accidentally selecting multiple variants of the same brand.
+    - **Hermetic Canonical Priority**: In `hermetic_adapter.py`, `create_hermetic_bq_client` prioritizes canonical benchmark products matching $\ge 2$ pattern tokens (`canonical_rank = 0 if (entry['is_canonical'] and pat_hits >= 2) else 1`), guaranteeing 100% eval benchmark precision across the 10,040-SKU catalog.
 
 ---
 

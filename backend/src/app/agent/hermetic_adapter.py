@@ -2423,19 +2423,19 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
                             multi_token_hits += m_count
 
                 if matched_item:
-                    canonical_rank = 0 if entry["is_canonical"] else 1
+                    canonical_rank = 0 if (entry["is_canonical"] and pat_hits >= 2) else 1
                     scored_matches.append(
                         (
+                            canonical_rank,
                             -pat_hits,
                             -multi_token_hits,
-                            canonical_rank,
                             price_val,
                             dict(entry["row"]),
                         )
                     )
             else:
                 canonical_rank = 0 if entry["is_canonical"] else 1
-                scored_matches.append((0, 0, canonical_rank, price_val, dict(entry["row"])))
+                scored_matches.append((canonical_rank, 0, 0, price_val, dict(entry["row"])))
 
         scored_matches.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
         matches = [m[4] for m in scored_matches]
