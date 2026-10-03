@@ -1314,7 +1314,9 @@ class ComparisonOrchestrator:
                         response_mime_type="application/json",
                         response_schema=ComparisonSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=max(4096, int(getattr(settings, "max_output_tokens", 4096))),
+                        max_output_tokens=max(
+                            4096, int(getattr(settings, "max_output_tokens", 4096))
+                        ),
                         thinking_config=thinking_cfg,
                     )
                     response = self._call_genai_with_failover(

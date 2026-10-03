@@ -6,9 +6,10 @@ import asyncio
 import inspect
 import os
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from evals.benchmark_models import STAGE_MODELS
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
@@ -24,7 +25,6 @@ from app.agent.orchestrator import (
     ComparisonOrchestrator,
     _build_thinking_config,
 )
-from evals.benchmark_models import STAGE_MODELS
 
 
 class TestThinkingConfigAcrossAllStageModels:
@@ -58,9 +58,7 @@ class TestThinkingConfigAcrossAllStageModels:
             "gemini-3.8-flash",
         ],
     )
-    def test_classify_intent_with_llm_uses_build_thinking_config(
-        self, model_id: str
-    ) -> None:
+    def test_classify_intent_with_llm_uses_build_thinking_config(self, model_id: str) -> None:
         mock_client = MagicMock()
         mock_resp = MagicMock()
         mock_resp.text = (
@@ -109,12 +107,8 @@ class TestThinkingConfigAcrossAllStageModels:
         mock_resp.usage_metadata = None
         mock_client.models.generate_content.return_value = mock_resp
 
-        monkeypatch.setattr(
-            ha, "_get_shared_vertex_client", MagicMock(return_value=mock_client)
-        )
-        monkeypatch.setattr(
-            ha, "_get_vertex_client_for_model", lambda m, **kw: mock_client
-        )
+        monkeypatch.setattr(ha, "_get_shared_vertex_client", MagicMock(return_value=mock_client))
+        monkeypatch.setattr(ha, "_get_vertex_client_for_model", lambda m, **kw: mock_client)
         res = _call_real_vertex_gemini(
             prompt="Classify query",
             system_instruction="Classify",
@@ -236,28 +230,22 @@ class TestHermeticSkipVertexCallAndIsolation:
             calls.append(("rerank", skip_vertex_call, model))
             return orig_rerank(prompt, model=model, skip_vertex_call=skip_vertex_call)
 
-        def spy_synth(
-            prompt: str, skip_vertex_call: bool = False, model: str | None = None
-        ) -> str:
+        def spy_synth(prompt: str, skip_vertex_call: bool = False, model: str | None = None) -> str:
             calls.append(("synthesis", skip_vertex_call, model))
             return orig_synth(prompt, skip_vertex_call=skip_vertex_call, model=model)
 
         monkeypatch.setattr(
             HermeticModelAdapter, "classify_intent_response", staticmethod(spy_classify)
         )
-        monkeypatch.setattr(
-            HermeticModelAdapter, "rerank_response", staticmethod(spy_rerank)
-        )
-        monkeypatch.setattr(
-            HermeticModelAdapter, "synthesis_response", staticmethod(spy_synth)
-        )
+        monkeypatch.setattr(HermeticModelAdapter, "rerank_response", staticmethod(spy_rerank))
+        monkeypatch.setattr(HermeticModelAdapter, "synthesis_response", staticmethod(spy_synth))
 
         client = create_hermetic_genai_client()
 
         # 1. Intent classification call
         client.models.generate_content(
             model="gemini-3.5-flash-lite",
-            contents='You are the Query Intent Specialist. Extract from: <user_query>Compare MacBook vs Dell</user_query>',
+            contents="You are the Query Intent Specialist. Extract from: <user_query>Compare MacBook vs Dell</user_query>",
         )
         # 2. Rerank call
         client.models.generate_content(
@@ -328,7 +316,7 @@ class TestHermeticSkipVertexCallAndIsolation:
         resp = orchestrator._invoke_specialist_via_adk_runner(
             agent_name="query_intent_specialist",
             instruction="You are the Query Intent Specialist. classify its intent.",
-            prompt='<user_query>Compare MacBook Air vs Dell XPS</user_query>',
+            prompt="<user_query>Compare MacBook Air vs Dell XPS</user_query>",
             model="gemini-3.5-flash-lite",
         )
         assert resp
@@ -374,14 +362,8 @@ class TestModelArmorRegionalRouting:
             mock_client.models.generate_content.call_args.kwargs["config"]
         )
         assert cfg_25_pro.model_armor_config is not None
-        assert (
-            "/locations/us-central1/"
-            in cfg_25_pro.model_armor_config.prompt_template_name
-        )
-        assert (
-            "/locations/global/"
-            not in cfg_25_pro.model_armor_config.prompt_template_name
-        )
+        assert "/locations/us-central1/" in cfg_25_pro.model_armor_config.prompt_template_name
+        assert "/locations/global/" not in cfg_25_pro.model_armor_config.prompt_template_name
 
         # 2. Global 3.x model (gemini-3.5-flash) -> omits model_armor_config on global endpoint
         mock_client.models.generate_content.reset_mock()
@@ -426,27 +408,17 @@ class TestModelArmorRegionalRouting:
         req_regional = LlmRequest(
             model="gemini-2.5-flash",
             contents=[
-                types.Content(
-                    role="user", parts=[types.Part.from_text(text="Compare laptops")]
-                )
+                types.Content(role="user", parts=[types.Part.from_text(text="Compare laptops")])
             ],
             config=types.GenerateContentConfig(temperature=0.0),
         )
-        asyncio.run(
-            self._collect_async(llm_regional.generate_content_async(req_regional))
-        )
+        asyncio.run(self._collect_async(llm_regional.generate_content_async(req_regional)))
         cfg_regional: types.GenerateContentConfig = (
             mock_client.models.generate_content.call_args.kwargs["config"]
         )
         assert cfg_regional.model_armor_config is not None
-        assert (
-            "/locations/us-central1/"
-            in cfg_regional.model_armor_config.prompt_template_name
-        )
-        assert (
-            "/locations/global/"
-            not in cfg_regional.model_armor_config.prompt_template_name
-        )
+        assert "/locations/us-central1/" in cfg_regional.model_armor_config.prompt_template_name
+        assert "/locations/global/" not in cfg_regional.model_armor_config.prompt_template_name
 
         # 2. Global 3.x model (gemini-3.5-flash) -> omits model_armor_config on global endpoint
         mock_client.models.generate_content.reset_mock()
@@ -456,9 +428,7 @@ class TestModelArmorRegionalRouting:
         req_global = LlmRequest(
             model="gemini-3.5-flash",
             contents=[
-                types.Content(
-                    role="user", parts=[types.Part.from_text(text="Compare laptops")]
-                )
+                types.Content(role="user", parts=[types.Part.from_text(text="Compare laptops")])
             ],
             config=types.GenerateContentConfig(temperature=0.0),
         )
@@ -479,8 +449,9 @@ class TestBenchmarkModelsEnvFlags:
     def test_benchmark_models_sets_env_vars_for_hermetic_and_live(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from app.agent.orchestrator import QueryIntentAnalysis
         from evals import benchmark_models as bm
+
+        from app.agent.orchestrator import QueryIntentAnalysis
 
         recorded_envs: list[tuple[str | None, str | None]] = []
 
