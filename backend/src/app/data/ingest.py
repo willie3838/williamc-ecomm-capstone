@@ -262,6 +262,8 @@ class BigQueryCatalogIngestor:
 
         return self.deduplicate_records(records)
 
+    BATCH_CHUNK_SIZE: int = 5000
+
     def ingest_products(
         self,
         products: list[ProductRecord],
@@ -269,13 +271,13 @@ class BigQueryCatalogIngestor:
         create_table: bool = True,
         write_disposition: str = bigquery.WriteDisposition.WRITE_TRUNCATE,
     ) -> IngestionResult:
-        """Batch ingest validated, deduplicated ProductRecords into BigQuery.
+        """Batch ingest validated, deduplicated ProductRecords into BigQuery in 5,000-row chunks.
 
         Args:
             products: List of validated ProductRecord objects.
             dry_run: If True, validate schemas without writing to BigQuery.
             create_table: If True, ensure dataset and table exist before loading.
-            write_disposition: BigQuery write disposition (defaults to WRITE_TRUNCATE to prevent duplicate SKUs).
+            write_disposition: BigQuery write disposition for the first chunk (defaults to WRITE_TRUNCATE).
 
         Returns:
             IngestionResult summary with counts and errors.
@@ -308,38 +310,55 @@ class BigQueryCatalogIngestor:
             self.create_dataset_if_not_exists()
             self.create_table_if_not_exists()
 
-        logger.info("Submitting BigQuery load job for %d rows into %s...", total, self.table_ref)
-
-        job_config = bigquery.LoadJobConfig(
-            schema=self.get_schema(),
-            write_disposition=write_disposition,
-        )
-
+        schema = self.get_schema()
+        inserted = 0
         try:
-            job = self.client.load_table_from_json(
-                rows,
-                self.table_ref,
-                job_config=job_config,
-            )
-            job.result()  # Wait for the load job to complete
-
-            if job.errors:
-                error_msgs = [str(err) for err in job.errors]
-                logger.error("BigQuery load job finished with errors: %s", error_msgs)
-                return IngestionResult(
-                    total_records=total,
-                    inserted_records=0,
-                    failed_records=total,
-                    dry_run=False,
-                    errors=error_msgs,
+            for chunk_idx, start_idx in enumerate(range(0, total, self.BATCH_CHUNK_SIZE)):
+                chunk_rows = rows[start_idx : start_idx + self.BATCH_CHUNK_SIZE]
+                chunk_disposition = (
+                    write_disposition if chunk_idx == 0 else bigquery.WriteDisposition.WRITE_APPEND
+                )
+                logger.info(
+                    "Submitting BigQuery load job chunk %d (%d rows, disposition=%s) into %s...",
+                    chunk_idx + 1,
+                    len(chunk_rows),
+                    chunk_disposition,
+                    self.table_ref,
                 )
 
+                job_config = bigquery.LoadJobConfig(
+                    schema=schema,
+                    write_disposition=chunk_disposition,
+                )
+
+                job = self.client.load_table_from_json(
+                    chunk_rows,
+                    self.table_ref,
+                    job_config=job_config,
+                )
+                job.result()  # Wait for the load job to complete
+
+                if job.errors:
+                    error_msgs = [str(err) for err in job.errors]
+                    logger.error("BigQuery load job finished with errors: %s", error_msgs)
+                    return IngestionResult(
+                        total_records=total,
+                        inserted_records=inserted,
+                        failed_records=total - inserted,
+                        dry_run=False,
+                        errors=error_msgs,
+                    )
+
+                inserted += len(chunk_rows)
+
             logger.info(
-                "Successfully ingested %d products into BigQuery table %s.", total, self.table_ref
+                "Successfully ingested %d products into BigQuery table %s.",
+                inserted,
+                self.table_ref,
             )
             return IngestionResult(
                 total_records=total,
-                inserted_records=total,
+                inserted_records=inserted,
                 failed_records=0,
                 dry_run=False,
                 errors=[],
@@ -349,8 +368,8 @@ class BigQueryCatalogIngestor:
             logger.error("GoogleCloudError during BigQuery ingestion: %s", exc)
             return IngestionResult(
                 total_records=total,
-                inserted_records=0,
-                failed_records=total,
+                inserted_records=inserted,
+                failed_records=total - inserted,
                 dry_run=False,
                 errors=[str(exc)],
             )

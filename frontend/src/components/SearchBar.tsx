@@ -101,19 +101,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const hasTaggedProducts = taggedProducts && taggedProducts.length > 0;
 
+  const MAX_DROPDOWN_ITEMS = 25;
+
   // Filter catalog products by query and selected category, excluding already tagged products
   const availableMatches = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) return [];
     const matches = searchCatalogProducts(trimmed, selectedCategory);
-    return matches.filter((p) => !taggedProducts.some((t) => t.sku === p.sku));
+    return matches
+      .filter((p) => !taggedProducts.some((t) => t.sku === p.sku))
+      .slice(0, MAX_DROPDOWN_ITEMS);
   }, [query, selectedCategory, taggedProducts]);
 
   // Catalog picker matches (shows initial suggestions if pickerQuery is empty)
   const pickerMatches = useMemo(() => {
     const trimmed = pickerQuery.trim();
     const matches = searchCatalogProducts(trimmed, selectedCategory);
-    return matches.filter((p) => !taggedProducts.some((t) => t.sku === p.sku));
+    return matches
+      .filter((p) => !taggedProducts.some((t) => t.sku === p.sku))
+      .slice(0, MAX_DROPDOWN_ITEMS);
   }, [pickerQuery, selectedCategory, taggedProducts]);
 
   // Click outside listener to dismiss autocomplete dropdown and picker dropdown
@@ -457,7 +463,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                   No catalog products found matching &ldquo;{pickerQuery}&rdquo;.
                 </div>
               ) : (
-                pickerMatches.slice(0, 8).map((product, idx) => {
+                pickerMatches.slice(0, MAX_DROPDOWN_ITEMS).map((product, idx) => {
                   const isHighlighted = idx === pickerHighlightedIndex;
                   return (
                     <div
@@ -526,7 +532,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             aria-label="Product suggestions"
             className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 divide-y divide-gray-100 max-h-80 overflow-y-auto z-50 custom-scrollbar"
           >
-            {availableMatches.slice(0, 8).map((product, idx) => {
+            {availableMatches.slice(0, MAX_DROPDOWN_ITEMS).map((product, idx) => {
               const isHighlighted = idx === highlightedIndex;
               const isMaxReached = taggedProducts.length >= maxTaggedProducts;
 

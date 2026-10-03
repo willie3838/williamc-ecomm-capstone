@@ -2234,8 +2234,100 @@ class CatalogAdkLlm(BaseLlm):
             yield self._generate_hermetic_llm_response(llm_request, skip_vertex_call=True)
 
 
+_HERMETIC_CATALOG_CACHE: dict[
+    tuple[str, int], tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]
+] = {}
+_HERMETIC_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "with",
+        "and",
+        "the",
+        "for",
+        "versus",
+        "compare",
+        "between",
+        "which",
+        "better",
+        "cheaper",
+        "lighter",
+        "longer",
+        "worth",
+        "price",
+        "specs",
+        "difference",
+        "differences",
+        "summary",
+        "breakdown",
+        "detailed",
+        "comprehensive",
+        "vs",
+        "inch",
+    }
+)
+
+
+def _load_indexed_hermetic_catalog(
+    catalog_path: Path,
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    """Load, deduplicate, and pre-index catalog_seed.json in memory keyed by path and mtime_ns."""
+    resolved = catalog_path.resolve()
+    mtime_ns = resolved.stat().st_mtime_ns
+    cache_key = (str(resolved), mtime_ns)
+    cached = _HERMETIC_CATALOG_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    with open(resolved, encoding="utf-8") as f:
+        raw_catalog_items = json.load(f)
+
+    deduped_map: dict[str, dict[str, Any]] = {}
+    for item in raw_catalog_items:
+        sku_val = str(item.get("sku", "")).strip()
+        if sku_val:
+            deduped_map[sku_val] = item
+
+    indexed_entries: list[dict[str, Any]] = []
+    by_category: dict[str, list[dict[str, Any]]] = {}
+
+    for idx, item in enumerate(deduped_map.values()):
+        specs = item.get("specifications", {})
+        specs_json = json.dumps(specs) if isinstance(specs, dict) else str(specs)
+        row = dict(item)
+        row["specifications"] = specs_json
+
+        name_low = str(item.get("name", "")).lower()
+        brand_low = str(item.get("brand", "")).lower()
+        cat_low = str(item.get("category", "")).lower()
+        sku_low = str(item.get("sku", "")).strip().lower()
+        price_val = float(item.get("price", 0.0))
+        item_text = f"{name_low} {brand_low} {cat_low} {sku_low} {specs_json.lower()}"
+        item_tokens = frozenset(re.findall(r"[a-z0-9-]+", item_text))
+
+        entry = {
+            "row": row,
+            "name_low": name_low,
+            "brand_low": brand_low,
+            "brand_tokens": frozenset(brand_low.split()),
+            "cat_low": cat_low,
+            "name_brand": f"{name_low} {brand_low} {sku_low}",
+            "item_text": item_text,
+            "item_tokens": item_tokens,
+            "price": price_val,
+            "is_canonical": idx < 40,
+        }
+        indexed_entries.append(entry)
+        if cat_low:
+            by_category.setdefault(cat_low, []).append(entry)
+
+    if len(_HERMETIC_CATALOG_CACHE) >= 8:
+        _HERMETIC_CATALOG_CACHE.clear()
+    result = (indexed_entries, by_category)
+    _HERMETIC_CATALOG_CACHE[cache_key] = result
+    return result
+
+
 def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMock:
-    """Create a hermetic mock BigQuery client populated with catalog seed data."""
+    """Create a hermetic mock BigQuery client populated with cached catalog seed data."""
     if catalog_path is None:
         catalog_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
     else:
@@ -2244,18 +2336,10 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
     if not catalog_path.exists():
         raise FileNotFoundError(f"Catalog seed file not found: {catalog_path}")
 
-    with open(catalog_path, encoding="utf-8") as f:
-        raw_catalog_items = json.load(f)
-
-    # Deduplicate by SKU (keeping latest entry)
-    deduped_map: dict[str, dict[str, Any]] = {}
-    for item in raw_catalog_items:
-        sku_val = str(item.get("sku", "")).strip()
-        if sku_val:
-            deduped_map[sku_val] = item
-    catalog_items = list(deduped_map.values())
+    indexed_catalog, by_category = _load_indexed_hermetic_catalog(catalog_path)
 
     client = MagicMock()
+    query_result_cache: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
 
     def mock_query(sql: str, job_config: Any = None) -> MagicMock:
         patterns: list[str] = []
@@ -2267,7 +2351,7 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
         if job_config and hasattr(job_config, "query_parameters"):
             for p in job_config.query_parameters:
                 if p.name == "product_patterns":
-                    patterns = [pat.replace("%", "").lower() for pat in p.values]
+                    patterns = [pat.replace("%", "").lower() for pat in p.values if pat]
                 elif p.name == "category":
                     category = p.value.lower() if p.value else None
                 elif p.name == "min_price":
@@ -2277,91 +2361,90 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
                 elif p.name == "limit":
                     limit_val = int(p.value)
 
-        scored_matches: list[tuple[int, float, dict[str, Any]]] = []
-        for item in catalog_items:
-            if category and item.get("category", "").lower() != category:
+        cache_query_key = (
+            tuple(sorted(patterns)),
+            category,
+            min_price,
+            max_price,
+            limit_val,
+        )
+        if cache_query_key in query_result_cache:
+            mock_job = MagicMock()
+            mock_job.result.return_value = [dict(m) for m in query_result_cache[cache_query_key]]
+            return mock_job
+
+        candidates = by_category.get(category, []) if category else indexed_catalog
+
+        non_empty_patterns = [pat for pat in patterns if pat]
+        tokenized_patterns: list[tuple[list[str], list[str]]] = []
+        for pat in non_empty_patterns:
+            pat_tokens = [
+                t
+                for t in re.findall(r"[a-z0-9-]+", pat)
+                if len(t) >= 2 and t not in _HERMETIC_STOPWORDS
+            ]
+            if pat_tokens:
+                long_tokens = [t for t in pat_tokens if len(t) >= 3]
+                tokenized_patterns.append((pat_tokens, long_tokens))
+
+        scored_matches: list[tuple[int, int, int, float, dict[str, Any]]] = []
+        for entry in candidates:
+            price_val = entry["price"]
+            if min_price is not None and price_val < min_price:
                 continue
-            if min_price is not None and item.get("price", 0) < min_price:
-                continue
-            if max_price is not None and item.get("price", 0) > max_price:
+            if max_price is not None and price_val > max_price:
                 continue
 
-            item_text = (
-                f"{item.get('name', '')} {item.get('brand', '')} {item.get('category', '')} "
-                f"{json.dumps(item.get('specifications', {}))}"
-            ).lower()
+            if non_empty_patterns:
+                name_brand = entry["name_brand"]
+                item_tokens = entry["item_tokens"]
+                name_low = entry["name_low"]
+                brand_tokens = entry["brand_tokens"]
 
-            if patterns:
-                matched_item = False
-                stopwords = {
-                    "with",
-                    "and",
-                    "the",
-                    "for",
-                    "versus",
-                    "compare",
-                    "between",
-                    "which",
-                    "better",
-                    "cheaper",
-                    "lighter",
-                    "longer",
-                    "worth",
-                    "price",
-                    "specs",
-                    "difference",
-                    "differences",
-                    "summary",
-                    "breakdown",
-                    "detailed",
-                    "comprehensive",
-                    "vs",
-                    "inch",
-                }
-                brand = item.get("brand", "").lower()
-                name = item.get("name", "").lower()
-                name_brand = f"{name} {brand}"
-                pat_hits = sum(1 for pat in patterns if pat and pat in name_brand)
-                for pat in patterns:
-                    pat_tokens = [
-                        t
-                        for t in re.findall(r"[a-z0-9-]+", pat.lower())
-                        if len(t) >= 2 and t not in stopwords
-                    ]
-                    if not pat_tokens:
-                        continue
-                    m_count = sum(1 for t in pat_tokens if t in item_text)
+                pat_hits = sum(1 for pat in non_empty_patterns if pat in name_brand)
+                multi_token_hits = 0
+                matched_item = pat_hits > 0
+
+                for pat_tokens, long_tokens in tokenized_patterns:
+                    m_count = sum(1 for t in pat_tokens if t in item_tokens)
                     if (
                         (len(pat_tokens) == 1 and m_count == 1)
                         or (m_count >= 2 and (m_count / len(pat_tokens)) >= 0.3)
                         or (
                             m_count >= 1
                             and (
-                                (brand and any(b in pat_tokens for b in brand.split()))
-                                or any(t in name for t in pat_tokens if len(t) >= 3)
+                                (brand_tokens and any(b in pat_tokens for b in brand_tokens))
+                                or any(t in name_low for t in long_tokens)
                             )
                         )
                     ):
                         matched_item = True
-                        break
-                if matched_item:
-                    row = dict(item)
-                    if isinstance(row.get("specifications"), dict):
-                        row["specifications"] = json.dumps(row["specifications"])
-                    scored_matches.append((-pat_hits, float(row.get("price", 0.0)), row))
-            else:
-                row = dict(item)
-                if isinstance(row.get("specifications"), dict):
-                    row["specifications"] = json.dumps(row["specifications"])
-                scored_matches.append((0, float(row.get("price", 0.0)), row))
+                        if len(pat_tokens) >= 2 and m_count >= 2:
+                            multi_token_hits += m_count
 
-        scored_matches.sort(key=lambda x: (x[0], x[1]))
-        matches = [m[2] for m in scored_matches]
+                if matched_item:
+                    canonical_rank = 0 if entry["is_canonical"] else 1
+                    scored_matches.append(
+                        (
+                            -pat_hits,
+                            -multi_token_hits,
+                            canonical_rank,
+                            price_val,
+                            dict(entry["row"]),
+                        )
+                    )
+            else:
+                canonical_rank = 0 if entry["is_canonical"] else 1
+                scored_matches.append((0, 0, canonical_rank, price_val, dict(entry["row"])))
+
+        scored_matches.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
+        matches = [m[4] for m in scored_matches]
         if limit_val is not None and limit_val > 0:
             matches = matches[:limit_val]
 
+        query_result_cache[cache_query_key] = matches
         mock_job = MagicMock()
-        mock_job.result.return_value = matches
+        mock_job.result.return_value = [dict(m) for m in matches]
         return mock_job
 
     client.query.side_effect = mock_query

@@ -438,7 +438,8 @@ def query_catalog(
                 "(EXISTS (SELECT 1 FROM UNNEST(@product_patterns) AS pat "
                 "WHERE LOWER(name) LIKE LOWER(pat) "
                 "OR LOWER(brand) LIKE LOWER(pat) "
-                "OR LOWER(category) LIKE LOWER(pat)))"
+                "OR LOWER(category) LIKE LOWER(pat) "
+                "OR LOWER(sku) LIKE LOWER(pat)))"
             ]
 
             if category:
@@ -466,7 +467,8 @@ def query_catalog(
             WHERE {where_sql}
             QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
             ORDER BY
-              (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat)) DESC,
+              (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat) OR LOWER(sku) LIKE LOWER(pat)) DESC,
+              CASE WHEN url LIKE 'https://www.techbuy.com/%' THEN 0 ELSE 1 END ASC,
               price ASC
             LIMIT @limit
             """.strip()

@@ -39,7 +39,7 @@ describe('App Integration', () => {
     ).toBeInTheDocument();
     // Default view should now be All Categories Catalog
     expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
-    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 10040 verified SKUs/i)).toBeInTheDocument();
     expect(screen.getByText(/SKU: 6534606/i)).toBeInTheDocument();
     expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
     expect(screen.queryByText('Popular Product Comparisons')).not.toBeInTheDocument();
@@ -97,21 +97,21 @@ describe('App Integration', () => {
   it('shows all catalog SKUs when All Categories pill is clicked and filters relevant SKUs when a category pill is clicked', () => {
     renderWithClient(<App />);
 
-    // Click "All Categories" pill -> should show all 40 catalog SKUs
+    // Click "All Categories" pill -> should show all 10040 catalog SKUs
     const allCategoriesBtn = screen.getByRole('button', { name: /all categories/i });
     fireEvent.click(allCategoriesBtn);
 
     expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
-    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 10040 verified SKUs/i)).toBeInTheDocument();
     expect(screen.getByText(/SKU: 6534606/i)).toBeInTheDocument();
     expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
 
-    // Click "Headphones" pill -> should show only the 8 Headphones SKUs
+    // Click "Headphones" pill -> should show the 2008 Headphones SKUs
     const headphonesBtn = screen.getByRole('button', { name: /headphones/i });
     fireEvent.click(headphonesBtn);
 
     expect(screen.getByText(/Headphones Catalog/i)).toBeInTheDocument();
-    expect(screen.getByText(/Showing 8 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 2008 verified SKUs/i)).toBeInTheDocument();
     expect(screen.getByText(/SKU: 6505727/i)).toBeInTheDocument();
     expect(screen.queryByText(/SKU: 6534606/i)).not.toBeInTheDocument();
   });
@@ -137,7 +137,7 @@ describe('App Integration', () => {
     fireEvent.click(logoBtn);
 
     expect(screen.getByText(/All Categories Catalog/i)).toBeInTheDocument();
-    expect(screen.getByText(/Showing 40 verified SKUs/i)).toBeInTheDocument();
+    expect(screen.getByText(/Showing 10040 verified SKUs/i)).toBeInTheDocument();
     expect(screen.queryByText('Side-by-Side Specification Matrix')).not.toBeInTheDocument();
 
     // Also verify returning home from category SKU browse view (e.g. Laptops)
@@ -401,24 +401,43 @@ describe('App Integration', () => {
     );
     expect(liveSearchInput).toBeInTheDocument();
 
-    // Default shows 40 products
-    expect(screen.getByText(/40 of 40 matching/i)).toBeInTheDocument();
+    // Default shows 10040 products
+    expect(screen.getByText(/10040 of 10040 matching/i)).toBeInTheDocument();
 
-    // Type "Bose" into live search input
-    fireEvent.change(liveSearchInput, { target: { value: 'Bose' } });
+    // Type "6553823" (Bose QuietComfort Ultra SKU) into live search input
+    fireEvent.change(liveSearchInput, { target: { value: '6553823' } });
 
-    // Should filter to Bose products
+    // Should filter to Bose QuietComfort Ultra product
     expect(screen.getByText(/Bose QuietComfort Ultra/i)).toBeInTheDocument();
     expect(screen.queryByText(/Dell XPS 13/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/1 of 40 matching/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 of 10040 matching/i)).toBeInTheDocument();
 
     // Clear button should appear and reset search
     const clearBtn = screen.getByRole('button', { name: /clear catalog search/i });
     expect(clearBtn).toBeInTheDocument();
     fireEvent.click(clearBtn);
 
-    expect(screen.getByText(/40 of 40 matching/i)).toBeInTheDocument();
+    expect(screen.getByText(/10040 of 10040 matching/i)).toBeInTheDocument();
     expect(screen.getByText(/Dell XPS 13/i)).toBeInTheDocument();
+  });
+
+  it('paginates catalog ProductCard rendering to 40 cards initially and loads more when Load More button is clicked', () => {
+    renderWithClient(<App />);
+
+    // Total verified SKU count badge remains 10,040
+    expect(screen.getByText(/Showing 10040 verified SKUs/i)).toBeInTheDocument();
+
+    // Only 40 ProductCards are mounted initially
+    const initialCheckboxes = screen.getAllByRole('checkbox');
+    expect(initialCheckboxes).toHaveLength(40);
+
+    // Load More button should be visible
+    const loadMoreBtn = screen.getByRole('button', { name: /load more/i });
+    expect(loadMoreBtn).toBeInTheDocument();
+
+    // Clicking Load More renders 40 additional cards (total 80)
+    fireEvent.click(loadMoreBtn);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(80);
   });
 
   it('renders "+ Add Product to Compare Against" in Compared Products header and adds product', async () => {

@@ -2,14 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { CATALOG_PRODUCTS, searchCatalogProducts, getCatalogProducts } from '../data/catalogProducts';
 
 describe('CATALOG_PRODUCTS specifications and image URLs', () => {
-  it('contains exactly 40 catalog products', () => {
-    expect(CATALOG_PRODUCTS).toHaveLength(40);
+  it('contains 10,040 catalog products', () => {
+    expect(CATALOG_PRODUCTS).toHaveLength(10040);
   });
 
-  it('has unique SKU identifiers across all products', () => {
+  it('has unique SKU identifiers across all 10,040 products', () => {
     const skus = CATALOG_PRODUCTS.map((p) => p.sku);
     const uniqueSkus = new Set(skus);
-    expect(uniqueSkus.size).toBe(40);
+    expect(uniqueSkus.size).toBe(10040);
+  });
+
+  it('preserves canonical benchmark SKUs within indices 0..39', () => {
+    const canonicalSkus = new Set(CATALOG_PRODUCTS.slice(0, 40).map((p) => p.sku));
+    expect(canonicalSkus.size).toBe(40);
+    expect(canonicalSkus.has('6534606')).toBe(true);
+    expect(canonicalSkus.has('6575132')).toBe(true);
+    expect(canonicalSkus.has('6579601')).toBe(true);
+    expect(canonicalSkus.has('6505727')).toBe(true);
+    expect(canonicalSkus.has('6553823')).toBe(true);
   });
 
   it('has valid non-empty string values for core metadata on every product', () => {
@@ -23,7 +33,7 @@ describe('CATALOG_PRODUCTS specifications and image URLs', () => {
     }
   });
 
-  it('has verified Best Buy CDN image_url for all 40 products', () => {
+  it('has verified Best Buy CDN image_url for all 10,040 products', () => {
     const cdnPrefix = 'https://pisces.bbystatic.com/image2/BestBuy_US/images/products/';
 
     for (const product of CATALOG_PRODUCTS) {
@@ -37,23 +47,22 @@ describe('CATALOG_PRODUCTS specifications and image URLs', () => {
     }
   });
 
-  it('covers all five canonical categories with at least one product', () => {
-    const categories = new Set(CATALOG_PRODUCTS.map((p) => p.category));
-    expect(categories).toContain('Laptops');
-    expect(categories).toContain('Tablets');
-    expect(categories).toContain('Headphones');
-    expect(categories).toContain('Smart Home');
-    expect(categories).toContain('TVs');
+  it('covers all five canonical categories with at least 1,000 products each', () => {
+    const categories = ['Laptops', 'Tablets', 'Headphones', 'Smart Home', 'TVs'];
+    for (const cat of categories) {
+      const catProducts = getCatalogProducts(cat);
+      expect(catProducts.length).toBeGreaterThanOrEqual(1000);
+    }
   });
 });
 
 describe('searchCatalogProducts', () => {
-  it('returns all products when query is empty or whitespace with no category', () => {
+  it('returns all 10,040 products when query is empty or whitespace with no category', () => {
     const emptyResults = searchCatalogProducts('');
-    expect(emptyResults).toHaveLength(40);
+    expect(emptyResults).toHaveLength(10040);
 
     const whitespaceResults = searchCatalogProducts('   ');
-    expect(whitespaceResults).toHaveLength(40);
+    expect(whitespaceResults).toHaveLength(10040);
   });
 
   it('returns all category products when query is empty or whitespace with a category', () => {

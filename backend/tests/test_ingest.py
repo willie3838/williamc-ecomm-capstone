@@ -434,7 +434,7 @@ def test_product_specifications_not_dict(sample_product_dict: dict) -> None:
 
 
 def test_catalog_seed_json_enhanced_and_no_duplicate_skus() -> None:
-    """Verify catalog_seed.json has >= 40 unique SKUs, >= 8 per category, zero duplicates, and rich specs."""
+    """Verify catalog_seed.json has 10,040 unique SKUs, 2,008 per category, zero duplicates, and rich specs."""
     from collections import Counter
 
     seed_file = Path(__file__).parent.parent / "src" / "app" / "data" / "catalog_seed.json"
@@ -444,11 +444,13 @@ def test_catalog_seed_json_enhanced_and_no_duplicate_skus() -> None:
 
     ingestor = BigQueryCatalogIngestor(project_id="test-project")
     products = ingestor.load_from_json(seed_file)
-    assert len(products) >= 40, f"Expected at least 40 unique SKUs, got {len(products)}"
+    assert len(products) == 10040, f"Expected 10,040 unique SKUs, got {len(products)}"
 
     cat_counts = Counter(p.category for p in products)
     for cat in ("Laptops", "Tablets", "Headphones", "Smart Home", "TVs"):
-        assert cat_counts[cat] >= 8, f"Category {cat} should have >= 8 SKUs, got {cat_counts[cat]}"
+        assert cat_counts[cat] >= 1000, (
+            f"Category {cat} should have >= 1,000 SKUs, got {cat_counts[cat]}"
+        )
 
     for prod in products:
         assert len(prod.specifications) >= 6, (
@@ -492,6 +494,63 @@ def test_ingest_deduplicates_duplicate_skus_and_uses_write_truncate(
     call_kwargs = mock_client.load_table_from_json.call_args[1]
     job_config = call_kwargs["job_config"]
     assert job_config.write_disposition == bigquery.WriteDisposition.WRITE_TRUNCATE
+
+
+def test_ingest_products_batches_over_5000_rows(sample_product_dict: dict) -> None:
+    """Verify ingest_products splits >5,000 rows into 5,000-row chunks with WRITE_TRUNCATE then WRITE_APPEND."""
+    from google.cloud import bigquery
+
+    products = [
+        ProductRecord(**{**sample_product_dict, "sku": str(7000000 + i)}) for i in range(10040)
+    ]
+
+    mock_client = MagicMock()
+    mock_job = MagicMock()
+    mock_job.result.return_value = None
+    mock_job.errors = None
+    mock_client.load_table_from_json.return_value = mock_job
+
+    ingestor = BigQueryCatalogIngestor(project_id="test-project", client=mock_client)
+    result = ingestor.ingest_products(products, dry_run=False, create_table=False)
+
+    assert result.total_records == 10040
+    assert result.inserted_records == 10040
+    assert result.failed_records == 0
+    assert mock_client.load_table_from_json.call_count == 3
+
+    calls = mock_client.load_table_from_json.call_args_list
+    assert len(calls[0][0][0]) == 5000
+    assert calls[0][1]["job_config"].write_disposition == bigquery.WriteDisposition.WRITE_TRUNCATE
+    assert len(calls[1][0][0]) == 5000
+    assert calls[1][1]["job_config"].write_disposition == bigquery.WriteDisposition.WRITE_APPEND
+    assert len(calls[2][0][0]) == 40
+    assert calls[2][1]["job_config"].write_disposition == bigquery.WriteDisposition.WRITE_APPEND
+
+
+def test_hermetic_bq_client_10k_latency_and_canonical_priority() -> None:
+    """Verify create_hermetic_bq_client caches 10,040 SKUs, runs in <5ms, and prioritizes canonical/multi-token matches."""
+    import time
+
+    from app.agent.hermetic_adapter import create_hermetic_bq_client
+    from app.tools.catalog import query_catalog
+
+    client = create_hermetic_bq_client()
+    # Warm up cache on first query
+    _ = query_catalog(keywords=["MacBook Air", "Dell XPS 13"], category="Laptops", client=client)
+
+    start = time.perf_counter()
+    results = query_catalog(
+        keywords=["MacBook Air", "Dell XPS 13"],
+        category="Laptops",
+        limit=10,
+        client=client,
+    )
+    elapsed_ms = (time.perf_counter() - start) * 1000.0
+
+    assert elapsed_ms < 5.0, f"Expected cached hermetic query < 5.0ms, got {elapsed_ms:.2f}ms"
+    skus = [r["sku"] for r in results]
+    assert "6534606" in skus
+    assert "6575132" in skus
 
 
 def test_query_catalog_sql_deduplicates_skus_via_qualify() -> None:
