@@ -429,13 +429,24 @@ def test_hermetic_adapter_forwards_model_parameter(monkeypatch: pytest.MonkeyPat
     assert "6534606" in res
     assert captured_models == ["gemini-2.5-pro"]
 
-    captured_models.clear()
+    captured_synth: list[tuple[str | None, bool]] = []
+    orig_synth = ha.HermeticModelAdapter.synthesis_response
+
+    def spy_synth(
+        prompt: str, skip_vertex_call: bool = False, model: str | None = None
+    ) -> str:
+        captured_synth.append((model, skip_vertex_call))
+        return orig_synth(prompt, skip_vertex_call=skip_vertex_call, model=model)
+
+    monkeypatch.setattr(
+        ha.HermeticModelAdapter, "synthesis_response", staticmethod(spy_synth)
+    )
     client = ha.create_hermetic_genai_client()
     client.models.generate_content(
         model="gemini-3.8-flash",
         contents="Provide JSON synthesis with summary and recommendations",
     )
-    assert captured_models == ["gemini-3.8-flash"]
+    assert captured_synth == [("gemini-3.8-flash", True)]
 
 
 def test_run_per_stage_benchmarks_stage3_semantic_quality(
