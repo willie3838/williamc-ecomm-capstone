@@ -369,23 +369,26 @@ def _call_real_vertex_gemini(
             "Hermetic eval, pytest, or Vertex AI ADC unavailable; using deterministic adapter."
         )
 
+    from app.agent.orchestrator import _build_thinking_config, get_model_armor_config
+
     target_model = "gemini-2.5-flash" if model in ("tiered-hybrid", "") else model
     client = _get_vertex_client_for_model(target_model)
     cfg_kwargs: dict[str, Any] = {
         "temperature": 0.1,
         "max_output_tokens": max_output_tokens,
     }
-    if "flash" in target_model.lower():
-        cfg_kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=0)
+    thinking_cfg = _build_thinking_config(target_model)
+    if thinking_cfg is not None:
+        cfg_kwargs["thinking_config"] = thinking_cfg
     if (
         getattr(settings, "enable_model_armor", True)
         and "lite" not in target_model
+        and not _is_preview_or_3x_model(target_model)
         and not os.environ.get("PYTEST_CURRENT_TEST")
     ):
-        cfg_kwargs["model_armor_config"] = types.ModelArmorConfig(
-            prompt_template_name=settings.model_armor_prompt_template,
-            response_template_name=settings.model_armor_response_template,
-        )
+        armor_cfg = get_model_armor_config()
+        if armor_cfg is not None:
+            cfg_kwargs["model_armor_config"] = armor_cfg
     if system_instruction:
         cfg_kwargs["system_instruction"] = system_instruction
     if schema_cls is not None:
@@ -488,7 +491,9 @@ class HermeticModelAdapter:
         return prompt.strip()
 
     @staticmethod
-    def classify_intent_response(query: str, model: str | None = None) -> QueryIntentAnalysis:
+    def classify_intent_response(
+        query: str, model: str | None = None, skip_vertex_call: bool = False
+    ) -> QueryIntentAnalysis:
         """Classify customer query intent with fast syntactic disambiguation and live Vertex AI Gemini fallback."""
         clean_query = HermeticModelAdapter.extract_user_query(query)
         lower_q = (clean_query or "").lower().strip()
@@ -659,7 +664,7 @@ class HermeticModelAdapter:
             )
 
         # Call real Vertex AI Gemini LLM for ambiguous single-entity queries when not blocked by a unit test mock
-        if not hasattr(genai.Client, "assert_called"):
+        if not skip_vertex_call and not hasattr(genai.Client, "assert_called"):
             try:
                 intent_prompt = (
                     "You are an Intent Extraction Specialist for consumer electronics comparisons.\n"
@@ -702,7 +707,9 @@ class HermeticModelAdapter:
         )
 
     @staticmethod
-    def rerank_response(prompt: str, model: str | None = None) -> str:
+    def rerank_response(
+        prompt: str, model: str | None = None, skip_vertex_call: bool = False
+    ) -> str:
         """Parse candidates in prompt and produce structured CandidateRankingResponse JSON via live Vertex AI Gemini."""
         query = HermeticModelAdapter.extract_user_query(prompt)
         lower_q = (query or "").lower().strip()
@@ -837,7 +844,7 @@ class HermeticModelAdapter:
             ]
 
         # Call real Vertex AI Gemini LLM for candidate reranking when not mocked
-        if not hasattr(genai.Client, "assert_called") and rankings:
+        if not skip_vertex_call and not hasattr(genai.Client, "assert_called") and rankings:
             try:
                 res_rerank = _call_real_vertex_gemini(
                     prompt=prompt,
@@ -1503,7 +1510,10 @@ class HermeticModelAdapter:
 
     @staticmethod
     def synthesis_from_tool_items(
-        items: list[dict[str, Any]], query: str = "", model: str | None = None
+        items: list[dict[str, Any]],
+        query: str = "",
+        model: str | None = None,
+        skip_vertex_call: bool = False,
     ) -> str:
         """Build a synthesis prompt from tool-retrieved items and delegate to synthesis_response."""
         if not items:
@@ -1521,7 +1531,9 @@ class HermeticModelAdapter:
         synthetic_prompt = (
             f"<user_query>{query}</user_query>\n\nRetrieved Catalog Products:\n{candidates_desc}\n"
         )
-        return HermeticModelAdapter.synthesis_response(synthetic_prompt, model=model)
+        return HermeticModelAdapter.synthesis_response(
+            synthetic_prompt, skip_vertex_call=skip_vertex_call, model=model
+        )
 
 
 class CatalogAdkLlm(BaseLlm):
@@ -1546,11 +1558,12 @@ class CatalogAdkLlm(BaseLlm):
         model: str = "gemini-2.5-pro",
         hermetic: bool = False,
         genai_client: Any = None,
+        client: Any = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(model=model, hermetic=hermetic, **kwargs)
-        self._injected_client = genai_client
-        if genai_client is None:
+        self._injected_client = genai_client if genai_client is not None else client
+        if self._injected_client is None and not hermetic:
             _warm_vertex_client_and_auth()
 
     @classmethod
@@ -1614,7 +1627,7 @@ class CatalogAdkLlm(BaseLlm):
         return "\n".join(text_chunks).strip(), tool_items
 
     def _generate_hermetic_llm_response(
-        self, llm_request: LlmRequest, skip_vertex_call: bool = False
+        self, llm_request: LlmRequest, skip_vertex_call: bool = True
     ) -> LlmResponse:
         """Produce a deterministic LlmResponse (including FunctionCall when tools are bound)."""
         prompt_text, tool_items = self._extract_prompt_and_tool_state(llm_request)
@@ -1628,7 +1641,7 @@ class CatalogAdkLlm(BaseLlm):
             if tool_items is None:
                 # Turn 1: Emit an ADK FunctionCall to `query_catalog` unless opinion/chatter
                 intent = HermeticModelAdapter.classify_intent_response(
-                    prompt_text, model=self.model
+                    prompt_text, model=self.model, skip_vertex_call=True
                 )
                 if intent.intent_type == "OPINION_OR_CHATTER":
                     msg = (
@@ -1666,7 +1679,7 @@ class CatalogAdkLlm(BaseLlm):
 
             # Turn 2: Tool `query_catalog` has executed and returned `tool_items`!
             synth_json = HermeticModelAdapter.synthesis_from_tool_items(
-                tool_items, query=prompt_text, model=self.model
+                tool_items, query=prompt_text, model=self.model, skip_vertex_call=True
             )
             try:
                 synth_obj = ComparisonSynthesis.model_validate_json(synth_json)
@@ -1697,20 +1710,25 @@ class CatalogAdkLlm(BaseLlm):
             schema_name == "QueryIntentAnalysis"
             or "Query Intent Specialist" in combined
             or "classify its intent" in combined
+            or "classify intent" in combined
+            or "Extract the product category" in combined
         ):
             target_q = HermeticModelAdapter.extract_user_query(prompt_text)
             out_text = HermeticModelAdapter.classify_intent_response(
-                target_q, model=self.model
+                target_q, model=self.model, skip_vertex_call=True
             ).model_dump_json()
         elif (
             schema_name == "CandidateRankingResponse"
             or "relevance judge" in combined
             or "Candidates:" in combined
+            or "Candidate SKU:" in combined
         ):
-            out_text = HermeticModelAdapter.rerank_response(prompt_text, model=self.model)
+            out_text = HermeticModelAdapter.rerank_response(
+                prompt_text, model=self.model, skip_vertex_call=True
+            )
         else:
             out_text = HermeticModelAdapter.synthesis_response(
-                prompt_text, skip_vertex_call=skip_vertex_call, model=self.model
+                prompt_text, skip_vertex_call=True, model=self.model
             )
 
         return LlmResponse(
@@ -1732,8 +1750,10 @@ class CatalogAdkLlm(BaseLlm):
             and not hasattr(genai.Client, "assert_called")
             and not os.environ.get("PYTEST_CURRENT_TEST")
         ):
-            yield self._generate_hermetic_llm_response(llm_request)
+            yield self._generate_hermetic_llm_response(llm_request, skip_vertex_call=True)
             return
+
+        from app.agent.orchestrator import _build_thinking_config, get_model_armor_config
 
         prompt_text, tool_items = self._extract_prompt_and_tool_state(llm_request)
         has_catalog_tool = "query_catalog" in (llm_request.tools_dict or {})
@@ -1859,30 +1879,19 @@ class CatalogAdkLlm(BaseLlm):
                     if config
                     else 0.1,
                     max_output_tokens=effective_max_tokens,
-                    thinking_config=(
-                        types.ThinkingConfig(thinking_budget=0)
-                        if "flash" in target_model.lower()
-                        else None
-                    ),
+                    thinking_config=_build_thinking_config(target_model),
                 )
             elif config is None:
                 effective_config = types.GenerateContentConfig(
                     temperature=0.1,
                     max_output_tokens=effective_max_tokens,
-                    thinking_config=(
-                        types.ThinkingConfig(thinking_budget=0)
-                        if "flash" in target_model.lower()
-                        else None
-                    ),
+                    thinking_config=_build_thinking_config(target_model),
                 )
             else:
                 effective_config = config
                 try:
-                    if (
-                        getattr(effective_config, "thinking_config", None) is None
-                        and "flash" in target_model.lower()
-                    ):
-                        effective_config.thinking_config = types.ThinkingConfig(thinking_budget=0)
+                    if getattr(effective_config, "thinking_config", None) is None:
+                        effective_config.thinking_config = _build_thinking_config(target_model)
                     if not getattr(effective_config, "max_output_tokens", None):
                         effective_config.max_output_tokens = effective_max_tokens
                     if has_catalog_tool and not is_test_env:
@@ -1935,11 +1944,7 @@ class CatalogAdkLlm(BaseLlm):
                         ),
                         temperature=float(getattr(config, "temperature", 0.1) or 0.1),
                         max_output_tokens=effective_max_tokens,
-                        thinking_config=(
-                            types.ThinkingConfig(thinking_budget=0)
-                            if "flash" in target_model.lower()
-                            else None
-                        ),
+                        thinking_config=_build_thinking_config(target_model),
                     )
 
             use_concurrent_ma = (
@@ -1952,14 +1957,12 @@ class CatalogAdkLlm(BaseLlm):
             if (
                 getattr(settings, "enable_model_armor", True)
                 and ("lite" not in target_model or is_test_env)
+                and not _is_preview_or_3x_model(target_model)
                 and getattr(effective_config, "safety_settings", None) is None
                 and getattr(effective_config, "model_armor_config", None) is None
             ):
                 try:
-                    effective_config.model_armor_config = types.ModelArmorConfig(
-                        prompt_template_name=settings.model_armor_prompt_template,
-                        response_template_name=settings.model_armor_response_template,
-                    )
+                    effective_config.model_armor_config = get_model_armor_config()
                 except Exception:
                     pass
 
@@ -2412,7 +2415,7 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
     return client
 
 
-def create_hermetic_genai_client() -> MagicMock:
+def create_hermetic_genai_client(default_model: str | None = None) -> MagicMock:
     """Factory to construct a mock google.genai.Client responding via HermeticModelAdapter."""
     client = MagicMock()
 
@@ -2421,26 +2424,40 @@ def create_hermetic_genai_client() -> MagicMock:
     ) -> MagicMock:
         prompt = str(contents)
         response = MagicMock()
-        effective_model = model or None
+        effective_model = model or default_model or None
 
         candidate = MagicMock()
         candidate.finish_reason = "STOP"
         response.candidates = [candidate]
 
-        if "Query Intent Specialist" in prompt or "classify its intent" in prompt:
+        if (
+            "Query Intent Specialist" in prompt
+            or "classify its intent" in prompt
+            or "Extract the product category" in prompt
+        ):
             query = HermeticModelAdapter.extract_user_query(prompt)
             intent_analysis = HermeticModelAdapter.classify_intent_response(
-                query, model=effective_model
+                query, model=effective_model, skip_vertex_call=True
             )
             response.text = intent_analysis.model_dump_json()
-        elif "relevance judge" in prompt or "Candidates:" in prompt:
-            response.text = HermeticModelAdapter.rerank_response(prompt, model=effective_model)
+        elif (
+            "relevance judge" in prompt
+            or "Candidates:" in prompt
+            or "Candidate SKU:" in prompt
+            or "relevance from 0.0 to 1.0" in prompt
+        ):
+            response.text = HermeticModelAdapter.rerank_response(
+                prompt, model=effective_model, skip_vertex_call=True
+            )
         elif (
             "Comparison Specialist" in prompt
             or "Retrieved Catalog Products:" in prompt
             or "synthesis" in prompt.lower()
+            or "json summary" in prompt.lower()
         ):
-            response.text = HermeticModelAdapter.synthesis_response(prompt, model=effective_model)
+            response.text = HermeticModelAdapter.synthesis_response(
+                prompt, skip_vertex_call=True, model=effective_model
+            )
         else:
             response.text = "{}"
 
