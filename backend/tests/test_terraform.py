@@ -574,8 +574,7 @@ def test_model_armor_terraform():
     assert "catalog-resp-guard" in content
     assert "var.project_id" in content
 
-    # Verify both 'us' multi-region and regional 'var.region'
-    assert '"us"' in content
+    # Verify regional 'var.region'
     assert "var.region" in content
 
     # Verify all 4 RAI filters configured at MEDIUM_AND_ABOVE
@@ -603,7 +602,7 @@ def test_model_armor_terraform():
 
     # Verify idempotent REST API provisioning via local-exec
     assert 'provisioner "local-exec"' in content
-    assert "modelarmor.googleapis.com" in content
+    assert "rep.googleapis.com" in content
 
     # Verify providers.tf remains ~> 5.15
     providers_tf = (TERRAFORM_DIR / "providers.tf").read_text()
@@ -677,3 +676,37 @@ def test_monitoring_and_looker_automation_terraform():
     looker_readme = (TERRAFORM_DIR.parent / "looker" / "README.md").read_text()
     assert "https://lookerstudio.google.com/reporting/create" in looker_readme
     assert "google_monitoring_dashboard" in looker_readme
+
+
+def test_model_armor_tf_uses_us_central1_regional_endpoint_and_consistent_locations() -> None:
+    """model_armor.tf must target modelarmor.${var.region}.rep.googleapis.com without '|| true', and cloudrun.tf/outputs.tf/service.yaml/config.py must use us-central1."""
+    tf_dir = TERRAFORM_DIR
+    ma_tf = (tf_dir / "model_armor.tf").read_text(encoding="utf-8")
+    assert "modelarmor.${var.region}.rep.googleapis.com" in ma_tf, (
+        "model_armor.tf must use the Regional Endpoint (rep.googleapis.com)!"
+    )
+    assert "|| true" not in ma_tf, "model_armor.tf must not swallow curl errors with '|| true'!"
+    assert 'for LOC in "us"' not in ma_tf, (
+        "model_armor.tf must not attempt multi-region 'us' template provisioning!"
+    )
+
+    cr_tf = (tf_dir / "cloudrun.tf").read_text(encoding="utf-8")
+    assert "locations/us/templates/" not in cr_tf, (
+        "cloudrun.tf must use locations/${var.region}/templates/, not locations/us/templates/!"
+    )
+    assert "locations/${var.region}/templates/" in cr_tf
+
+    out_tf = (tf_dir / "outputs.tf").read_text(encoding="utf-8")
+    assert "locations/us/templates/" not in out_tf, (
+        "outputs.tf must use locations/${var.region}/templates/, not locations/us/templates/!"
+    )
+
+    svc_yaml = (TERRAFORM_DIR.parent / "clouddeploy" / "service.yaml").read_text(encoding="utf-8")
+    assert "locations/us-central1/templates/catalog-prompt-guard" in svc_yaml
+    assert "locations/us-central1/templates/catalog-resp-guard" in svc_yaml
+
+    cfg_py = (TERRAFORM_DIR.parent.parent / "backend" / "src" / "app" / "config.py").read_text(
+        encoding="utf-8"
+    )
+    assert "locations/us-central1/templates/catalog-prompt-guard" in cfg_py
+    assert "locations/us-central1/templates/catalog-resp-guard" in cfg_py

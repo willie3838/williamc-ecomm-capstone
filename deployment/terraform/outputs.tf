@@ -67,12 +67,12 @@ output "bigquery_evaluation_table_id" {
 
 output "model_armor_prompt_template" {
   description = "The Google Cloud Model Armor prompt guardrail template resource name"
-  value       = terraform_data.model_armor_prompt_template.output.template_name
+  value       = "projects/${var.project_id}/locations/${var.region}/templates/${local.prompt_guard_template_id}"
 }
 
 output "model_armor_response_template" {
   description = "The Google Cloud Model Armor response guardrail template resource name"
-  value       = terraform_data.model_armor_response_template.output.template_name
+  value       = "projects/${var.project_id}/locations/${var.region}/templates/${local.response_guard_template_id}"
 }
 
 output "monitoring_dashboard_id" {

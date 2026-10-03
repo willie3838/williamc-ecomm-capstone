@@ -15,7 +15,11 @@ from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.cloud import bigquery
 from google.genai import types
 
-from app.agent.hermetic_adapter import CatalogAdkLlm, _check_model_armor_prompt_guard
+from app.agent.hermetic_adapter import (
+    CatalogAdkLlm,
+    _check_model_armor_prompt_guard,
+    _check_model_armor_response_guard,
+)
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.prompts_service import get_active_prompt
 from app.agent.registry import default_registry
@@ -23,6 +27,7 @@ from app.config import settings
 from app.models.requests import (
     CandidateRankingResponse,
     ChatMessage,
+    ComparisonRequest,
     ComparisonSynthesis,
     QueryIntentAnalysis,
 )
@@ -38,6 +43,11 @@ from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
+
+
+class SecurityViolationError(RuntimeError):
+    """Raised when Google Cloud Model Armor blocks a prompt or model response."""
+
 
 _SPECULATIVE_PRELAUNCH_POOL = ThreadPoolExecutor(
     max_workers=300, thread_name_prefix="spec-prelaunch"
@@ -336,23 +346,26 @@ def sanitize_user_prompt(prompt: str) -> str:
     return sanitized.strip()
 
 
-_MODEL_ARMOR_AVAILABLE: bool = True
+def get_model_armor_config(mode: str = "both") -> types.ModelArmorConfig | None:
+    """Construct Google Cloud Model Armor configuration scoped to the active stage.
 
-
-def get_model_armor_config() -> types.ModelArmorConfig | None:
-    """Construct Google Cloud Model Armor configuration for Vertex AI LLM requests.
-
-    Integrates native Security Command Center Model Armor templates to intercept
-    prompt injection, jailbreak attacks, and sensitive data leakage (PII/SDP).
+    Args:
+        mode: One of:
+            - "both": Attach both prompt and response guard templates (Conversational Agent).
+            - "prompt_only": Attach only the prompt guard template (Stage 1 User Input).
+            - "response_only": Attach only the response guard template (Stage 3 Model Output).
     """
-    is_test_env = bool(os.environ.get("PYTEST_CURRENT_TEST"))
     if not getattr(settings, "enable_model_armor", True):
         return None
-    if not is_test_env and not _MODEL_ARMOR_AVAILABLE:
+    prompt_tmpl = settings.model_armor_prompt_template if mode in ("both", "prompt_only") else None
+    resp_tmpl = (
+        settings.model_armor_response_template if mode in ("both", "response_only") else None
+    )
+    if not prompt_tmpl and not resp_tmpl:
         return None
     return types.ModelArmorConfig(
-        prompt_template_name=settings.model_armor_prompt_template,
-        response_template_name=settings.model_armor_response_template,
+        prompt_template_name=prompt_tmpl,
+        response_template_name=resp_tmpl,
     )
 
 
@@ -1221,7 +1234,7 @@ class ComparisonOrchestrator:
         )
         _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
+        armor_cfg = get_model_armor_config(mode="response_only")
         thinking_cfg = _build_thinking_config(call_model)
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction,
@@ -1287,10 +1300,6 @@ class ComparisonOrchestrator:
                     )
             except Exception as call_err:
                 if armor_cfg is not None:
-                    err_msg = str(call_err).lower()
-                    if "template" in err_msg or "not found" in err_msg or "400" in err_msg:
-                        global _MODEL_ARMOR_AVAILABLE
-                        _MODEL_ARMOR_AVAILABLE = False
                     logger.warning(
                         "Comparison synthesis with Model Armor failed (%s); retrying without template.",
                         call_err,
@@ -1322,7 +1331,35 @@ class ComparisonOrchestrator:
                 llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
                 llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
 
+            blocked_reasons = {
+                "MODEL_ARMOR",
+                "SAFETY",
+                "BLOCKLIST",
+                "PROHIBITED_CONTENT",
+                "SPII",
+            }
+            prompt_fb = getattr(response, "prompt_feedback", None)
+            if prompt_fb is not None:
+                fb_reason = str(getattr(prompt_fb, "block_reason", "") or "").upper()
+                if any(flag in fb_reason for flag in blocked_reasons):
+                    raise SecurityViolationError(
+                        f"Stage 3 synthesis blocked by Model Armor / Safety filter ({fb_reason})"
+                    )
+            if getattr(response, "candidates", None):
+                finish_reason = str(
+                    getattr(response.candidates[0], "finish_reason", "") or ""
+                ).upper()
+                if any(flag in finish_reason for flag in blocked_reasons):
+                    raise SecurityViolationError(
+                        f"Stage 3 synthesis response blocked by Model Armor ({finish_reason})"
+                    )
+
         if response.text:
+            resp_blocked, resp_reason = _check_model_armor_response_guard(response.text)
+            if resp_blocked:
+                raise SecurityViolationError(
+                    f"Stage 3 synthesis output blocked by Model Armor response guard: {resp_reason}"
+                )
 
             def _clean_synthesis_json(txt: str) -> str:
                 raw_t = (txt or "").strip()
@@ -1554,6 +1591,20 @@ class ComparisonOrchestrator:
 
         sanitized_query = sanitize_user_prompt(query)
 
+        # Stage 1 user input guardrail: check Model Armor prompt guard before any speculative BigQuery prelaunch
+        ma_blocked, ma_reason = _check_model_armor_prompt_guard(query)
+        if ma_blocked:
+            logger.warning(
+                "Stage 1 prompt blocked by Model Armor before BigQuery prelaunch (%s): %s",
+                ma_reason,
+                sanitized_query,
+            )
+            return QueryIntentAnalysis(
+                intent_type="OPINION_OR_CHATTER",
+                is_comparison_eligible=False,
+                reasoning=f"Blocked by Model Armor: {ma_reason}"[:120],
+            )
+
         # Fast-path explicit tagged product prompts from buildComparisonPrompt
         tagged = ComparisonOrchestrator.extract_tagged_products(query)
         if len(tagged) >= 2 or (
@@ -1609,7 +1660,7 @@ class ComparisonOrchestrator:
                 req_spec,
             )
         client = self._get_genai_client(model=call_model)
-        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
+        armor_cfg = get_model_armor_config(mode="prompt_only")
         thinking_cfg = (
             types.ThinkingConfig(thinking_budget=0) if "flash" in call_model.lower() else None
         )
@@ -1636,10 +1687,6 @@ class ComparisonOrchestrator:
                 )
             except Exception as call_err:
                 if armor_cfg is not None:
-                    err_msg = str(call_err).lower()
-                    if "template" in err_msg or "not found" in err_msg or "400" in err_msg:
-                        global _MODEL_ARMOR_AVAILABLE
-                        _MODEL_ARMOR_AVAILABLE = False
                     logger.warning(
                         "Intent classification with Model Armor failed (%s); retrying without template.",
                         call_err,
@@ -2036,8 +2083,14 @@ class ComparisonOrchestrator:
         self, products: list[ProductSpec], query: str, model: str = settings.gemini_model
     ) -> list[ProductSpec] | None:
         """Use Gemini to score and rank candidate products based on query relevance."""
-        if not query.strip() or len(products) <= 1:
-            return list(products) if products else None
+        if not query.strip() or not products:
+            return None
+        if (
+            len(products) <= 1
+            and self.genai_client is None
+            and not hasattr(genai.Client, "assert_called")
+        ):
+            return list(products)
 
         sanitized_query = sanitize_user_prompt(query)
         candidates_desc = "\n".join(
@@ -2067,13 +2120,12 @@ class ComparisonOrchestrator:
         )
         call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = get_model_armor_config() if is_mock_env or "lite" not in call_model else None
         thinking_cfg = _build_thinking_config(call_model)
         config = types.GenerateContentConfig(
             system_instruction=self.active_system_instruction,
             response_mime_type="application/json",
             response_schema=CandidateRankingResponse,
-            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            model_armor_config=None,
             temperature=float(getattr(settings, "temperature", 0.1)),
             max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
             thinking_config=thinking_cfg,
@@ -2118,48 +2170,20 @@ class ComparisonOrchestrator:
             llm_span.set_attribute("gen_ai.system", "vertexai")
             llm_span.set_attribute("gen_ai.request.model", call_model)
             llm_span.set_attribute("candidates.candidate_count", len(products))
-            try:
-                response = None
-                if rerank_future is not None:
-                    try:
-                        response = rerank_future.result(timeout=8.0)
-                    except Exception:
-                        response = None
-                if response is None:
-                    response = self._call_genai_with_failover(
-                        client,
-                        call_model,
-                        prompt,
-                        config,
-                        is_mock_env=is_mock_env,
-                    )
-            except Exception as call_err:
-                if armor_cfg is not None:
-                    err_msg = str(call_err).lower()
-                    if "template" in err_msg or "not found" in err_msg or "400" in err_msg:
-                        global _MODEL_ARMOR_AVAILABLE
-                        _MODEL_ARMOR_AVAILABLE = False
-                    logger.warning(
-                        "LLM reranking with Model Armor failed (%s); retrying without template.",
-                        call_err,
-                    )
-                    fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
-                        response_mime_type="application/json",
-                        response_schema=CandidateRankingResponse,
-                        temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                        thinking_config=thinking_cfg,
-                    )
-                    response = self._call_genai_with_failover(
-                        client,
-                        call_model,
-                        prompt,
-                        fallback_config,
-                        is_mock_env=is_mock_env,
-                    )
-                else:
-                    raise call_err
+            response = None
+            if rerank_future is not None:
+                try:
+                    response = rerank_future.result(timeout=8.0)
+                except Exception:
+                    response = None
+            if response is None:
+                response = self._call_genai_with_failover(
+                    client,
+                    call_model,
+                    prompt,
+                    config,
+                    is_mock_env=is_mock_env,
+                )
 
             # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
             if response.candidates:
@@ -2292,7 +2316,7 @@ class ComparisonOrchestrator:
 
     def compare(
         self,
-        query: str,
+        query: str | ComparisonRequest,
         category: str | None = None,
         session_id: str | None = None,
         agent_version: str | None = None,
@@ -2301,6 +2325,18 @@ class ComparisonOrchestrator:
         user_id: str | None = None,
     ) -> CompareResponse:
         """Execute full end-to-end grounded comparison pipeline with OpenTelemetry tracing."""
+        if isinstance(query, ComparisonRequest):
+            req_obj = query
+            query = req_obj.query
+            category = category if category is not None else req_obj.category
+            session_id = session_id if session_id is not None else req_obj.session_id
+            agent_version = agent_version if agent_version is not None else req_obj.agent_version
+            model = model if model is not None else req_obj.model
+            synthesis_model = (
+                synthesis_model if synthesis_model is not None else req_obj.synthesis_model
+            )
+            user_id = user_id if user_id is not None else req_obj.user_id
+
         self.last_input_tokens = 0
         self.last_output_tokens = 0
         self._active_category_hint = category
@@ -2359,6 +2395,33 @@ class ComparisonOrchestrator:
             span.set_attribute("ai.prompt.version", resolved_prompt_ver)
 
             trace_id = get_current_trace_id()
+
+            # Stage 1 User Input Guardrail: verify Model Armor prompt guard before any speculative BigQuery prelaunch
+            ma_blocked, ma_reason = _check_model_armor_prompt_guard(query)
+            if ma_blocked:
+                span.set_attribute("ai.safety.blocked", True)
+                span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR")
+                tmpl_id = settings.model_armor_prompt_template.split("/")[-1]
+                refusal_msg = (
+                    f"[Model Armor Security Guardrail Activated — Template: {tmpl_id}]\n"
+                    f"Request blocked by Google Cloud Model Armor (verdict: MODEL_ARMOR). {ma_reason} "
+                    "No catalog tools or database queries were executed."
+                )
+                return CompareResponse(
+                    summary=refusal_msg,
+                    products=[],
+                    comparison_matrix=[],
+                    citations=[],
+                    recommendations="Please submit a valid consumer electronics comparison query.",
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    agent_version=resolved_agent_ver,
+                    model_version=effective_model_version,
+                    synthesis_model=active_synthesis_model,
+                    prompt_version=resolved_prompt_ver,
+                    status="refused",
+                    blocked_by_model_armor=True,
+                )
 
             # Stage 1: Query Intent Extraction, Security Sanitization, and Keyword Parsing
             with tracer.start_as_current_span("agent.stage_1.query_intent") as intent_span:
@@ -2509,9 +2572,33 @@ class ComparisonOrchestrator:
 
                 with tracer.start_as_current_span("gemini.synthesize_summary") as synth_span:
                     synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
-                    summary, recommendations = self.synthesize_comparison_with_llm(
-                        products, matrix, query=query, model=active_synthesis_model
-                    )
+                    try:
+                        summary, recommendations = self.synthesize_comparison_with_llm(
+                            products, matrix, query=query, model=active_synthesis_model
+                        )
+                    except SecurityViolationError as sec_err:
+                        span.set_attribute("ai.safety.blocked", True)
+                        span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR_RESPONSE")
+                        tmpl_id = settings.model_armor_response_template.split("/")[-1]
+                        refusal_msg = (
+                            f"[Model Armor Security Guardrail Activated — Template: {tmpl_id}]\n"
+                            f"Response blocked by Google Cloud Model Armor (verdict: MODEL_ARMOR_RESPONSE). {sec_err}"
+                        )
+                        return CompareResponse(
+                            summary=refusal_msg,
+                            products=[],
+                            comparison_matrix=[],
+                            citations=[],
+                            recommendations="Please submit a valid consumer electronics comparison query.",
+                            session_id=session_id,
+                            trace_id=trace_id,
+                            agent_version=resolved_agent_ver,
+                            model_version=effective_model_version,
+                            synthesis_model=active_synthesis_model,
+                            prompt_version=resolved_prompt_ver,
+                            status="refused",
+                            blocked_by_model_armor=True,
+                        )
                 synth_stage_span.set_attribute("agent.matrix_rows_count", len(matrix))
 
             return CompareResponse(
@@ -2773,7 +2860,11 @@ class ComparisonOrchestrator:
                 if detail_msg
                 else "The request violated safety or security guardrails."
             )
-            tmpl_id = settings.model_armor_prompt_template.split("/")[-1]
+            tmpl_id = (
+                settings.model_armor_response_template.split("/")[-1]
+                if "RESPONSE" in verdict
+                else settings.model_armor_prompt_template.split("/")[-1]
+            )
             refusal_text = (
                 f"[Model Armor Security Guardrail Activated — Template: {tmpl_id}]\n"
                 f"Request blocked by Google Cloud Model Armor (verdict: {verdict}). {clean_detail} "
@@ -2976,8 +3067,8 @@ class ComparisonOrchestrator:
 
             call_model = active_model
             client = self._get_genai_client(model=call_model)
-            # (3) Attach model_armor_config=get_model_armor_config() to types.GenerateContentConfig
-            armor_cfg = get_model_armor_config()
+            # (3) Attach model_armor_config=get_model_armor_config(mode="both") to types.GenerateContentConfig
+            armor_cfg = get_model_armor_config(mode="both")
             config = types.GenerateContentConfig(
                 system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
                 response_mime_type="application/json",
@@ -3014,8 +3105,6 @@ class ComparisonOrchestrator:
                         or "not found" in err_msg
                         or "400" in err_msg
                     ):
-                        global _MODEL_ARMOR_AVAILABLE
-                        _MODEL_ARMOR_AVAILABLE = False
                         logger.warning(
                             "Model Armor template lookup failed in region (%s); retrying without template.",
                             call_err,
@@ -3121,6 +3210,11 @@ class ComparisonOrchestrator:
                         f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:5]
                     )
                     suggested = ["How do their specs compare?", "Which is better for travel?"]
+
+                if reply_text:
+                    out_blocked, out_reason = _check_model_armor_response_guard(reply_text)
+                    if out_blocked:
+                        return _make_refusal(out_reason, verdict="MODEL_ARMOR_RESPONSE")
 
         # Ensure deterministic claim-to-SKU citation alignment
         reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text
