@@ -179,9 +179,7 @@ def _warm_vertex_client_and_auth() -> None:
                     hasattr(bq_client, "query_and_wait")
                     and os.environ.get("HERMETIC_EVAL", "").lower() != "true"
                 ):
-                    from app.tools.catalog import warm_full_catalog_cache
-
-                    warm_full_catalog_cache()
+                    bq_client.query_and_wait("SELECT 1", wait_timeout=1.0)
             except Exception:
                 pass
 
@@ -2234,9 +2232,6 @@ class CatalogAdkLlm(BaseLlm):
             yield self._generate_hermetic_llm_response(llm_request, skip_vertex_call=True)
 
 
-_HERMETIC_CATALOG_CACHE: dict[
-    tuple[str, int], tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]
-] = {}
 _HERMETIC_STOPWORDS: frozenset[str] = frozenset(
     {
         "with",
@@ -2266,18 +2261,17 @@ _HERMETIC_STOPWORDS: frozenset[str] = frozenset(
 )
 
 
-def _load_indexed_hermetic_catalog(
-    catalog_path: Path,
-) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
-    """Load, deduplicate, and pre-index catalog_seed.json in memory keyed by path and mtime_ns."""
-    resolved = catalog_path.resolve()
-    mtime_ns = resolved.stat().st_mtime_ns
-    cache_key = (str(resolved), mtime_ns)
-    cached = _HERMETIC_CATALOG_CACHE.get(cache_key)
-    if cached is not None:
-        return cached
+def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMock:
+    """Create a hermetic mock BigQuery client populated with catalog seed data."""
+    if catalog_path is None:
+        catalog_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
+    else:
+        catalog_path = Path(catalog_path)
 
-    with open(resolved, encoding="utf-8") as f:
+    if not catalog_path.exists():
+        raise FileNotFoundError(f"Catalog seed file not found: {catalog_path}")
+
+    with open(catalog_path.resolve(), encoding="utf-8") as f:
         raw_catalog_items = json.load(f)
 
     deduped_map: dict[str, dict[str, Any]] = {}
@@ -2286,7 +2280,7 @@ def _load_indexed_hermetic_catalog(
         if sku_val:
             deduped_map[sku_val] = item
 
-    indexed_entries: list[dict[str, Any]] = []
+    indexed_catalog: list[dict[str, Any]] = []
     by_category: dict[str, list[dict[str, Any]]] = {}
 
     for idx, item in enumerate(deduped_map.values()):
@@ -2315,31 +2309,11 @@ def _load_indexed_hermetic_catalog(
             "price": price_val,
             "is_canonical": idx < 40,
         }
-        indexed_entries.append(entry)
+        indexed_catalog.append(entry)
         if cat_low:
             by_category.setdefault(cat_low, []).append(entry)
 
-    if len(_HERMETIC_CATALOG_CACHE) >= 8:
-        _HERMETIC_CATALOG_CACHE.clear()
-    result = (indexed_entries, by_category)
-    _HERMETIC_CATALOG_CACHE[cache_key] = result
-    return result
-
-
-def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMock:
-    """Create a hermetic mock BigQuery client populated with cached catalog seed data."""
-    if catalog_path is None:
-        catalog_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
-    else:
-        catalog_path = Path(catalog_path)
-
-    if not catalog_path.exists():
-        raise FileNotFoundError(f"Catalog seed file not found: {catalog_path}")
-
-    indexed_catalog, by_category = _load_indexed_hermetic_catalog(catalog_path)
-
     client = MagicMock()
-    query_result_cache: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
 
     def mock_query(sql: str, job_config: Any = None) -> MagicMock:
         patterns: list[str] = []
@@ -2360,18 +2334,6 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
                     max_price = float(p.value)
                 elif p.name == "limit":
                     limit_val = int(p.value)
-
-        cache_query_key = (
-            tuple(sorted(patterns)),
-            category,
-            min_price,
-            max_price,
-            limit_val,
-        )
-        if cache_query_key in query_result_cache:
-            mock_job = MagicMock()
-            mock_job.result.return_value = [dict(m) for m in query_result_cache[cache_query_key]]
-            return mock_job
 
         candidates = by_category.get(category, []) if category else indexed_catalog
 
@@ -2442,7 +2404,6 @@ def create_hermetic_bq_client(catalog_path: Path | str | None = None) -> MagicMo
         if limit_val is not None and limit_val > 0:
             matches = matches[:limit_val]
 
-        query_result_cache[cache_query_key] = matches
         mock_job = MagicMock()
         mock_job.result.return_value = [dict(m) for m in matches]
         return mock_job

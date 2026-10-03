@@ -47,8 +47,6 @@ _ANALYTICS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 _TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=64, thread_name_prefix="telemetry-bg"
 )
-_CATALOG_RESPONSE_CACHE: dict[tuple[Any, ...], tuple[float, CatalogResponse]] = {}
-_CATALOG_CACHE_LOCK = threading.Lock()
 
 
 def resolve_iap_user_id(http_request: Request | None, explicit_user_id: str | None = None) -> str:
@@ -581,58 +579,6 @@ async def chat_products(
     return await loop.run_in_executor(_CHAT_EXECUTOR, _execute_chat_sync, request)
 
 
-_CATALOG_SEED_CACHE: dict[tuple[str, int], list[dict[str, Any]]] = {}
-
-
-def _get_cached_seed_products(seed_path: Any) -> list[dict[str, Any]]:
-    """Load and cache deduplicated catalog_seed.json records in memory keyed by path and mtime_ns."""
-    import json
-
-    resolved = seed_path.resolve()
-    mtime_ns = resolved.stat().st_mtime_ns
-    cache_key = (str(resolved), mtime_ns)
-    with _CATALOG_CACHE_LOCK:
-        cached = _CATALOG_SEED_CACHE.get(cache_key)
-        if cached is not None:
-            return cached
-
-    with open(resolved, encoding="utf-8") as f:
-        seed_data = json.load(f)
-
-    dedup: dict[str, dict[str, Any]] = {}
-    for item in seed_data:
-        sku = str(item.get("sku", "")).strip()
-        if sku:
-            dedup[sku] = item
-
-    normalized: list[dict[str, Any]] = []
-    for item in dedup.values():
-        item_price = float(item.get("price", 0.0))
-        normalized.append(
-            {
-                "sku": item["sku"],
-                "name": str(item.get("name", "")),
-                "brand": str(item.get("brand", "")),
-                "category": item.get("category"),
-                "price": item_price,
-                "rating": float(item["rating"]) if item.get("rating") is not None else None,
-                "review_count": int(item["review_count"])
-                if item.get("review_count") is not None
-                else None,
-                "specifications": item.get("specifications") or {},
-                "url": item.get("url") or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
-                "image_url": item.get("image_url"),
-                "in_stock": bool(item.get("in_stock", True)),
-            }
-        )
-
-    with _CATALOG_CACHE_LOCK:
-        if len(_CATALOG_SEED_CACHE) >= 4:
-            _CATALOG_SEED_CACHE.clear()
-        _CATALOG_SEED_CACHE[cache_key] = normalized
-    return normalized
-
-
 def _fetch_catalog_sync(
     category: str | None = None,
     min_price: float | None = None,
@@ -643,14 +589,6 @@ def _fetch_catalog_sync(
     from pathlib import Path
 
     from app.tools.catalog import query_catalog
-
-    cache_key = ((category or "").strip().lower(), min_price, max_price, limit)
-    if not os.environ.get("PYTEST_CURRENT_TEST"):
-        now_ts = time.monotonic()
-        with _CATALOG_CACHE_LOCK:
-            cached = _CATALOG_RESPONSE_CACHE.get(cache_key)
-            if cached is not None and (now_ts - cached[0]) < 60.0:
-                return cached[1]
 
     # 1. Attempt query_catalog with category or broad wildcard
     keywords = (
@@ -672,13 +610,22 @@ def _fetch_catalog_sync(
         )
         raw_products = []
 
-    # 2. Fallback to cached catalog_seed.json if query_catalog returned empty in offline / test mode
+    # 2. Fallback to catalog_seed.json if query_catalog returned empty in offline / test mode
     if not raw_products:
         seed_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
         if seed_path.exists():
             try:
+                import json
+
+                with open(seed_path, encoding="utf-8") as f:
+                    seed_data = json.load(f)
                 cat_norm = category.strip().lower() if category else None
-                for item in _get_cached_seed_products(seed_path):
+                seen: set[str] = set()
+                for item in seed_data:
+                    sku = str(item.get("sku", "")).strip()
+                    if not sku or sku in seen:
+                        continue
+                    seen.add(sku)
                     item_cat = str(item.get("category") or "").strip().lower()
                     if cat_norm and item_cat != cat_norm:
                         continue
@@ -687,24 +634,39 @@ def _fetch_catalog_sync(
                         continue
                     if max_price is not None and item_price > max_price:
                         continue
-                    raw_products.append(item)
+                    raw_products.append(
+                        {
+                            "sku": item["sku"],
+                            "name": str(item.get("name", "")),
+                            "brand": str(item.get("brand", "")),
+                            "category": item.get("category"),
+                            "price": item_price,
+                            "rating": float(item["rating"])
+                            if item.get("rating") is not None
+                            else None,
+                            "review_count": (
+                                int(item["review_count"])
+                                if item.get("review_count") is not None
+                                else None
+                            ),
+                            "specifications": item.get("specifications") or {},
+                            "url": item.get("url")
+                            or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
+                            "image_url": item.get("image_url"),
+                            "in_stock": bool(item.get("in_stock", True)),
+                        }
+                    )
                     if len(raw_products) >= limit:
                         break
             except Exception as read_err:
                 logger.warning("Failed loading seed catalog fallback: %s", read_err)
 
     validated_products = [ProductSpec.model_validate(p) for p in raw_products]
-    resp = CatalogResponse(
+    return CatalogResponse(
         products=validated_products,
         total_count=len(validated_products),
         category=category,
     )
-    if not os.environ.get("PYTEST_CURRENT_TEST") and validated_products:
-        with _CATALOG_CACHE_LOCK:
-            if len(_CATALOG_RESPONSE_CACHE) >= 256:
-                _CATALOG_RESPONSE_CACHE.clear()
-            _CATALOG_RESPONSE_CACHE[cache_key] = (time.monotonic(), resp)
-    return resp
 
 
 @router.get(
@@ -721,13 +683,6 @@ async def list_catalog(
     limit: int = 50,
 ) -> CatalogResponse:
     """Browse verified product catalog grounded in BigQuery with category and price filters."""
-    if not os.environ.get("PYTEST_CURRENT_TEST"):
-        cache_key = ((category or "").strip().lower(), min_price, max_price, limit)
-        now_ts = time.monotonic()
-        with _CATALOG_CACHE_LOCK:
-            cached = _CATALOG_RESPONSE_CACHE.get(cache_key)
-            if cached is not None and (now_ts - cached[0]) < 60.0:
-                return cached[1]
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(
         _CATALOG_EXECUTOR,

@@ -8,7 +8,7 @@ Ensures:
 3. MultiAgentCoordinator executes self.adk_sequential_agent sub-agents through genuine ADK
    InMemorySessionService session.state handoffs, and execute_with_adk_runner() honors _final_text.
 4. backend/src/app/tools/catalog.py removes 'not os.environ.get(PYTEST_CURRENT_TEST)' special-case
-   snapshot bypass branching, maintaining consistent parameterized SQL + catalog_cache across test and live.
+   snapshot bypass branching, maintaining consistent direct parameterized BigQuery SQL across test and live.
 5. hermetic_adapter.py removes post-LLM string concatenation of missing [SKU: ...] and price bullets,
    passing precomputed price deltas into the prompt and validating via verify_and_scrub_synthesis_claims.
 """

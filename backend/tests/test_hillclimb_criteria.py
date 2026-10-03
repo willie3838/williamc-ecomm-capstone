@@ -11,7 +11,7 @@ from app.models.analytics import FeedbackRequest, UserActionRequest
 from app.models.requests import CandidateRankingResponse, CandidateRankItem
 from app.models.responses import ProductSpec
 from app.observability.logging import scrub_pii
-from app.tools.catalog import CatalogCircuitBreaker, CatalogResponseCache
+from app.tools.catalog import CatalogCircuitBreaker, query_catalog
 
 client = TestClient(create_app())
 
@@ -63,7 +63,7 @@ def test_analytics_pii_redaction() -> None:
 
 
 def test_circuit_breaker_and_cache() -> None:
-    """Verify CatalogCircuitBreaker state transitions and CatalogResponseCache TTL/LRU (s2_21, s2_24)."""
+    """Verify CatalogCircuitBreaker state transitions and stateless BigQuery query execution (s2_21, s2_24)."""
     cb = CatalogCircuitBreaker(failure_threshold=2, recovery_timeout_sec=0.01)
     assert cb.state == "CLOSED"
     cb.record_failure()
@@ -73,13 +73,20 @@ def test_circuit_breaker_and_cache() -> None:
     cb.record_success()
     assert cb.state == "CLOSED"
 
-    cache = CatalogResponseCache(max_size=2, ttl_seconds=60)
-    cache.set("k1", [{"sku": "SKU-1"}])
-    assert cache.get("k1") == [{"sku": "SKU-1"}]
-    cache.set("k2", [{"sku": "SKU-2"}])
-    cache.set("k3", [{"sku": "SKU-3"}])
-    assert cache.get("k1") is None
-    assert cache.get("k3") == [{"sku": "SKU-3"}]
+    # Verify query_catalog executes statelessly without in-memory caching
+    from unittest.mock import MagicMock
+
+    mock_bq = MagicMock()
+    mock_job = MagicMock()
+    mock_job.result.return_value = [
+        {"sku": "SKU-1", "name": "Item 1", "price": 100.0, "specifications": {}}
+    ]
+    mock_bq.query.return_value = mock_job
+
+    res1 = query_catalog(keywords=["Laptop"], client=mock_bq)
+    res2 = query_catalog(keywords=["Laptop"], client=mock_bq)
+    assert len(res1) == 1 and len(res2) == 1
+    assert mock_bq.query.call_count == 2
 
 
 def test_multi_category_spec_registry_and_cross_category_guard() -> None:

@@ -63,16 +63,7 @@ class CatalogComparisonReasoningEngine:
             model=self.model,
             synthesis_model=self.synthesis_model,
         )
-        try:
-            import os
-            import threading
 
-            if "PYTEST_CURRENT_TEST" not in os.environ:
-                from app.tools.catalog import warm_full_catalog_cache
-
-                threading.Thread(target=warm_full_catalog_cache, daemon=True).start()
-        except Exception:
-            pass
         logger.info(
             "Initialized CatalogComparisonReasoningEngine coordinator (model=%s, synthesis=%s)",
             self.model,

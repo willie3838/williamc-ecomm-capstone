@@ -528,15 +528,13 @@ def test_ingest_products_batches_over_5000_rows(sample_product_dict: dict) -> No
 
 
 def test_hermetic_bq_client_10k_latency_and_canonical_priority() -> None:
-    """Verify create_hermetic_bq_client caches 10,040 SKUs, runs in <5ms, and prioritizes canonical/multi-token matches."""
+    """Verify create_hermetic_bq_client executes queries directly without in-memory query result caching, and prioritizes canonical/multi-token matches."""
     import time
 
     from app.agent.hermetic_adapter import create_hermetic_bq_client
     from app.tools.catalog import query_catalog
 
     client = create_hermetic_bq_client()
-    # Warm up cache on first query
-    _ = query_catalog(keywords=["MacBook Air", "Dell XPS 13"], category="Laptops", client=client)
 
     start = time.perf_counter()
     results = query_catalog(
@@ -547,7 +545,8 @@ def test_hermetic_bq_client_10k_latency_and_canonical_priority() -> None:
     )
     elapsed_ms = (time.perf_counter() - start) * 1000.0
 
-    assert elapsed_ms < 5.0, f"Expected cached hermetic query < 5.0ms, got {elapsed_ms:.2f}ms"
+    assert results, "Expected non-empty results from hermetic BQ client"
+    assert elapsed_ms < 2000.0, f"Hermetic BQ query took too long: {elapsed_ms}ms"
     skus = [r["sku"] for r in results]
     assert "6534606" in skus
     assert "6575132" in skus
