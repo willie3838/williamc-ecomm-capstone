@@ -747,6 +747,69 @@ describe('App Integration', () => {
     // Old SKUs should no longer be tagged
     expect(screen.queryByText('SKU: 6534606')).not.toBeInTheDocument();
   });
+
+  it('supports cross-category search in both main SearchBar autocomplete and "+ Add Product to Compare" picker after comparing Laptops', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+
+    renderWithClient(<App />);
+
+    // 1. Select Laptops category and run a Laptops comparison
+    fireEvent.click(screen.getByRole('button', { name: /^laptops$/i }));
+    const searchInput = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    fireEvent.change(searchInput, {
+      target: { value: 'Compare MacBook Air and Dell XPS 13' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^compare$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Compared Products')).toBeInTheDocument();
+    });
+
+    // Verify Laptops comparison is active and initial 2 Laptop SKUs are tagged
+    expect(screen.getByText('SKU: 6534606')).toBeInTheDocument();
+    expect(screen.getByText('SKU: 6573822')).toBeInTheDocument();
+
+    // 2. Search for Headphones ("Sony WH-1000XM5") in the main SearchBar autocomplete while Laptops category is active
+    const followUpTextarea = screen.getByPlaceholderText(/add follow-up requirements/i);
+    fireEvent.change(followUpTextarea, { target: { value: 'Sony WH-1000XM5' } });
+
+    const autocompleteListbox = screen.getByRole('listbox', { name: /product suggestions/i });
+    expect(autocompleteListbox).toBeInTheDocument();
+    const sonyOption = screen.getByText(/Sony WH-1000XM5 Wireless/i);
+    fireEvent.click(sonyOption);
+
+    // Verify Sony WH-1000XM5 (SKU: 6505727) is added to taggedProducts alongside the 2 Laptops
+    const taggedRow = screen.getByTestId('tagged-products-row');
+    expect(taggedRow).toHaveTextContent('SKU: 6534606');
+    expect(taggedRow).toHaveTextContent('SKU: 6573822');
+    expect(taggedRow).toHaveTextContent('SKU: 6505727');
+
+    // 3. Open "+ Add Product to Compare" picker and search for another Headphones SKU ("Bose QuietComfort Ultra")
+    const addPickerBtn = screen.getByLabelText('Add product to compare');
+    fireEvent.click(addPickerBtn);
+
+    const pickerSearchInput = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+    fireEvent.change(pickerSearchInput, { target: { value: 'Bose QuietComfort Ultra' } });
+
+    const boseOption = screen.getByText(/Bose QuietComfort Ultra/i);
+    fireEvent.click(boseOption);
+
+    // Verify Bose QuietComfort Ultra (SKU: 6553823) is also added to taggedProducts
+    expect(taggedRow).toHaveTextContent('SKU: 6553823');
+
+    // 4. Submit comparison and verify category: null is passed for cross-category tagged products
+    fireEvent.submit(screen.getByRole('search'));
+
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+
+    const secondCallArgs = vi.mocked(compareProducts).mock.calls[1][0];
+    expect(secondCallArgs.category).toBeNull();
+    expect(secondCallArgs.query).toContain('[SKU: 6534606]');
+    expect(secondCallArgs.query).toContain('[SKU: 6505727]');
+    expect(secondCallArgs.query).toContain('[SKU: 6553823]');
+  });
 });
 
 
