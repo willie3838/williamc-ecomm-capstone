@@ -527,31 +527,6 @@ def test_ingest_products_batches_over_5000_rows(sample_product_dict: dict) -> No
     assert calls[2][1]["job_config"].write_disposition == bigquery.WriteDisposition.WRITE_APPEND
 
 
-def test_hermetic_bq_client_10k_latency_and_canonical_priority() -> None:
-    """Verify create_hermetic_bq_client executes queries directly without in-memory query result caching, and prioritizes canonical/multi-token matches."""
-    import time
-
-    from app.agent.hermetic_adapter import create_hermetic_bq_client
-    from app.tools.catalog import query_catalog
-
-    client = create_hermetic_bq_client()
-
-    start = time.perf_counter()
-    results = query_catalog(
-        keywords=["MacBook Air", "Dell XPS 13"],
-        category="Laptops",
-        limit=10,
-        client=client,
-    )
-    elapsed_ms = (time.perf_counter() - start) * 1000.0
-
-    assert results, "Expected non-empty results from hermetic BQ client"
-    assert elapsed_ms < 2000.0, f"Hermetic BQ query took too long: {elapsed_ms}ms"
-    skus = [r["sku"] for r in results]
-    assert "6534606" in skus
-    assert "6575132" in skus
-
-
 def test_query_catalog_sql_deduplicates_skus_via_qualify() -> None:
     """Verify query_catalog SQL query includes QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ...) = 1."""
     from app.tools.catalog import query_catalog

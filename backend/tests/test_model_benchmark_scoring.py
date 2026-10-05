@@ -1,30 +1,122 @@
-"""Unit tests for model execution, ThinkingConfig, hermetic Vertex AI isolation, Model Armor region routing, and benchmark scoring."""
+"""Unit tests for model execution, ThinkingConfig, Model Armor region routing, and benchmark scoring."""
 
 from __future__ import annotations
 
 import asyncio
-import inspect
+import json
 import os
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from evals.benchmark_models import STAGE_MODELS
+from evals.benchmark_models import (
+    STAGE_MODELS,
+    compute_stage3_semantic_quality,
+    run_per_stage_benchmarks,
+)
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-from app.agent import hermetic_adapter as ha
+from app.agent import adk_llm as ha
 from app.agent import orchestrator as orch
-from app.agent.hermetic_adapter import (
+from app.agent.adk_llm import (
     CatalogAdkLlm,
-    HermeticModelAdapter,
     _call_real_vertex_gemini,
-    create_hermetic_genai_client,
 )
+from app.agent.multi_agent import MultiAgentCoordinator
 from app.agent.orchestrator import (
+    STAGE_OPTIMAL_MODELS,
     ComparisonOrchestrator,
     _build_thinking_config,
+    resolve_model_pair,
+    resolve_stage_models,
 )
+from app.config import settings
+from app.models.comparison import ComparisonSynthesis
+
+
+@pytest.fixture
+def sample_benchmark_cases() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "case_1",
+            "category": "Laptops",
+            "query": "Compare Apple MacBook Air M3 and Dell XPS 13",
+            "expected_skus": ["6534606", "6543210"],
+            "ground_truth_specs": {
+                "6534606": {"ram_gb": 16, "battery_life_hours": 18.0},
+                "6543210": {"ram_gb": 32, "battery_life_hours": 12.0},
+            },
+        },
+        {
+            "id": "case_2",
+            "category": "Headphones",
+            "query": "Compare Sony WH-1000XM5 and Bose QuietComfort Ultra",
+            "expected_skus": ["6505727", "6554461"],
+            "ground_truth_specs": {
+                "6505727": {"battery_life_hours": 30.0},
+                "6554461": {"battery_life_hours": 24.0},
+            },
+        },
+    ]
+
+
+@pytest.fixture
+def mock_bq() -> MagicMock:
+    bq = MagicMock()
+    rows = [
+        {
+            "sku": "6534606",
+            "name": "Apple MacBook Air 13-inch M3",
+            "brand": "Apple",
+            "category": "Laptops",
+            "price": 1099.0,
+            "rating": 4.8,
+            "review_count": 120,
+            "specifications": json.dumps({"ram_gb": 16, "battery_life_hours": 18.0}),
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6543210",
+            "name": "Dell XPS 13 Laptop",
+            "brand": "Dell",
+            "category": "Laptops",
+            "price": 1299.0,
+            "rating": 4.6,
+            "review_count": 90,
+            "specifications": json.dumps({"ram_gb": 32, "battery_life_hours": 12.0}),
+            "url": "https://www.techbuy.com/site/sku/6543210.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6505727",
+            "name": "Sony WH-1000XM5 Headphones",
+            "brand": "Sony",
+            "category": "Headphones",
+            "price": 399.99,
+            "rating": 4.8,
+            "review_count": 300,
+            "specifications": json.dumps({"battery_life_hours": 30.0}),
+            "url": "https://www.techbuy.com/site/sku/6505727.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6554461",
+            "name": "Bose QuietComfort Ultra Headphones",
+            "brand": "Bose",
+            "category": "Headphones",
+            "price": 429.0,
+            "rating": 4.7,
+            "review_count": 210,
+            "specifications": json.dumps({"battery_life_hours": 24.0}),
+            "url": "https://www.techbuy.com/site/sku/6554461.p",
+            "in_stock": True,
+        },
+    ]
+    bq.query.return_value.result.return_value = rows
+    return bq
 
 
 class TestThinkingConfigAcrossAllStageModels:
@@ -41,9 +133,6 @@ class TestThinkingConfigAcrossAllStageModels:
                 assert cfg is not None
                 assert cfg.thinking_budget == 128
             else:
-                # Gemini 3.x (3.5-flash, 3.6-flash, 3.7-flash, 3.8-flash)
-                # and Flash-Lite (2.5-flash-lite, 3.1-flash-lite, 3.5-flash-lite)
-                # MUST NOT receive thinking_budget=0
                 assert cfg is None, f"Expected None for {model}, got {cfg}"
 
     @pytest.mark.parametrize(
@@ -71,7 +160,6 @@ class TestThinkingConfigAcrossAllStageModels:
         orchestrator = ComparisonOrchestrator(
             repository=MagicMock(),
             genai_client=mock_client,
-            hermetic=False,
         )
         orchestrator.classify_intent_with_llm(
             query="Compare MacBook Air vs Dell XPS laptops",
@@ -138,7 +226,6 @@ class TestThinkingConfigAcrossAllStageModels:
     def test_catalog_adk_llm_generate_content_async_uses_build_thinking_config(
         self, monkeypatch: pytest.MonkeyPatch, model_id: str
     ) -> None:
-        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
         mock_client = MagicMock()
         mock_resp = MagicMock()
@@ -147,7 +234,7 @@ class TestThinkingConfigAcrossAllStageModels:
         mock_resp.usage_metadata = None
         mock_client.models.generate_content.return_value = mock_resp
 
-        llm = CatalogAdkLlm(model=model_id, genai_client=mock_client, hermetic=False)
+        llm = CatalogAdkLlm(model=model_id, genai_client=mock_client)
         req = LlmRequest(
             model=model_id,
             contents=[
@@ -170,158 +257,6 @@ class TestThinkingConfigAcrossAllStageModels:
             f"CatalogAdkLlm.generate_content_async passed thinking_config={config.thinking_config} "
             f"for model {model_id}"
         )
-
-
-class TestHermeticSkipVertexCallAndIsolation:
-    """Verify skip_vertex_call=True prevents live Vertex AI leaks in hermetic clients."""
-
-    def test_classify_and_rerank_signatures_have_skip_vertex_call(self) -> None:
-        sig_classify = inspect.signature(HermeticModelAdapter.classify_intent_response)
-        assert "skip_vertex_call" in sig_classify.parameters
-        assert sig_classify.parameters["skip_vertex_call"].default is False
-
-        sig_rerank = inspect.signature(HermeticModelAdapter.rerank_response)
-        assert "skip_vertex_call" in sig_rerank.parameters
-        assert sig_rerank.parameters["skip_vertex_call"].default is False
-
-    def test_classify_and_rerank_skip_vertex_call_never_calls_real_vertex(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        vertex_calls: list[str] = []
-
-        def _forbidden_vertex(*args: Any, **kwargs: Any) -> Any:
-            vertex_calls.append("called")
-            raise AssertionError("_call_real_vertex_gemini must not be called")
-
-        monkeypatch.setattr(ha, "_call_real_vertex_gemini", _forbidden_vertex)
-
-        res_intent = HermeticModelAdapter.classify_intent_response(
-            "Compare MacBook Air vs Dell XPS",
-            model="gemini-3.5-flash-lite",
-            skip_vertex_call=True,
-        )
-        assert res_intent.detected_category == "Laptops"
-
-        res_rerank = HermeticModelAdapter.rerank_response(
-            'Query: "laptops"\nCandidate SKU: 6001 | Name: MacBook Air M3',
-            model="gemini-2.5-flash-lite",
-            skip_vertex_call=True,
-        )
-        assert "6001" in res_rerank
-        assert vertex_calls == []
-
-    def test_create_hermetic_genai_client_passes_skip_vertex_call_true(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        calls: list[tuple[str, bool, str | None]] = []
-
-        orig_classify = HermeticModelAdapter.classify_intent_response
-        orig_rerank = HermeticModelAdapter.rerank_response
-        orig_synth = HermeticModelAdapter.synthesis_response
-
-        def spy_classify(
-            query: str, model: str | None = None, skip_vertex_call: bool = False
-        ) -> Any:
-            calls.append(("classify", skip_vertex_call, model))
-            return orig_classify(query, model=model, skip_vertex_call=skip_vertex_call)
-
-        def spy_rerank(
-            prompt: str, model: str | None = None, skip_vertex_call: bool = False
-        ) -> str:
-            calls.append(("rerank", skip_vertex_call, model))
-            return orig_rerank(prompt, model=model, skip_vertex_call=skip_vertex_call)
-
-        def spy_synth(prompt: str, skip_vertex_call: bool = False, model: str | None = None) -> str:
-            calls.append(("synthesis", skip_vertex_call, model))
-            return orig_synth(prompt, skip_vertex_call=skip_vertex_call, model=model)
-
-        monkeypatch.setattr(
-            HermeticModelAdapter, "classify_intent_response", staticmethod(spy_classify)
-        )
-        monkeypatch.setattr(HermeticModelAdapter, "rerank_response", staticmethod(spy_rerank))
-        monkeypatch.setattr(HermeticModelAdapter, "synthesis_response", staticmethod(spy_synth))
-
-        client = create_hermetic_genai_client()
-
-        # 1. Intent classification call
-        client.models.generate_content(
-            model="gemini-3.5-flash-lite",
-            contents="You are the Query Intent Specialist. Extract from: <user_query>Compare MacBook vs Dell</user_query>",
-        )
-        # 2. Rerank call
-        client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents="You are a relevance judge.\nCandidates:\n- SKU: 6001 | Name: MacBook Air",
-        )
-        # 3. Synthesis call
-        client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents="You are the Comparison Specialist. Synthesize comparison.",
-        )
-
-        assert ("classify", True, "gemini-3.5-flash-lite") in calls
-        assert ("rerank", True, "gemini-2.5-flash-lite") in calls
-        assert ("synthesis", True, "gemini-2.5-pro") in calls
-
-    def test_catalog_adk_llm_generate_hermetic_passes_skip_vertex_call_true(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        calls: list[tuple[str, bool]] = []
-        orig_classify = HermeticModelAdapter.classify_intent_response
-
-        def spy_classify(
-            query: str, model: str | None = None, skip_vertex_call: bool = False
-        ) -> Any:
-            calls.append(("classify", skip_vertex_call))
-            return orig_classify(query, model=model, skip_vertex_call=skip_vertex_call)
-
-        monkeypatch.setattr(
-            HermeticModelAdapter, "classify_intent_response", staticmethod(spy_classify)
-        )
-
-        llm = CatalogAdkLlm(model="gemini-3.5-flash-lite", hermetic=True)
-        req = LlmRequest(
-            model="gemini-3.5-flash-lite",
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text='User Query: "Compare laptops"')],
-                )
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction="You are the Query Intent Specialist. classify its intent"
-            ),
-        )
-        llm._generate_hermetic_llm_response(req)
-        assert ("classify", True) in calls
-
-    def test_orchestrator_invoke_specialist_via_adk_runner_passes_hermetic(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        captured_hermetic: list[bool] = []
-
-        orig_init = CatalogAdkLlm.__init__
-
-        def spy_init(self_llm: Any, *args: Any, **kwargs: Any) -> None:
-            captured_hermetic.append(bool(kwargs.get("hermetic", False)))
-            orig_init(self_llm, *args, **kwargs)
-
-        monkeypatch.setattr(CatalogAdkLlm, "__init__", spy_init)
-
-        orchestrator = ComparisonOrchestrator(
-            repository=MagicMock(),
-            genai_client=create_hermetic_genai_client(),
-            hermetic=True,
-        )
-        assert hasattr(orchestrator, "_invoke_specialist_via_adk_runner")
-        resp = orchestrator._invoke_specialist_via_adk_runner(
-            agent_name="query_intent_specialist",
-            instruction="You are the Query Intent Specialist. classify its intent.",
-            prompt="<user_query>Compare MacBook Air vs Dell XPS</user_query>",
-            model="gemini-3.5-flash-lite",
-        )
-        assert resp
-        assert True in captured_hermetic
 
 
 class TestModelArmorRegionalRouting:
@@ -380,7 +315,6 @@ class TestModelArmorRegionalRouting:
     def test_catalog_adk_llm_preserves_regional_model_armor_and_omits_on_global(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
         monkeypatch.setenv("BENCHMARK_ACTUAL_MODEL", "1")
         monkeypatch.setattr(
@@ -402,9 +336,7 @@ class TestModelArmorRegionalRouting:
         mock_client.models.generate_content.return_value = mock_resp
 
         # 1. Regional 2.5-flash model -> preserves /locations/us-central1/
-        llm_regional = CatalogAdkLlm(
-            model="gemini-2.5-flash", genai_client=mock_client, hermetic=False
-        )
+        llm_regional = CatalogAdkLlm(model="gemini-2.5-flash", genai_client=mock_client)
         req_regional = LlmRequest(
             model="gemini-2.5-flash",
             contents=[
@@ -422,9 +354,7 @@ class TestModelArmorRegionalRouting:
 
         # 2. Global 3.x model (gemini-3.5-flash) -> omits model_armor_config on global endpoint
         mock_client.models.generate_content.reset_mock()
-        llm_global = CatalogAdkLlm(
-            model="gemini-3.5-flash", genai_client=mock_client, hermetic=False
-        )
+        llm_global = CatalogAdkLlm(model="gemini-3.5-flash", genai_client=mock_client)
         req_global = LlmRequest(
             model="gemini-3.5-flash",
             contents=[
@@ -444,24 +374,19 @@ class TestModelArmorRegionalRouting:
 
 
 class TestBenchmarkModelsEnvFlags:
-    """Verify evals/benchmark_models.py sets BENCHMARK_ACTUAL_MODEL='1' when live=True and HERMETIC_EVAL='true' when live=False."""
+    """Verify evals/benchmark_models.py sets BENCHMARK_ACTUAL_MODEL='1' when live=True."""
 
-    def test_benchmark_models_sets_env_vars_for_hermetic_and_live(
-        self, monkeypatch: pytest.MonkeyPatch
+    def test_benchmark_models_sets_env_vars_for_live(
+        self, monkeypatch: pytest.MonkeyPatch, mock_bq: MagicMock
     ) -> None:
         from evals import benchmark_models as bm
 
         from app.agent.orchestrator import QueryIntentAnalysis
 
-        recorded_envs: list[tuple[str | None, str | None]] = []
+        recorded_envs: list[str | None] = []
 
         def spy_classify(self_orch: Any, query: str, *args: Any, **kwargs: Any) -> Any:
-            recorded_envs.append(
-                (
-                    os.environ.get("BENCHMARK_ACTUAL_MODEL"),
-                    os.environ.get("HERMETIC_EVAL"),
-                )
-            )
+            recorded_envs.append(os.environ.get("BENCHMARK_ACTUAL_MODEL"))
             return QueryIntentAnalysis(
                 intent_type="COMPARISON",
                 is_comparison_eligible=True,
@@ -479,13 +404,13 @@ class TestBenchmarkModelsEnvFlags:
         monkeypatch.setattr(
             ComparisonOrchestrator,
             "synthesize_comparison_with_llm",
-            lambda self_o, prods, matrix, *args, **kwargs: (
-                "Grounded [SKU: 6534606] vs [SKU: 6543210]",
-                "Pick [SKU: 6534606]",
+            lambda self_o, prods, matrix=None, *args, **kwargs: ComparisonSynthesis(
+                summary="Grounded [SKU: 6534606] vs [SKU: 6543210]",
+                recommendations="Pick [SKU: 6534606]",
+                spec_winners={"ram_gb": "6543210", "battery_life_hours": "6534606"},
             ),
         )
 
-        mock_bq = MagicMock()
         sample_cases = [
             {
                 "id": "eval-001",
@@ -503,7 +428,7 @@ class TestBenchmarkModelsEnvFlags:
                 live=False,
                 log_vertex=False,
             )
-            assert recorded_envs[-1] == (None, "true")
+            assert recorded_envs[-1] is None
 
             bm.run_per_stage_benchmarks(
                 cases=sample_cases,
@@ -511,7 +436,226 @@ class TestBenchmarkModelsEnvFlags:
                 live=True,
                 log_vertex=False,
             )
-            assert recorded_envs[-1] == ("1", None)
+            assert recorded_envs[-1] == "1"
         finally:
             os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
-            os.environ.pop("HERMETIC_EVAL", None)
+
+
+def test_stage3_semantic_synthesis_quality_scores() -> None:
+    """Verify compute_stage3_semantic_quality evaluates actual generated text across 4 content dimensions."""
+    sample_items = [
+        {
+            "sku": "6534606",
+            "name": "Apple MacBook Air 13-inch M3",
+            "price": 1099.00,
+            "rating": 4.8,
+            "Specs": {
+                "RAM": "16GB",
+                "Storage": "512GB SSD",
+                "Battery_Life": "18 hours",
+                "Display_Type": "Liquid Retina",
+            },
+        },
+        {
+            "sku": "6543210",
+            "name": "Dell XPS 13 Laptop",
+            "price": 1299.00,
+            "rating": 4.6,
+            "Specs": {
+                "RAM": "32GB",
+                "Storage": "1TB SSD",
+                "Battery_Life": "12 hours",
+                "Display_Type": "OLED Touch",
+            },
+        },
+    ]
+
+    # 1. Rich multi-attribute synthesis citing all SKUs, quantitative deltas, and persona recommendations
+    rich_summary = (
+        "Comparing Apple MacBook Air 13-inch M3 [SKU: 6534606] ($1099.00, 4.8★) and "
+        "Dell XPS 13 Laptop [SKU: 6543210] ($1299.00, 4.6★): Apple MacBook Air 13-inch M3 [SKU: 6534606] "
+        "is the lowest price option at $1099.00 (saving $200.00) and leads in Battery Life (18 hours vs 12 hours) "
+        "with a Liquid Retina display. Conversely, Dell XPS 13 Laptop [SKU: 6543210] leads in RAM (32GB vs 16GB) "
+        "and Storage (1TB SSD vs 512GB SSD) with an OLED Touch display for heavier multitasking."
+    )
+    rich_recs = [
+        {
+            "best_for": "Best Value & All-Day Battery Mobility",
+            "sku": "6534606",
+            "product_name": "Apple MacBook Air 13-inch M3",
+            "reason": (
+                "Delivers 18 hours of battery life and a 4.8★ rating at $1099.00 ($200.00 less than Dell XPS 13) "
+                "with 16GB RAM and 512GB SSD [SKU: 6534606]."
+            ),
+        },
+        {
+            "best_for": "Power Multitasking & High-Capacity Storage",
+            "sku": "6543210",
+            "product_name": "Dell XPS 13 Laptop",
+            "reason": (
+                "Upgrades memory to 32GB RAM and 1TB SSD storage with an OLED Touch display at $1299.00 "
+                "for intensive workloads [SKU: 6543210]."
+            ),
+        },
+    ]
+    rich_coherence, rich_5pt = compute_stage3_semantic_quality(
+        summary=rich_summary,
+        recommendations=rich_recs,
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert rich_coherence >= 0.85, f"Expected rich synthesis >= 0.85, got {rich_coherence}"
+    assert rich_5pt >= 4.4, f"Expected rich 5pt score >= 4.4, got {rich_5pt}"
+
+    # 2. Shallow price-only summary omitting hardware spec trade-offs
+    shallow_summary = (
+        "Apple MacBook Air 13-inch M3 [SKU: 6534606] costs $1099.00 with a 4.8★ rating, while "
+        "Dell XPS 13 Laptop [SKU: 6543210] costs $1299.00 with a 4.6★ rating."
+    )
+    shallow_recs = [
+        {
+            "best_for": "Budget Shoppers",
+            "sku": "6534606",
+            "product_name": "Apple MacBook Air 13-inch M3",
+            "reason": "Lower price at $1099.00 [SKU: 6534606].",
+        }
+    ]
+    shallow_coherence, shallow_5pt = compute_stage3_semantic_quality(
+        summary=shallow_summary,
+        recommendations=shallow_recs,
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert 0.45 <= shallow_coherence < 0.85, (
+        f"Expected shallow synthesis in [0.45, 0.85), got {shallow_coherence}"
+    )
+    assert shallow_5pt < rich_5pt
+
+    # 3. Contradictory summary (inverting cheapest winner + hallucinating SKU 9999999)
+    contradictory_summary = (
+        "Dell XPS 13 Laptop [SKU: 6543210] is the cheapest and lowest price laptop at $1299.00, "
+        "whereas [SKU: 9999999] is more expensive."
+    )
+    bad_coherence, _ = compute_stage3_semantic_quality(
+        summary=contradictory_summary,
+        recommendations=[],
+        items=sample_items,
+        query="Compare Apple MacBook Air M3 and Dell XPS 13",
+    )
+    assert bad_coherence < 0.50, f"Expected contradictory synthesis < 0.50, got {bad_coherence}"
+
+
+def test_no_hardcoded_model_bonuses_or_lookup_tables() -> None:
+    """Verify benchmark_models.py and generate_model_matrix.py contain no hardcoded score tables or model bonuses."""
+    import evals.benchmark_models as bm
+    import evals.generate_model_matrix as gmm
+
+    assert not hasattr(bm, "STAGE3_SEMANTIC_SYNTHESIS_QUALITY"), (
+        "STAGE3_SEMANTIC_SYNTHESIS_QUALITY static lookup table must be removed"
+    )
+
+    bm_source = Path(bm.__file__).read_text(encoding="utf-8")
+    assert "pro_bonus" not in bm_source, "pro_bonus must be removed from _s3_score"
+    assert 'c["model_id"] == "tiered-hybrid"' not in bm_source, (
+        "Hardcoded tiered-hybrid tiebreaker must be removed from sorted_candidates"
+    )
+
+    gmm_source = Path(gmm.__file__).read_text(encoding="utf-8")
+    assert "avg_input_tokens=890" not in gmm_source, (
+        "Hardcoded candidate literals must be removed from generate_model_matrix.py"
+    )
+
+
+def test_run_per_stage_benchmarks_stage3_semantic_quality(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_bq: MagicMock,
+    sample_benchmark_cases: list[dict[str, Any]],
+) -> None:
+    """Verify run_per_stage_benchmarks includes semantic coherence and records winners."""
+    from app.agent.orchestrator import QueryIntentAnalysis
+
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "classify_intent_with_llm",
+        lambda self_o, q, *a, **kw: QueryIntentAnalysis(
+            intent_type="COMPARISON",
+            is_comparison_eligible=True,
+            detected_category="Laptops" if "MacBook" in q else "Headphones",
+            target_keywords=["MacBook Air", "Dell XPS"]
+            if "MacBook" in q
+            else ["Sony WH-1000XM5", "Bose QuietComfort Ultra"],
+            reasoning="Comparison query",
+        ),
+    )
+
+    def _mock_synth(
+        self_o: Any, prods: list[Any], matrix: Any = None, query: str = "", model: str | None = None
+    ) -> ComparisonSynthesis:
+        sku_str = " and ".join(f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in prods)
+        spec_str = (
+            "leads in RAM (32GB vs 16GB) and Battery Life (18 hours vs 12 hours)"
+            if model == "gemini-2.5-pro"
+            else "compares specs"
+        )
+        return ComparisonSynthesis(
+            summary=f"Comparing {sku_str}: {prods[0].name} [SKU: {prods[0].sku}] is the lowest price option and {spec_str}.",
+            recommendations=f"Best Value: {prods[0].name} [SKU: {prods[0].sku}]. Power Choice: {prods[-1].name} [SKU: {prods[-1].sku}].",
+            spec_winners={"ram_gb": prods[-1].sku, "battery_life_hours": prods[0].sku},
+        )
+
+    monkeypatch.setattr(ComparisonOrchestrator, "synthesize_comparison_with_llm", _mock_synth)
+
+    res = run_per_stage_benchmarks(
+        cases=sample_benchmark_cases,
+        bq_client=mock_bq,
+        live=False,
+        log_vertex=False,
+    )
+    stages = res["stages"]
+    syn_results = stages.get("stage3_synthesis")
+    assert syn_results is not None
+    assert len(syn_results) == 9
+
+    for entry in syn_results:
+        assert "mean_semantic_coherence" in entry
+        assert "synthesis_quality_5pt" in entry
+        assert 0.0 <= entry["mean_semantic_coherence"] <= 1.0
+        assert 1.0 <= entry["synthesis_quality_5pt"] <= 5.0
+
+    win = res["winning_combination"]
+    assert win.get("stage3_synthesis_quality_winner") in STAGE_MODELS
+    assert win.get("stage3_synthesis_latency_winner") in STAGE_MODELS
+
+
+def test_per_stage_optimal_models_configuration() -> None:
+    """Verify settings and orchestrator expose per-stage optimal models."""
+    assert settings.stage1_intent_model == "gemini-3.5-flash-lite"
+    assert settings.stage2_relevance_model == "gemini-2.5-flash-lite"
+    assert settings.stage3_synthesis_model == "gemini-2.5-pro"
+    assert settings.stage3_fast_synthesis_model == "gemini-2.5-flash-lite"
+
+    assert STAGE_OPTIMAL_MODELS["stage1_intent"] == "gemini-3.5-flash-lite"
+    assert STAGE_OPTIMAL_MODELS["stage2_relevance"] == "gemini-2.5-flash-lite"
+    assert STAGE_OPTIMAL_MODELS["stage3_synthesis"] == "gemini-2.5-pro"
+    assert STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"] == "gemini-2.5-flash-lite"
+
+    resolved_default = resolve_stage_models(fast_synthesis=False)
+    assert resolved_default["stage1_intent"] == "gemini-3.5-flash-lite"
+    assert resolved_default["stage2_relevance"] == "gemini-2.5-flash-lite"
+    assert resolved_default["stage3_synthesis"] == "gemini-2.5-pro"
+
+    resolved_fast = resolve_stage_models(fast_synthesis=True)
+    assert resolved_fast["stage3_synthesis"] == "gemini-2.5-flash-lite"
+
+    routing, syn, is_hybrid = resolve_model_pair("stage-optimal", None)
+    assert routing == "gemini-3.5-flash-lite"
+    assert syn == "gemini-2.5-pro"
+    assert is_hybrid is True
+
+
+def test_multi_agent_coordinator_stage_optimal_routing(mock_bq: MagicMock) -> None:
+    """Verify MultiAgentCoordinator supports stage-optimal routing across specialists."""
+    coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
+    assert coord.intent_agent.model == "gemini-3.5-flash-lite"
+    assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"

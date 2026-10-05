@@ -1,13 +1,16 @@
 """Unit tests verifying Score 3 / 3 expert criteria across security, resilience, multi-category specs, and API v1."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.agent.orchestrator import CATEGORY_SPEC_REGISTRY, ComparisonOrchestrator
+import app.agent.orchestrator as orchestrator_mod
+from app.agent.orchestrator import ComparisonOrchestrator
 from app.data.analytics import AnalyticsService
 from app.main import create_app
 from app.models.analytics import FeedbackRequest, UserActionRequest
+from app.models.comparison import ComparisonSynthesis
 from app.models.requests import CandidateRankingResponse, CandidateRankItem
 from app.models.responses import ProductSpec
 from app.observability.logging import scrub_pii
@@ -73,9 +76,6 @@ def test_circuit_breaker_and_cache() -> None:
     cb.record_success()
     assert cb.state == "CLOSED"
 
-    # Verify query_catalog executes statelessly without in-memory caching
-    from unittest.mock import MagicMock
-
     mock_bq = MagicMock()
     mock_job = MagicMock()
     mock_job.result.return_value = [
@@ -89,15 +89,63 @@ def test_circuit_breaker_and_cache() -> None:
     assert mock_bq.query.call_count == 2
 
 
-def test_multi_category_spec_registry_and_cross_category_guard() -> None:
-    """Verify CATEGORY_SPEC_REGISTRY covers all 5 categories and guards cross-category comparisons (s2_05, s2_32)."""
-    assert "refresh_rate_hz" in CATEGORY_SPEC_REGISTRY
-    assert "driver_size_mm" in CATEGORY_SPEC_REGISTRY
-    assert "sensor_range_ft" in CATEGORY_SPEC_REGISTRY
-    assert "response_time_ms" in CATEGORY_SPEC_REGISTRY
+def test_multi_category_spec_winners_and_cross_category_guard() -> None:
+    """Verify Stage 4 LLM spec_winners replaces CATEGORY_SPEC_REGISTRY across categories and guards cross-category comparisons (s2_05, s2_32)."""
+    assert not hasattr(orchestrator_mod, "CATEGORY_SPEC_REGISTRY")
 
-    orch = ComparisonOrchestrator(hermetic=True)
-    # Same category (TVs): refresh_rate_hz higher wins, response_time_ms lower wins
+    synth = ComparisonSynthesis(
+        recommendation="Sony WH-1000XM5 [SKU: 6505727] wins on Bluetooth and lighter weight.",
+        key_differences=["Bluetooth 5.3 vs 5.2 [SKU: 6505727]"],
+        tradeoffs=["Higher price [SKU: 6505727]"],
+        winner_sku="6505727",
+        confidence_score=0.95,
+        spec_winners={
+            "bluetooth_version": "6505727",
+            "weight_oz": "6505727",
+            "battery_life_hours": "tie",
+            "voice_assistant": "none",
+        },
+    )
+    assert synth.spec_winners["bluetooth_version"] == "6505727"
+    assert synth.spec_winners["weight_oz"] == "6505727"
+
+    orch = ComparisonOrchestrator()
+    hp1 = ProductSpec(
+        sku="6505727",
+        name="Sony WH-1000XM5",
+        brand="Sony",
+        category="Headphones",
+        price=399.99,
+        specifications={
+            "bluetooth_version": "5.3",
+            "weight_oz": "8.8 oz",
+            "battery_life_hours": 30,
+            "voice_assistant": "Alexa, Google Assistant",
+        },
+    )
+    hp2 = ProductSpec(
+        sku="6554461",
+        name="Apple AirPods Max",
+        brand="Apple",
+        category="Headphones",
+        price=549.99,
+        specifications={
+            "bluetooth_version": "5.0",
+            "weight_oz": "13.6 oz",
+            "battery_life_hours": 30,
+            "voice_assistant": "Siri",
+        },
+    )
+    matrix = orch.build_comparison_matrix([hp1, hp2], spec_winners=synth.spec_winners)
+    row_by_feature = {r.feature: r for r in matrix}
+    assert row_by_feature["Bluetooth Version"].winner_sku == "6505727"
+    assert row_by_feature["Weight (oz)"].winner_sku == "6505727"
+    assert row_by_feature["Battery Life"].winner_sku is None
+    assert row_by_feature["Battery Life"].winner_skus == []
+    assert row_by_feature["Voice Assistant"].winner_sku is None
+    assert row_by_feature["Voice Assistant"].winner_skus == []
+
+    # Fallback numeric/version evaluation when spec_winners is omitted:
     tv1 = ProductSpec(
         sku="TV-1",
         name="OLED TV A",
@@ -114,10 +162,10 @@ def test_multi_category_spec_registry_and_cross_category_guard() -> None:
         price=999.99,
         specifications={"refresh_rate_hz": 60, "response_time_ms": 5.0},
     )
-    matrix = orch.build_comparison_matrix([tv1, tv2])
-    row_by_feature = {r.feature: r for r in matrix}
-    assert row_by_feature["Refresh Rate"].winner_sku == "TV-1"
-    assert row_by_feature["Response Time"].winner_sku == "TV-1"
+    tv_matrix = orch.build_comparison_matrix([tv1, tv2])
+    tv_rows = {r.feature: r for r in tv_matrix}
+    assert tv_rows["Refresh Rate"].winner_sku == "TV-1"
+    assert tv_rows["Response Time"].winner_sku == "TV-1"
 
     # Cross-category (Laptops vs Headphones): Category row added, shared spec winners computed, unshared specs neutral
     laptop = ProductSpec(
@@ -141,14 +189,28 @@ def test_multi_category_spec_registry_and_cross_category_guard() -> None:
     assert "Category" in cross_features
     assert cross_features["Category"].winner_sku is None
     assert cross_features["Category"].winner_skus == []
-    # Shared numeric spec across categories computes winner
     assert cross_features["Battery Life"].winner_sku == "HP-1"
     assert cross_features["Battery Life"].winner_skus == ["HP-1"]
-    # Unshared specs (present in only 1 of 2 products) have no winner
     assert cross_features["Memory (RAM)"].winner_sku is None
     assert cross_features["Memory (RAM)"].winner_skus == []
     assert cross_features["Driver Size"].winner_sku is None
     assert cross_features["Driver Size"].winner_skus == []
+
+
+def test_adk_llm_replaces_hermetic_adapter_and_catalog_fails_fast() -> None:
+    """Verify app.agent.adk_llm exists, hermetic_adapter is removed, and /api/catalog fails fast with 503."""
+    import importlib
+
+    adk_llm = importlib.import_module("app.agent.adk_llm")
+    assert hasattr(adk_llm, "CatalogAdkLlm")
+    assert hasattr(adk_llm, "verify_and_scrub_synthesis_claims")
+
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.agent.hermetic_adapter")
+
+    with patch("app.tools.catalog.query_catalog", side_effect=RuntimeError("BQ down")):
+        resp = client.get("/api/catalog")
+        assert resp.status_code == 503
 
 
 def test_api_v1_routes_and_readiness_dependencies() -> None:
@@ -165,12 +227,23 @@ def test_api_v1_routes_and_readiness_dependencies() -> None:
     assert v1_versions.status_code == 200
     assert v1_versions.json()["active_default"] == "1.2.0-tiered"
 
-    v1_compare = client.post(
-        "/api/v1/compare",
-        json={"query": "Compare MacBook Air M3 and Dell XPS 13"},
-    )
-    assert v1_compare.status_code == 200
-    assert v1_compare.json()["agent_version"] == "1.2.0-tiered"
+    with patch("app.main.ComparisonOrchestrator") as mock_orch_cls:
+        from app.models.responses import ComparisonResponse
+
+        mock_orch_cls.return_value.compare.return_value = ComparisonResponse(
+            summary="MacBook Air M3 [SKU: 6534606] is recommended.",
+            products=[],
+            comparison_matrix=[],
+            citations=[],
+            recommendations="MacBook Air M3 [SKU: 6534606] is recommended.",
+            agent_version="1.2.0-tiered",
+        )
+        v1_compare = client.post(
+            "/api/v1/compare",
+            json={"query": "Compare MacBook Air M3 and Dell XPS 13"},
+        )
+        assert v1_compare.status_code == 200
+        assert v1_compare.json()["agent_version"] == "1.2.0-tiered"
 
     ranking_resp = CandidateRankingResponse(rankings=[CandidateRankItem(sku="SKU-1", score=9.5)])
     assert len(ranking_resp.rankings) == 1

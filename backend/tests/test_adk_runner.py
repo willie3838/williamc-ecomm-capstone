@@ -47,13 +47,58 @@ class TestADKRunnerIntegration:
     @pytest.mark.asyncio
     async def test_run_adk_agent_execution(self):
         """Verify run_adk_agent runs a real multi-turn ADK invocation (FunctionCall -> FunctionResponse -> synthesis)."""
-        events = []
-        async for event in run_adk_agent(
-            query="Compare Laptop Alpha and Laptop Beta",
-            session_id="test_session_1",
-            user_id="test_user",
+        from unittest.mock import MagicMock
+
+        from google.genai import types
+
+        import app.agent.adk_llm as ha
+
+        fake_client = MagicMock()
+        turn1_resp = MagicMock()
+        turn1_resp.prompt_feedback = None
+        cand1 = MagicMock()
+        cand1.finish_reason = "STOP"
+        cand1.content = types.Content(
+            role="model",
+            parts=[
+                types.Part.from_function_call(
+                    name="query_catalog",
+                    args={"keywords": ["Laptop Alpha", "Laptop Beta"]},
+                )
+            ],
+        )
+        turn1_resp.candidates = [cand1]
+        turn1_resp.usage_metadata = None
+
+        turn2_resp = MagicMock()
+        turn2_resp.prompt_feedback = None
+        turn2_resp.candidates = []
+        turn2_resp.text = '{"summary": "Laptop Alpha [SKU: 111] vs Laptop Beta [SKU: 222]", "recommendations": "Pick [SKU: 111]", "spec_winners": {}}'
+        turn2_resp.usage_metadata = None
+        fake_client.models.generate_content.side_effect = [turn1_resp, turn2_resp]
+
+        with (
+            patch.object(ha, "_get_shared_vertex_client", return_value=fake_client),
+            patch(
+                "app.agent.orchestrator.query_catalog",
+                return_value=[
+                    {
+                        "sku": "111",
+                        "name": "Laptop Alpha",
+                        "brand": "A",
+                        "category": "Laptops",
+                        "price": 999.0,
+                    }
+                ],
+            ),
         ):
-            events.append(event)
+            events = []
+            async for event in run_adk_agent(
+                query="Compare Laptop Alpha and Laptop Beta",
+                session_id="test_session_1",
+                user_id="test_user",
+            ):
+                events.append(event)
 
         # Should emit FunctionCall(query_catalog), FunctionResponse, and final synthesis LlmResponse
         assert len(events) >= 2
@@ -70,7 +115,6 @@ class TestADKRunnerIntegration:
         """Verify CatalogVertexAiSessionService resolves GOOGLE_CLOUD_AGENT_ENGINE_ID and delegates to VertexAiSessionService."""
         from unittest.mock import AsyncMock, MagicMock
 
-        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.setenv(
             "GOOGLE_CLOUD_AGENT_ENGINE_ID",
             "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/reasoningEngines/9876543210",
@@ -114,8 +158,10 @@ class TestADKRunnerIntegration:
     def test_orchestrator_execute_with_adk_runner(self):
         """Verify ComparisonOrchestrator can execute queries via ADK runner path."""
         orchestrator = ComparisonOrchestrator()
-        # Mock the underlying catalog tool and synthesis to run hermetically
-        with patch("app.agent.orchestrator.query_catalog") as mock_qc:
+        with (
+            patch("app.agent.orchestrator.query_catalog") as mock_qc,
+            patch("app.agent.runner.run_adk_agent_sync") as mock_run_sync,
+        ):
             mock_qc.return_value = [
                 {
                     "sku": "111",
@@ -134,6 +180,10 @@ class TestADKRunnerIntegration:
                     "specifications": {"ram_gb": 16, "battery_life_hours": 10},
                 },
             ]
+            mock_run_sync.return_value = (
+                '{"summary": "Alpha Book 14 [SKU: 111] vs Beta Book 14 [SKU: 222].", "recommendations": "Pick [SKU: 111].", "spec_winners": {"battery_life_hours": "111"}}',
+                [],
+            )
             response = orchestrator.execute_with_adk_runner(
                 query="Compare Alpha Book 14 vs Beta Book 14",
                 category="Laptops",
@@ -146,7 +196,11 @@ class TestADKRunnerIntegration:
 
     def test_eval_runner_with_adk_runner_flag(self, tmp_path: Path):
         """Verify evals.runner.run_benchmark works with use_adk_runner=True."""
+        from unittest.mock import MagicMock
+
         from evals.runner import run_benchmark
+
+        from app.models.responses import Citation, MatrixRow, ProductSpec
 
         catalog_data = [
             {
@@ -184,11 +238,31 @@ class TestADKRunnerIntegration:
         data_file = tmp_path / "evalset.json"
         data_file.write_text(__import__("json").dumps(dataset), encoding="utf-8")
 
+        prods = [ProductSpec(**p) for p in catalog_data]
+        mock_orch = MagicMock()
+        mock_orch.execute_with_adk_runner.return_value = CompareResponse(
+            summary="Model Alpha Laptop [SKU: 1001] ($899.00) vs Model Beta Laptop [SKU: 1002] ($999.00).",
+            products=prods,
+            comparison_matrix=[
+                MatrixRow(
+                    feature="Price",
+                    values={"1001": "$899.00", "1002": "$999.00"},
+                    winner_sku="1001",
+                )
+            ],
+            citations=[
+                Citation(sku="1001", url="https://techbuy.com/1001"),
+                Citation(sku="1002", url="https://techbuy.com/1002"),
+            ],
+            recommendations="Choose Model Alpha Laptop [SKU: 1001].",
+        )
+
         report = run_benchmark(
             dataset_path=data_file,
             catalog_path=cat_file,
             use_adk_runner=True,
             live=False,
+            orchestrator=mock_orch,
         )
         assert report is not None
         assert report["metadata"]["total_cases"] == 1
@@ -203,9 +277,8 @@ class TestADKRunnerIntegration:
         from google.adk.models import LlmRequest
         from google.genai import types
 
-        import app.agent.hermetic_adapter as ha
+        import app.agent.adk_llm as ha
 
-        monkeypatch.delenv("HERMETIC_EVAL", raising=False)
         monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
         monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
 
@@ -217,7 +290,6 @@ class TestADKRunnerIntegration:
         fake_resp.candidates = []
         fake_resp.usage_metadata = MagicMock(prompt_token_count=50, candidates_token_count=30)
 
-        # First call raises model_armor error to test fallback_cfg preserving thinking_config; second succeeds
         fake_client.models.generate_content.side_effect = [
             RuntimeError("model_armor template not found"),
             fake_resp,
@@ -225,7 +297,7 @@ class TestADKRunnerIntegration:
         ]
 
         with patch.object(ha, "_get_shared_vertex_client", return_value=fake_client) as mock_shared:
-            llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+            llm = ha.CatalogAdkLlm(model="gemini-2.5-pro")
             req_synth = LlmRequest(
                 contents=[
                     types.Content(
@@ -239,7 +311,6 @@ class TestADKRunnerIntegration:
             outputs = [r async for r in llm.generate_content_async(req_synth)]
             assert len(outputs) == 1
             assert mock_shared.call_count >= 1
-            # Both initial and fallback retry calls must use gemini-2.5-flash, thinking_budget=0, max_output_tokens=512
             first_call = fake_client.models.generate_content.call_args_list[0]
             retry_call = fake_client.models.generate_content.call_args_list[1]
             assert first_call.kwargs["model"] == "gemini-2.5-flash"
@@ -249,7 +320,6 @@ class TestADKRunnerIntegration:
             assert retry_call.kwargs["config"].thinking_config is not None
             assert retry_call.kwargs["config"].thinking_config.thinking_budget == 0
 
-            # Also verify tool-calling / schema-less request gets thinking_budget=0
             req_plain = LlmRequest(
                 contents=[
                     types.Content(
@@ -282,7 +352,7 @@ class TestADKRunnerIntegration:
         assert failing_client.query.call_count == 1
 
     def test_ephemeral_runner_and_reused_query_intent_orchestrator(self):
-        """Verify run_adk_agent_sync uses ephemeral InMemorySessionService when session_id is None and QueryIntentAgent reuses self.orchestrator."""
+        """Verify run_adk_agent_sync uses ephemeral session service when session_id is None and QueryIntentAgent reuses self.orchestrator."""
         from app.agent.multi_agent import QueryIntentAgent
         from app.agent.runner import run_adk_agent_sync
 
@@ -300,9 +370,7 @@ class TestADKRunnerIntegration:
                         yield None
 
                 mock_run.side_effect = _empty_gen
-                run_adk_agent_sync(
-                    agent=q_agent.adk_agent, prompt="test", session_id=None, hermetic=True
-                )
+                run_adk_agent_sync(agent=q_agent.adk_agent, prompt="test", session_id=None)
                 passed_service = mock_create.call_args.kwargs.get("session_service")
                 assert isinstance(passed_service, CatalogVertexAiSessionService)
                 passed_memory_service = mock_create.call_args.kwargs.get("memory_service")
@@ -310,17 +378,14 @@ class TestADKRunnerIntegration:
 
     @pytest.mark.asyncio
     async def test_catalog_vertex_ai_memory_bank_service(self):
-        """Verify CatalogVertexAiMemoryBankService works in hermetic mode with in-memory fallback."""
+        """Verify CatalogVertexAiMemoryBankService works with in-memory fallback."""
         service = CatalogVertexAiMemoryBankService(
             project="fde-bestbuy-sandbox-dev-508321",
             location="us-central1",
             agent_engine_id="2445220951441276928",
-            hermetic=True,
         )
         assert isinstance(service, VertexAiMemoryBankService)
-        assert service.hermetic is True
 
-        # Test add_session_to_memory
         from google.adk.sessions import Session
 
         session = Session(
@@ -330,7 +395,6 @@ class TestADKRunnerIntegration:
         )
         await service.add_session_to_memory(session=session)
 
-        # Test add_events_to_memory
         await service.add_events_to_memory(
             app_name="app",
             user_id="user_test_1",
@@ -338,7 +402,6 @@ class TestADKRunnerIntegration:
             events=[],
         )
 
-        # Test add_memory and search_memory
         await service.add_memory(
             app_name="app",
             user_id="user_test_1",
@@ -399,58 +462,6 @@ class TestADKRunnerIntegration:
         assert cfg is not None
         assert ReasoningEngineContextSpecMemoryBankConfig is not None
 
-    def test_category_disambiguation_and_category_specific_synthesis(self, monkeypatch):
-        """Verify tablet-004/011 category priority and rich synthesis for Headphones, TVs, and Smart Home."""
-        import json
-
-        import app.agent.hermetic_adapter as ha
-
-        monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", True, raising=False)
-        with patch.object(ha, "_call_real_vertex_gemini", side_effect=RuntimeError("offline")):
-            intent_t4 = ha.HermeticModelAdapter.classify_intent_response(
-                "iPad Pro 11 M4 OLED versus Samsung Galaxy Tab S9 AMOLED screen comparison"
-            )
-            assert intent_t4.detected_category == "Tablets"
-
-            intent_t11 = ha.HermeticModelAdapter.classify_intent_response(
-                "Compare Google Pixel Tablet and iPad Pro 11 M4 for smart home and multimedia"
-            )
-            assert intent_t11.detected_category == "Tablets"
-
-            # TV synthesis enrichment check
-            tv_prompt = (
-                '- Product: LG C3 65" [SKU: 6535929] | Brand: LG | Price: $1,499.99 | '
-                'Specs: {"screen_size_in": 65, "display_technology": "OLED evo", "resolution": "4K (3840 x 2160)", "refresh_rate_hz": 120, "hdr_support": "Dolby Vision, HDR10, HLG", "smart_platform": "webOS 23"}\n'
-                '- Product: Samsung S90C 65" [SKU: 6536965] | Brand: Samsung | Price: $1,599.99 | '
-                'Specs: {"screen_size_in": 65, "display_technology": "QD-OLED", "resolution": "4K (3840 x 2160)", "refresh_rate_hz": 144, "hdr_support": "HDR10+, HLG", "smart_platform": "Tizen OS"}\n'
-            )
-            tv_synth = json.loads(ha.HermeticModelAdapter.synthesis_response(tv_prompt))
-            assert "144Hz" in tv_synth["summary"] and "120Hz" in tv_synth["summary"]
-            assert "QD-OLED" in tv_synth["summary"] and "OLED evo" in tv_synth["summary"]
-            assert "[SKU: 6536965]" in (tv_synth["recommendations"] or "")
-
-            # Headphones synthesis enrichment check
-            hp_prompt = (
-                "- Product: Sony WH-1000XM5 [SKU: 6505727] | Brand: Sony | Price: $399.99 | "
-                'Specs: {"battery_life_hours": 30.0, "noise_cancellation": "Active Noise Canceling", "weight_oz": 8.8, "driver_size_mm": 30, "bluetooth_version": "5.2"}\n'
-                "- Product: Bose QC Ultra [SKU: 6553823] | Brand: Bose | Price: $429.00 | "
-                'Specs: {"battery_life_hours": 24.0, "noise_cancellation": "CustomTune ANC", "weight_oz": 8.9, "driver_size_mm": 35, "bluetooth_version": "5.3"}\n'
-            )
-            hp_synth = json.loads(ha.HermeticModelAdapter.synthesis_response(hp_prompt))
-            assert "8.8 oz" in hp_synth["summary"] and "8.9 oz" in hp_synth["summary"]
-            assert "30mm" in hp_synth["summary"] and "35mm" in hp_synth["summary"]
-
-            # Smart Home synthesis enrichment check
-            sh_prompt = (
-                "- Product: Google Nest 4th Gen [SKU: 6584201] | Brand: Google | Price: $279.99 | "
-                'Specs: {"connectivity": "Matter, Thread, Wi-Fi", "display": "Dynamic Farsight", "voice_assistant": "Google Assistant", "power_source": "C-wire"}\n'
-                "- Product: ecobee Premium [SKU: 6502275] | Brand: ecobee | Price: $249.99 | "
-                'Specs: {"connectivity": "Matter, Wi-Fi", "display": "Touchscreen", "voice_assistant": "Alexa, Siri", "power_source": "Hardwired 24VAC"}\n'
-            )
-            sh_synth = json.loads(ha.HermeticModelAdapter.synthesis_response(sh_prompt))
-            assert "Google Assistant" in sh_synth["summary"]
-            assert "Matter" in sh_synth["summary"]
-
     @pytest.mark.asyncio
     async def test_cross_session_memory_recall_and_user_isolation(self):
         """Verify cross-session memory recall by IAP user email and strict multi-user memory isolation."""
@@ -461,8 +472,8 @@ class TestADKRunnerIntegration:
         from app.agent.runner import get_default_memory_service, get_default_session_service
         from app.models.responses import ProductSpec
 
-        session_service = get_default_session_service(hermetic=True)
-        memory_service = get_default_memory_service(hermetic=True)
+        session_service = get_default_session_service()
+        memory_service = get_default_memory_service()
 
         user_alice = "alice@google.com"
         user_bob = "bob@google.com"
@@ -517,7 +528,7 @@ class TestADKRunnerIntegration:
             specifications={"ram_gb": 16, "storage_gb": 512},
             in_stock=True,
         )
-        orch = ComparisonOrchestrator(model="gemini-2.5-flash", hermetic=True)
+        orch = ComparisonOrchestrator(model="gemini-2.5-flash")
         resp_alice_sess2 = orch.chat_with_products(
             message="Do these laptops match my RAM requirements?",
             products=[p1],
@@ -565,9 +576,7 @@ class TestADKRunnerIntegration:
         mock_genai_client.models.generate_content.return_value = MagicMock(
             text='{"reply": "The MacBook Air [SKU: 6534606] weighs only 2.7 lbs.", "suggested_followups": []}'
         )
-        orch = ComparisonOrchestrator(
-            model="gemini-2.5-flash", genai_client=mock_genai_client, hermetic=False
-        )
+        orch = ComparisonOrchestrator(model="gemini-2.5-flash", genai_client=mock_genai_client)
 
         with patch(
             "app.agent.runner.CatalogVertexAiMemoryBankService.search_memory", return_value=fake_mem
@@ -580,7 +589,6 @@ class TestADKRunnerIntegration:
                     user_id="user_memory_injection@example.com",
                 )
                 assert resp is not None
-                # Assert generate_content was called and prompt contained <recalled_user_memories>
                 assert mock_genai_client.models.generate_content.called
                 call_args = mock_genai_client.models.generate_content.call_args
                 prompt_arg = call_args.kwargs.get("contents") or (

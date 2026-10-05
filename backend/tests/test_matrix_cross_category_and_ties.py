@@ -5,8 +5,8 @@ from app.models.responses import ProductSpec
 
 
 def test_cross_category_shared_specs_produce_winner() -> None:
-    """Verify shared numeric specs across different categories compute winners (e.g. Laptop vs Tablet)."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    """Verify shared specs across different categories populate winners from Stage 4 LLM spec_winners."""
+    orch = ComparisonOrchestrator()
     laptop = ProductSpec(
         sku="LAP-101",
         name="Ultra Laptop 14",
@@ -38,7 +38,15 @@ def test_cross_category_shared_specs_produce_winner() -> None:
         },
     )
 
-    matrix = orch.build_comparison_matrix([laptop, tablet])
+    spec_winners = {
+        "storage_gb": "LAP-101",
+        "ram_gb": "LAP-101",
+        "battery_life_hours": "LAP-101",
+        "refresh_rate_hz": "LAP-101",
+        "weight_lbs": "TAB-202",
+        "display_size_in": "LAP-101",
+    }
+    matrix = orch.build_comparison_matrix([laptop, tablet], spec_winners=spec_winners)
     rows = {r.feature: r for r in matrix}
 
     # Category row present and neutral
@@ -77,7 +85,7 @@ def test_cross_category_shared_specs_produce_winner() -> None:
 
 def test_cross_category_unshared_specs_remain_neutral() -> None:
     """Verify specs present on only a subset of products leave winner_sku=None and winner_skus=[]."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
     laptop = ProductSpec(
         sku="LAP-102",
         name="Gaming Laptop 16",
@@ -102,7 +110,15 @@ def test_cross_category_unshared_specs_remain_neutral() -> None:
         },
     )
 
-    matrix = orch.build_comparison_matrix([laptop, tablet])
+    matrix = orch.build_comparison_matrix(
+        [laptop, tablet],
+        spec_winners={
+            "storage_gb": "LAP-102",
+            "gpu": "none",
+            "processor": "none",
+            "stylus_included": "none",
+        },
+    )
     rows = {r.feature: r for r in matrix}
 
     # Shared spec has a winner
@@ -120,7 +136,7 @@ def test_cross_category_unshared_specs_remain_neutral() -> None:
 
 def test_three_way_comparison_two_way_tie_winner_skus() -> None:
     """Verify 3+ product comparisons with a 2-way tie populate winner_skus and winner_sku=None."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
     p1 = ProductSpec(
         sku="SKU-A",
         name="Laptop Alpha",
@@ -149,7 +165,12 @@ def test_three_way_comparison_two_way_tie_winner_skus() -> None:
         specifications={"refresh_rate_hz": 60, "ram_gb": 8, "storage_gb": 512},
     )
 
-    matrix = orch.build_comparison_matrix([p1, p2, p3])
+    spec_winners = {
+        "refresh_rate_hz": "SKU-A, SKU-B",
+        "ram_gb": "SKU-A, SKU-B",
+        "storage_gb": "SKU-A, SKU-C",
+    }
+    matrix = orch.build_comparison_matrix([p1, p2, p3], spec_winners=spec_winners)
     rows = {r.feature: r for r in matrix}
 
     # Price: SKU-A and SKU-B tie at $999.99 beating SKU-C at $1299.99
@@ -175,7 +196,7 @@ def test_three_way_comparison_two_way_tie_winner_skus() -> None:
 
 def test_three_way_comparison_all_tie_neutral() -> None:
     """Verify when all products tie for a spec, row is neutral (winner_sku=None, winner_skus=[])."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
     p1 = ProductSpec(
         sku="SKU-1",
         name="Phone A",
@@ -204,7 +225,7 @@ def test_three_way_comparison_all_tie_neutral() -> None:
         specifications={"refresh_rate_hz": 120},
     )
 
-    matrix = orch.build_comparison_matrix([p1, p2, p3])
+    matrix = orch.build_comparison_matrix([p1, p2, p3], spec_winners={"refresh_rate_hz": "tie"})
     rows = {r.feature: r for r in matrix}
 
     # All tie on price -> neutral
@@ -222,7 +243,7 @@ def test_three_way_comparison_all_tie_neutral() -> None:
 
 def test_single_winner_compatibility() -> None:
     """Verify single winner populates both winner_sku and winner_skus=[winner_sku]."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
     p1 = ProductSpec(
         sku="SKU-1",
         name="Laptop 1",
@@ -240,7 +261,7 @@ def test_single_winner_compatibility() -> None:
         specifications={"ram_gb": 16},
     )
 
-    matrix = orch.build_comparison_matrix([p1, p2])
+    matrix = orch.build_comparison_matrix([p1, p2], spec_winners={"ram_gb": "SKU-1"})
     rows = {r.feature: r for r in matrix}
 
     assert rows["Price"].winner_sku == "SKU-1"

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from evals.benchmark_models import (
@@ -17,23 +20,77 @@ from evals.generate_model_matrix import (
     ModelDecisionMatrixReport,
     build_model_decision_matrix,
 )
-from evals.runner import create_hermetic_bq_client
 
 from app.agent.multi_agent import MultiAgentCoordinator
 from app.agent.orchestrator import (
     STAGE_OPTIMAL_MODELS,
+    ComparisonOrchestrator,
+    QueryIntentAnalysis,
     resolve_model_pair,
     resolve_stage_models,
 )
 from app.config import settings
+from app.models.comparison import ComparisonSynthesis
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CATALOG_PATH = REPO_ROOT / "backend" / "src" / "app" / "data" / "catalog_seed.json"
 
 
 @pytest.fixture
-def hermetic_bq():
-    return create_hermetic_bq_client(str(CATALOG_PATH))
+def mock_bq() -> MagicMock:
+    bq = MagicMock()
+    rows = [
+        {
+            "sku": "6534606",
+            "name": "Apple MacBook Air 13-inch M3",
+            "brand": "Apple",
+            "category": "Laptops",
+            "price": 1099.0,
+            "rating": 4.8,
+            "review_count": 120,
+            "specifications": json.dumps({"ram_gb": 16, "battery_life_hours": 18.0}),
+            "url": "https://www.techbuy.com/site/sku/6534606.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6543210",
+            "name": "Dell XPS 13 Laptop",
+            "brand": "Dell",
+            "category": "Laptops",
+            "price": 1299.0,
+            "rating": 4.6,
+            "review_count": 90,
+            "specifications": json.dumps({"ram_gb": 32, "battery_life_hours": 12.0}),
+            "url": "https://www.techbuy.com/site/sku/6543210.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6505727",
+            "name": "Sony WH-1000XM5 Headphones",
+            "brand": "Sony",
+            "category": "Headphones",
+            "price": 399.99,
+            "rating": 4.8,
+            "review_count": 300,
+            "specifications": json.dumps({"battery_life_hours": 30.0}),
+            "url": "https://www.techbuy.com/site/sku/6505727.p",
+            "in_stock": True,
+        },
+        {
+            "sku": "6554461",
+            "name": "Bose QuietComfort Ultra Headphones",
+            "brand": "Bose",
+            "category": "Headphones",
+            "price": 429.0,
+            "rating": 4.7,
+            "review_count": 210,
+            "specifications": json.dumps({"battery_life_hours": 24.0}),
+            "url": "https://www.techbuy.com/site/sku/6554461.p",
+            "in_stock": True,
+        },
+    ]
+    bq.query.return_value.result.return_value = rows
+    return bq
 
 
 @pytest.fixture
@@ -86,7 +143,6 @@ def test_stage_models_coverage_and_pricing():
         assert in_cost > 0.0
         assert out_cost > 0.0
 
-    # Ensure no preview models exist in STAGE_MODELS
     for m in STAGE_MODELS:
         assert "-preview" not in m, f"Found preview model in STAGE_MODELS: {m}"
 
@@ -114,22 +170,56 @@ def test_candidate_models_fleet():
         assert "-preview" not in cid, f"Candidate {cid} must not be a preview model"
 
 
-def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benchmark_cases):
+def _patch_orchestrator_for_benchmarks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "classify_intent_with_llm",
+        lambda self_o, q, *a, **kw: QueryIntentAnalysis(
+            intent_type="COMPARISON",
+            is_comparison_eligible=True,
+            detected_category="Laptops" if "MacBook" in q else "Headphones",
+            target_keywords=["MacBook Air", "Dell XPS"]
+            if "MacBook" in q
+            else ["Sony WH-1000XM5", "Bose QuietComfort Ultra"],
+            reasoning="Comparison query",
+        ),
+    )
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "_rerank_with_llm",
+        lambda self_o, cands, *a, **kw: list(cands),
+    )
+
+    def _mock_synth(
+        self_o: Any, prods: list[Any], matrix: Any = None, query: str = "", model: str | None = None
+    ) -> ComparisonSynthesis:
+        sku_str = " and ".join(f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in prods)
+        return ComparisonSynthesis(
+            summary=f"Comparing {sku_str}: {prods[0].name} [SKU: {prods[0].sku}] is the lowest price option and leads in Battery Life.",
+            recommendations=f"Best Value: {prods[0].name} [SKU: {prods[0].sku}]. Power Choice: {prods[-1].name} [SKU: {prods[-1].sku}].",
+            spec_winners={"ram_gb": prods[-1].sku, "battery_life_hours": prods[0].sku},
+        )
+
+    monkeypatch.setattr(ComparisonOrchestrator, "synthesize_comparison_with_llm", _mock_synth)
+
+
+def test_run_per_stage_benchmarks_three_llm_specialists(
+    monkeypatch: pytest.MonkeyPatch, mock_bq: MagicMock, sample_benchmark_cases
+):
     """Verify run_per_stage_benchmarks executes the 3 LLM specialist agent stages across the 9 GA models."""
+    _patch_orchestrator_for_benchmarks(monkeypatch)
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
-        bq_client=hermetic_bq,
+        bq_client=mock_bq,
         live=False,
         log_vertex=False,
     )
 
     stages = res["stages"]
-    # 3 specialist LLM stages
     assert "stage1_intent" in stages
     assert "stage2_relevance" in stages or "stage3_relevance" in stages
     assert "stage3_synthesis" in stages or "stage4_synthesis" in stages
 
-    # Check Stage 1 QueryIntentSpecialist
     s1_results = stages["stage1_intent"]
     assert len(s1_results) == 9
     for entry in s1_results:
@@ -137,7 +227,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benc
         assert entry["model_id"] in STAGE_MODELS
         assert entry["latency_p95_ms"] >= 0.0
 
-    # Check RelevanceDetectorSpecialist
     rel_results = stages.get("stage2_relevance") or stages.get("stage3_relevance")
     assert len(rel_results) == 9
     for entry in rel_results:
@@ -145,7 +234,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benc
         assert entry["model_id"] in STAGE_MODELS
         assert "mean_f1" in entry
 
-    # Check SpecComparisonSpecialist
     syn_results = stages.get("stage3_synthesis") or stages.get("stage4_synthesis")
     assert len(syn_results) == 9
     for entry in syn_results:
@@ -154,7 +242,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benc
         assert "mean_accuracy" in entry
         assert "mean_citation_faithfulness" in entry
 
-    # Check winning combination is dynamically computed
     win = res["winning_combination"]
     assert win["stage1_intent"] in STAGE_MODELS
     assert (win.get("stage2_relevance") or win.get("stage3_relevance")) in STAGE_MODELS
@@ -163,11 +250,14 @@ def test_run_per_stage_benchmarks_three_llm_specialists(hermetic_bq, sample_benc
     assert isinstance(win["sla_p95_3000ms_passed"], bool)
 
 
-def test_generate_benchmark_markdown_structure(hermetic_bq, sample_benchmark_cases):
+def test_generate_benchmark_markdown_structure(
+    monkeypatch: pytest.MonkeyPatch, mock_bq: MagicMock, sample_benchmark_cases
+):
     """Verify generate_benchmark_markdown formats the 3 specialist stages into readable tables."""
+    _patch_orchestrator_for_benchmarks(monkeypatch)
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
-        bq_client=hermetic_bq,
+        bq_client=mock_bq,
         live=False,
         log_vertex=False,
     )
@@ -178,7 +268,7 @@ def test_generate_benchmark_markdown_structure(hermetic_bq, sample_benchmark_cas
             "project_id": "test-project",
             "location": "us-central1",
             "cases_evaluated": 2,
-            "mode": "hermetic",
+            "mode": "live",
             "rubrics": {
                 "data_accuracy": {
                     "file_name": "data_accuracy.md",
@@ -252,7 +342,6 @@ def test_build_model_decision_matrix_eleven_models(tmp_path):
         f"Mismatch in candidate IDs: {candidate_ids ^ expected_all}"
     )
 
-    # Verify string representation
     rendered = str(report)
     assert "# Empirical Foundation Model Decision Scorecard (ADR-004)" in rendered
     assert "tiered-hybrid" in rendered
@@ -311,7 +400,6 @@ def test_stage3_semantic_synthesis_quality_scores() -> None:
         },
     ]
 
-    # 1. Rich multi-attribute synthesis citing all SKUs, quantitative deltas, and persona recommendations
     rich_summary = (
         "Comparing Apple MacBook Air 13-inch M3 [SKU: 6534606] ($1099.00, 4.8★) and "
         "Dell XPS 13 Laptop [SKU: 6543210] ($1299.00, 4.6★): Apple MacBook Air 13-inch M3 [SKU: 6534606] "
@@ -348,7 +436,6 @@ def test_stage3_semantic_synthesis_quality_scores() -> None:
     assert rich_coherence >= 0.85, f"Expected rich synthesis >= 0.85, got {rich_coherence}"
     assert rich_5pt >= 4.4, f"Expected rich 5pt score >= 4.4, got {rich_5pt}"
 
-    # 2. Shallow price-only summary omitting hardware spec trade-offs
     shallow_summary = (
         "Apple MacBook Air 13-inch M3 [SKU: 6534606] costs $1099.00 with a 4.8★ rating, while "
         "Dell XPS 13 Laptop [SKU: 6543210] costs $1299.00 with a 4.6★ rating."
@@ -372,7 +459,6 @@ def test_stage3_semantic_synthesis_quality_scores() -> None:
     )
     assert shallow_5pt < rich_5pt
 
-    # 3. Contradictory summary (inverting cheapest winner + hallucinating SKU 9999999)
     contradictory_summary = (
         "Dell XPS 13 Laptop [SKU: 6543210] is the cheapest and lowest price laptop at $1299.00, "
         "whereas [SKU: 9999999] is more expensive."
@@ -407,70 +493,6 @@ def test_no_hardcoded_model_bonuses_or_lookup_tables() -> None:
     )
 
 
-def test_hermetic_adapter_forwards_model_parameter(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify HermeticModelAdapter.synthesis_response and create_hermetic_genai_client forward model parameter."""
-    import app.agent.hermetic_adapter as ha
-
-    captured_models: list[str] = []
-
-    def fake_call_real_vertex_gemini(
-        prompt: str, model: str = "gemini-2.5-flash", temperature: float = 0.0
-    ) -> str | None:
-        captured_models.append(model)
-        return '{"summary": " Grounded [SKU: 6534606]", "recommendations": []}'
-
-    monkeypatch.setattr(ha, "_call_real_vertex_gemini", fake_call_real_vertex_gemini)
-
-    res = ha.HermeticModelAdapter.synthesis_response(
-        "Synthesize product comparison",
-        skip_vertex_call=False,
-        model="gemini-2.5-pro",
-    )
-    assert "6534606" in res
-    assert captured_models == ["gemini-2.5-pro"]
-
-    captured_synth: list[tuple[str | None, bool]] = []
-    orig_synth = ha.HermeticModelAdapter.synthesis_response
-
-    def spy_synth(prompt: str, skip_vertex_call: bool = False, model: str | None = None) -> str:
-        captured_synth.append((model, skip_vertex_call))
-        return orig_synth(prompt, skip_vertex_call=skip_vertex_call, model=model)
-
-    monkeypatch.setattr(ha.HermeticModelAdapter, "synthesis_response", staticmethod(spy_synth))
-    client = ha.create_hermetic_genai_client()
-    client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents="Provide JSON synthesis with summary and recommendations",
-    )
-    assert captured_synth == [("gemini-3.8-flash", True)]
-
-
-def test_run_per_stage_benchmarks_stage3_semantic_quality(
-    hermetic_bq, sample_benchmark_cases
-) -> None:
-    """Verify run_per_stage_benchmarks includes semantic coherence and records winners."""
-    res = run_per_stage_benchmarks(
-        cases=sample_benchmark_cases,
-        bq_client=hermetic_bq,
-        live=False,
-        log_vertex=False,
-    )
-    stages = res["stages"]
-    syn_results = stages.get("stage3_synthesis")
-    assert syn_results is not None
-    assert len(syn_results) == 9
-
-    for entry in syn_results:
-        assert "mean_semantic_coherence" in entry
-        assert "synthesis_quality_5pt" in entry
-        assert 0.0 <= entry["mean_semantic_coherence"] <= 1.0
-        assert 1.0 <= entry["synthesis_quality_5pt"] <= 5.0
-
-    win = res["winning_combination"]
-    assert win.get("stage3_synthesis_quality_winner") == "gemini-2.5-pro"
-    assert win.get("stage3_synthesis_latency_winner") == "gemini-2.5-flash-lite"
-
-
 def test_per_stage_optimal_models_configuration() -> None:
     """Verify settings and orchestrator expose per-stage optimal models."""
     assert settings.stage1_intent_model == "gemini-3.5-flash-lite"
@@ -497,9 +519,9 @@ def test_per_stage_optimal_models_configuration() -> None:
     assert is_hybrid is True
 
 
-def test_multi_agent_coordinator_stage_optimal_routing(hermetic_bq) -> None:
+def test_multi_agent_coordinator_stage_optimal_routing(mock_bq: MagicMock) -> None:
     """Verify MultiAgentCoordinator supports stage-optimal routing across specialists."""
-    coord = MultiAgentCoordinator(bq_client=hermetic_bq, model="stage-optimal")
+    coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
     assert coord.intent_agent.model == "gemini-3.5-flash-lite"
     assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
     assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"

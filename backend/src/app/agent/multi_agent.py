@@ -425,14 +425,19 @@ class SpecComparisonAgent:
                 return state
 
             # Comparison is approved and 2+ products are verified relevant
+            from app.agent.orchestrator import _unpack_synthesis_result
+
             matrix = self.orchestrator.build_comparison_matrix(
                 state.ranked_products, query=safe_query
             )
-            summary, recommendations = self.orchestrator.synthesize_comparison_with_llm(
+            synth_res = self.orchestrator.synthesize_comparison_with_llm(
                 state.ranked_products,
                 matrix,
                 query=safe_query,
                 model=active_synthesis,
+            )
+            summary, recommendations = _unpack_synthesis_result(
+                synth_res, self.orchestrator, state.ranked_products, safe_query, matrix
             )
             citations = [
                 Citation(sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p")
@@ -484,7 +489,7 @@ class MultiAgentCoordinator:
         synthesis_model: str | None = None,
         use_stage_optimal_models: bool = False,
     ) -> None:
-        from app.agent.hermetic_adapter import _warm_vertex_client_and_auth
+        from app.agent.adk_llm import _warm_vertex_client_and_auth
 
         _warm_vertex_client_and_auth()
         self.bq_client = bq_client

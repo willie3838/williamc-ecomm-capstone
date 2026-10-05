@@ -1,10 +1,5 @@
 """Tests verifying ADK agent de-overfitting, brand-agnostic extraction, and generalization."""
 
-import json
-from pathlib import Path
-
-from evals.runner import create_hermetic_bq_client
-
 from app.agent.multi_agent import ComparisonAgentState, QueryIntentAgent
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.agent.prompts import SYSTEM_INSTRUCTION
@@ -87,7 +82,7 @@ class TestAgentDeoverfitting:
     def test_intent_classification_prompt_generic(self):
         """Ensure classify_intent prompt does not anchor on specific benchmark models."""
         orchestrator = ComparisonOrchestrator(model="gemini-2.5-flash")
-        # Test heuristic / hermetic mode intent classification without API call
+        # Test heuristic intent classification without API call
         analysis = orchestrator.classify_intent("Compare NovelDevice A and NovelDevice B")
         assert analysis.is_comparison_eligible is True
         assert analysis.intent_type == "COMPARISON"
@@ -103,52 +98,6 @@ class TestAgentDeoverfitting:
         assert len(updated_state.target_keywords) >= 2
         assert any("nothing" in k.lower() for k in updated_state.target_keywords)
         assert any("asus" in k.lower() or "rog" in k.lower() for k in updated_state.target_keywords)
-
-    def test_hermetic_bq_client_generalized_matching(self, tmp_path: Path):
-        """Verify create_hermetic_bq_client matches novel brands without a hardcoded brand whitelist."""
-        # Create a catalog with novel brands not in the old whitelist
-        novel_catalog = [
-            {
-                "sku": "9000001",
-                "name": "Asus ROG Phone 8 Pro Gaming Smartphone",
-                "brand": "Asus",
-                "category": "Smartphones",
-                "price": 999.0,
-                "specifications": {"ram_gb": 16, "storage_gb": 512},
-            },
-            {
-                "sku": "9000002",
-                "name": "Nothing Phone 2 Transparent Flagship",
-                "brand": "Nothing",
-                "category": "Smartphones",
-                "price": 699.0,
-                "specifications": {"ram_gb": 12, "storage_gb": 256},
-            },
-        ]
-        cat_file = tmp_path / "novel_catalog.json"
-        cat_file.write_text(json.dumps(novel_catalog), encoding="utf-8")
-
-        client = create_hermetic_bq_client(cat_file)
-
-        # Mock query parameter
-        class MockParam:
-            def __init__(self, name: str, values: list[str]):
-                self.name = name
-                self.values = values
-
-        class MockJobConfig:
-            def __init__(self, patterns: list[str]):
-                self.query_parameters = [MockParam("product_patterns", patterns)]
-
-        job = client.query(
-            "SELECT ...", job_config=MockJobConfig(["%Asus ROG Phone%", "%Nothing Phone%"])
-        )
-        results = job.result()
-
-        assert len(results) == 2
-        skus = {r["sku"] for r in results}
-        assert "9000001" in skus
-        assert "9000002" in skus
 
     def test_extract_keywords_complex_trailing_and_colon_patterns(self):
         """Verify extract_keywords handles trailing comparison phrases and question-colon formats without dropping entities."""

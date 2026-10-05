@@ -27,9 +27,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("evals.runner")
 
 
-from app.agent.hermetic_adapter import create_hermetic_bq_client
-
-
 def normalize_value(val: Any) -> Any:
     """Normalize numeric and string values for fuzzy spec comparisons."""
     if val is None:
@@ -275,12 +272,14 @@ def run_benchmark(
     category: str | None = None,
     limit: int | None = None,
     judge_model: str = "gemini-1.5-flash",
-    live: bool = False,
+    live: bool = True,
     target_accuracy: float = 0.98,
     target_citation: float = 0.95,
     target_latency: float = 3.0,
     target_schema: float = 1.00,
     use_adk_runner: bool = False,
+    bq_client: Any = None,
+    orchestrator: ComparisonOrchestrator | None = None,
 ) -> dict[str, Any]:
     with open(dataset_path, encoding="utf-8") as f:
         raw_data = json.load(f)
@@ -318,20 +317,10 @@ def run_benchmark(
     if not cases:
         raise ValueError(f"No benchmark test cases found matching criteria in {dataset_path}")
 
-    # Set up orchestrator
-    genai_patcher = None
-    if live:
-        logger.info("Running in LIVE mode with Google Cloud BigQuery client")
-        orchestrator = ComparisonOrchestrator()
-    else:
-        import os
-
-        os.environ["HERMETIC_EVAL"] = "true"
-        logger.info(
-            "Running in HERMETIC ADK Runner mode with mock BigQuery client from %s", catalog_path
-        )
-        bq_client = create_hermetic_bq_client(catalog_path)
-        orchestrator = ComparisonOrchestrator(bq_client=bq_client, hermetic=True)
+    # Set up live orchestrator (or injected orchestrator/bq_client for unit tests)
+    logger.info("Running in LIVE mode with Google Cloud BigQuery and Vertex AI")
+    if orchestrator is None:
+        orchestrator = ComparisonOrchestrator(bq_client=bq_client)
 
     results: list[dict[str, Any]] = []
     latencies: list[float] = []
@@ -466,9 +455,6 @@ def run_benchmark(
                 f"Acc: {accuracy:.2f}  Cit: {citation_score:.2f}  Lat: {latency:.3f}s -> {status_str}"
             )
 
-    if genai_patcher is not None:
-        genai_patcher.stop()
-
     n_cases = max(1, len(cases))
     mean_acc = round(total_accuracy / n_cases, 4)
     mean_cit = round(total_citation / n_cases, 4)
@@ -517,7 +503,7 @@ def run_benchmark(
                 else str(dataset_path)
             ),
             "judge_model": judge_model,
-            "mode": "live" if live else "hermetic",
+            "mode": "live",
             "total_cases": len(cases),
             "passed_cases": passed_total,
             "failed_cases": len(cases) - passed_total,
@@ -654,7 +640,7 @@ def main() -> None:
         "--catalog",
         type=Path,
         default=BACKEND_SRC / "app" / "data" / "catalog_seed.json",
-        help="Path to catalog seed JSON (for hermetic BigQuery mocking).",
+        help="Path to catalog seed JSON.",
     )
     parser.add_argument(
         "--category",
@@ -677,8 +663,8 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        default=False,
-        help="Run against live Google Cloud BigQuery and Gemini API.",
+        default=True,
+        help="Run against live Google Cloud BigQuery and Gemini API (default: True).",
     )
     parser.add_argument(
         "--target-accuracy",

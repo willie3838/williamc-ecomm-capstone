@@ -15,20 +15,21 @@ from google.adk.tools.preload_memory_tool import PreloadMemoryTool
 from google.cloud import bigquery
 from google.genai import types
 
-from app.agent.hermetic_adapter import (
+from app.agent.adk_llm import (
     CatalogAdkLlm,
     _check_model_armor_prompt_guard,
     _check_model_armor_response_guard,
+    _get_vertex_client_for_model,
 )
 from app.agent.prompts import SYSTEM_INSTRUCTION
 from app.agent.prompts_service import get_active_prompt
 from app.agent.registry import default_registry
 from app.config import settings
+from app.models.comparison import ComparisonSynthesis
 from app.models.requests import (
     CandidateRankingResponse,
     ChatMessage,
     ComparisonRequest,
-    ComparisonSynthesis,
     QueryIntentAnalysis,
 )
 from app.models.responses import (
@@ -256,34 +257,125 @@ def _extract_json_snippet(text: str) -> str:
     return cleaned
 
 
-# Declarative domain specification registry covering all 5 catalog categories:
-# Laptops, Tablets, Headphones, Smart Home, TVs (s2_05, s2_32).
-# Polarity: "higher" (larger numeric value wins), "lower" (smaller numeric value wins), "none" (qualitative).
-CATEGORY_SPEC_REGISTRY: dict[str, dict[str, Any]] = {
-    "processor": {"label": "Processor / CPU", "polarity": "none", "unit": ""},
-    "ram_gb": {"label": "Memory (RAM)", "polarity": "higher", "unit": " GB"},
-    "storage_gb": {"label": "Storage (SSD)", "polarity": "higher", "unit": " GB"},
-    "battery_life_hours": {"label": "Battery Life", "polarity": "higher", "unit": " hours"},
-    "battery_life_months": {
-        "label": "Battery Life (Months)",
-        "polarity": "higher",
-        "unit": " months",
-    },
-    "display_size_in": {"label": "Display Size", "polarity": "higher", "unit": '"'},
-    "screen_size_in": {"label": "Screen Size", "polarity": "higher", "unit": '"'},
-    "display_resolution": {"label": "Display Resolution", "polarity": "none", "unit": ""},
-    "refresh_rate_hz": {"label": "Refresh Rate", "polarity": "higher", "unit": " Hz"},
-    "weight_lbs": {"label": "Weight", "polarity": "lower", "unit": " lbs"},
-    "ports": {"label": "Ports & Connectivity", "polarity": "none", "unit": ""},
-    "driver_size_mm": {"label": "Driver Size", "polarity": "higher", "unit": " mm"},
-    "noise_canceling": {"label": "Active Noise Canceling", "polarity": "higher", "unit": ""},
-    "sensor_range_ft": {"label": "Sensor Detection Range", "polarity": "higher", "unit": " ft"},
-    "response_time_ms": {"label": "Response Time", "polarity": "lower", "unit": " ms"},
-    "panel_type": {"label": "Display Panel Type", "polarity": "none", "unit": ""},
-    "hdr_support": {"label": "HDR Format Support", "polarity": "none", "unit": ""},
-    "smart_platform": {"label": "Smart Platform / Ecosystem", "polarity": "none", "unit": ""},
-    "connectivity": {"label": "Wireless Connectivity", "polarity": "none", "unit": ""},
+_SPEC_LABELS: dict[str, str] = {
+    "processor": "Processor / CPU",
+    "ram_gb": "Memory (RAM)",
+    "storage_gb": "Storage (SSD)",
+    "battery_life_hours": "Battery Life",
+    "battery_life_months": "Battery Life (Months)",
+    "display_size_in": "Display Size",
+    "screen_size_in": "Screen Size",
+    "display_resolution": "Display Resolution",
+    "refresh_rate_hz": "Refresh Rate",
+    "weight_lbs": "Weight",
+    "weight_oz": "Weight (oz)",
+    "bluetooth_version": "Bluetooth Version",
+    "ports": "Ports & Connectivity",
+    "driver_size_mm": "Driver Size",
+    "noise_canceling": "Active Noise Canceling",
+    "sensor_range_ft": "Sensor Detection Range",
+    "response_time_ms": "Response Time",
+    "panel_type": "Display Panel Type",
+    "hdr_support": "HDR Format Support",
+    "smart_platform": "Smart Platform / Ecosystem",
+    "connectivity": "Wireless Connectivity",
+    "voice_assistant": "Voice Assistant",
 }
+
+_LOWER_IS_BETTER_SPECS: frozenset[str] = frozenset(
+    {
+        "weight_oz",
+        "weight_lbs",
+        "response_time_ms",
+    }
+)
+
+_SUBJECTIVE_SPECS: frozenset[str] = frozenset(
+    {
+        "color",
+        "voice_assistant",
+        "smart_platform",
+        "operating_system",
+        "os",
+        "panel_type",
+        "hdr_support",
+        "ports",
+        "connectivity",
+        "form_factor",
+        "display_resolution",
+        "processor",
+    }
+)
+
+
+def _format_spec_label(spec_key: str) -> str:
+    """Format a specification key into a human-readable matrix feature label."""
+    if spec_key in _SPEC_LABELS:
+        return _SPEC_LABELS[spec_key]
+    return spec_key.replace("_", " ").title()
+
+
+def _format_spec_value(spec_key: str, raw_val: Any) -> str:
+    """Format a raw specification value with appropriate units."""
+    if raw_val is None:
+        return "Not specified"
+    if spec_key == "storage_gb" and isinstance(raw_val, (int, float)):
+        return f"{raw_val} GB" if raw_val < 1000 else f"{raw_val / 1000:g} TB"
+    if spec_key == "battery_life_hours" and isinstance(raw_val, (int, float)):
+        return f"Up to {raw_val} hours"
+    if isinstance(raw_val, bool):
+        return "Yes" if raw_val else "No"
+    if isinstance(raw_val, (int, float)):
+        suffix_units = (
+            ("_gb", " GB"),
+            ("_months", " months"),
+            ("_in", '"'),
+            ("_hz", " Hz"),
+            ("_lbs", " lbs"),
+            ("_oz", " oz"),
+            ("_mm", " mm"),
+            ("_ft", " ft"),
+            ("_ms", " ms"),
+            ("_db", " dB"),
+            ("_nits", " nits"),
+            ("_w", " W"),
+        )
+        for suffix, unit in suffix_units:
+            if spec_key.endswith(suffix):
+                return f"{raw_val}{unit}"
+        return str(raw_val)
+    if isinstance(raw_val, list):
+        return ", ".join(str(item) for item in raw_val)
+    return str(raw_val)
+
+
+def _parse_version_or_number(raw_val: Any) -> tuple[float, ...] | None:
+    """Extract a numeric or version tuple (e.g. '5.3' -> (5.0, 3.0), '8.8 oz' -> (8.8,)) for objective fallback comparison."""
+    if raw_val is None:
+        return None
+    if isinstance(raw_val, bool):
+        return (1.0,) if raw_val else (0.0,)
+    if isinstance(raw_val, (int, float)):
+        return (float(raw_val),)
+    text = str(raw_val).strip()
+    if not text or text.lower() in ("n/a", "none", "not specified", "unknown"):
+        return None
+    if text.lower() in ("yes", "true"):
+        return (1.0,)
+    if text.lower() in ("no", "false"):
+        return (0.0,)
+    # Version string like "5.3" or "v5.3.1"
+    ver_match = re.match(r"^[vV]?(\d+(?:\.\d+)+)$", text)
+    if ver_match:
+        return tuple(float(part) for part in ver_match.group(1).split("."))
+    num_match = re.search(r"[-+]?\d+(?:\.\d+)?", text.replace(",", ""))
+    if num_match:
+        try:
+            return (float(num_match.group(0)),)
+        except ValueError:
+            return None
+    return None
+
 
 # Standalone spec attributes blocklist to prevent spec features from being extracted as distinct product entities
 SPEC_ATTRIBUTES_BLOCKLIST: set[str] = {
@@ -475,6 +567,46 @@ catalog_agent = create_adk_agent(
 )
 
 
+class _SynthesisResult(tuple):
+    """2-tuple (summary, recommendations) that also exposes ComparisonSynthesis attributes."""
+
+    summary: str
+    recommendations: str | None
+    spec_winners: dict[str, str]
+
+    def __new__(
+        cls,
+        summary: str,
+        recommendations: str | None,
+        spec_winners: dict[str, str] | None = None,
+    ) -> "_SynthesisResult":
+        instance = super().__new__(cls, (summary, recommendations))
+        instance.summary = summary
+        instance.recommendations = recommendations
+        instance.spec_winners = dict(spec_winners or {})
+        return instance
+
+
+def _unpack_synthesis_result(
+    res: Any,
+    orchestrator: "ComparisonOrchestrator",
+    products: list[ProductSpec],
+    query: str,
+    matrix: list[MatrixRow] | None = None,
+) -> tuple[str, str | None]:
+    if isinstance(res, ComparisonSynthesis):
+        if res.spec_winners and matrix is not None:
+            matrix[:] = orchestrator.build_comparison_matrix(
+                products, query=query, spec_winners=res.spec_winners
+            )
+        return (
+            orchestrator.verify_and_align_claim_citations(res.summary, products) or "",
+            orchestrator.verify_and_align_claim_citations(res.recommendations, products),
+        )
+    summary_val, recs_val = res
+    return summary_val, recs_val
+
+
 class ComparisonOrchestrator:
     """Orchestrator for managing catalog comparison workflows and grounded synthesis."""
 
@@ -484,13 +616,13 @@ class ComparisonOrchestrator:
         genai_client: Any = None,
         model: str | None = None,
         synthesis_model: str | None = None,
-        hermetic: bool = False,
         repository: Any = None,
+        **kwargs: Any,
     ) -> None:
+        kwargs.pop("hermetic", None)
         self.bq_client = bq_client
         self.repository = repository
         self.genai_client = genai_client
-        self.hermetic = hermetic
         self._injected_model = model
         self._injected_synthesis_model = synthesis_model
         self.configured_model_id: str = model or getattr(settings, "gemini_model", "gemini-2.5-pro")
@@ -511,10 +643,10 @@ class ComparisonOrchestrator:
         self.last_synthesis_model: str = self.synthesis_model
         if (
             self.genai_client is None
-            and not self._is_hermetic_or_test()
+            and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
             and not hasattr(genai.Client, "assert_called")
         ):
-            from app.agent.hermetic_adapter import (
+            from app.agent.adk_llm import (
                 _get_shared_vertex_client,
                 _warm_vertex_client_and_auth,
             )
@@ -546,22 +678,10 @@ class ComparisonOrchestrator:
     def _active_category_hint(self, value: str | None) -> None:
         self._thread_local.active_category_hint = value
 
-    def _is_hermetic_or_test(self) -> bool:
-        """Return True if running in hermetic evaluation or pytest mode."""
-        return (
-            self.hermetic
-            or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
-        )
-
     def _get_genai_client(self, model: str | None = None) -> Any:
         """Return injected genai_client if provided, or return the shared Vertex AI genai.Client."""
         if self.genai_client is not None:
             return self.genai_client
-        if self._is_hermetic_or_test() and not hasattr(genai.Client, "assert_called"):
-            from app.agent.hermetic_adapter import create_hermetic_genai_client
-
-            return create_hermetic_genai_client(default_model=model or self.model)
         if hasattr(genai.Client, "assert_called"):
             os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
             return genai.Client(
@@ -569,7 +689,6 @@ class ComparisonOrchestrator:
                 project=settings.gcp_project,
                 location="us-central1",
             )
-        from app.agent.hermetic_adapter import _get_vertex_client_for_model
 
         target_model = model or self.model
         return _get_vertex_client_for_model(target_model)
@@ -590,7 +709,7 @@ class ComparisonOrchestrator:
                 config=config,
             )
         except Exception as err:
-            from app.agent.hermetic_adapter import (
+            from app.agent.adk_llm import (
                 _get_shared_vertex_client,
                 _is_preview_or_3x_model,
             )
@@ -611,6 +730,19 @@ class ComparisonOrchestrator:
                 fb_client = _get_shared_vertex_client(location="us-central1")
                 return fb_client.models.generate_content(
                     model=model,
+                    contents=contents,
+                    config=config,
+                )
+
+            if "404" in str(err) and model.startswith("gemini-1.5"):
+                fallback_25 = "gemini-2.5-pro" if "pro" in model else "gemini-2.5-flash"
+                logger.info(
+                    "Model %s returned 404 NOT_FOUND; failing over to %s",
+                    model,
+                    fallback_25,
+                )
+                return client.models.generate_content(
+                    model=fallback_25,
                     contents=contents,
                     config=config,
                 )
@@ -860,12 +992,15 @@ class ComparisonOrchestrator:
         return keywords
 
     def build_comparison_matrix(
-        self, products: list[ProductSpec], query: str = ""
+        self,
+        products: list[ProductSpec],
+        query: str = "",
+        spec_winners: dict[str, str] | None = None,
     ) -> list[MatrixRow]:
         """Align product specifications side-by-side across all 5 categories and determine winners.
 
-        When user follow-up query specifies constraints or focus (e.g. 'only price', 'good for gaming',
-        'office work', 'battery life', 'display'), reorders or filters matrix rows dynamically.
+        Uses Stage 4 LLM `spec_winners` when provided, with deterministic numeric/version comparison
+        for objective specs when `spec_winners` is not yet populated.
         """
         if not products:
             return []
@@ -944,7 +1079,7 @@ class ComparisonOrchestrator:
             )
         )
 
-        # 3. Dynamic technical specifications alignment driven by CATEGORY_SPEC_REGISTRY
+        # 3. Dynamic technical specifications alignment
         all_spec_keys: list[str] = []
         for p in products:
             for k in p.specifications.keys():
@@ -981,6 +1116,7 @@ class ComparisonOrchestrator:
             priority_keys = [
                 "battery_life_hours",
                 "weight_lbs",
+                "weight_oz",
                 "display_size_in",
                 "battery_life_months",
             ]
@@ -1003,6 +1139,8 @@ class ComparisonOrchestrator:
                 "noise_canceling",
                 "driver_size_mm",
                 "battery_life_hours",
+                "bluetooth_version",
+                "weight_oz",
                 "connectivity",
             ]
 
@@ -1016,56 +1154,78 @@ class ComparisonOrchestrator:
 
             all_spec_keys.sort(key=_spec_sort_order)
 
+        normalized_spec_winners: dict[str, str] = {}
+        if isinstance(spec_winners, dict):
+            for k, v in spec_winners.items():
+                if k and v is not None:
+                    normalized_spec_winners[str(k).strip()] = str(v).strip()
+                    normalized_spec_winners[str(k).strip().lower()] = str(v).strip()
+
+        alias_to_sku: dict[str, str] = {}
+        for idx, p in enumerate(products):
+            alias_to_sku[f"product_{idx + 1}"] = p.sku
+            alias_to_sku[f"product_{chr(ord('a') + idx)}"] = p.sku
+
         for spec_key in all_spec_keys:
-            spec_meta = CATEGORY_SPEC_REGISTRY.get(
-                spec_key,
-                {
-                    "label": spec_key.replace("_", " ").title(),
-                    "polarity": "none",
-                    "unit": "",
-                },
-            )
-            label = spec_meta["label"]
-            polarity = spec_meta["polarity"]
-            unit = spec_meta["unit"]
-            val_map: dict[str, Any] = {}
-            numeric_vals: list[tuple[str, float]] = []
+            label = _format_spec_label(spec_key)
+            val_map: dict[str, Any] = {
+                p.sku: _format_spec_value(spec_key, p.specifications.get(spec_key))
+                for p in products
+            }
 
-            for p in products:
-                raw_val = p.specifications.get(spec_key)
-                if raw_val is None:
-                    val_map[p.sku] = "Not specified"
-                elif spec_key == "storage_gb" and isinstance(raw_val, (int, float)):
-                    val_map[p.sku] = f"{raw_val} GB" if raw_val < 1000 else f"{raw_val / 1000:g} TB"
-                    numeric_vals.append((p.sku, float(raw_val)))
-                elif spec_key == "battery_life_hours" and isinstance(raw_val, (int, float)):
-                    val_map[p.sku] = f"Up to {raw_val} hours"
-                    numeric_vals.append((p.sku, float(raw_val)))
-                elif isinstance(raw_val, bool):
-                    val_map[p.sku] = "Yes" if raw_val else "No"
-                    if polarity == "higher":
-                        numeric_vals.append((p.sku, 1.0 if raw_val else 0.0))
-                elif isinstance(raw_val, (int, float)):
-                    val_map[p.sku] = f"{raw_val}{unit}" if unit else str(raw_val)
-                    if polarity == "higher":
-                        numeric_vals.append((p.sku, float(raw_val)))
-                    elif polarity == "lower":
-                        numeric_vals.append((p.sku, -float(raw_val)))
-                elif isinstance(raw_val, list):
-                    val_map[p.sku] = ", ".join(str(item) for item in raw_val)
-                else:
-                    val_map[p.sku] = str(raw_val)
-
-            winner_sku = None
+            winner_sku: str | None = None
             winner_skus: list[str] = []
-            # Only crown a spec winner when all products share the spec and are comparable
-            if len(numeric_vals) == len(products):
-                best_val = max(nv[1] for nv in numeric_vals)
-                best_skus = [nv[0] for nv in numeric_vals if nv[1] == best_val]
-                if 0 < len(best_skus) < len(products):
-                    winner_skus = best_skus
-                    if len(best_skus) == 1:
-                        winner_sku = best_skus[0]
+
+            all_have_spec = len(products) >= 2 and all(
+                p.specifications.get(spec_key) is not None for p in products
+            )
+            all_equal = len(set(val_map.values())) <= 1
+
+            if all_have_spec and not all_equal:
+                resolved_by_llm = False
+                raw_winner = (
+                    normalized_spec_winners.get(spec_key)
+                    or normalized_spec_winners.get(spec_key.lower())
+                    or normalized_spec_winners.get(label.lower())
+                )
+                if raw_winner is not None:
+                    rw_low = raw_winner.lower().strip()
+                    if rw_low in ("tie", "equal"):
+                        resolved_by_llm = True
+                    elif rw_low in ("none", "n/a", ""):
+                        if spec_key in _SUBJECTIVE_SPECS:
+                            resolved_by_llm = True
+                    else:
+                        matched_skus: list[str] = []
+                        if rw_low in alias_to_sku:
+                            matched_skus.append(alias_to_sku[rw_low])
+                        else:
+                            for p in products:
+                                if p.sku and p.sku in raw_winner and p.sku not in matched_skus:
+                                    matched_skus.append(p.sku)
+                        if 0 < len(matched_skus) < len(products):
+                            winner_skus = matched_skus
+                            if len(matched_skus) == 1:
+                                winner_sku = matched_skus[0]
+                            resolved_by_llm = True
+
+                if not resolved_by_llm and spec_key not in _SUBJECTIVE_SPECS:
+                    parsed_vals: list[tuple[str, tuple[float, ...]]] = []
+                    for p in products:
+                        pv = _parse_version_or_number(p.specifications.get(spec_key))
+                        if pv is not None:
+                            parsed_vals.append((p.sku, pv))
+                    if len(parsed_vals) == len(products):
+                        best_val = (
+                            min(pv for _, pv in parsed_vals)
+                            if spec_key in _LOWER_IS_BETTER_SPECS
+                            else max(pv for _, pv in parsed_vals)
+                        )
+                        best_skus = [sku for sku, pv in parsed_vals if pv == best_val]
+                        if 0 < len(best_skus) < len(products):
+                            winner_skus = best_skus
+                            if len(best_skus) == 1:
+                                winner_sku = best_skus[0]
 
             rows.append(
                 MatrixRow(
@@ -1111,8 +1271,15 @@ class ComparisonOrchestrator:
 
         num_prods = len(products)
         summary_word_limit = 95 if num_prods <= 2 else min(145, 75 + num_prods * 18)
-        recs_word_limit = 55 if num_prods <= 2 else min(90, 45 + num_prods * 10)
+        recs_word_limit = 55 if num_prods <= 2 else min(120, 45 + num_prods * 15)
         sku_tags_list = ", ".join(f"'{p.name}' [SKU: {p.sku}]" for p in products)
+        all_spec_keys: list[str] = []
+        for p in products:
+            for k in (p.specifications or {}).keys():
+                if k not in all_spec_keys:
+                    all_spec_keys.append(k)
+        spec_keys_str = ", ".join(all_spec_keys) if all_spec_keys else "all specification keys"
+        example_sku = products[0].sku if products else "SKU"
 
         return (
             "You are an expert Best Buy Catalog Product Comparison Specialist.\n"
@@ -1121,14 +1288,15 @@ class ComparisonOrchestrator:
             "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
             f"2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). You must explicitly cite each of the {num_prods} products: {sku_tags_list}. Do not omit citations or relegate them to the end.\n"
             "3. MULTI-DIMENSION TRADE-OFF SYNTHESIS: In 'summary', compare products across all key matrix dimensions (Price/Value $, Processor/RAM/Storage, Display/Resolution/Hz, Battery/Endurance, and Weight/Connectivity) using bullet points ('- ') and explicit trade-off connectors ('whereas', 'conversely', 'leads in', 'versus', 'Trade-Off Analysis:', 'Executive Verdict:').\n"
-            "4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide 2 to 3 distinct persona recommendations separated by semicolons ('; '), each formatted as 'Best for <Persona>: <Product Name> [SKU: <sku>] — <quantitative spec and price rationale>'.\n"
+            f"4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide {num_prods} distinct persona recommendations (citing each of the {num_prods} compared products: {sku_tags_list}) separated by semicolons ('; '), each formatted as 'Best for <Persona>: <Product Name> [SKU: <sku>] — <quantitative spec and price rationale>'.\n"
             f"5. CONCISE SYNTHESIS: Keep 'summary' under {summary_word_limit} words and 'recommendations' under {recs_word_limit} words.\n"
-            "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
+            "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n"
+            f"7. SPEC WINNERS ('spec_winners'): Populate 'spec_winners' as a JSON object mapping each specification key ({spec_keys_str}) to the winning product's SKU string (e.g., '{example_sku}'). Use domain knowledge to determine which spec is objectively better (e.g., higher RAM/storage/refresh rate/battery life/Bluetooth version/peak brightness/driver size, stronger processor/GPU tier, lower weight_lbs/weight_oz/response_time_ms). Use 'tie' if products are equal, or 'none' if subjective (e.g., color, form_factor).\n\n"
             f"<user_query>{query}</user_query>\n\n"
             f"Retrieved Catalog Products:\n{candidates_desc}\n\n"
             f"Comparison Matrix:\n{matrix_desc}\n\n"
             + (f"{price_grounding}\n\n" if price_grounding else "")
-            + 'Return a valid JSON object matching the requested schema with exact keys: {"summary": "...", "recommendations": "..."}.'
+            + 'Return a valid JSON object matching the requested schema with exact keys: {"summary": "...", "recommendations": "...", "spec_winners": {"<spec_key>": "<winning_sku_or_tie_or_none>"}}.'
         )
 
     @staticmethod
@@ -1211,14 +1379,14 @@ class ComparisonOrchestrator:
         matrix: list[MatrixRow],
         query: str = "",
         model: str | None = None,
-    ) -> tuple[str, str | None]:
-        """Synthesize grounded comparison narrative and persona recommendations using Gemini LLM."""
+    ) -> "_SynthesisResult":
+        """Synthesize grounded comparison narrative, persona recommendations, and spec_winners using Gemini LLM."""
         if not products:
-            return "No matching products found in the catalog to compare.", None
+            return _SynthesisResult("No matching products found in the catalog to compare.", None)
 
         if len(products) == 1:
             p = products[0]
-            return (
+            return _SynthesisResult(
                 f"Found single catalog item: {p.name} [SKU: {p.sku}] priced at ${p.price:,.2f}. "
                 "Provide a second product to enable side-by-side comparison.",
                 None,
@@ -1230,8 +1398,7 @@ class ComparisonOrchestrator:
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
 
         is_mock_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
@@ -1421,9 +1588,13 @@ class ComparisonOrchestrator:
                 synth = ComparisonSynthesis.model_validate_json(
                     _clean_synthesis_json(retry_resp.text or "")
                 )
+            if synth.spec_winners and matrix is not None:
+                matrix[:] = self.build_comparison_matrix(
+                    products, query=query, spec_winners=synth.spec_winners
+                )
             summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
             recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
-            return summary_out, recs_out
+            return _SynthesisResult(summary_out, recs_out, synth.spec_winners)
         raise RuntimeError("Empty response from Gemini synthesis LLM")
 
     def synthesize_summary(
@@ -1433,9 +1604,8 @@ class ComparisonOrchestrator:
         synthesis_model: str | None = None,
     ) -> str:
         """Create grounded synthesis narrative strictly citing SKUs."""
-        summary, _ = self.synthesize_comparison_with_llm(
-            products, matrix, query="", model=synthesis_model
-        )
+        res = self.synthesize_comparison_with_llm(products, matrix, query="", model=synthesis_model)
+        summary, _ = _unpack_synthesis_result(res, self, products, "", matrix)
         return summary
 
     def generate_recommendations(
@@ -1445,9 +1615,8 @@ class ComparisonOrchestrator:
     ) -> str | None:
         """Formulate tailored recommendations grounded in the verified comparison matrix."""
         matrix = self.build_comparison_matrix(products)
-        _, recs = self.synthesize_comparison_with_llm(
-            products, matrix, query="", model=synthesis_model
-        )
+        res = self.synthesize_comparison_with_llm(products, matrix, query="", model=synthesis_model)
+        _, recs = _unpack_synthesis_result(res, self, products, "", matrix)
         return recs
 
     def _prelaunch_speculative_stages(
@@ -1651,8 +1820,7 @@ class ComparisonOrchestrator:
         )
 
         is_mock_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
@@ -2016,8 +2184,7 @@ class ComparisonOrchestrator:
 
         # Launch concurrent speculative Stage 4 synthesis alongside Stage 3 reranking in live mode
         is_mock_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
@@ -2131,8 +2298,7 @@ class ComparisonOrchestrator:
         )
 
         is_mock_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
@@ -2549,9 +2715,10 @@ class ComparisonOrchestrator:
                     citations = []
                 else:
                     p = products[0]
-                    summary, _ = self.synthesize_comparison_with_llm(
+                    synth_res = self.synthesize_comparison_with_llm(
                         products, [], query=query, model=active_synthesis_model
                     )
+                    summary, _ = _unpack_synthesis_result(synth_res, self, products, query, [])
                     recommendations = None
                     matrix = []
                     citations = [
@@ -2591,8 +2758,11 @@ class ComparisonOrchestrator:
                 with tracer.start_as_current_span("gemini.synthesize_summary") as synth_span:
                     synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
                     try:
-                        summary, recommendations = self.synthesize_comparison_with_llm(
+                        synth_res = self.synthesize_comparison_with_llm(
                             products, matrix, query=query, model=active_synthesis_model
+                        )
+                        summary, recommendations = _unpack_synthesis_result(
+                            synth_res, self, products, query, matrix
                         )
                     except SecurityViolationError as sec_err:
                         span.set_attribute("ai.safety.blocked", True)
@@ -2645,13 +2815,12 @@ class ComparisonOrchestrator:
         session_id: str | None = None,
         user_id: str | None = None,
     ) -> tuple[str, list[Any]]:
-        """Invoke a specialist ADK Agent via run_adk_agent_sync with hermetic=self.hermetic propagated."""
+        """Invoke a specialist ADK Agent via run_adk_agent_sync."""
         from app.agent.runner import run_adk_agent_sync
 
         effective_model = model or self.synthesis_model
         adk_llm = CatalogAdkLlm(
             model=effective_model,
-            hermetic=self.hermetic,
             genai_client=self.genai_client,
         )
         bound_agent = Agent(
@@ -2665,7 +2834,6 @@ class ComparisonOrchestrator:
             prompt=prompt,
             session_id=session_id,
             user_id=user_id or "default_user",
-            hermetic=self.hermetic,
         )
         self.last_input_tokens += adk_llm.last_input_tokens
         self.last_output_tokens += adk_llm.last_output_tokens
@@ -2769,7 +2937,7 @@ class ComparisonOrchestrator:
                     precomputed_intent=intent,
                 )
                 if len(products) >= 2 and intent.is_comparison_eligible:
-                    matrix = self.build_comparison_matrix(products)
+                    spec_winners_map: dict[str, str] | None = None
                     summary = None
                     recommendations = None
                     if _final_text and _final_text.strip():
@@ -2782,16 +2950,27 @@ class ComparisonOrchestrator:
                             if isinstance(data, dict):
                                 summary = data.get("summary")
                                 recommendations = data.get("recommendations")
+                                raw_sw = data.get("spec_winners")
+                                if isinstance(raw_sw, dict):
+                                    spec_winners_map = {
+                                        str(k): str(v) for k, v in raw_sw.items() if k and v
+                                    }
                         except Exception:
                             if len(_final_text.strip()) > 10:
                                 summary = _final_text.strip()
 
+                    matrix = self.build_comparison_matrix(
+                        products, query=query, spec_winners=spec_winners_map
+                    )
                     if not summary:
-                        summary, recommendations = self.synthesize_comparison_with_llm(
+                        synth_res = self.synthesize_comparison_with_llm(
                             products,
                             matrix,
                             query=query,
                             model=self.synthesis_model,
+                        )
+                        summary, recommendations = _unpack_synthesis_result(
+                            synth_res, self, products, query, matrix
                         )
                     else:
                         summary = self.verify_and_align_claim_citations(summary, products)
@@ -2858,7 +3037,7 @@ class ComparisonOrchestrator:
         try:
             from app.agent.runner import get_default_memory_service
 
-            memory_service = get_default_memory_service(hermetic=self.hermetic)
+            memory_service = get_default_memory_service()
             if memory_service is not None and hasattr(memory_service, "search_memory"):
 
                 async def _search() -> Any:
@@ -2942,8 +3121,7 @@ class ComparisonOrchestrator:
             return False, ""
 
         is_sync_guard_env = (
-            self.hermetic
-            or bool(os.environ.get("PYTEST_CURRENT_TEST"))
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
             or self.genai_client is not None
             or hasattr(genai.Client, "assert_called")
         )
@@ -2977,285 +3155,191 @@ class ComparisonOrchestrator:
             sanitized_content = sanitize_user_prompt(msg.content or "")
             history_lines.append(f"{msg.role.upper()}: {sanitized_content}")
 
-        # Check hermetic / mock mode
-        use_offline_mock = (
-            (self.hermetic or bool(os.environ.get("PYTEST_CURRENT_TEST")))
-            and self.genai_client is None
-            and not hasattr(genai.Client, "assert_called")
-        )
-
         reply_text = ""
         suggested: list[str] = []
 
-        if use_offline_mock:
-            # Deterministic, grounded offline response generator
-            lower_msg = clean_message.lower()
-            if "battery" in lower_msg:
-                # Find battery specs
-                best_batt_p = None
-                best_batt_val = -1.0
-                for p in products:
-                    b_val = (p.specifications or {}).get("battery_life_hours")
-                    try:
-                        b_float = float(b_val) if b_val is not None else 0.0
-                        if b_float > best_batt_val:
-                            best_batt_val = b_float
-                            best_batt_p = p
-                    except (ValueError, TypeError):
-                        pass
-                if best_batt_p and best_batt_val > 0:
-                    other_ps = [p for p in products if p.sku != best_batt_p.sku]
-                    other_detail = ""
-                    if other_ps:
-                        other = other_ps[0]
-                        o_val = (other.specifications or {}).get("battery_life_hours", "unknown")
-                        other_detail = (
-                            f" compared to {o_val} hours on {other.name} [SKU: {other.sku}]"
-                        )
-                    reply_text = (
-                        f"The {best_batt_p.name} [SKU: {best_batt_p.sku}] offers the longest battery life "
-                        f"with up to {best_batt_val:g} hours{other_detail}."
-                    )
-                else:
-                    reply_text = (
-                        f"Comparing battery life across {len(products)} products: "
-                        + ", ".join(
-                            f"{p.name} [SKU: {p.sku}] ({p.specifications.get('battery_life_hours', 'N/A')} hrs)"
-                            for p in products
-                        )
-                        + "."
-                    )
-            elif "price" in lower_msg or "cheap" in lower_msg or "budget" in lower_msg:
-                cheapest_p = min(products, key=lambda x: x.price)
-                most_exp_p = max(products, key=lambda x: x.price)
-                if cheapest_p.sku != most_exp_p.sku:
-                    reply_text = (
-                        f"The {cheapest_p.name} [SKU: {cheapest_p.sku}] is the most affordable at ${cheapest_p.price:,.2f}, "
-                        f"which is ${most_exp_p.price - cheapest_p.price:,.2f} less than {most_exp_p.name} [SKU: {most_exp_p.sku}] (${most_exp_p.price:,.2f})."
-                    )
-                else:
-                    reply_text = (
-                        f"All compared products are priced equally at ${cheapest_p.price:,.2f} "
-                        f"([SKU: {cheapest_p.sku}])."
-                    )
-            elif recalled_memories and (
-                "ram" in lower_msg
-                or "requirement" in lower_msg
-                or "prefer" in lower_msg
-                or "match" in lower_msg
-                or "memory" in lower_msg
-            ):
-                p_specs = [
-                    f"{p.name} [SKU: {p.sku}] ({(p.specifications or {}).get('ram_gb', 'N/A')}GB RAM)"
-                    for p in products
-                ]
-                reply_text = (
-                    f"Recalled customer preferences: {'; '.join(recalled_memories)}. "
-                    f"Evaluating compared products: " + ", ".join(p_specs) + "."
-                )
-            else:
-                p_names = " and ".join(f"{p.name} [SKU: {p.sku}]" for p in products[:5])
-                reply_text = (
-                    f"Based on the catalog specs for {p_names}, each offers distinct advantages. "
-                    + " ".join(
-                        f"{p.name} [SKU: {p.sku}] is priced at ${p.price:,.2f}."
-                        for p in products[:5]
-                    )
-                )
-
-            suggested = [
-                "Which product offers better value for the price?",
-                "How do their physical dimensions and weight compare?",
-                "Which option is better for daily multitasking?",
-            ]
-        else:
-            memory_section = ""
-            if recalled_memories:
-                memory_lines = "\n".join(f"- {mem}" for mem in recalled_memories)
-                memory_section = (
-                    f"<recalled_user_memories>\n{memory_lines}\n</recalled_user_memories>\n\n"
-                )
-
-            prompt = (
-                "You are an expert consumer electronics comparison assistant.\n"
-                "A customer is asking a follow-up question regarding the products they just compared.\n"
-                "You must strictly ground your answer ONLY on the provided products, specifications, and comparison matrix below.\n"
-                "CRITICAL RULES:\n"
-                "1. Strictly cite the product SKU [SKU: <sku>] whenever referencing a product or its specs.\n"
-                "2. NEVER invent, extrapolate, or hallucinate specs not in the provided catalog data.\n"
-                "3. If the user asks about an unrelated topic or unavailable spec, clearly state that the specification is not in the catalog.\n"
-                "4. Provide 2-3 concise, relevant suggested follow-up questions.\n\n"
-                + memory_section
-                + "<compared_products>\n"
-                + "\n".join(product_blocks)
-                + "\n</compared_products>\n\n"
-                + (
-                    "<comparison_matrix>\n" + "\n".join(matrix_lines) + "\n</comparison_matrix>\n\n"
-                    if matrix_lines
-                    else ""
-                )
-                + (
-                    "<conversation_history>\n"
-                    + "\n".join(history_lines)
-                    + "\n</conversation_history>\n\n"
-                    if history_lines
-                    else ""
-                )
-                + f"<customer_question>{clean_message}</customer_question>\n\n"
-                + "Return a valid JSON object with format:\n"
-                + '{"reply": "your grounded answer citing [SKU: <sku>]", "suggested_followups": ["Question 1", "Question 2"]}'
+        memory_section = ""
+        if recalled_memories:
+            memory_lines = "\n".join(f"- {mem}" for mem in recalled_memories)
+            memory_section = (
+                f"<recalled_user_memories>\n{memory_lines}</recalled_user_memories>\n\n"
             )
 
-            call_model = active_model
-            client = self._get_genai_client(model=call_model)
-            # (3) Attach model_armor_config=get_model_armor_config(mode="both") to types.GenerateContentConfig
-            armor_cfg = get_model_armor_config(mode="both")
-            config = types.GenerateContentConfig(
-                system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
-                response_mime_type="application/json",
-                temperature=0.2,
-                max_output_tokens=500,
-                model_armor_config=armor_cfg,
-                thinking_config=_build_thinking_config(call_model),
+        prompt = (
+            "You are an expert consumer electronics comparison assistant.\n"
+            "A customer is asking a follow-up question regarding the products they just compared.\n"
+            "You must strictly ground your answer ONLY on the provided products, specifications, and comparison matrix below.\n"
+            "CRITICAL RULES:\n"
+            "1. Strictly cite the product SKU [SKU: <sku>] whenever referencing a product or its specs.\n"
+            "2. NEVER invent, extrapolate, or hallucinate specs not in the provided catalog data.\n"
+            "3. If the user asks about an unrelated topic or unavailable spec, clearly state that the specification is not in the catalog.\n"
+            "4. Provide 2-3 concise, relevant suggested follow-up questions.\n\n"
+            + memory_section
+            + "<compared_products>\n"
+            + "\n".join(product_blocks)
+            + "\n</compared_products>\n\n"
+            + (
+                "<comparison_matrix>\n" + "\n".join(matrix_lines) + "\n</comparison_matrix>\n\n"
+                if matrix_lines
+                else ""
             )
-            with tracer.start_as_current_span("gemini.chat_followup") as chat_span:
-                chat_span.set_attribute("gen_ai.system", "vertexai")
-                chat_span.set_attribute("gen_ai.request.model", call_model)
-                resp = None
-                is_mock_chat_env = (
-                    self.hermetic
-                    or bool(os.environ.get("PYTEST_CURRENT_TEST"))
-                    or self.genai_client is not None
-                    or hasattr(genai.Client, "assert_called")
-                    or hasattr(client, "assert_called")
-                    or "Mock" in type(client).__name__
+            + (
+                "<conversation_history>\n"
+                + "\n".join(history_lines)
+                + "\n</conversation_history>\n\n"
+                if history_lines
+                else ""
+            )
+            + f"<customer_question>{clean_message}</customer_question>\n\n"
+            + "Return a valid JSON object with format:\n"
+            + '{"reply": "your grounded answer citing [SKU: <sku>]", "suggested_followups": ["Question 1", "Question 2"]}'
+        )
+
+        call_model = active_model
+        client = self._get_genai_client(model=call_model)
+        # (3) Attach model_armor_config=get_model_armor_config(mode="both") to types.GenerateContentConfig
+        armor_cfg = get_model_armor_config(mode="both")
+        config = types.GenerateContentConfig(
+            system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
+            response_mime_type="application/json",
+            temperature=0.2,
+            max_output_tokens=500,
+            model_armor_config=armor_cfg,
+            thinking_config=_build_thinking_config(call_model),
+        )
+        with tracer.start_as_current_span("gemini.chat_followup") as chat_span:
+            chat_span.set_attribute("gen_ai.system", "vertexai")
+            chat_span.set_attribute("gen_ai.request.model", call_model)
+            resp = None
+            is_mock_chat_env = (
+                bool(os.environ.get("PYTEST_CURRENT_TEST"))
+                or self.genai_client is not None
+                or hasattr(genai.Client, "assert_called")
+                or hasattr(client, "assert_called")
+                or "Mock" in type(client).__name__
+            )
+            try:
+                resp = self._call_genai_with_failover(
+                    client,
+                    call_model,
+                    prompt,
+                    config,
+                    is_mock_env=is_mock_chat_env,
                 )
-                try:
-                    resp = self._call_genai_with_failover(
-                        client,
-                        call_model,
-                        prompt,
-                        config,
-                        is_mock_env=is_mock_chat_env,
-                    )
-                except Exception as call_err:
-                    err_msg = str(call_err).lower()
-                    if armor_cfg is not None and (
-                        "model_armor" in err_msg
-                        or "template" in err_msg
-                        or "not found" in err_msg
-                        or "400" in err_msg
-                    ):
-                        logger.warning(
-                            "Model Armor template lookup failed in region (%s); retrying without template.",
-                            call_err,
-                        )
-                        if ma_guard_future is not None:
-                            try:
-                                ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
-                            except Exception:
-                                ma_blocked, ma_reason = False, ""
-                        else:
-                            ma_blocked, ma_reason = _check_model_armor_prompt_guard(
-                                clean_message or message
-                            )
-                        if ma_blocked:
-                            return _make_refusal(
-                                ma_reason or "The prompt violated Model Armor security filters."
-                            )
-                        fallback_config = types.GenerateContentConfig(
-                            system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
-                            response_mime_type="application/json",
-                            temperature=0.2,
-                            max_output_tokens=500,
-                            thinking_config=_build_thinking_config(call_model),
-                        )
-                        try:
-                            resp = self._call_genai_with_failover(
-                                client,
-                                call_model,
-                                prompt,
-                                fallback_config,
-                                is_mock_env=is_mock_chat_env,
-                            )
-                        except Exception as retry_err:
-                            logger.warning("Fallback chat generation failed: %s", retry_err)
-                            resp = None
-                    else:
-                        logger.warning(
-                            "Live chat generation failed; using grounded template fallback: %s",
-                            call_err,
-                        )
-                        resp = None
-
-                if ma_guard_future is not None:
-                    try:
-                        ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
-                        if ma_blocked:
-                            return _make_refusal(
-                                ma_reason or "The prompt violated Model Armor security filters."
-                            )
-                    except Exception:
-                        pass
-
-                # (4) Inspect resp.prompt_feedback.block_reason and resp.candidates[0].finish_reason
-                blocked_reasons = {
-                    "MODEL_ARMOR",
-                    "SAFETY",
-                    "BLOCKLIST",
-                    "PROHIBITED_CONTENT",
-                    "SPII",
-                }
-                is_resp_blocked = False
-                resp_block_detail = ""
-                resp_verdict = "MODEL_ARMOR"
-
-                if resp is not None:
-                    prompt_feedback = getattr(resp, "prompt_feedback", None)
-                    if prompt_feedback is not None:
-                        fb_reason = str(getattr(prompt_feedback, "block_reason", "") or "")
-                        if fb_reason in blocked_reasons:
-                            is_resp_blocked = True
-                            resp_verdict = fb_reason
-                            fb_msg = getattr(prompt_feedback, "block_reason_message", "")
-                            resp_block_detail = (
-                                f"Blocked by {fb_reason}: {fb_msg}"
-                                if fb_msg
-                                else f"Blocked by {fb_reason}."
-                            )
-
-                    if not is_resp_blocked and getattr(resp, "candidates", None):
-                        cand = resp.candidates[0]
-                        finish_reason = str(getattr(cand, "finish_reason", "") or "")
-                        if finish_reason in blocked_reasons:
-                            is_resp_blocked = True
-                            resp_verdict = finish_reason
-                            resp_block_detail = f"Blocked by {finish_reason}."
-
-                if is_resp_blocked:
+            except Exception as call_err:
+                err_msg = str(call_err).lower()
+                if armor_cfg is not None and (
+                    "model_armor" in err_msg
+                    or "template" in err_msg
+                    or "not found" in err_msg
+                    or "400" in err_msg
+                ):
                     logger.warning(
-                        "Chat generation blocked by Model Armor / Safety filter: %s",
-                        resp_block_detail,
+                        "Model Armor template lookup failed in region (%s); retrying without template.",
+                        call_err,
                     )
-                    return _make_refusal(resp_block_detail, verdict=resp_verdict)
-
-                if resp is not None and getattr(resp, "text", None):
+                    if ma_guard_future is not None:
+                        try:
+                            ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
+                        except Exception:
+                            ma_blocked, ma_reason = False, ""
+                    else:
+                        ma_blocked, ma_reason = _check_model_armor_prompt_guard(
+                            clean_message or message
+                        )
+                    if ma_blocked:
+                        return _make_refusal(
+                            ma_reason or "The prompt violated Model Armor security filters."
+                        )
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
+                        response_mime_type="application/json",
+                        temperature=0.2,
+                        max_output_tokens=500,
+                        thinking_config=_build_thinking_config(call_model),
+                    )
                     try:
-                        parsed = json.loads(resp.text)
-                        reply_text = parsed.get("reply", "")
-                        suggested = parsed.get("suggested_followups", [])
-                    except Exception:
-                        reply_text = resp.text
-                elif resp is None and not reply_text:
-                    reply_text = f"Grounded response for {clean_message}: " + " ".join(
-                        f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in products[:5]
-                    )
-                    suggested = ["How do their specs compare?", "Which is better for travel?"]
+                        resp = self._call_genai_with_failover(
+                            client,
+                            call_model,
+                            prompt,
+                            fallback_config,
+                            is_mock_env=is_mock_chat_env,
+                        )
+                    except Exception as retry_err:
+                        logger.error("Fallback chat generation failed: %s", retry_err)
+                        raise RuntimeError(
+                            f"Live chat generation failed after Model Armor fallback: {retry_err}"
+                        ) from retry_err
+                else:
+                    logger.error("Live chat generation failed: %s", call_err)
+                    raise RuntimeError(f"Live chat generation failed: {call_err}") from call_err
 
-                if reply_text:
-                    out_blocked, out_reason = _check_model_armor_response_guard(reply_text)
-                    if out_blocked:
-                        return _make_refusal(out_reason, verdict="MODEL_ARMOR_RESPONSE")
+            if ma_guard_future is not None:
+                try:
+                    ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
+                    if ma_blocked:
+                        return _make_refusal(
+                            ma_reason or "The prompt violated Model Armor security filters."
+                        )
+                except Exception:
+                    pass
+
+            # (4) Inspect resp.prompt_feedback.block_reason and resp.candidates[0].finish_reason
+            blocked_reasons = {
+                "MODEL_ARMOR",
+                "SAFETY",
+                "BLOCKLIST",
+                "PROHIBITED_CONTENT",
+                "SPII",
+            }
+            is_resp_blocked = False
+            resp_block_detail = ""
+            resp_verdict = "MODEL_ARMOR"
+
+            if resp is not None:
+                prompt_feedback = getattr(resp, "prompt_feedback", None)
+                if prompt_feedback is not None:
+                    fb_reason = str(getattr(prompt_feedback, "block_reason", "") or "")
+                    if fb_reason in blocked_reasons:
+                        is_resp_blocked = True
+                        resp_verdict = fb_reason
+                        fb_msg = getattr(prompt_feedback, "block_reason_message", "")
+                        resp_block_detail = (
+                            f"Blocked by {fb_reason}: {fb_msg}"
+                            if fb_msg
+                            else f"Blocked by {fb_reason}."
+                        )
+
+                if not is_resp_blocked and getattr(resp, "candidates", None):
+                    cand = resp.candidates[0]
+                    finish_reason = str(getattr(cand, "finish_reason", "") or "")
+                    if finish_reason in blocked_reasons:
+                        is_resp_blocked = True
+                        resp_verdict = finish_reason
+                        resp_block_detail = f"Blocked by {finish_reason}."
+
+            if is_resp_blocked:
+                logger.warning(
+                    "Chat generation blocked by Model Armor / Safety filter: %s",
+                    resp_block_detail,
+                )
+                return _make_refusal(resp_block_detail, verdict=resp_verdict)
+
+            if resp is not None and getattr(resp, "text", None):
+                try:
+                    parsed = json.loads(resp.text)
+                    reply_text = parsed.get("reply", "")
+                    suggested = parsed.get("suggested_followups", [])
+                except Exception:
+                    reply_text = resp.text
+
+            if not reply_text:
+                raise RuntimeError("Empty response from Gemini chat follow-up LLM")
+
+            out_blocked, out_reason = _check_model_armor_response_guard(reply_text)
+            if out_blocked:
+                return _make_refusal(out_reason, verdict="MODEL_ARMOR_RESPONSE")
 
         # Ensure deterministic claim-to-SKU citation alignment
         reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text

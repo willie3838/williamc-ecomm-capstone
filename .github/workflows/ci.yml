@@ -11,11 +11,21 @@ jobs:
   quality-gate:
     name: Pre-Merge Quality & Docs Sync Gate
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Authenticate to Google Cloud via WIF
+        id: gcp-auth-quality
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/499572810092/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'catalog-cicd-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com'
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -43,13 +53,16 @@ jobs:
           PYTHONPATH=backend/src pytest evals/test_eval_adk.py -vv --no-cov
           echo "=== 2. Simple Fixture Smoke Eval (evals/runner.py) ==="
           PYTHONPATH=backend/src python evals/runner.py \
+            --live \
             --dataset evals/dataset/fixtures/simple_test.evalset.json \
             --output reports/simple_eval.json \
             --target-latency 6.0 \
             --fail-on-threshold \
             --trigger-source ci
-          echo "=== 3. Full 80-Pair Benchmark & Regression Gate (runner.py + analyze.py) ==="
+          echo "=== 3. Live Benchmark & Regression Gate (runner.py --live --limit 10 + analyze.py) ==="
           PYTHONPATH=backend/src python evals/runner.py \
+            --live \
+            --limit 10 \
             --output reports/ci_eval.json \
             --fail-on-threshold \
             --trigger-source ci

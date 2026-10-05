@@ -66,10 +66,6 @@ class AnalyticsService:
             return self._firestore_client
         if os.getenv("PYTEST_CURRENT_TEST"):
             return None
-        import app.agent.hermetic_adapter as ha
-
-        if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
-            return None
 
         if self._firestore_pool:
             with self._client_lock:
@@ -118,10 +114,6 @@ class AnalyticsService:
         if self._bq_client is not None:
             return self._bq_client
         if os.getenv("PYTEST_CURRENT_TEST"):
-            return None
-        import app.agent.hermetic_adapter as ha
-
-        if getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False):
             return None
 
         with self._client_lock:

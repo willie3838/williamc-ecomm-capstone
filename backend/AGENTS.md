@@ -18,6 +18,7 @@ backend/
 │       ├── config.py          # Environment settings (Pydantic BaseSettings)
 │       ├── models/            # Pydantic data schemas
 │       │   ├── __init__.py
+│       │   ├── comparison.py  # ComparisonSynthesis schema (summary, recommendations, spec_winners)
 │       │   ├── requests.py    # ComparisonRequest schema (with agent_version)
 │       │   └── responses.py   # ComparisonResponse, MatrixRow, Citation, AgentCard schemas
 │       ├── agent/             # Google ADK agent definitions, Vertex AI prompts & A2A card
@@ -27,7 +28,7 @@ backend/
 │       │   ├── reasoning_engine.py # Vertex AI Agent Runtime wrapper (ReasoningEngine contract)
 │       │   ├── multi_agent.py # Multi-node cooperative agent pipeline (MultiAgentCoordinator)
 │       │   ├── orchestrator.py# Comparison orchestrator agent, precomputed_intent deduplication & LLM reranker
-│       │   ├── hermetic_adapter.py # CatalogAdkLlm BaseLlm with automatic structured Pydantic schema inference & hermetic pytest/HERMETIC_EVAL isolation
+│       │   ├── adk_llm.py     # Live CatalogAdkLlm BaseLlm, Vertex AI client & Model Armor guardrails, and claim citation scrubbing
 │       │   ├── prompts.py     # Anti-hallucination default system instructions
 │       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
 │       │   ├── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry

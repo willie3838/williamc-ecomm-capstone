@@ -94,7 +94,7 @@ def run_pipeline(
     category: str | None = None,
     limit: int | None = None,
     judge_model: str = "gemini-2.5-flash",
-    live: bool = False,
+    live: bool = True,
     target_accuracy: float = 0.98,
     target_citation: float = 0.95,
     target_latency: float = 3.0,
@@ -232,7 +232,7 @@ def main() -> None:
         "--catalog",
         type=Path,
         default=BACKEND_SRC / "app" / "data" / "catalog_seed.json",
-        help="Path to catalog seed JSON for hermetic mocking.",
+        help="Path to catalog seed JSON.",
     )
     parser.add_argument(
         "--reports-dir",
@@ -267,8 +267,8 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        default=False,
-        help="Run against live Google Cloud BigQuery and Gemini API.",
+        default=True,
+        help="Run against live Google Cloud BigQuery and Gemini API (default: True).",
     )
     parser.add_argument(
         "--target-accuracy",

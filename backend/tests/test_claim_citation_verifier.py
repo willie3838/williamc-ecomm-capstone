@@ -93,7 +93,7 @@ def test_verify_and_align_claim_citations_preserves_valid_citations():
 def test_post_hoc_appending_removed_from_synthesize():
     """Verify synthesize_comparison_with_llm no longer artificially tacks on '[SKU: ...] ($price)'."""
     products = _make_mock_products()
-    orchestrator = ComparisonOrchestrator(model="gemini-2.5-pro", hermetic=True)
+    orchestrator = ComparisonOrchestrator(model="gemini-2.5-pro")
 
     mock_client = MagicMock()
     mock_resp = MagicMock()
@@ -105,11 +105,12 @@ def test_post_hoc_appending_removed_from_synthesize():
     mock_client.models.generate_content.return_value = mock_resp
     orchestrator.genai_client = mock_client
 
-    summary, recs = orchestrator.synthesize_comparison_with_llm(
+    synth = orchestrator.synthesize_comparison_with_llm(
         products=products,
         matrix=orchestrator.build_comparison_matrix(products),
         query="Compare MacBook Air and Dell XPS 13",
     )
+    summary = synth.summary
     # Check that post-hoc appended fragment is NOT present at the end
     assert not summary.endswith("($1,299.00).")
     assert not summary.endswith("($999.00).")
