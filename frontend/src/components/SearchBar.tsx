@@ -43,6 +43,38 @@ const CATEGORIES = [
   { id: 'TVs', label: 'TVs', icon: Tv },
 ] as const;
 
+const MAX_DROPDOWN_ITEMS = 25;
+const MIN_CROSS_CATEGORY_ITEMS = 10;
+
+function rankAndLimitMatches(
+  matches: ProductSpec[],
+  activeCategory: string | null,
+  taggedProducts: ProductSpec[]
+): ProductSpec[] {
+  const untagged = matches.filter(
+    (p) => !taggedProducts.some((t) => t.sku === p.sku)
+  );
+  if (!activeCategory) {
+    return untagged.slice(0, MAX_DROPDOWN_ITEMS);
+  }
+  const categoryLower = activeCategory.toLowerCase();
+  const inCategory: ProductSpec[] = [];
+  const otherCategories: ProductSpec[] = [];
+  for (const product of untagged) {
+    if ((product.category ?? '').toLowerCase() === categoryLower) {
+      inCategory.push(product);
+    } else {
+      otherCategories.push(product);
+    }
+  }
+  const reservedOther = Math.min(otherCategories.length, MIN_CROSS_CATEGORY_ITEMS);
+  const maxInCategory = Math.max(0, MAX_DROPDOWN_ITEMS - reservedOther);
+  return [...inCategory.slice(0, maxInCategory), ...otherCategories].slice(
+    0,
+    MAX_DROPDOWN_ITEMS
+  );
+}
+
 export const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
   onCategorySelect,
@@ -101,25 +133,25 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   const hasTaggedProducts = taggedProducts && taggedProducts.length > 0;
 
-  const MAX_DROPDOWN_ITEMS = 25;
-
-  // Filter catalog products by query and selected category, excluding already tagged products
+  // Search across all catalog categories when a query is typed, ranking selectedCategory matches first
   const availableMatches = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) return [];
-    const matches = searchCatalogProducts(trimmed, selectedCategory);
-    return matches
-      .filter((p) => !taggedProducts.some((t) => t.sku === p.sku))
-      .slice(0, MAX_DROPDOWN_ITEMS);
+    const matches = searchCatalogProducts(trimmed, null);
+    return rankAndLimitMatches(matches, selectedCategory, taggedProducts);
   }, [query, selectedCategory, taggedProducts]);
 
-  // Catalog picker matches (shows initial suggestions if pickerQuery is empty)
+  // Catalog picker matches (keeps selectedCategory filter when pickerQuery is empty; searches all categories when non-empty)
   const pickerMatches = useMemo(() => {
     const trimmed = pickerQuery.trim();
-    const matches = searchCatalogProducts(trimmed, selectedCategory);
-    return matches
-      .filter((p) => !taggedProducts.some((t) => t.sku === p.sku))
-      .slice(0, MAX_DROPDOWN_ITEMS);
+    if (!trimmed) {
+      const initialMatches = searchCatalogProducts('', selectedCategory);
+      return initialMatches
+        .filter((p) => !taggedProducts.some((t) => t.sku === p.sku))
+        .slice(0, MAX_DROPDOWN_ITEMS);
+    }
+    const matches = searchCatalogProducts(trimmed, null);
+    return rankAndLimitMatches(matches, selectedCategory, taggedProducts);
   }, [pickerQuery, selectedCategory, taggedProducts]);
 
   // Click outside listener to dismiss autocomplete dropdown and picker dropdown

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Sparkles,
@@ -55,12 +55,6 @@ export const App: React.FC = () => {
   const [activeModalProduct, setActiveModalProduct] = useState<ProductSpec | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
-
-  // Reset visible card pagination when browse category or search query changes
-  useEffect(() => {
-    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
-  }, [browseCategory, catalogSearchQuery]);
-
 
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
     if (typeof productOrSku === 'object' && productOrSku !== null) {
@@ -151,6 +145,7 @@ export const App: React.FC = () => {
     setSearchParams(null);
     setBrowseCategory({ category: null });
     setCatalogSearchQuery('');
+    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
     setIsAddCompareOpen(false);
     setAddCompareQuery('');
     setSelectedProducts([]);
@@ -176,6 +171,7 @@ export const App: React.FC = () => {
   const handleCategorySelect = (category: string | null) => {
     setSearchParams(null);
     setCatalogSearchQuery('');
+    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
     setIsAddCompareOpen(false);
     setAddCompareQuery('');
     setBrowseCategory({ category });
@@ -669,7 +665,10 @@ export const App: React.FC = () => {
               <input
                 type="text"
                 value={catalogSearchQuery}
-                onChange={(e) => setCatalogSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setCatalogSearchQuery(e.target.value);
+                  setVisibleCardCount(INITIAL_VISIBLE_CARDS);
+                }}
                 placeholder="Search products by name, brand, SKU, or spec to compare..."
                 aria-label="Search products in catalog"
                 className="flex-1 bg-transparent py-1 px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
@@ -677,7 +676,10 @@ export const App: React.FC = () => {
               {catalogSearchQuery && (
                 <button
                   type="button"
-                  onClick={() => setCatalogSearchQuery('')}
+                  onClick={() => {
+                    setCatalogSearchQuery('');
+                    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
+                  }}
                   aria-label="Clear catalog search"
                   className="p-1 text-gray-400 hover:text-gray-600 transition-colors mr-1"
                 >
@@ -730,7 +732,10 @@ export const App: React.FC = () => {
                 </p>
                 <button
                   type="button"
-                  onClick={() => setCatalogSearchQuery('')}
+                  onClick={() => {
+                    setCatalogSearchQuery('');
+                    setVisibleCardCount(INITIAL_VISIBLE_CARDS);
+                  }}
                   className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-bb-blue text-white hover:bg-bb-blue-light transition-all"
                 >
                   Clear search

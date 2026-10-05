@@ -746,6 +746,93 @@ describe('SearchBar', () => {
         sameCategoryProducts
       );
     });
+
+    it('searches across all catalog categories in main SearchBar autocomplete when Laptops category is active and ranks selectedCategory matches first', () => {
+      const handleAddTag = vi.fn();
+      render(
+        <SearchBar
+          onSearch={vi.fn()}
+          onAddTag={handleAddTag}
+          isLoading={false}
+          initialCategory="Laptops"
+        />
+      );
+
+      const input = screen.getByRole('textbox');
+
+      // 1. Searching for Headphones while Laptops category is active still finds Headphones SKUs
+      fireEvent.change(input, { target: { value: 'Sony WH-1000XM5' } });
+      const listbox = screen.getByRole('listbox', { name: /product suggestions/i });
+      expect(listbox).toBeInTheDocument();
+      const sonyOption = screen.getByText(/Sony WH-1000XM5 Wireless/i);
+      expect(sonyOption).toBeInTheDocument();
+
+      // 2. Searching for a multi-category query ("Apple") ranks Laptops first, followed by other categories
+      fireEvent.change(input, { target: { value: 'Apple' } });
+      const options = screen.getAllByRole('option');
+      expect(options.length).toBeGreaterThan(1);
+
+      const categories = options.map((opt) => {
+        const text = opt.textContent || '';
+        if (text.includes('• Laptops')) return 'Laptops';
+        if (text.includes('• Tablets')) return 'Tablets';
+        if (text.includes('• Headphones')) return 'Headphones';
+        return 'Other';
+      });
+
+      // Verify both Laptops and non-Laptops (e.g., Tablets/Headphones) are returned
+      expect(categories).toContain('Laptops');
+      expect(categories.some((c) => c !== 'Laptops')).toBe(true);
+
+      // Verify all Laptops appear before any non-Laptops
+      const firstNonLaptopIdx = categories.findIndex((c) => c !== 'Laptops');
+      const lastLaptopIdx = categories.lastIndexOf('Laptops');
+      expect(lastLaptopIdx).toBeLessThan(firstNonLaptopIdx);
+    });
+
+    it('keeps selectedCategory filtering in picker when pickerQuery is empty, but searches across all categories and ranks selectedCategory first when pickerQuery is non-empty', () => {
+      const handleAddTag = vi.fn();
+      render(
+        <SearchBar
+          onSearch={vi.fn()}
+          onAddTag={handleAddTag}
+          isLoading={false}
+          initialCategory="Laptops"
+          taggedProducts={[]}
+        />
+      );
+
+      const addBtn = screen.getByRole('button', { name: /add product to compare/i });
+      fireEvent.click(addBtn);
+
+      // 1. When pickerQuery is empty, all initial suggestions belong to selectedCategory ("Laptops")
+      const initialOptions = screen.getAllByRole('option');
+      expect(initialOptions.length).toBeGreaterThan(0);
+      for (const opt of initialOptions) {
+        expect(opt).toHaveTextContent(/• Laptops/i);
+      }
+
+      // 2. When typing a Headphones query in picker, searches across all categories and finds Headphones SKUs
+      const pickerSearch = screen.getByPlaceholderText(/search products by name, brand, or sku/i);
+      fireEvent.change(pickerSearch, { target: { value: 'Sony WH-1000XM5' } });
+
+      const headphoneOptions = screen.getAllByRole('option');
+      expect(headphoneOptions.length).toBeGreaterThan(0);
+      expect(headphoneOptions[0]).toHaveTextContent(/Sony WH-1000XM5/i);
+      expect(headphoneOptions[0]).toHaveTextContent(/• Headphones/i);
+
+      // 3. When typing a multi-category query ("Apple") in picker, ranks Laptops before other categories
+      fireEvent.change(pickerSearch, { target: { value: 'Apple' } });
+      const appleOptions = screen.getAllByRole('option');
+      const appleCategories = appleOptions.map((opt) =>
+        (opt.textContent || '').includes('• Laptops') ? 'Laptops' : 'Other'
+      );
+      expect(appleCategories).toContain('Laptops');
+      expect(appleCategories).toContain('Other');
+      expect(appleCategories.lastIndexOf('Laptops')).toBeLessThan(
+        appleCategories.indexOf('Other')
+      );
+    });
   });
 });
 
