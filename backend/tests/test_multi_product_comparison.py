@@ -2,14 +2,11 @@
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from evals.runner import evaluate_semantic_coherence
 
-from app.agent.hermetic_adapter import (
-    HermeticModelAdapter,
-    create_hermetic_bq_client,
-)
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import CompareResponse, ProductSpec
 
@@ -51,7 +48,7 @@ def test_rank_and_select_products_multi_product(sample_catalog_products):
     """Verify rank_and_select_products selects exactly 3, 4, and 5 products when requested."""
     prods = sample_catalog_products
     assert len(prods) == 5
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
 
     # 3 products query
     kw3 = ["MacBook Air", "Dell XPS", "ThinkPad"]
@@ -85,7 +82,7 @@ def test_rank_and_select_products_multi_product(sample_catalog_products):
 
 def test_build_comparison_matrix_multi_product(sample_catalog_products):
     """Verify comparison matrix aligns specs and determines winners across 3, 4, and 5 products."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
 
     # 3 products
     matrix3 = orch.build_comparison_matrix(sample_catalog_products[:3])
@@ -105,36 +102,6 @@ def test_build_comparison_matrix_multi_product(sample_catalog_products):
         if row.feature == "Price":
             min_sku = min(sample_catalog_products[:5], key=lambda p: p.price).sku
             assert row.winner_sku == min_sku
-
-
-def test_hermetic_adapter_multi_product_synthesis(sample_catalog_products):
-    """Verify HermeticModelAdapter.synthesis_response produces grounded narrative citing all 3, 4, and 5 SKUs."""
-    # 3 products
-    p3 = sample_catalog_products[:3]
-    prompt3 = "<user_query>Compare 3 laptops</user_query>\n" + "\n".join(
-        f"- Product: {p.name} [SKU: {p.sku}] | Brand: {p.brand} | Price: ${p.price:,.2f} | "
-        f"Specs: {json.dumps(p.specifications)}"
-        for p in p3
-    )
-    raw3 = HermeticModelAdapter.synthesis_response(prompt3, skip_vertex_call=True)
-    resp3 = json.loads(raw3)
-    assert "summary" in resp3 and resp3["summary"]
-    for p in p3:
-        assert f"[SKU: {p.sku}]" in resp3["summary"]
-    assert "Price:" in resp3["summary"]
-
-    # 5 products
-    p5 = sample_catalog_products[:5]
-    prompt5 = "<user_query>Compare 5 laptops</user_query>\n" + "\n".join(
-        f"- Product: {p.name} [SKU: {p.sku}] | Brand: {p.brand} | Price: ${p.price:,.2f} | "
-        f"Specs: {json.dumps(p.specifications)}"
-        for p in p5
-    )
-    raw5 = HermeticModelAdapter.synthesis_response(prompt5, skip_vertex_call=True)
-    resp5 = json.loads(raw5)
-    assert "summary" in resp5 and resp5["summary"]
-    for p in p5:
-        assert f"[SKU: {p.sku}]" in resp5["summary"]
 
 
 def test_evaluate_semantic_coherence_multi_product(sample_catalog_products):
@@ -174,10 +141,27 @@ def test_evaluate_semantic_coherence_multi_product(sample_catalog_products):
     assert any("Summary does not reference product" in err for err in errs_inc)
 
 
-def test_end_to_end_orchestrator_multi_product():
-    """Verify end-to-end CompareResponse generation with 3 and 4 products in hermetic mode."""
-    bq_client = create_hermetic_bq_client(CATALOG_PATH)
-    orch = ComparisonOrchestrator(bq_client=bq_client, hermetic=True)
+def test_end_to_end_orchestrator_multi_product(sample_catalog_products):
+    """Verify end-to-end CompareResponse generation with 3 and 4 products using mocked BigQuery."""
+    with open(CATALOG_PATH, encoding="utf-8") as f:
+        catalog = json.load(f)
+    laptop_rows = [p for p in catalog if p.get("category") == "Laptops"][:5]
+    headphone_rows = [p for p in catalog if p.get("category") == "Headphones"][:5]
+
+    mock_bq = MagicMock()
+
+    def _query_side_effect(sql, job_config=None):
+        job = MagicMock()
+        params = getattr(job_config, "query_parameters", []) if job_config else []
+        cat_val = next(
+            (getattr(p, "value", None) for p in params if getattr(p, "name", "") == "category"),
+            "Laptops",
+        )
+        job.result.return_value = headphone_rows if cat_val == "Headphones" else laptop_rows
+        return job
+
+    mock_bq.query.side_effect = _query_side_effect
+    orch = ComparisonOrchestrator(bq_client=mock_bq)
 
     # 3-product query
     q3 = "Compare MacBook Air 13 M3, Dell XPS 13, and Lenovo ThinkPad X1 Carbon Gen 12"

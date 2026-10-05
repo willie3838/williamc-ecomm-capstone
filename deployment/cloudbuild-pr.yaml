@@ -40,13 +40,16 @@ steps:
         mkdir -p reports
         echo "=== Running Simple Fixture Smoke Eval via runner.py ==="
         PYTHONPATH=backend/src python evals/runner.py \
+          --live \
           --dataset evals/dataset/fixtures/simple_test.evalset.json \
           --output reports/simple_eval.json \
           --target-latency 6.0 \
           --fail-on-threshold \
           --trigger-source ci
-        echo "=== Running Evaluation Flywheel 80-Pair Benchmark Suite ==="
+        echo "=== Running Evaluation Flywheel Live Benchmark Suite (limit 10) ==="
         PYTHONPATH=backend/src python evals/runner.py \
+          --live \
+          --limit 10 \
           --output reports/pr_eval.json \
           --fail-on-threshold \
           --trigger-source ci

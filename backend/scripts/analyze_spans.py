@@ -102,40 +102,14 @@ def analyze_local_query(
 
     from app.agent.multi_agent import MultiAgentCoordinator
 
-    bq_client = None
-    if offline:
-        from app.agent.hermetic_adapter import create_hermetic_bq_client
-
-        bq_client = create_hermetic_bq_client()
-
-    try:
-        coordinator = MultiAgentCoordinator(bq_client=bq_client, model=model)
-        t_start = time.perf_counter()
-        response = coordinator.execute(
-            raw_query=query,
-            category=category,
-            model=model,
-        )
-        t_end = time.perf_counter()
-    except Exception as exc:
-        err_str = str(exc).lower()
-        if "reauth" in err_str or "credentials" in err_str or "401" in err_str:
-            print(
-                f"[*] Live GCP credentials unavailable ({exc}). Profiling using hermetic grounded adapter..."
-            )
-            from app.agent.hermetic_adapter import create_hermetic_bq_client
-
-            exporter.clear()
-            coordinator = MultiAgentCoordinator(bq_client=create_hermetic_bq_client(), model=model)
-            t_start = time.perf_counter()
-            response = coordinator.execute(
-                raw_query=query,
-                category=category,
-                model=model,
-            )
-            t_end = time.perf_counter()
-        else:
-            raise
+    coordinator = MultiAgentCoordinator(bq_client=None, model=model)
+    t_start = time.perf_counter()
+    response = coordinator.execute(
+        raw_query=query,
+        category=category,
+        model=model,
+    )
+    t_end = time.perf_counter()
 
     wall_clock_ms = round((t_end - t_start) * 1000.0, 2)
 

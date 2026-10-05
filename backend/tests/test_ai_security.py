@@ -193,9 +193,10 @@ def test_synthesize_comparison_with_llm_passes_model_armor_config(mock_client_cl
     ]
     matrix = orchestrator.build_comparison_matrix(products)
 
-    summary, recs = orchestrator.synthesize_comparison_with_llm(
+    synth = orchestrator.synthesize_comparison_with_llm(
         products, matrix, query="Compare Product A and Product B"
     )
+    summary, recs = synth.summary, synth.recommendations
 
     assert mock_client.models.generate_content.called
     kwargs = mock_client.models.generate_content.call_args.kwargs
@@ -216,9 +217,8 @@ from google.adk.models import LlmRequest
 @pytest.mark.asyncio
 async def test_catalog_adk_llm_attaches_model_armor_on_flash_lite_tool_turn(monkeypatch):
     """Verify CatalogAdkLlm attaches model_armor_config even when routing Playground tool turns to gemini-2.5-flash-lite."""
-    import app.agent.hermetic_adapter as ha
+    import app.agent.adk_llm as ha
 
-    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
     monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
 
@@ -241,7 +241,7 @@ async def test_catalog_adk_llm_attaches_model_armor_on_flash_lite_tool_turn(monk
     fake_client.models.generate_content.return_value = fake_resp
 
     with patch.object(ha, "_get_shared_vertex_client", return_value=fake_client):
-        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro")
         req = LlmRequest(
             contents=[
                 types.Content(
@@ -267,10 +267,9 @@ async def test_catalog_adk_llm_attaches_model_armor_on_flash_lite_tool_turn(monk
 async def test_catalog_adk_llm_returns_valid_model_armor_refusal_without_hermetic_fallback(
     monkeypatch,
 ):
-    """Verify CatalogAdkLlm yields an explicit Model Armor refusal response (and does not call query_catalog or hermetic fallback) when Model Armor blocks a prompt."""
-    import app.agent.hermetic_adapter as ha
+    """Verify CatalogAdkLlm yields an explicit Model Armor refusal response when Model Armor blocks a prompt."""
+    import app.agent.adk_llm as ha
 
-    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
     monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
 
@@ -286,7 +285,7 @@ async def test_catalog_adk_llm_returns_valid_model_armor_refusal_without_hermeti
     fake_client.models.generate_content.return_value = fake_resp
 
     with patch.object(ha, "_get_shared_vertex_client", return_value=fake_client):
-        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro")
         req = LlmRequest(
             contents=[
                 types.Content(
@@ -319,9 +318,8 @@ async def test_catalog_adk_llm_template_not_found_checks_model_armor_api_and_pre
     monkeypatch,
 ):
     """Verify TEMPLATE_NOT_FOUND consults _check_model_armor_prompt_guard and blocks on MATCH_FOUND or preserves tools on retry."""
-    import app.agent.hermetic_adapter as ha
+    import app.agent.adk_llm as ha
 
-    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_adk_runner_live")
     monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
 
@@ -338,7 +336,7 @@ async def test_catalog_adk_llm_template_not_found_checks_model_armor_api_and_pre
             return_value=(True, "The prompt violated Malicious URIs filters."),
         ) as mock_ma_api,
     ):
-        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro")
         req = LlmRequest(
             contents=[
                 types.Content(
@@ -368,9 +366,8 @@ async def test_catalog_adk_llm_runs_concurrent_model_armor_on_live_flash_lite_tu
     monkeypatch,
 ):
     """Verify live flash-lite Turn 1 runs _check_model_armor_prompt_guard concurrently with zero 400 retry overhead."""
-    import app.agent.hermetic_adapter as ha
+    import app.agent.adk_llm as ha
 
-    monkeypatch.delenv("HERMETIC_EVAL", raising=False)
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False, raising=False)
     monkeypatch.setattr(ha, "_VERTEX_AUTH_CHECKED", True, raising=False)
@@ -404,7 +401,7 @@ async def test_catalog_adk_llm_runs_concurrent_model_armor_on_live_flash_lite_tu
         "_check_model_armor_prompt_guard",
         return_value=(True, "The prompt violated Prompt Injection and Jailbreak filters."),
     ) as mock_ma_api:
-        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro", hermetic=False)
+        llm = ha.CatalogAdkLlm(model="gemini-2.5-pro")
         req = LlmRequest(
             contents=[
                 types.Content(
@@ -705,7 +702,7 @@ def test_chat_with_products_raw_text_fallback(mock_client_cls):
 
 @patch("google.genai.Client")
 def test_chat_with_products_generation_error_template_fallback(mock_client_cls):
-    """Verify chat_with_products uses grounded template fallback when generate_content fails with general error."""
+    """Verify chat_with_products fails fast with RuntimeError when generate_content fails with general error."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
     mock_client.models.generate_content.side_effect = RuntimeError("503 Service Unavailable")
@@ -716,13 +713,11 @@ def test_chat_with_products_generation_error_template_fallback(mock_client_cls):
         ProductSpec(sku="222", name="Product B", price=899.0, brand="BrandB", category="Laptops"),
     ]
 
-    resp = orchestrator.chat_with_products(
-        message="Which has better battery?",
-        products=products,
-    )
-
-    assert "Grounded response for Which has better battery?" in resp.reply
-    assert "[SKU: 111]" in resp.reply
+    with pytest.raises(RuntimeError, match="503 Service Unavailable"):
+        orchestrator.chat_with_products(
+            message="Which has better battery?",
+            products=products,
+        )
 
 
 @patch("google.genai.Client")
@@ -754,7 +749,7 @@ def test_chat_with_products_template_not_found_blocked_in_retry(mock_client_cls)
 
 @patch("google.genai.Client")
 def test_chat_with_products_template_not_found_retry_fails(mock_client_cls):
-    """Verify chat_with_products handles secondary error in fallback retry without crashing."""
+    """Verify chat_with_products propagates secondary error in fallback retry."""
     mock_client = MagicMock()
     mock_client_cls.return_value = mock_client
     mock_client.models.generate_content.side_effect = [
@@ -767,14 +762,14 @@ def test_chat_with_products_template_not_found_retry_fails(mock_client_cls):
         ProductSpec(sku="111", name="Product A", price=999.0, brand="BrandA", category="Laptops")
     ]
 
-    with patch(
-        "app.agent.orchestrator._check_model_armor_prompt_guard",
-        return_value=(False, ""),
+    with (
+        patch(
+            "app.agent.orchestrator._check_model_armor_prompt_guard",
+            return_value=(False, ""),
+        ),
+        pytest.raises(RuntimeError, match="500 Internal Server Error"),
     ):
-        resp = orchestrator.chat_with_products(message="Help with laptops", products=products)
-
-    assert "Grounded response for Help with laptops" in resp.reply
-    assert "[SKU: 111]" in resp.reply
+        orchestrator.chat_with_products(message="Help with laptops", products=products)
 
 
 @patch("google.genai.Client")
@@ -807,7 +802,7 @@ def test_extract_model_armor_location_and_response_guard() -> None:
     import json
     from unittest.mock import MagicMock, patch
 
-    from app.agent.hermetic_adapter import (
+    from app.agent.adk_llm import (
         _check_model_armor_response_guard,
         _extract_model_armor_location,
     )
@@ -834,7 +829,7 @@ def test_extract_model_armor_location_and_response_guard() -> None:
     fake_resp.__enter__.return_value = fake_resp
 
     with (
-        patch("app.agent.hermetic_adapter._get_gcp_access_token", return_value="fake-token"),
+        patch("app.agent.adk_llm._get_gcp_access_token", return_value="fake-token"),
         patch("urllib.request.urlopen", return_value=fake_resp) as mock_urlopen,
     ):
         blocked, reason = _check_model_armor_response_guard("Leaked SSN 123-45-6789")

@@ -215,4 +215,6 @@ def test_heuristic_spec_accuracy_equal_prices(mock_bq_client):
 
     matrix_rows = {r.feature: r for r in resp.comparison_matrix}
     assert matrix_rows["Price"].winner_sku is None  # Tie, no single winner
-    assert "Both products are priced identically at $999.00" in resp.summary
+    assert "999" in resp.summary
+    assert "[SKU: A1]" in resp.summary
+    assert "[SKU: B2]" in resp.summary

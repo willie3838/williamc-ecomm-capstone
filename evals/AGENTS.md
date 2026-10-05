@@ -10,7 +10,7 @@ Welcome to the evaluation engine of the **Best Buy Catalog Comparison Agent**. T
 evals/
 ├── AGENTS.md                  # This file (evaluation harness guide)
 ├── adk_eval_config.json       # Official ADK EvalConfig (hallucinations_v1, response_match_score)
-├── runner.py                  # Hermetic in-memory SQL + GenAI evaluation runner (mocks BigQuery & Vertex AI in hermetic mode)
+├── runner.py                  # Live BigQuery + Vertex AI GenAI evaluation runner
 ├── analyze.py                 # Report analysis, metric visualization, and regression checks
 ├── anti_overfitting_gate.py   # Counterfactual Anti-Overfitting Gate & Generalization analyzer
 ├── judge.py                   # Single-response Faithfulness LLM-as-a-Judge
@@ -81,25 +81,26 @@ Launch the visual web debugger to inspect Event, Request, Response, and Graph ta
 adk web backend/src/app/agent
 ```
 
-### E. Hermetic Fast-Path Runner (Zero-Cloud Cost)
-For instant local iteration without GCP API quota:
+### E. Live Evaluation Runner (`evals.runner --live`)
+Run evaluations against live BigQuery and Vertex AI Gemini endpoints (used in Cloud Build PR/merge gates with `--live --limit 10`):
 ```bash
 python3 -m evals.runner \
   --dataset evals/dataset/benchmark_catalog.evalset.json \
-  --output evals/reports/eval_results.json
+  --output evals/reports/eval_results.json \
+  --live --limit 10
 ```
-`run_benchmark()` defaults `catalog_path` to `backend/src/app/data/catalog_seed.json` for ergonomic programmatic usage, and supports custom catalog seeds for counterfactual perturbation tests.
+`run_benchmark()` defaults `live=True` and `catalog_path` to `backend/src/app/data/catalog_seed.json` for counterfactual perturbation overrides when specified.
 
 To execute evaluations through the Google ADK Runner lifecycle:
 ```bash
 python3 -m evals.runner \
   --dataset evals/dataset/fixtures/simple_test.evalset.json \
   --output evals/reports/eval_results.json \
-  --use-adk-runner
+  --use-adk-runner --live
 ```
 
-### F. Brand-Agnostic Hermetic Mocking (Anti-Overfitting)
-`create_hermetic_bq_client` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
+### F. Brand-Agnostic Query & Candidate Matching (Anti-Overfitting)
+`ComparisonOrchestrator` utilizes generalized token-overlap matching against catalog brand names and item titles instead of hardcoded brand whitelists, ensuring unbiased evaluation over novel products, categories, and holdout datasets.
 
 ### G. Candidate Foundation Model & Stage-First Specialist Benchmarking (`evals/benchmark_models.py`)
 Benchmark candidate foundation models across ONLY the 9 production-safe GA Gemini 2.5-3.8 models (`gemini-2.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`, `gemini-2.5-flash`, `gemini-3.5-flash`, `gemini-3.6-flash`, `gemini-3.7-flash`, `gemini-3.8-flash`, `gemini-2.5-pro`, plus `tiered-hybrid` and `gemini-1.5-flash` baseline, excluding all preview models) using a **Stage-First (Specialist-Only)** architecture across the 3 real LLM specialist agents, custom rubrics (`evals/rubrics/data_accuracy.md`, `evals/rubrics/citation_faithfulness.md`, `evals/rubrics/semantic_coherence.md`), stratified 5-category sampling (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`), and sanitized Vertex AI Metadata run IDs (`run-stage1-intent-<model>-<ts>`, `run-stage2-relevance-<model>-<ts>`, `run-stage3-synthesis-<model>-<ts>`):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -11,10 +12,12 @@ from fastapi.testclient import TestClient
 from app.agent.multi_agent import MultiAgentCoordinator
 from app.agent.orchestrator import (
     ComparisonOrchestrator,
+    QueryIntentAnalysis,
     create_adk_agent,
     resolve_model_pair,
 )
 from app.main import create_app
+from app.models.comparison import ComparisonSynthesis
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -113,7 +116,6 @@ def test_orchestrator_dynamic_model_and_synthesis_model_injection() -> None:
     orchestrator = ComparisonOrchestrator(
         bq_client=mock_bq,
         model="tiered-hybrid",
-        hermetic=True,
     )
     assert orchestrator.configured_model_id == "tiered-hybrid"
     assert orchestrator.model == "gemini-2.5-flash"
@@ -155,17 +157,24 @@ def test_multi_agent_coordinator_dynamic_model_swapping() -> None:
 
 def test_api_dynamic_model_swapping() -> None:
     """Verify /api/compare model and synthesis_model overrides."""
+    mock_bq = _build_mock_bq_client_with_two_laptops()
+    coord = MultiAgentCoordinator(
+        bq_client=mock_bq,
+        model="gemini-2.5-flash",
+        synthesis_model="gemini-2.5-pro",
+    )
     app = create_app()
     client = TestClient(app)
 
-    resp = client.post(
-        "/api/compare",
-        json={
-            "query": "Compare Apple MacBook Air M3 and Dell XPS 13",
-            "model": "gemini-2.5-flash",
-            "synthesis_model": "gemini-2.5-pro",
-        },
-    )
+    with patch("app.routes.compare._get_coordinator", return_value=coord):
+        resp = client.post(
+            "/api/compare",
+            json={
+                "query": "Compare Apple MacBook Air M3 and Dell XPS 13",
+                "model": "gemini-2.5-flash",
+                "synthesis_model": "gemini-2.5-pro",
+            },
+        )
     assert resp.status_code == 200
     payload = resp.json()
     assert payload["synthesis_model"] == "gemini-2.5-pro"
@@ -187,8 +196,8 @@ def test_load_custom_rubrics() -> None:
     assert rubrics["citation_faithfulness"].critical_threshold == 0.90
 
 
-def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None:
-    """Verify benchmark_models evaluates all 4 candidate models and logs runs to Vertex AI Experiments."""
+def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path, monkeypatch) -> None:
+    """Verify benchmark_models evaluates all candidate models and logs runs to Vertex AI Experiments."""
     from evals.benchmark_models import (
         CANDIDATE_MODELS,
         generate_benchmark_markdown,
@@ -221,7 +230,37 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
         mock_aiplatform.log_metrics.assert_called_once()
         mock_aiplatform.end_run.assert_called_once()
 
-    # Run benchmark across all 4 candidates with limit=4 for fast unit test verification
+    mock_bq = _build_mock_bq_client_with_two_laptops()
+    monkeypatch.setattr("app.tools.catalog._get_shared_bq_client", lambda: mock_bq)
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "classify_intent_with_llm",
+        lambda self_o, q, *a, **kw: QueryIntentAnalysis(
+            intent_type="COMPARISON",
+            is_comparison_eligible=True,
+            detected_category="Laptops",
+            target_keywords=["MacBook Air", "Dell XPS"],
+            reasoning="Comparison query",
+        ),
+    )
+    monkeypatch.setattr(
+        ComparisonOrchestrator,
+        "_rerank_with_llm",
+        lambda self_o, cands, *a, **kw: list(cands),
+    )
+
+    def _mock_synth(
+        self_o: Any, prods: list[Any], matrix: Any = None, query: str = "", model: str | None = None
+    ) -> ComparisonSynthesis:
+        sku_str = " and ".join(f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in prods)
+        return ComparisonSynthesis(
+            summary=f"Comparing {sku_str}: {prods[0].name} [SKU: {prods[0].sku}] is the lowest price option.",
+            recommendations=f"Best Value: {prods[0].name} [SKU: {prods[0].sku}].",
+            spec_winners={"ram_gb": prods[-1].sku, "battery_life_hours": prods[0].sku},
+        )
+
+    monkeypatch.setattr(ComparisonOrchestrator, "synthesize_comparison_with_llm", _mock_synth)
+
     output_json = tmp_path / "model_benchmark_results.json"
     output_md = tmp_path / "model_benchmark_summary.md"
     report = run_model_benchmarks(
@@ -229,6 +268,7 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
         catalog_path=REPO_ROOT / "backend" / "src" / "app" / "data" / "catalog_seed.json",
         rubrics_dir=REPO_ROOT / "evals" / "rubrics",
         limit=4,
+        live=False,
         output_json_path=output_json,
         output_md_path=output_md,
         log_vertex=True,
@@ -240,7 +280,6 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path) -> None
     assert "per_stage_benchmarks" in report
     assert output_json.exists()
     assert output_md.exists()
-    # Verify reports_out_dir writes scorecard and matrix to tmp_path without touching evals/reports/
     assert (tmp_path / "model_decision_scorecard.md").exists()
     assert (tmp_path / "model_decision_matrix.json").exists()
 

@@ -107,21 +107,24 @@ def test_no_model_or_schema_spoofing_in_orchestrator():
     )
 
 
-def test_no_model_or_schema_spoofing_in_hermetic_adapter():
-    """Verify hermetic_adapter.py _call_real_vertex_gemini honors requested model and schema."""
-    adapter_file = BACKEND_DIR / "src" / "app" / "agent" / "hermetic_adapter.py"
+def test_no_model_or_schema_spoofing_in_adk_llm_and_hermetic_adapter_deleted():
+    """Verify hermetic_adapter.py is deleted and adk_llm.py _call_real_vertex_gemini honors requested model and schema."""
+    old_adapter = BACKEND_DIR / "src" / "app" / "agent" / "hermetic_adapter.py"
+    assert not old_adapter.exists(), "hermetic_adapter.py must be deleted!"
+
+    adapter_file = BACKEND_DIR / "src" / "app" / "agent" / "adk_llm.py"
     content = adapter_file.read_text(encoding="utf-8")
 
     # _call_real_vertex_gemini should not force target_model to flash-lite when pro or tiered-hybrid is requested
     assert (
         'target_model = (\n        "gemini-2.5-flash-lite"\n        if model in ("gemini-1.5-flash", "gemini-2.5-pro", "tiered-hybrid", "")'
         not in content
-    ), "hermetic_adapter.py silently overrides model to gemini-2.5-flash-lite in live mode!"
+    ), "adk_llm.py silently overrides model to gemini-2.5-flash-lite in live mode!"
     # response_schema should not be conditional on assert_called or PYTEST_CURRENT_TEST
     assert (
         'if hasattr(genai.Client, "assert_called") or os.environ.get("PYTEST_CURRENT_TEST"):\n            cfg_kwargs["response_schema"] = schema_cls'
         not in content
-    ), "hermetic_adapter.py drops response_schema in live mode!"
+    ), "adk_llm.py drops response_schema in live mode!"
 
 
 def test_thinking_config_zero_budget_on_flash_stages():
@@ -284,7 +287,7 @@ def test_query_catalog_no_test_environment_branching_for_cache():
 
 def test_verify_and_scrub_synthesis_claims_no_artificial_concatenation():
     """Verify verify_and_scrub_synthesis_claims scrubs invalid SKUs without artificially concatenating strings."""
-    from app.agent.hermetic_adapter import verify_and_scrub_synthesis_claims
+    from app.agent.adk_llm import verify_and_scrub_synthesis_claims
     from app.models.responses import ProductSpec
 
     products = [
@@ -383,10 +386,8 @@ def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists()
 
 
 def test_no_model_armor_global_rewrite_or_lite_bypass() -> None:
-    """hermetic_adapter.py and orchestrator.py must never disable Model Armor globally or skip 'lite' models."""
-    ha_src = (BACKEND_DIR / "src" / "app" / "agent" / "hermetic_adapter.py").read_text(
-        encoding="utf-8"
-    )
+    """adk_llm.py and orchestrator.py must never disable Model Armor globally or skip 'lite' models."""
+    ha_src = (BACKEND_DIR / "src" / "app" / "agent" / "adk_llm.py").read_text(encoding="utf-8")
     orch_src = (BACKEND_DIR / "src" / "app" / "agent" / "orchestrator.py").read_text(
         encoding="utf-8"
     )
@@ -395,7 +396,7 @@ def test_no_model_armor_global_rewrite_or_lite_bypass() -> None:
         "Global modelarmor.googleapis.com endpoint is forbidden; use modelarmor.{loc}.rep.googleapis.com!"
     )
     assert "_MODEL_ARMOR_AVAILABLE = False" not in ha_src, (
-        "Permanently disabling _MODEL_ARMOR_AVAILABLE in hermetic_adapter.py is forbidden!"
+        "Permanently disabling _MODEL_ARMOR_AVAILABLE in adk_llm.py is forbidden!"
     )
     assert "_MODEL_ARMOR_AVAILABLE = False" not in orch_src, (
         "Permanently disabling _MODEL_ARMOR_AVAILABLE in orchestrator.py is forbidden!"

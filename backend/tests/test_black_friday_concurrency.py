@@ -24,7 +24,7 @@ from app.routes.compare import _COORDINATOR_CACHE, _get_coordinator
 
 def test_orchestrator_thread_local_tokens_and_category_hint() -> None:
     """Concurrent threads sharing one ComparisonOrchestrator must not cross-contaminate tokens or hints."""
-    orch = ComparisonOrchestrator(hermetic=True)
+    orch = ComparisonOrchestrator()
     barrier = threading.Barrier(10)
     results: dict[int, tuple[int, int, str | None]] = {}
 

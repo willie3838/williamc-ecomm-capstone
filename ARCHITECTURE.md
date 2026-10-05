@@ -65,7 +65,7 @@ The end-to-end architecture is organized into **6 modular zones** connecting the
 | :--- | :--- | :--- | :--- |
 | **🔵 Zone 1** | **Client & Perimeter Security** | `frontend/src/App.tsx`, `cloudrun.tf`, `vpc_sc.tf`, `iam.tf` | React 18 SPA UI, Cloud Run Native IAP, VPC Service Controls perimeter, and least-privilege `catalog-agent-sa` IAM. |
 | **🟣 Zone 2** | **Cloud Run API Gateway** | `main.py`, `routes/compare.py`, `agent_card.py`, `middleware.py` | FastAPI endpoints (`/api/compare`, `/api/chat`, `/health`, `/health/ready`), A2A Agent Card (`/.well-known/agent-card.json`), and OpenTelemetry middleware. |
-| **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `hermetic_adapter.py` | 4-Stage `MultiAgentCoordinator` (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalAgent` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent`), Model Armor, and Vertex AI Prompt Management. |
+| **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `adk_llm.py` | 4-Stage `MultiAgentCoordinator` (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalAgent` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent` with `ComparisonSynthesis.spec_winners`), Model Armor, and Vertex AI Prompt Management. |
 | **🟠 Zone 4** | **Data, Storage & Telemetry Layer** | `tools/catalog.py`, `data/ingest.py`, `data/analytics.py`, `bigquery.tf` | Partitioned/clustered BigQuery catalog (`catalog.products`), GCS seed bucket, Firestore session store, and BigQuery telemetry sinks. |
 | **🟣 Zone 5** | **Evaluation & Anti-Overfitting Flywheel** | `evals/runner.py`, `trajectory_grader.py`, `pairwise_judge.py` | 80-pair benchmark + counterfactual holdout datasets, `ADKTrajectoryEvaluator`, and swapped-order pairwise LLM judge. |
 | **⚪ Zone 6** | **GitOps CI/CD & Cloud Operations** | `cloudbuild.yaml`, `clouddeploy.yaml`, `Dockerfile`, `terraform/` | Automated `ruff` + `pytest` ($\ge 80\%$) + eval gates, non-root Docker build, in-place Agent Engine rollout, and 0% $\rightarrow$ 100% Cloud Run canary. |
@@ -104,10 +104,10 @@ flowchart TB
                 N1["Stage 1: QueryIntentAgent (Prompt Sanitization & Gemini Flash-Lite Intent)"]:::agent
                 N2["Stage 2: CatalogRetrievalAgent (query_catalog Tool, 5m TTL Cache & Circuit Breaker)"]:::agent
                 N3["Stage 3: RelevanceDetectorAgent (LLM Reranking >= 6.0 & Brand Entity Balancing)"]:::agent
-                N4["Stage 4: SpecComparisonAgent (MatrixRow Builder, Grounded Synthesis & SKU Scrubber)"]:::agent
+                N4["Stage 4: SpecComparisonAgent (ComparisonSynthesis.spec_winners, MatrixRow Builder & SKU Scrubber)"]:::agent
             end
 
-            GEMINI["CatalogAdkLlm (BaseLlm: Gemini 2.5 Pro / Flash / Flash-Lite + HermeticModelAdapter)"]:::agent
+            GEMINI["CatalogAdkLlm (BaseLlm in app.agent.adk_llm: Live Vertex AI Gemini 2.5 Pro / Flash / Flash-Lite)"]:::agent
             PROMPT["Vertex AI Prompt Management (Prompt ID: 6884046974429954048)"]:::guardrail
             ARMOR["Vertex AI Model Armor (catalog-prompt-guard & catalog-resp-guard)"]:::guardrail
         end

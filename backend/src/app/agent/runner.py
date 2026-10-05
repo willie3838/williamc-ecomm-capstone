@@ -91,13 +91,12 @@ def _resolve_agent_engine_id(explicit_id: str | None = None) -> str | None:
 
 
 class CatalogVertexAiSessionService(VertexAiSessionService):
-    """Vertex AI Agent Engine Session Service (`VertexAiSessionService`) with `InMemorySessionService` fallback.
+    """Vertex AI Agent Engine Session Service (`VertexAiSessionService`) with `InMemorySessionService` L1 cache.
 
     - In production on **Agent Runtime** (where `GOOGLE_CLOUD_AGENT_ENGINE_ID` is injected by the runtime),
       delegates `create_session`, `get_session`, `list_sessions`, `delete_session`, and `append_event`
       directly to `VertexAiSessionService` (`vertexai.Client.aio.agent_engines.sessions`).
-    - In local development, `pytest`, or hermetic offline evaluation benchmarks (`HERMETIC_EVAL=true`),
-      transparently falls back to an internal `InMemorySessionService` while preserving
+    - In local development or `pytest`, maintains an L1 `InMemorySessionService` cache while preserving
       `isinstance(service, VertexAiSessionService) == True`.
     """
 
@@ -107,9 +106,10 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         location: str | None = None,
         agent_engine_id: str | None = None,
         *,
-        hermetic: bool = False,
         express_mode_api_key: str | None = None,
+        **kwargs: Any,
     ) -> None:
+        kwargs.pop("hermetic", None)
         resolved_project = project or getattr(
             _settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"
         )
@@ -124,7 +124,6 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         )
         self.project_id = resolved_project
         self.location = resolved_location
-        self.hermetic = hermetic
         self._fallback_memory = InMemorySessionService()
 
     @property
@@ -143,8 +142,6 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         if not engine_id:
             return False
         self._agent_engine_id = engine_id
-        if self.hermetic or os.environ.get("HERMETIC_EVAL", "").lower() == "true":
-            return False
         if os.environ.get(
             "PYTEST_CURRENT_TEST"
         ) and "test_vertex_ai_session_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
@@ -283,12 +280,11 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
 
 
 class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
-    """Vertex AI Agent Engine Memory Bank Service with InMemoryMemoryService fallback.
+    """Vertex AI Agent Engine Memory Bank Service with InMemoryMemoryService L1 cache.
 
     - In production on Agent Runtime, delegates to VertexAiMemoryBankService
       (vertexai.Client.aio.agent_engines.memory_banks).
-    - In local development, pytest, or hermetic offline evaluations (HERMETIC_EVAL=true),
-      transparently falls back to an internal InMemoryMemoryService while preserving
+    - In local development or pytest, maintains an internal InMemoryMemoryService while preserving
       isinstance(service, VertexAiMemoryBankService) == True.
     """
 
@@ -298,9 +294,10 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         location: str | None = None,
         agent_engine_id: str | None = None,
         *,
-        hermetic: bool = False,
         express_mode_api_key: str | None = None,
+        **kwargs: Any,
     ) -> None:
+        kwargs.pop("hermetic", None)
         resolved_project = project or getattr(
             _settings, "gcp_project", "fde-bestbuy-sandbox-dev-508321"
         )
@@ -315,7 +312,6 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         )
         self.project_id = resolved_project
         self.location = resolved_location
-        self.hermetic = hermetic
         self._fallback_memory = InMemoryMemoryService()
         self._users_with_memories: set[str] = set()
 
@@ -330,8 +326,6 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         if not engine_id:
             return False
         self._agent_engine_id = engine_id
-        if self.hermetic or os.environ.get("HERMETIC_EVAL", "").lower() == "true":
-            return False
         if os.environ.get(
             "PYTEST_CURRENT_TEST"
         ) and "test_vertex_ai_memory_bank_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
@@ -444,8 +438,8 @@ def create_catalog_app(
     root_agent: BaseAgent | None = None,
 ) -> App:
     """Create ADK App configured with EventsCompactionConfig and ResumabilityConfig."""
+    from app.agent.adk_llm import CatalogAdkLlm
     from app.agent.compaction import CatalogAnchoredEventSummarizer
-    from app.agent.hermetic_adapter import CatalogAdkLlm
     from app.agent.orchestrator import catalog_agent
 
     target_agent = root_agent or catalog_agent
@@ -481,13 +475,13 @@ class CatalogAdkRunner(InMemoryRunner):
         app_name: str = "app",
         session_service: BaseSessionService | None = None,
         memory_service: BaseMemoryService | None = None,
-        hermetic: bool = False,
         **kwargs: Any,
     ) -> None:
+        kwargs.pop("hermetic", None)
         active_app = app or create_catalog_app(name=app_name, root_agent=agent)
         super().__init__(app=active_app, **kwargs)
-        self.session_service = session_service or get_default_session_service(hermetic=hermetic)
-        self.memory_service = memory_service or get_default_memory_service(hermetic=hermetic)
+        self.session_service = session_service or get_default_session_service()
+        self.memory_service = memory_service or get_default_memory_service()
         self.auto_create_session = True
 
 
@@ -497,23 +491,21 @@ _DEFAULT_MEMORY_SERVICE: CatalogVertexAiMemoryBankService | None = None
 _DEFAULT_RUNNER: CatalogAdkRunner | None = None
 
 
-def get_default_session_service(hermetic: bool = False) -> CatalogVertexAiSessionService:
+def get_default_session_service(**kwargs: Any) -> CatalogVertexAiSessionService:
     """Retrieve or initialize the global VertexAiSessionService-backed ADK session service."""
+    kwargs.pop("hermetic", None)
     global _DEFAULT_SESSION_SERVICE
     if _DEFAULT_SESSION_SERVICE is None:
-        _DEFAULT_SESSION_SERVICE = CatalogVertexAiSessionService(hermetic=hermetic)
-    elif hermetic:
-        _DEFAULT_SESSION_SERVICE.hermetic = True
+        _DEFAULT_SESSION_SERVICE = CatalogVertexAiSessionService()
     return _DEFAULT_SESSION_SERVICE
 
 
-def get_default_memory_service(hermetic: bool = False) -> CatalogVertexAiMemoryBankService:
+def get_default_memory_service(**kwargs: Any) -> CatalogVertexAiMemoryBankService:
     """Retrieve or initialize the global VertexAiMemoryBankService-backed ADK memory service."""
+    kwargs.pop("hermetic", None)
     global _DEFAULT_MEMORY_SERVICE
     if _DEFAULT_MEMORY_SERVICE is None:
-        _DEFAULT_MEMORY_SERVICE = CatalogVertexAiMemoryBankService(hermetic=hermetic)
-    elif hermetic:
-        _DEFAULT_MEMORY_SERVICE.hermetic = True
+        _DEFAULT_MEMORY_SERVICE = CatalogVertexAiMemoryBankService()
     return _DEFAULT_MEMORY_SERVICE
 
 
@@ -522,10 +514,11 @@ def create_catalog_runner(
     app_name: str = "app",
     session_service: BaseSessionService | None = None,
     memory_service: BaseMemoryService | None = None,
-    hermetic: bool = False,
     app: App | None = None,
+    **kwargs: Any,
 ) -> CatalogAdkRunner:
     """Create a configured CatalogAdkRunner for a catalog agent."""
+    kwargs.pop("hermetic", None)
     if agent is None:
         from app.agent.orchestrator import catalog_agent
 
@@ -539,7 +532,6 @@ def create_catalog_runner(
         app_name=app_name,
         session_service=session_service,
         memory_service=memory_service,
-        hermetic=hermetic,
     )
 
 
@@ -630,15 +622,15 @@ def run_adk_agent_sync(
     prompt: str,
     session_id: str | None = None,
     user_id: str | None = None,
-    hermetic: bool = False,
+    **kwargs: Any,
 ) -> tuple[str, list[Event]]:
     """Synchronously execute an ADK Agent through CatalogAdkRunner and return (final_text, events)."""
+    kwargs.pop("hermetic", None)
     effective_user_id = user_id or "default_user"
     runner = create_catalog_runner(
         agent=agent,
-        session_service=get_default_session_service(hermetic=hermetic),
-        memory_service=get_default_memory_service(hermetic=hermetic),
-        hermetic=hermetic,
+        session_service=get_default_session_service(),
+        memory_service=get_default_memory_service(),
     )
     events: list[Event] = []
 

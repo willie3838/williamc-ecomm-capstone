@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from app.agent.hermetic_adapter import (
+from app.agent.adk_llm import (
     _get_vertex_client_for_model,
 )
 from app.agent.orchestrator import ComparisonOrchestrator

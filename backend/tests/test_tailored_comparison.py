@@ -1,10 +1,7 @@
 """Unit tests for tailored comparison synthesis, recommendations, and matrix ordering/filtering."""
 
-import json
-
 import pytest
 
-from app.agent.hermetic_adapter import HermeticModelAdapter
 from app.agent.multi_agent import ComparisonAgentState, SpecComparisonAgent
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import ProductSpec
@@ -103,73 +100,6 @@ def test_matrix_filtering_for_only_price(sample_laptop_products):
     assert "Refresh Rate" not in feature_names
     assert "Battery Life" not in feature_names
     assert len(matrix) <= 2  # Price and optional Customer Rating
-
-
-def test_hermetic_adapter_tailors_synthesis_for_gaming(sample_laptop_products):
-    """Hermetic adapter generates gaming-focused synthesis narrative and recommendations."""
-    prompt = (
-        "<user_query>Compare MacBook and Dell XPS - good for gaming</user_query>\n\n"
-        "Retrieved Catalog Products:\n"
-        f"- Product: {sample_laptop_products[0].name} [SKU: {sample_laptop_products[0].sku}] | "
-        f"Brand: {sample_laptop_products[0].brand} | Price: ${sample_laptop_products[0].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[0].specifications)}\n"
-        f"- Product: {sample_laptop_products[1].name} [SKU: {sample_laptop_products[1].sku}] | "
-        f"Brand: {sample_laptop_products[1].brand} | Price: ${sample_laptop_products[1].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[1].specifications)}"
-    )
-
-    resp_json = HermeticModelAdapter.synthesis_response(prompt, skip_vertex_call=True)
-    synth = json.loads(resp_json)
-
-    assert "[SKU: 6534606]" in synth["summary"]
-    assert "[SKU: 6573822]" in synth["summary"]
-    recs = synth.get("recommendations") or ""
-    # Should highlight gaming or high-refresh capability
-    assert "Gaming" in recs or "Refresh" in recs or "Performance" in recs
-    assert "[SKU: 6573822]" in recs  # Dell has 120Hz refresh rate
-
-
-def test_hermetic_adapter_tailors_synthesis_for_office_work(sample_laptop_products):
-    """Hermetic adapter generates office-focused recommendation emphasizing battery life and portability."""
-    prompt = (
-        "<user_query>Compare for office work and business productivity</user_query>\n\n"
-        "Retrieved Catalog Products:\n"
-        f"- Product: {sample_laptop_products[0].name} [SKU: {sample_laptop_products[0].sku}] | "
-        f"Brand: {sample_laptop_products[0].brand} | Price: ${sample_laptop_products[0].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[0].specifications)}\n"
-        f"- Product: {sample_laptop_products[1].name} [SKU: {sample_laptop_products[1].sku}] | "
-        f"Brand: {sample_laptop_products[1].brand} | Price: ${sample_laptop_products[1].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[1].specifications)}"
-    )
-
-    resp_json = HermeticModelAdapter.synthesis_response(prompt, skip_vertex_call=True)
-    synth = json.loads(resp_json)
-
-    recs = synth.get("recommendations") or ""
-    assert "Office" in recs or "Productivity" in recs or "Battery" in recs or "Portability" in recs
-    assert "[SKU: 6534606]" in recs  # MacBook has 18h battery life
-
-
-def test_hermetic_adapter_tailors_synthesis_for_only_price(sample_laptop_products):
-    """Hermetic adapter generates price-centric synthesis and recommendations for 'only price'."""
-    prompt = (
-        "<user_query>Compare prices only price</user_query>\n\n"
-        "Retrieved Catalog Products:\n"
-        f"- Product: {sample_laptop_products[0].name} [SKU: {sample_laptop_products[0].sku}] | "
-        f"Brand: {sample_laptop_products[0].brand} | Price: ${sample_laptop_products[0].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[0].specifications)}\n"
-        f"- Product: {sample_laptop_products[1].name} [SKU: {sample_laptop_products[1].sku}] | "
-        f"Brand: {sample_laptop_products[1].brand} | Price: ${sample_laptop_products[1].price:,.2f} | "
-        f"Specs: {json.dumps(sample_laptop_products[1].specifications)}"
-    )
-
-    resp_json = HermeticModelAdapter.synthesis_response(prompt, skip_vertex_call=True)
-    synth = json.loads(resp_json)
-
-    assert "Price" in synth["summary"] or "more affordable" in synth["summary"]
-    recs = synth.get("recommendations") or ""
-    assert "Value" in recs or "Price" in recs or "affordable" in recs.lower()
-    assert "[SKU: 6534606]" in recs  # $1099 is cheaper than $1399
 
 
 def test_multi_agent_spec_comparison_tailors_matrix_and_synthesis(sample_laptop_products):

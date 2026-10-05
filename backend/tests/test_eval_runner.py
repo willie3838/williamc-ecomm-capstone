@@ -1,19 +1,85 @@
 """Unit tests for evals.runner evaluation harness."""
 
+import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from evals.runner import (
     compute_citation_faithfulness,
     compute_spec_accuracy,
-    create_hermetic_bq_client,
     evaluate_semantic_coherence,
     export_evaluation_to_bigquery,
     normalize_value,
     run_benchmark,
 )
 
-from app.models.responses import Citation, CompareResponse, ProductSpec
+from app.models.responses import Citation, CompareResponse, MatrixRow, ProductSpec
+
+
+def _build_mock_orchestrator_for_dataset(dataset_path: Path, catalog_path: Path) -> MagicMock:
+    """Create a unittest.mock orchestrator that returns grounded CompareResponses for dataset cases."""
+    raw_data = json.loads(dataset_path.read_text(encoding="utf-8"))
+    cases = raw_data.get("eval_cases", raw_data) if isinstance(raw_data, dict) else raw_data
+    catalog_items = {
+        item["sku"]: item for item in json.loads(catalog_path.read_text(encoding="utf-8"))
+    }
+    case_by_query = {}
+    for c in cases:
+        q = c.get("query") or c["conversation"][0]["user_content"]["parts"][0]["text"]
+        case_by_query[q] = c
+
+    def _fake_compare(query: str, category: str | None = None, **kwargs) -> CompareResponse:
+        case = case_by_query.get(query, cases[0])
+        skus = case.get("expected_skus", [])
+        gt = case.get("ground_truth_specs", {})
+        prods = []
+        for sku in skus:
+            cat_item = dict(
+                catalog_items.get(
+                    sku,
+                    {
+                        "sku": sku,
+                        "name": f"Product {sku}",
+                        "brand": "Brand",
+                        "category": category or "Laptops",
+                        "price": 999.0,
+                        "specifications": {},
+                    },
+                )
+            )
+            if sku in gt:
+                specs = dict(cat_item.get("specifications", {}))
+                for k, v in gt[sku].items():
+                    if k in ("name", "brand", "category", "price", "rating"):
+                        cat_item[k] = v
+                    else:
+                        specs[k] = v
+                cat_item["specifications"] = specs
+            prods.append(ProductSpec(**cat_item))
+        citations_str = " vs ".join(f"{p.name} [SKU: {p.sku}] (${p.price:,.2f})" for p in prods)
+        return CompareResponse(
+            summary=f"Grounded comparison of {citations_str}.",
+            products=prods,
+            comparison_matrix=[
+                MatrixRow(
+                    feature="Price",
+                    values={p.sku: f"${p.price:,.2f}" for p in prods},
+                    winner_sku=min(prods, key=lambda x: x.price).sku if prods else None,
+                )
+            ],
+            citations=[
+                Citation(sku=p.sku, url=p.url or f"https://techbuy.com/{p.sku}") for p in prods
+            ],
+            recommendations=f"Recommended: {prods[0].name} [SKU: {prods[0].sku}]."
+            if prods
+            else None,
+        )
+
+    mock_orch = MagicMock()
+    mock_orch.compare.side_effect = _fake_compare
+    mock_orch.execute_with_adk_runner.side_effect = _fake_compare
+    return mock_orch
 
 
 def test_normalize_value():
@@ -144,26 +210,6 @@ def test_evaluate_semantic_coherence():
     assert any("Contradiction" in e for e in errs_bad)
 
 
-def test_create_hermetic_bq_client():
-    """Verify hermetic mock BigQuery client query filtering."""
-    catalog_path = (
-        Path(__file__).resolve().parent.parent / "src" / "app" / "data" / "catalog_seed.json"
-    )
-    client = create_hermetic_bq_client(catalog_path)
-
-    # Query with category
-    from google.cloud import bigquery
-
-    params = [
-        bigquery.ArrayQueryParameter("product_patterns", "STRING", ["%macbook%"]),
-        bigquery.ScalarQueryParameter("category", "STRING", "Laptops"),
-    ]
-    job_cfg = bigquery.QueryJobConfig(query_parameters=params)
-    res = client.query("SELECT *", job_config=job_cfg).result()
-    assert len(res) >= 1
-    assert any("macbook" in r["name"].lower() for r in res)
-
-
 def test_evaluate_semantic_coherence_live_with_judge(monkeypatch):
     """Verify live semantic coherence evaluation routes through evaluate_comparison_faithfulness."""
     from evals.judge import FaithfulnessResult
@@ -215,12 +261,15 @@ def test_run_benchmark_limit_and_category_filter():
     repo_root = Path(__file__).resolve().parent.parent.parent
     dataset_path = repo_root / "evals" / "dataset" / "benchmark_catalog.evalset.json"
     catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
+    mock_orch = _build_mock_orchestrator_for_dataset(dataset_path, catalog_path)
 
     report = run_benchmark(
         dataset_path=dataset_path,
         catalog_path=catalog_path,
         category="Headphones",
         limit=3,
+        live=False,
+        orchestrator=mock_orch,
     )
 
     assert report["metadata"]["total_cases"] == 3
@@ -328,10 +377,13 @@ def test_run_benchmark_excludes_tool_trajectory_metrics():
     repo_root = Path(__file__).resolve().parent.parent.parent
     dataset_path = repo_root / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
     catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
+    mock_orch = _build_mock_orchestrator_for_dataset(dataset_path, catalog_path)
 
     report = run_benchmark(
         dataset_path=dataset_path,
         catalog_path=catalog_path,
+        live=False,
+        orchestrator=mock_orch,
     )
 
     summary = report["summary"]
@@ -352,12 +404,15 @@ def test_run_benchmark_excludes_tool_trajectory_metrics():
 
 def test_runner_main_cli(tmp_path, monkeypatch):
     """Verify runner.main CLI executes without --target-trajectory and saves report."""
+    import evals.runner as runner_mod
     from evals.runner import main as runner_main
 
     repo_root = Path(__file__).resolve().parent.parent.parent
     dataset_path = repo_root / "evals" / "dataset" / "fixtures" / "simple_test.evalset.json"
     catalog_path = repo_root / "backend" / "src" / "app" / "data" / "catalog_seed.json"
     out_path = tmp_path / "eval_out.json"
+    mock_orch = _build_mock_orchestrator_for_dataset(dataset_path, catalog_path)
+    monkeypatch.setattr(runner_mod, "ComparisonOrchestrator", lambda **kw: mock_orch)
 
     monkeypatch.setattr(
         "sys.argv",

@@ -2,7 +2,7 @@
 """Live Environment Latency & Grounding Gatekeeper (< 3.0s).
 
 Strictly verifies end-to-end latency against REAL Vertex AI Gemini and REAL BigQuery
-(with PYTEST_CURRENT_TEST and HERMETIC_EVAL explicitly unset so hermetic mocks never trigger).
+(with PYTEST_CURRENT_TEST explicitly unset so pytest mocks never trigger).
 
 Usage:
     # Verify local code against live Vertex AI Gemini + BigQuery (< 3.0s)
@@ -21,9 +21,8 @@ import sys
 import time
 from pathlib import Path
 
-# 1. Force LIVE environment: strip any pytest or hermetic environment flags
+# 1. Force LIVE environment: strip any pytest environment flags
 os.environ.pop("PYTEST_CURRENT_TEST", None)
-os.environ.pop("HERMETIC_EVAL", None)
 os.environ.pop("GOOGLE_API_CERTIFICATE_CONFIG", None)
 os.environ.pop("CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH", None)
 os.environ["CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE"] = "false"
@@ -45,11 +44,11 @@ LIVE_BENCHMARK_QUERIES: list[tuple[str, str | None]] = [
 
 
 def verify_local_code_against_live_gcp(threshold_ms: float = 3000.0) -> bool:
-    """Run ComparisonOrchestrator(hermetic=False) against live Vertex AI + BigQuery."""
+    """Run ComparisonOrchestrator() against live Vertex AI + BigQuery."""
     print(
         f"[*] Initializing live ComparisonOrchestrator (PYTEST_CURRENT_TEST={os.environ.get('PYTEST_CURRENT_TEST')})..."
     )
-    orchestrator = ComparisonOrchestrator(hermetic=False)
+    orchestrator = ComparisonOrchestrator()
 
     # Cold warmup call to establish HTTP/2 TLS sessions and populate Layer-2 catalog snapshot
     print("[*] Running cold warmup query against live Vertex AI + BigQuery...")

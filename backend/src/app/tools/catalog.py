@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import random
 import re
 import threading
@@ -132,14 +131,7 @@ def query_catalog(
 
         injected_client = client is not None
         if client is None:
-            import app.agent.hermetic_adapter as ha
-
-            if (
-                os.environ.get("PYTEST_CURRENT_TEST")
-                or getattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
-            ) and not hasattr(bigquery.Client, "assert_called"):
-                client = ha.create_hermetic_bq_client()
-            elif hasattr(bigquery.Client, "assert_called"):
+            if hasattr(bigquery.Client, "assert_called"):
                 client = bigquery.Client(project=settings.gcp_project)
             else:
                 client = _get_shared_bq_client()
@@ -336,19 +328,6 @@ def query_catalog(
                 )
                 err_low = str(err).lower()
                 if any(k in err_low for k in ("reauth", "credentials", "unauthenticated")):
-                    if (
-                        not injected_client
-                        and not hasattr(bigquery.Client, "assert_called")
-                        and not os.environ.get("PYTEST_CURRENT_TEST")
-                    ):
-                        import app.agent.hermetic_adapter as ha
-
-                        ha._VERTEX_AUTH_UNAVAILABLE = True
-                        catalog_circuit_breaker.reset()
-                        herm_client = ha.create_hermetic_bq_client()
-                        query_job = herm_client.query(query_sql, job_config=job_config)
-                        results = query_job.result(timeout=timeout_seconds)
-                        last_error = None
                     break
                 if attempt < total_attempts:
                     max_backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)

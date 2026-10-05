@@ -159,11 +159,7 @@ _REMOTE_ENGINE_LOCK = __import__("threading").Lock()
 def _is_test_or_eval_env() -> bool:
     import sys
 
-    return bool(
-        os.environ.get("PYTEST_CURRENT_TEST")
-        or os.environ.get("HERMETIC_EVAL", "").lower() == "true"
-        or "pytest" in sys.modules
-    )
+    return bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
 
 
 def _warm_remote_engine_client() -> None:
@@ -586,11 +582,8 @@ def _fetch_catalog_sync(
     limit: int = 50,
 ) -> CatalogResponse:
     """Fetch product catalog records synchronously inside worker thread."""
-    from pathlib import Path
-
     from app.tools.catalog import query_catalog
 
-    # 1. Attempt query_catalog with category or broad wildcard
     keywords = (
         [category]
         if category
@@ -605,61 +598,11 @@ def _fetch_catalog_sync(
             limit=limit,
         )
     except Exception as err:
-        logger.warning(
-            "query_catalog failed in list_catalog (%s); falling back to seed catalog.", err
-        )
-        raw_products = []
-
-    # 2. Fallback to catalog_seed.json if query_catalog returned empty in offline / test mode
-    if not raw_products:
-        seed_path = Path(__file__).resolve().parent.parent / "data" / "catalog_seed.json"
-        if seed_path.exists():
-            try:
-                import json
-
-                with open(seed_path, encoding="utf-8") as f:
-                    seed_data = json.load(f)
-                cat_norm = category.strip().lower() if category else None
-                seen: set[str] = set()
-                for item in seed_data:
-                    sku = str(item.get("sku", "")).strip()
-                    if not sku or sku in seen:
-                        continue
-                    seen.add(sku)
-                    item_cat = str(item.get("category") or "").strip().lower()
-                    if cat_norm and item_cat != cat_norm:
-                        continue
-                    item_price = float(item.get("price", 0.0))
-                    if min_price is not None and item_price < min_price:
-                        continue
-                    if max_price is not None and item_price > max_price:
-                        continue
-                    raw_products.append(
-                        {
-                            "sku": item["sku"],
-                            "name": str(item.get("name", "")),
-                            "brand": str(item.get("brand", "")),
-                            "category": item.get("category"),
-                            "price": item_price,
-                            "rating": float(item["rating"])
-                            if item.get("rating") is not None
-                            else None,
-                            "review_count": (
-                                int(item["review_count"])
-                                if item.get("review_count") is not None
-                                else None
-                            ),
-                            "specifications": item.get("specifications") or {},
-                            "url": item.get("url")
-                            or f"https://www.techbuy.com/site/sku/{item['sku']}.p",
-                            "image_url": item.get("image_url"),
-                            "in_stock": bool(item.get("in_stock", True)),
-                        }
-                    )
-                    if len(raw_products) >= limit:
-                        break
-            except Exception as read_err:
-                logger.warning("Failed loading seed catalog fallback: %s", read_err)
+        logger.error("query_catalog failed in list_catalog: %s", err)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Catalog service unavailable: {err}",
+        ) from err
 
     validated_products = [ProductSpec.model_validate(p) for p in raw_products]
     return CatalogResponse(

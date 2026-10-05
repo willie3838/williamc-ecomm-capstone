@@ -1,8 +1,5 @@
-import json
-
 import pytest
 
-from app.agent.hermetic_adapter import HermeticModelAdapter
 from app.agent.multi_agent import (
     ComparisonAgentState,
     QueryIntentAgent,
@@ -155,10 +152,8 @@ def test_build_comparison_matrix_extracts_user_focus_without_body_false_triggers
     # focus should NOT be set to battery life.
     generic_matrix = orch.build_comparison_matrix(products, query=SAMPLE_GENERIC_FOCUS_QUERY)
     feature_names = [row.feature for row in generic_matrix]
-    # Price and Customer Rating come first
     assert feature_names[0] == "Price"
     assert feature_names[1] == "Customer Rating"
-    # When no focus query is specified, technical specs follow registry insertion order (Processor / CPU first)
     assert feature_names[2] == "Processor / CPU"
 
     # Case 2: Follow-up is 'only price' -> only Price row returned
@@ -169,7 +164,6 @@ def test_build_comparison_matrix_extracts_user_focus_without_body_false_triggers
     # Case 3: Follow-up is 'good for gaming' -> gaming specs (Refresh Rate) prioritized
     gaming_matrix = orch.build_comparison_matrix(products, query=SAMPLE_TAGGED_QUERY)
     gaming_features = [row.feature for row in gaming_matrix]
-    # Refresh Rate should be prioritized among technical specs (before Processor)
     refresh_idx = gaming_features.index("Refresh Rate")
     processor_idx = gaming_features.index("Processor / CPU")
     assert refresh_idx < processor_idx
@@ -205,23 +199,6 @@ def test_query_intent_agent_extracts_tagged_keywords():
     assert 'Apple MacBook Air 13.6" Laptop' in processed.target_keywords
     assert 'Dell XPS 13"' in processed.target_keywords
     assert not any("battery" in kw.lower() for kw in processed.target_keywords)
-
-
-def test_hermetic_adapter_rerank_and_synthesis_respects_tagged_skus_and_focus():
-    """Verify HermeticModelAdapter isolates user focus and reranks tagged SKUs."""
-    # Test rerank response locks onto tagged SKUs
-    prompt_with_candidates = f"""<user_query>{SAMPLE_TAGGED_QUERY}</user_query>
-Candidates:
-- SKU: 6534606 | Apple MacBook Air 13.6" Laptop | Brand: Apple | Category: Laptops | Price: $1099
-- SKU: 9999999 | ASUS ROG Zephyrus G16 Gaming Laptop | Brand: ASUS | Category: Laptops | Price: $1999
-- SKU: 6575132 | Dell XPS 13" | Brand: Dell | Category: Laptops | Price: $1199"""
-
-    rerank_json = HermeticModelAdapter.rerank_response(prompt_with_candidates)
-    data = json.loads(rerank_json)
-    skus = [item["sku"] for item in data["rankings"]]
-    # Tagged SKUs should be ranked top
-    assert skus[0] in ("6534606", "6575132")
-    assert skus[1] in ("6534606", "6575132")
 
 
 def test_app_agent_exports_relevance_reranker_agent():
@@ -293,26 +270,22 @@ def test_rank_and_select_untagged_multi_product_queries():
         )
         for i in range(1, 7)
     ]
-    # 2 keywords -> 2 products
     kw_2 = ["Brand1", "Brand2"]
     res_2 = orch.rank_and_select_products(prods, kw_2, original_query="Compare Brand1 and Brand2")
     assert len(res_2) == 2
 
-    # 3 keywords -> 3 products
     kw_3 = ["Brand1", "Brand2", "Brand3"]
     res_3 = orch.rank_and_select_products(
         prods, kw_3, original_query="Compare Brand1, Brand2, and Brand3"
     )
     assert len(res_3) == 3
 
-    # 4 keywords -> 4 products
     kw_4 = ["Brand1", "Brand2", "Brand3", "Brand4"]
     res_4 = orch.rank_and_select_products(
         prods, kw_4, original_query="Compare Brand1, Brand2, Brand3, Brand4"
     )
     assert len(res_4) == 4
 
-    # 5 keywords -> 5 products
     kw_5 = ["Brand1", "Brand2", "Brand3", "Brand4", "Brand5"]
     res_5 = orch.rank_and_select_products(
         prods, kw_5, original_query="Compare Brand1, Brand2, Brand3, Brand4, Brand5"

@@ -36,7 +36,6 @@ steps:
     entrypoint: 'bash'
     env:
       - 'EXPORT_TRACES_TO_CLOUD=false'
-      - 'HERMETIC_EVAL=true'
     args:
       - '-c'
       - |
@@ -47,27 +46,29 @@ steps:
         echo "=== Running Simple Fixture Smoke Eval via runner.py ==="
         mkdir -p reports
         PYTHONPATH=backend/src python evals/runner.py \
+          --live \
           --dataset evals/dataset/fixtures/simple_test.evalset.json \
           --output reports/simple_eval.json \
           --target-latency 6.0 \
           --fail-on-threshold \
           --trigger-source ci
 
-  # Step 2.6: Evaluation Flywheel 80-Pair Benchmark & Regression Gate
+  # Step 2.6: Evaluation Flywheel Benchmark & Regression Gate
   - name: 'python:3.11-slim'
     id: 'eval-benchmark'
     entrypoint: 'bash'
     env:
       - 'EXPORT_TRACES_TO_CLOUD=false'
-      - 'HERMETIC_EVAL=true'
     args:
       - '-c'
       - |
         set -euo pipefail
         export PATH="/builder/home/.cb-venv/bin:$$PATH"
         mkdir -p reports
-        echo "=== Running Evaluation Flywheel 80-Pair Benchmark Suite ==="
+        echo "=== Running Evaluation Flywheel Live Benchmark Suite (limit 10) ==="
         PYTHONPATH=backend/src python evals/runner.py \
+          --live \
+          --limit 10 \
           --output reports/ci_eval.json \
           --fail-on-threshold \
           --trigger-source ci

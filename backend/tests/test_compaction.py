@@ -25,6 +25,7 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.sessions import Session
 from google.genai import types
 
+from app.agent.adk_llm import CatalogAdkLlm
 from app.agent.compaction import (
     SUMMARY_BANNER_PREFIX,
     CatalogAnchoredEventSummarizer,
@@ -32,7 +33,6 @@ from app.agent.compaction import (
     prune_tool_outputs,
     prune_tool_outputs_callback,
 )
-from app.agent.hermetic_adapter import CatalogAdkLlm
 from app.agent.orchestrator import create_adk_agent
 from app.agent.runner import CatalogVertexAiMemoryBankService, create_catalog_app
 

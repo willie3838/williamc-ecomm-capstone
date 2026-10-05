@@ -42,7 +42,6 @@ from app.models.responses import CompareResponse, ProductSpec
 from evals.runner import (
     compute_citation_faithfulness,
     compute_spec_accuracy,
-    create_hermetic_bq_client,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -769,13 +768,14 @@ def compute_stage3_semantic_quality(
 def run_per_stage_benchmarks(
     cases: list[dict[str, Any]],
     bq_client: Any = None,
-    live: bool = False,
+    live: bool = True,
     experiment_name: str = "bestbuy-catalog-model-selection-benchmark",
     project_id: str = "fde-bestbuy-sandbox-dev-508321",
     location: str = "us-central1",
     aiplatform_module: Any = None,
     log_vertex: bool = True,
     concurrency: int = 4,
+    genai_client: Any = None,
 ) -> dict[str, Any]:
     """Benchmark all 9 GA candidate models independently per ADK specialist stage without artificial budgets.
 
@@ -794,9 +794,7 @@ def run_per_stage_benchmarks(
 
     if live:
         os.environ["BENCHMARK_ACTUAL_MODEL"] = "1"
-        os.environ.pop("HERMETIC_EVAL", None)
     else:
-        os.environ["HERMETIC_EVAL"] = "true"
         os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
 
     logger.info(
@@ -834,7 +832,7 @@ def run_per_stage_benchmarks(
         accuracies: list[float] = []
         in_tokens_list: list[int] = []
         out_tokens_list: list[int] = []
-        orch = ComparisonOrchestrator(model=model, hermetic=not live)
+        orch = ComparisonOrchestrator(model=model, genai_client=genai_client)
 
         for c in cases:
             orch.last_input_tokens = 0
@@ -934,7 +932,7 @@ def run_per_stage_benchmarks(
         f1_5prod_list = []
         in_tokens_list = []
         out_tokens_list = []
-        orch = ComparisonOrchestrator(model=model, hermetic=not live)
+        orch = ComparisonOrchestrator(model=model, genai_client=genai_client)
 
         for c in cases:
             orch.last_input_tokens = 0
@@ -1085,7 +1083,7 @@ def run_per_stage_benchmarks(
         syn_qualities_5pt: list[float] = []
         in_tokens_list = []
         out_tokens_list = []
-        orch = ComparisonOrchestrator(model=model, synthesis_model=model, hermetic=not live)
+        orch = ComparisonOrchestrator(model=model, synthesis_model=model, genai_client=genai_client)
 
         for c in cases:
             orch.last_input_tokens = 0
@@ -1097,13 +1095,20 @@ def run_per_stage_benchmarks(
             remaining = [p for p in all_cands if p.sku not in expected_skus_set]
             target_count = min(5, max(2, len(expected_skus_set)))
             candidates = (matched + remaining)[:target_count]
-            matrix = orch.build_comparison_matrix(candidates)
             t0 = time.perf_counter()
-            summary, recs = orch.synthesize_comparison_with_llm(
-                candidates, matrix, query=c["query"], model=model
+            synth_res = orch.synthesize_comparison_with_llm(
+                candidates, query=c["query"], model=model
             )
             elapsed = (time.perf_counter() - t0) * 1000.0
             latencies_ms.append(elapsed)
+            if isinstance(synth_res, tuple):
+                summary, recs = synth_res
+                spec_winners = None
+            else:
+                summary = synth_res.summary
+                recs = synth_res.recommendations
+                spec_winners = getattr(synth_res, "spec_winners", None)
+            matrix = orch.build_comparison_matrix(candidates, spec_winners=spec_winners)
 
             dummy_resp = CompareResponse(
                 products=candidates,
@@ -1333,7 +1338,7 @@ def run_model_benchmarks(
     catalog_path: Path | None = None,
     rubrics_dir: Path | None = None,
     limit: int | None = None,
-    live: bool = False,
+    live: bool = True,
     include_end_to_end: bool = False,
     experiment_name: str = "bestbuy-catalog-model-selection-benchmark",
     project_id: str = "fde-bestbuy-sandbox-dev-508321",
@@ -1343,21 +1348,20 @@ def run_model_benchmarks(
     output_md_path: Path | None = None,
     aiplatform_module: Any = None,
     concurrency: int = 4,
+    bq_client: Any = None,
+    genai_client: Any = None,
 ) -> dict[str, Any]:
     """Benchmark ADK specialist stages and candidate models against custom rubrics and log to Vertex AI Experiments."""
     import concurrent.futures
 
     if live:
         os.environ["BENCHMARK_ACTUAL_MODEL"] = "1"
-        os.environ.pop("HERMETIC_EVAL", None)
     else:
-        os.environ["HERMETIC_EVAL"] = "true"
         os.environ.pop("BENCHMARK_ACTUAL_MODEL", None)
 
     resolved_dataset = dataset_path or (
         REPO_ROOT / "evals" / "dataset" / "benchmark_catalog.evalset.json"
     )
-    resolved_catalog = catalog_path or (BACKEND_SRC / "app" / "data" / "catalog_seed.json")
     rubrics = load_custom_rubrics(rubrics_dir)
 
     with open(resolved_dataset, encoding="utf-8") as f:
@@ -1386,8 +1390,7 @@ def run_model_benchmarks(
     if limit and limit > 0:
         cases = select_stratified_cases(cases, limit)
 
-    bq_client = None if live else create_hermetic_bq_client(resolved_catalog)
-    if live:
+    if live and bq_client is None:
         from app.tools.catalog import query_catalog as _warm_query_catalog
 
         for c in cases:
@@ -1413,6 +1416,7 @@ def run_model_benchmarks(
         aiplatform_module=aiplatform_module,
         log_vertex=log_vertex,
         concurrency=concurrency,
+        genai_client=genai_client,
     )
     experiment_runs.extend(per_stage_data.get("vertex_experiment_runs", []))
 
@@ -1434,9 +1438,9 @@ def run_model_benchmarks(
 
             cand_orchestrator = ComparisonOrchestrator(
                 bq_client=bq_client,
+                genai_client=genai_client,
                 model=candidate.model,
                 synthesis_model=candidate.synthesis_model,
-                hermetic=not live,
             )
 
             def _evaluate_single_case(
@@ -2074,8 +2078,8 @@ def main() -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        default=False,
-        help="Execute live Vertex AI and BigQuery queries.",
+        default=True,
+        help="Execute live Vertex AI and BigQuery queries (default: True).",
     )
     parser.add_argument(
         "--include-end-to-end",

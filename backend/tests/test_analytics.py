@@ -129,23 +129,15 @@ def test_analytics_service_client_initialization_branches(monkeypatch):
     assert service_fresh.get_firestore_client() is None
     assert service_fresh.get_bq_client() is None
 
-    # Branch 4: Unset PYTEST_CURRENT_TEST, but _VERTEX_AUTH_UNAVAILABLE is True
+    # Branch 4: Unset PYTEST_CURRENT_TEST, client construction raises Exception
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    import app.agent.hermetic_adapter as ha
-
-    monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", True)
-    assert service_fresh.get_firestore_client() is None
-    assert service_fresh.get_bq_client() is None
-
-    # Branch 5: _VERTEX_AUTH_UNAVAILABLE is False, client construction raises Exception
-    monkeypatch.setattr(ha, "_VERTEX_AUTH_UNAVAILABLE", False)
     with patch("google.cloud.firestore.Client", side_effect=Exception("Firestore Init Error")):
         assert service_fresh.get_firestore_client() is None
 
     with patch("google.cloud.bigquery.Client", side_effect=Exception("BigQuery Init Error")):
         assert service_fresh.get_bq_client() is None
 
-    # Branch 6: _VERTEX_AUTH_UNAVAILABLE is False, client construction succeeds
+    # Branch 5: Client construction succeeds
     mock_created_fs = MagicMock()
     mock_created_bq = MagicMock()
     with patch("google.cloud.firestore.Client", return_value=mock_created_fs):

@@ -2,6 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.comparison import ComparisonSynthesis  # noqa: F401
 from app.models.responses import MatrixRow, ProductSpec
 
 
@@ -128,37 +129,6 @@ class QueryIntentAnalysis(BaseModel):
         default="",
         description="Reasoning explaining intent classification and eligibility verdict",
     )
-
-
-class ComparisonSynthesis(BaseModel):
-    """Structured response schema for LLM comparison narrative synthesis and persona recommendations."""
-
-    summary: str = Field(
-        ...,
-        description="Comprehensive grounded narrative comparing the products across key features, strictly citing [SKU: <sku>].",
-    )
-    recommendations: str | None = Field(
-        default=None,
-        description="Optional tailored buying guidance explaining which product to choose based on user persona or priority use cases, strictly citing [SKU: <sku>].",
-    )
-
-    @field_validator("summary", mode="before")
-    @classmethod
-    def coerce_summary_to_str(cls, v: object) -> str:
-        if isinstance(v, list):
-            return " ".join(str(item) for item in v if item is not None)
-        return str(v) if v is not None else ""
-
-    @field_validator("recommendations", mode="before")
-    @classmethod
-    def coerce_recommendations_to_str(cls, v: object) -> str | None:
-        if v is None:
-            return None
-        if isinstance(v, list):
-            return "\n".join(str(item) for item in v if item is not None)
-        if isinstance(v, dict):
-            return "\n".join(f"{k}: {val}" for k, val in v.items())
-        return str(v)
 
 
 class CandidateRankItem(BaseModel):
