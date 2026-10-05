@@ -55,6 +55,7 @@ deployment/
      - `roles/aiplatform.user` and `roles/modelarmor.user`
      - `roles/cloudtrace.agent`
      - `roles/logging.logWriter`
+   - The CI/CD service account `catalog-cicd-sa` also receives `roles/bigquery.jobUser`, `roles/bigquery.dataViewer` (on `catalog`), and `roles/bigquery.dataEditor` (on `catalog_agent_telemetry`) so `evals/runner.py --live --limit 10` can execute live BigQuery queries in GitHub Actions and Cloud Build.
 3. **VPC Service Controls (VPC-SC Anti-Exfiltration)**:
    - Defined in `vpc_sc.tf`. Locks `bigquery.googleapis.com` and `storage.googleapis.com` inside a security perimeter to prevent unauthorized data exfiltration.
    - Public-facing Cloud Run (`run.googleapis.com`) and Vertex AI Gemini inference (`aiplatform.googleapis.com`) are intentionally excluded to ensure zero friction on user queries.

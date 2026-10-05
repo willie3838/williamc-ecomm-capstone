@@ -173,6 +173,29 @@ resource "google_project_iam_member" "sa_cicd_modelarmor_admin" {
   member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
 }
 
+# BigQuery Job User: Allow CI/CD SA to run live BigQuery queries during CI/CD evaluation gates
+resource "google_project_iam_member" "sa_cicd_bq_job_user" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# BigQuery Data Viewer: Allow CI/CD SA to read catalog.products during live evaluation gates
+resource "google_bigquery_dataset_iam_member" "sa_cicd_catalog_viewer" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.catalog.dataset_id
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
+# BigQuery Data Editor: Allow CI/CD SA to write evaluation run telemetry during CI/CD gates
+resource "google_bigquery_dataset_iam_member" "sa_cicd_telemetry_editor" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.telemetry.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.catalog_cicd_sa.email}"
+}
+
 # IAP Service Identity (Required for Cloud Run native IAP request dispatching)
 resource "google_project_service_identity" "iap_sa" {
   provider = google-beta

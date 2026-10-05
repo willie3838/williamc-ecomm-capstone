@@ -204,6 +204,7 @@ def query_catalog(
             "why",
             "with",
         }
+        entity_token_groups: list[list[str]] = []
         for k in clean_keywords:
             tokens = [
                 t.lower()
@@ -212,6 +213,9 @@ def query_catalog(
             ]
             for t in tokens:
                 patterns.append(f"%{t}%")
+            dedup_tokens = list(dict.fromkeys(tokens))
+            if dedup_tokens:
+                entity_token_groups.append(dedup_tokens)
         # Deduplicate while preserving order
         patterns = list(dict.fromkeys(patterns))
 
@@ -245,16 +249,46 @@ def query_catalog(
                 bigquery.ScalarQueryParameter("max_price", "FLOAT64", float(max_price))
             )
 
+        entity_score_exprs: list[str] = []
+        for grp in entity_token_groups:
+            term_checks = []
+            for tok in grp:
+                sku_clause = f" OR LOWER(sku) LIKE '%{tok}%'" if len(tok) >= 6 else ""
+                term_checks.append(
+                    f"CASE WHEN LOWER(name) LIKE '%{tok}%' OR LOWER(brand) LIKE '%{tok}%'{sku_clause} THEN 1 ELSE 0 END"
+                )
+            entity_score_exprs.append("(" + " + ".join(term_checks) + ")")
+
+        if len(entity_score_exprs) >= 2:
+            best_score_sql = f"GREATEST({', '.join(entity_score_exprs)})"
+            when_clauses = " ".join(
+                f"WHEN {expr} >= {best_score_sql} THEN {idx}"
+                for idx, expr in enumerate(entity_score_exprs)
+            )
+            best_idx_sql = f"CASE {when_clauses} ELSE 0 END"
+            order_by_sql = f"""
+          ROW_NUMBER() OVER (
+            PARTITION BY {best_idx_sql}
+            ORDER BY {best_score_sql} DESC,
+              CASE WHEN TO_JSON_STRING(specifications) NOT LIKE '%product_type%' AND url LIKE 'https://www.techbuy.com/%' THEN 0 ELSE 1 END ASC,
+              price ASC
+          ) ASC,
+          {best_score_sql} DESC,
+          (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat) OR LOWER(sku) LIKE LOWER(pat)) DESC,
+          price ASC"""
+        else:
+            order_by_sql = """
+          (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat) OR LOWER(sku) LIKE LOWER(pat)) DESC,
+          CASE WHEN TO_JSON_STRING(specifications) NOT LIKE '%product_type%' AND url LIKE 'https://www.techbuy.com/%' THEN 0 ELSE 1 END ASC,
+          price ASC"""
+
         where_sql = " AND ".join(where_clauses)
         query_sql = f"""
         SELECT sku, name, brand, category, price, rating, review_count, specifications, url, image_url, in_stock
         FROM `{settings.catalog_table_id}`
         WHERE {where_sql}
         QUALIFY ROW_NUMBER() OVER (PARTITION BY sku ORDER BY updated_at DESC) = 1
-        ORDER BY
-          (SELECT COUNT(1) FROM UNNEST(@product_patterns) AS pat WHERE LOWER(name) LIKE LOWER(pat) OR LOWER(brand) LIKE LOWER(pat) OR LOWER(sku) LIKE LOWER(pat)) DESC,
-          CASE WHEN url LIKE 'https://www.techbuy.com/%' THEN 0 ELSE 1 END ASC,
-          price ASC
+        ORDER BY{order_by_sql}
         LIMIT @limit
         """.strip()
 
