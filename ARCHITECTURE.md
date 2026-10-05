@@ -55,74 +55,123 @@ The architectural selection prioritizes a lean, serverless footprint optimized f
 
 ## 2. System Architecture Topology
 
-The end-to-end topology connects the Client Layer, Ingress & Identity, Application Runtime, Agentic Reasoning Core, Data & Storage, and Observability/CI-CD:
+The end-to-end architecture is organized into **6 modular zones** connecting the Client & Perimeter Security layer, Cloud Run API Gateway, Vertex AI Agent Engine (`MultiAgentCoordinator`), Data & Telemetry Sinks, Evaluation Flywheel, and GitOps CI/CD Pipeline:
+
+![TechBuy Retailers Catalog Comparison Agent — System Architecture](docs/assets/architecture_diagram.jpg)
+
+### 2.1 Six-Zone Component & Color Legend
+
+| Zone | Architectural Layer | Key Components & Files | Primary Responsibility |
+| :--- | :--- | :--- | :--- |
+| **🔵 Zone 1** | **Client & Perimeter Security** | `frontend/src/App.tsx`, `cloudrun.tf`, `vpc_sc.tf`, `iam.tf` | React 18 SPA UI, Cloud Run Native IAP, VPC Service Controls perimeter, and least-privilege `catalog-agent-sa` IAM. |
+| **🟣 Zone 2** | **Cloud Run API Gateway** | `main.py`, `routes/compare.py`, `agent_card.py`, `middleware.py` | FastAPI endpoints (`/api/compare`, `/api/chat`, `/health`, `/health/ready`), A2A Agent Card (`/.well-known/agent-card.json`), and OpenTelemetry middleware. |
+| **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `hermetic_adapter.py` | 4-Stage `MultiAgentCoordinator` (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalAgent` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent`), Model Armor, and Vertex AI Prompt Management. |
+| **🟠 Zone 4** | **Data, Storage & Telemetry Layer** | `tools/catalog.py`, `data/ingest.py`, `data/analytics.py`, `bigquery.tf` | Partitioned/clustered BigQuery catalog (`catalog.products`), GCS seed bucket, Firestore session store, and BigQuery telemetry sinks. |
+| **🟣 Zone 5** | **Evaluation & Anti-Overfitting Flywheel** | `evals/runner.py`, `trajectory_grader.py`, `pairwise_judge.py` | 80-pair benchmark + counterfactual holdout datasets, `ADKTrajectoryEvaluator`, and swapped-order pairwise LLM judge. |
+| **⚪ Zone 6** | **GitOps CI/CD & Cloud Operations** | `cloudbuild.yaml`, `clouddeploy.yaml`, `Dockerfile`, `terraform/` | Automated `ruff` + `pytest` ($\ge 80\%$) + eval gates, non-root Docker build, in-place Agent Engine rollout, and 0% $\rightarrow$ 100% Cloud Run canary. |
+
+### 2.2 Interactive System Architecture Diagram (Mermaid)
 
 ```mermaid
-graph TB
-    subgraph ClientLayer ["1. Client Presentation Layer"]
-        UI["React 18 + TypeScript Web UI<br/>(Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips,<br/>Interactive Typeahead Search, '+ Add Product to Compare' Picker & Compare Popovers)"]
+flowchart TB
+    %% Node Color Palette Definitions
+    classDef client fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#1e3a8a
+    classDef security fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+    classDef gateway fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
+    classDef agent fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#064e3b
+    classDef guardrail fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef data fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#7c2d12
+    classDef eval fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#581c87
+    classDef cicd fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#0f172a
+
+    subgraph ClientLayer ["1. Client & Perimeter Security Layer"]
+        UI["React 18 + TypeScript Web UI (Vite, Tailwind CSS, Side-by-Side Matrix, SKU Citation Chips, Typeahead Search & Compare Popovers)"]:::client
+        INGRESS["Direct Regional Cloud Run Ingress (.a.run.app) + Cloud Run Native IAP (run.googleapis.com/iap-enabled: true)"]:::security
+        VPCSC["VPC Service Controls Perimeter (bigquery.googleapis.com, storage.googleapis.com, aiplatform.googleapis.com)"]:::security
+        IAM["Cloud IAM Service Accounts: catalog-agent-sa (Runtime) & catalog-cicd-sa (CI/CD)"]:::security
     end
 
-    subgraph IngressSecurity ["2. Ingress & Perimeter Security"]
-        INGRESS["Direct Regional Cloud Run Ingress (.a.run.app)<br/>+ Cloud Run Native IAP (run.googleapis.com/iap-enabled: true)"]
-        VPCSC["VPC Service Controls Perimeter<br/>(bigquery.googleapis.com, storage.googleapis.com, aiplatform.googleapis.com)"]
-        IAM["Cloud IAM Service Accounts<br/>catalog-agent-sa (Runtime) & catalog-cicd-sa (CI/CD)"]
-    end
+    subgraph ServiceLayer ["2. Application Runtime (Google Cloud Run: catalog-comparison-service)"]
+        API["FastAPI Gateway (/api/compare, /api/chat, /health, /healthz, /health/ready)"]:::gateway
+        REGISTRY["Google Cloud Agent Registry & A2A Card (/.well-known/agent-card.json)"]:::gateway
+        OTEL["ObservabilityMiddleware & OpenTelemetry SDK (W3C Trace Context & X-Trace-ID)"]:::gateway
 
-    subgraph ServiceLayer ["3. Application Runtime (Google Cloud Run: catalog-comparison-service)"]
-        API["FastAPI Gateway (/api/compare, /health, /healthz, /health/ready, /.well-known/agent-card.json)"]
-        OTEL["OpenTelemetry SDK (Distributed Tracing & Metrics)"]
-        REGISTRY["Google Cloud Agent Registry & A2A Engine<br/>(Immutable Releases, Discovery, Canary Routing)"]
-        
-        subgraph ADKAgent ["4. Agentic Reasoning Core (Google ADK)"]
-            ROUTER["MultiAgentCoordinator & ComparisonOrchestrator"]
-            RUNNER["CatalogAdkRunner (CatalogVertexAiSessionService & InMemorySessionService)"]
-            PROMPT["System Grounding Prompt (Vertex AI Prompt ID: 6884046974429954048)"]
-            TOOL["query_catalog BigQuery Tool (Parameterized SQL)"]
-            PARSER["Pydantic ComparisonResponse & MatrixRow Formatter"]
-            GEMINI["CatalogAdkLlm (BaseLlm: Gemini 2.5 Pro / Flash + HermeticModelAdapter)"]
+        subgraph ADKAgent ["3. Agentic Reasoning Core (Google ADK & Vertex AI Agent Engine: 2445220951441276928)"]
+            RUNNER["CatalogAdkRunner (CatalogVertexAiSessionService & InMemorySessionService)"]:::agent
+            ROUTER["MultiAgentCoordinator & ComparisonOrchestrator"]:::agent
+
+            subgraph Pipeline ["4-Stage Specialist Pipeline"]
+                N1["Stage 1: QueryIntentAgent (Prompt Sanitization & Gemini Flash-Lite Intent)"]:::agent
+                N2["Stage 2: CatalogRetrievalAgent (query_catalog Tool, 5m TTL Cache & Circuit Breaker)"]:::agent
+                N3["Stage 3: RelevanceDetectorAgent (LLM Reranking >= 6.0 & Brand Entity Balancing)"]:::agent
+                N4["Stage 4: SpecComparisonAgent (MatrixRow Builder, Grounded Synthesis & SKU Scrubber)"]:::agent
+            end
+
+            GEMINI["CatalogAdkLlm (BaseLlm: Gemini 2.5 Pro / Flash / Flash-Lite + HermeticModelAdapter)"]:::agent
+            PROMPT["Vertex AI Prompt Management (Prompt ID: 6884046974429954048)"]:::guardrail
+            ARMOR["Vertex AI Model Armor (catalog-prompt-guard & catalog-resp-guard)"]:::guardrail
         end
     end
 
-    subgraph DataLayer ["5. Data & Storage Layer"]
-        BQ[("Google Cloud BigQuery Catalog<br/>fde-bestbuy-sandbox-dev-508321.catalog.products")]
-        GCS[("Cloud Storage Catalog & TF State Buckets<br/>gs://fde-bestbuy-sandbox-dev-508321-catalog-data")]
-        TELEMETRY[("BigQuery Telemetry & Eval Sink<br/>catalog_agent_telemetry.query_telemetry & evaluation_runs")]
-        FIRESTORE[("Cloud Firestore Native DB ((default))<br/>sessions, user_actions, feedback")]
+    subgraph DataLayer ["4. Data, Storage & Telemetry Layer"]
+        BQ[("Google Cloud BigQuery Catalog (fde-bestbuy-sandbox-dev-508321.catalog.products)")]:::data
+        GCS[("Cloud Storage Catalog & TF State Buckets (gs://fde-bestbuy-sandbox-dev-508321-catalog-data)")]:::data
+        TELEMETRY[("BigQuery Telemetry & Eval Sink (catalog_agent_telemetry.query_telemetry & evaluation_runs)")]:::data
+        FIRESTORE[("Cloud Firestore Native DB (sessions, user_actions, feedback)")]:::data
     end
 
-    subgraph ObservabilityPlatform ["6. CI/CD & Cloud Operations Platform"]
-        TRACE["Google Cloud Trace & Cloud Logging"]
-        MON["Cloud Monitoring & BigQuery BI Views"]
-        CB["Google Cloud Build & Cloud Deploy (catalog-service-pipeline)"]
-        AR["Artifact Registry (catalog-agent-repo)"]
+    subgraph EvalLayer ["5. Evaluation & Anti-Overfitting Flywheel (evals/)"]
+        EVALSETS["80-Pair Benchmark + Holdout Counterfactual EvalSets"]:::eval
+        GRADER["ADKTrajectoryEvaluator (Exact / In-Order / Fuzzy Match)"]:::eval
+        JUDGE["Swapped-Order Pairwise LLM Judge & Model Matrix Scorecard"]:::eval
     end
 
-    UI -->|HTTPS POST /api/compare| INGRESS
-    INGRESS --> API
-    IAM -.->|Least Privilege Auth| API
-    IAM -.->|JobUser + DataViewer| BQ
+    subgraph ObservabilityPlatform ["6. GitOps CI/CD & Cloud Operations Platform"]
+        TF["Terraform IaC (deployment/terraform/)"]:::cicd
+        CB["Google Cloud Build & Cloud Deploy (catalog-service-pipeline: 0% -> Verify -> 100%)"]:::cicd
+        AR["Artifact Registry (catalog-agent-repo)"]:::cicd
+        TRACE["Google Cloud Trace, Cloud Logging & Cloud Monitoring"]:::cicd
+    end
 
-    API --> ROUTER
-    ROUTER --> PROMPT
-    ROUTER --> GEMINI
-    ROUTER --> TOOL
-    TOOL -->|Parameterized SQL Query| VPCSC
+    %% Subgraph Zone Background Styling
+    style ClientLayer fill:#eff6ff,stroke:#93c5fd,stroke-width:1.5px,color:#1e3a8a
+    style ServiceLayer fill:#eef2ff,stroke:#a5b4fc,stroke-width:1.5px,color:#312e81
+    style ADKAgent fill:#ecfdf5,stroke:#6ee7b7,stroke-width:1.5px,color:#064e3b
+    style Pipeline fill:#f0fdf4,stroke:#86efac,stroke-width:1.5px,color:#065f46
+    style DataLayer fill:#fff7ed,stroke:#fdba74,stroke-width:1.5px,color:#7c2d12
+    style EvalLayer fill:#faf5ff,stroke:#d8b4fe,stroke-width:1.5px,color:#581c87
+    style ObservabilityPlatform fill:#f8fafc,stroke:#cbd5e1,stroke-width:1.5px,color:#0f172a
+
+    %% Primary Request & Grounding Flows
+    UI -->|"① HTTPS POST /api/compare"| INGRESS
+    INGRESS -->|"② IAP Authenticated"| API
+    IAM -.->|"Least Privilege Auth"| API
+    API --> OTEL
+    API -.-> REGISTRY
+    API -->|"③ Invoke Agent"| RUNNER
+    RUNNER --> ROUTER
+    ROUTER --> N1
+    N1 -->|"Comparison Eligible"| N2
+    N2 -->|"Candidate Products"| N3
+    N3 -->|"Verified >= 2 SKUs"| N4
+    N1 & N3 & N4 <-->|"thinking_budget=0"| GEMINI
+    ROUTER -.-> PROMPT
+    GEMINI -.-> ARMOR
+    N2 -->|"④ Parameterized SQL (query_and_wait)"| VPCSC
     VPCSC --> BQ
-    BQ -->|Catalog Rows & JSON Specs| TOOL
-    TOOL --> ROUTER
-    ROUTER --> PARSER
-    PARSER --> API
+    BQ -->|"⑤ Verified Catalog Rows"| N2
+    N4 -->|"⑥ Validated CompareResponse"| API
     API --> UI
 
-    API -.-> OTEL
-    OTEL -.-> TRACE
-    OTEL -.-> MON
-    API -.-> TELEMETRY
-    API -.-> FIRESTORE
-    GCS -.->|Batch Load| BQ
-    CB --> AR
-    CB --> API
+    %% Async Telemetry, Ingestion & CI/CD Flows
+    OTEL -.->|"Export Stage Spans"| TRACE
+    API -.->|"Async Telemetry"| TELEMETRY
+    API -.->|"Session Counter"| FIRESTORE
+    GCS -.->|"Batch Load (ingest.py)"| BQ
+    EVALSETS --> GRADER --> JUDGE
+    JUDGE -.->|"Regression Gate"| CB
+    TF -.->|"Provisions"| ServiceLayer & DataLayer
+    CB --> AR --> API
 ```
 
 ---
@@ -213,16 +262,30 @@ To address complex consumer electronics comparison workflows, our architecture i
 
 
 ```mermaid
-flowchart TD
-    subgraph MultiAgent["Multi-Node Cooperative Architecture"]
-        Q["Node 1: QueryIntentAgent\n(Sanitization, Entity Extraction & Intent Classification)"] --> R["Node 2: CatalogRetrievalStep\n(CatalogRetrievalAgent alias: Pure Deterministic BigQuery SQL & Deduplication)"]
-        R --> RD["Node 3: RelevanceDetectorAgent\n(Pure LLM Reranking, Score Threshold >= 6.0, Relevance Gate)"]
-        RD --> S["Node 4: SpecComparisonAgent\n(Matrix Construction, Badging & Non-Comparison Suppression)"]
+flowchart LR
+    classDef coord fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
+    classDef llmNode fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#064e3b
+    classDef sqlNode fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#7c2d12
+    classDef suppress fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+
+    Coord["MultiAgentCoordinator (State Management & 4 Stage Spans)"]:::coord
+
+    subgraph MultiAgent ["4-Node Cooperative Pipeline (Google ADK)"]
+        Q["Node 1: QueryIntentAgent (Prompt Sanitization, Entity Extraction & Intent Classification)"]:::llmNode
+        R["Node 2: CatalogRetrievalStep / CatalogRetrievalAgent (Deterministic Parameterized BigQuery SQL & SKU Deduplication)"]:::sqlNode
+        RD["Node 3: RelevanceDetectorAgent (LLM Reranking >= 6.0 & Brand Entity Balancing)"]:::llmNode
+        S["Node 4: SpecComparisonAgent (Matrix Construction, Winner Badging & Grounded SKU Synthesis)"]:::llmNode
+        G["Conversational Guidance Only (comparison_matrix = [] when Opinion/Chatter or < 2 SKUs)"]:::suppress
+
+        Q -->|"is_comparison_eligible = True"| R
+        Q -.->|"OPINION_OR_CHATTER (Bypass BQ)"| G
+        R -->|"Candidate Products"| RD
+        RD -->|">= 2 Verified SKUs"| S
+        RD -.->|"< 2 Relevant SKUs"| G
     end
-    Coord["MultiAgentCoordinator\n(State Management & OTEL Spans)"] -.-> Q
-    Coord -.-> R
-    Coord -.-> RD
-    Coord -.-> S
+
+    style MultiAgent fill:#f8fafc,stroke:#94a3b8,stroke-width:1.5px,color:#0f172a
+    Coord -.-> Q & R & RD & S
 ```
 
 #### Detailed Trade-Off Dimension Analysis
