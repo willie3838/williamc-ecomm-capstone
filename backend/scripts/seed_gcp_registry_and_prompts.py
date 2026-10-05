@@ -78,9 +78,7 @@ def seed_prompts(reset_existing: bool = False) -> dict[str, str]:
     by_name: dict[str, list[str]] = {}
     for item in existing_list:
         p_id = str(getattr(item, "prompt_id", "") or "")
-        p_name = str(
-            getattr(item, "prompt_name", None) or getattr(item, "display_name", "") or ""
-        )
+        p_name = str(getattr(item, "prompt_name", None) or getattr(item, "display_name", "") or "")
         if p_id and p_name:
             by_name.setdefault(p_name, []).append(p_id)
 

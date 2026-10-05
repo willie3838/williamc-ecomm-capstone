@@ -3148,9 +3148,7 @@ class ComparisonOrchestrator:
             else ""
         )
         history_section = (
-            "<conversation_history>\n"
-            + "\n".join(history_lines)
-            + "\n</conversation_history>\n\n"
+            "<conversation_history>\n" + "\n".join(history_lines) + "\n</conversation_history>\n\n"
             if history_lines
             else ""
         )
