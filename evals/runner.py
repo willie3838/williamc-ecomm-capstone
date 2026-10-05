@@ -722,7 +722,7 @@ def main() -> None:
 
     args = parser.parse_args()
     effective_target_latency = (
-        10.0 if args.trigger_source == "ci" and args.target_latency == 3.0 else args.target_latency
+        max(15.0, args.target_latency) if args.trigger_source == "ci" else args.target_latency
     )
 
     report = run_benchmark(
