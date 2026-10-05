@@ -252,9 +252,43 @@ uv run python scripts/deploy_agent_runtime.py --deploy
 
 ---
 
+## 🛠️ Operational Playbook: Rolling Back Prompts & Models per Stage
+
+Prompt Management ([Vertex AI Studio](https://console.cloud.google.com/vertex-ai/studio/saved-prompts?project=fde-bestbuy-sandbox-dev-508321)) and Model Selection are **strictly decoupled** so you can roll back or switch any stage's prompt version or Gemini model independently without rebuilding code. See the full **[Prompt & Model Rollback Playbook (`docs/ROLLBACK_PLAYBOOK.md`)](docs/ROLLBACK_PLAYBOOK.md)**.
+
+| Pipeline Stage | Vertex AI Prompt Name & GCP ID | Prompt Version Env Var | Model Selection Env Var | Default Model |
+| :--- | :--- | :--- | :--- | :--- |
+| **Global System Grounding** | `catalog-comparison-system-prompt` (`6969351484559327232`) | `SYSTEM_PROMPT_VERSION` *(or `PROMPT_VERSION`)* | `GEMINI_MODEL` | `gemini-2.5-flash` |
+| **Stage 1: Query Intent** | `stage1-query-intent-prompt` (`1204743961525092352`) | `STAGE1_PROMPT_VERSION` | `STAGE1_INTENT_MODEL` | `gemini-3.5-flash-lite` |
+| **Stage 3: Relevance Rerank** | `stage3-relevance-rerank-prompt` (`7625751130248577024`) | `STAGE3_PROMPT_VERSION` | `STAGE2_RELEVANCE_MODEL` | `gemini-2.5-flash-lite` |
+| **Stage 4: Spec Synthesis** | `stage4-spec-synthesis-prompt` (`121628251142488064`) | `STAGE4_PROMPT_VERSION` | `STAGE3_SYNTHESIS_MODEL` / `STAGE3_FAST_SYNTHESIS_MODEL` | `gemini-2.5-pro` (`flash-lite` fast path) |
+| **Multi-Turn Follow-Up Chat** | `multi-turn-followup-chat-prompt` (`7445607145153757184`) | `CHAT_PROMPT_VERSION` | `GEMINI_MODEL` | `gemini-2.5-flash` |
+
+```bash
+# 1. Instant UI Rollback (when PROMPT_VERSION=latest):
+#    In Vertex AI Studio -> Prompt Management -> Version History -> click "Restore version".
+#    Cloud Run automatically refreshes 'latest' every 60 seconds (PROMPT_CACHE_TTL_SECONDS=60).
+
+# 2. Pin or Roll Back a Specific Stage Prompt Version (e.g., lock Stage 4 Synthesis to Version 1):
+gcloud run services update catalog-comparison-service \
+  --project=fde-bestbuy-sandbox-dev-508321 --region=us-central1 \
+  --update-env-vars="ENABLE_VERTEX_PROMPT_REGISTRY=true,STAGE4_PROMPT_VERSION=1"
+
+# 3. Roll Back or Switch a Stage Model Version (e.g., switch Stage 4 Synthesis from Pro -> Flash):
+gcloud run services update catalog-comparison-service \
+  --project=fde-bestbuy-sandbox-dev-508321 --region=us-central1 \
+  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash"
+
+# 4. Sync Local Prompt Edits (idempotent — only creates a new version if prompt text changed):
+cd backend && PYTHONPATH=src uv run python scripts/seed_gcp_registry_and_prompts.py --skip-registry
+```
+
+---
+
 ## 📚 Documentation & Executive Artifacts
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Comprehensive system architecture, 6-zone topology, ADRs, TCO unit economics, latency budgets, and security controls.
+- **[docs/ROLLBACK_PLAYBOOK.md](docs/ROLLBACK_PLAYBOOK.md)**: Operational playbook for rolling back and pinning prompt versions and Gemini models per pipeline stage.
 - **[docs/MODEL_SELECTION_MATRIX.md](docs/MODEL_SELECTION_MATRIX.md)**: 9-model × 3-stage empirical benchmark matrix, Stage 3 Semantic Coherence synthesis leaderboard, and 2-to-5 product scaling analysis.
 - **[Capstone Google Slides Deck](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit)**: Executive & technical readout presentation (`113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA`).
 - **[SPEC.md](SPEC.md)** & **[RUBRIC.md](RUBRIC.md)**: Functional specification and 37-competency assessment rubric.

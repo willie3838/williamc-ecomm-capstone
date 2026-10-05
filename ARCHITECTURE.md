@@ -8,7 +8,7 @@
 > **Service Account**: `catalog-agent-sa@fde-bestbuy-sandbox-dev-508321.iam.gserviceaccount.com`  
 > **BigQuery Dataset / Table**: `fde-bestbuy-sandbox-dev-508321.catalog.products`  
 > **Agent Registry Service**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/services/bestbuy-catalog-comparison-agent`  
-> **Vertex AI Prompt Resource**: `projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/prompts/6884046974429954048`  
+> **Vertex AI Prompt Resources (5 Stage Prompts)**: `6969351484559327232` (System), `1204743961525092352` (Stage 1 Intent), `7625751130248577024` (Stage 3 Rerank), `121628251142488064` (Stage 4 Synthesis), `7445607145153757184` (Follow-Up Chat)  
 > **LLM Inference Mode**: 100% Live Uncached Vertex AI (`google-genai` persistent HTTP/2 connection pool + LLM-extracted `intent.target_keywords` -> `query_catalog` -> `ComparisonSynthesis` achieving $\sim 1.75\text{s}$–$2.15\text{s}$ P95 against the $\le 3.0\text{s}$ SLA)  
 > **C-Suite Executive Deck**: [Capstone Google Slides](https://docs.google.com/presentation/d/113l47r_mAX-MDec5Md0IXUDahbNtyQyerNIwDWGZvUA/edit)  
 > **Status**: MASTER REFERENCE ARCHITECTURE & GAP ANALYSIS (PRODUCTION READY)
@@ -108,7 +108,7 @@ flowchart TB
             end
 
             GEMINI["CatalogAdkLlm (BaseLlm in app.agent.adk_llm: Live Vertex AI Gemini 2.5 Pro / Flash / Flash-Lite)"]:::agent
-            PROMPT["Vertex AI Prompt Management (Prompt ID: 6884046974429954048)"]:::guardrail
+            PROMPT["Vertex AI Prompt Management (5 Stage Prompts: 6969351484559327232)"]:::guardrail
             ARMOR["Vertex AI Model Armor (catalog-prompt-guard & catalog-resp-guard)"]:::guardrail
         end
     end

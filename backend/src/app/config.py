@@ -138,12 +138,62 @@ class Settings(BaseSettings):
     prompt_version: str = Field(
         default="2026.03-v2",
         alias="PROMPT_VERSION",
-        description="System prompt template version identifier in Vertex AI Prompt Management",
+        description="Global default prompt version in Vertex AI Prompt Management ('latest' or specific version ID such as '1', '2')",
+    )
+    system_prompt_version: str | None = Field(
+        default=None,
+        alias="SYSTEM_PROMPT_VERSION",
+        description="Optional override version for catalog-comparison-system-prompt (e.g. '1', '2', 'latest')",
+    )
+    stage1_prompt_version: str | None = Field(
+        default=None,
+        alias="STAGE1_PROMPT_VERSION",
+        description="Optional override version for stage1-query-intent-prompt (e.g. '1', '2', 'latest')",
+    )
+    stage3_prompt_version: str | None = Field(
+        default=None,
+        alias="STAGE3_PROMPT_VERSION",
+        description="Optional override version for stage3-relevance-rerank-prompt (e.g. '1', '2', 'latest')",
+    )
+    stage4_prompt_version: str | None = Field(
+        default=None,
+        alias="STAGE4_PROMPT_VERSION",
+        description="Optional override version for stage4-spec-synthesis-prompt (e.g. '1', '2', 'latest')",
+    )
+    chat_prompt_version: str | None = Field(
+        default=None,
+        alias="CHAT_PROMPT_VERSION",
+        description="Optional override version for multi-turn-followup-chat-prompt (e.g. '1', '2', 'latest')",
     )
     vertex_prompt_id: str = Field(
-        default="6884046974429954048",
+        default="6969351484559327232",
         alias="VERTEX_PROMPT_ID",
-        description="Google Cloud Vertex AI Prompt Management resource ID",
+        description="Google Cloud Vertex AI Prompt Management resource ID for system prompt",
+    )
+    stage1_prompt_id: str = Field(
+        default="1204743961525092352",
+        alias="STAGE1_PROMPT_ID",
+        description="Vertex AI Prompt Management resource ID or name for Stage 1 Query Intent",
+    )
+    stage3_prompt_id: str = Field(
+        default="7625751130248577024",
+        alias="STAGE3_PROMPT_ID",
+        description="Vertex AI Prompt Management resource ID or name for Stage 3 Relevance Rerank",
+    )
+    stage4_prompt_id: str = Field(
+        default="121628251142488064",
+        alias="STAGE4_PROMPT_ID",
+        description="Vertex AI Prompt Management resource ID or name for Stage 4 Spec Synthesis",
+    )
+    chat_prompt_id: str = Field(
+        default="7445607145153757184",
+        alias="CHAT_PROMPT_ID",
+        description="Vertex AI Prompt Management resource ID or name for Multi-Turn Follow-Up Chat",
+    )
+    prompt_cache_ttl_seconds: int = Field(
+        default=60,
+        alias="PROMPT_CACHE_TTL_SECONDS",
+        description="TTL in seconds for 'latest' prompt cache refresh from Vertex AI Prompt Management",
     )
     enable_vertex_prompt_registry: bool = Field(
         default=False,

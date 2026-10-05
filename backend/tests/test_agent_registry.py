@@ -65,6 +65,47 @@ def test_get_active_prompt_vertex_ai_exception_fallback(
         assert prompt_ver == "2026.03-v2"
 
 
+def test_all_five_stage_prompts_and_version_pinning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify all 5 pipeline stage prompts resolve independently and support per-stage version pinning + TTL cache."""
+    from app.agent.prompts import PROMPT_CATALOG
+    from app.agent.prompts_service import clear_prompt_cache, get_stage_prompt
+
+    clear_prompt_cache()
+    assert len(PROMPT_CATALOG) == 5
+    for stage_key in ("system", "stage1", "stage3", "stage4", "chat"):
+        text, ver = get_stage_prompt(stage_key)
+        assert len(text) > 50
+        assert ver == settings.prompt_version
+
+    # Verify per-stage version override (e.g. STAGE4_PROMPT_VERSION="1")
+    monkeypatch.setattr(settings, "stage4_prompt_version", "1")
+    _, stage4_ver = get_stage_prompt("stage4")
+    assert stage4_ver == "1"
+
+    # Verify 60s TTL refresh for 'latest' vs permanent cache for pinned version
+    monkeypatch.setattr(settings, "enable_vertex_prompt_registry", True)
+    monkeypatch.setattr(settings, "prompt_cache_ttl_seconds", 60)
+    clear_prompt_cache()
+
+    mock_obj = MagicMock()
+    mock_obj.prompt_data = "Pinned Stage 4 Template v1"
+    mock_obj.version_id = "1"
+    with (
+        patch("vertexai.init"),
+        patch("vertexai.preview.prompts.get", return_value=mock_obj) as mock_get,
+    ):
+        t1, v1 = get_stage_prompt("stage4")
+        t2, v2 = get_stage_prompt("stage4")
+        assert t1 == "Pinned Stage 4 Template v1"
+        assert v1 == "1"
+        assert (t1, v1) == (t2, v2)
+        # Pinned version '1' is cached permanently on second call
+        assert mock_get.call_count == 1
+    clear_prompt_cache()
+
+
 def test_build_a2a_agent_card_default() -> None:
     """Verify stateless A2A Agent Card generation for Google Cloud Agent Registry."""
     card = build_a2a_agent_card(base_url="https://catalog-comparison-service.a.run.app")
