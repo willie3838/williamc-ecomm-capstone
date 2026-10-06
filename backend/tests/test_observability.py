@@ -297,10 +297,10 @@ class TestInstrumentedBigQueryCatalogTool:
             mock_settings.service_name, mock_settings.project_id, export_to_cloud=False
         )
 
-        # Mock BigQuery QueryJob with total_bytes_billed attribute
+        # Mock BigQuery RowIterator with total_bytes_billed attribute
         mock_job = MagicMock()
         mock_job.total_bytes_billed = 10485760  # 10 MB
-        mock_job.result.return_value = [
+        mock_job.__iter__.return_value = [
             {
                 "sku": "6534606",
                 "name": "MacBook Air 13.6 - M3",
@@ -315,7 +315,7 @@ class TestInstrumentedBigQueryCatalogTool:
                 "in_stock": True,
             }
         ]
-        mock_bq_client.query.return_value = mock_job
+        mock_bq_client.query_and_wait.return_value = mock_job
 
         products = query_catalog(
             keywords=["MacBook"],
@@ -346,8 +346,8 @@ class TestInstrumentedBigQueryCatalogTool:
         # First two calls fail with transient error, third succeeds
         mock_job = MagicMock()
         mock_job.total_bytes_billed = 0
-        mock_job.result.return_value = []
-        mock_bq_client.query.side_effect = [
+        mock_job.__iter__.return_value = []
+        mock_bq_client.query_and_wait.side_effect = [
             TimeoutError("BigQuery timeout after 2.5s"),
             ConnectionError("Transient connection reset"),
             mock_job,
@@ -375,7 +375,7 @@ class TestInstrumentedOrchestratorAndApi:
 
         mock_job = MagicMock()
         mock_job.total_bytes_billed = 5242880
-        mock_job.result.return_value = [
+        mock_job.__iter__.return_value = [
             {
                 "sku": "6534606",
                 "name": "MacBook Air M3",
@@ -403,7 +403,7 @@ class TestInstrumentedOrchestratorAndApi:
                 "in_stock": True,
             },
         ]
-        mock_bq_client.query.return_value = mock_job
+        mock_bq_client.query_and_wait.return_value = mock_job
 
         orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
         result = orchestrator.compare(
@@ -430,7 +430,7 @@ class TestInstrumentedOrchestratorAndApi:
 
         mock_job = MagicMock()
         mock_job.total_bytes_billed = 1048576
-        mock_job.result.return_value = [
+        mock_job.__iter__.return_value = [
             {
                 "sku": "6534606",
                 "name": "MacBook Air M3",
@@ -445,7 +445,7 @@ class TestInstrumentedOrchestratorAndApi:
                 "in_stock": True,
             }
         ]
-        mock_bq_client.query.return_value = mock_job
+        mock_bq_client.query_and_wait.return_value = mock_job
 
         app = create_app(settings=mock_settings)
         client = TestClient(app)

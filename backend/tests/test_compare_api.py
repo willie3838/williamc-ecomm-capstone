@@ -56,9 +56,7 @@ def test_compare_endpoint_valid_request(mock_bq_client: MagicMock) -> None:
         },
     ]
 
-    mock_job = MagicMock()
-    mock_job.result.return_value = sample_rows
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = sample_rows
 
     payload = {
         "query": "Compare MacBook Air M3 and Dell XPS 13",
@@ -82,9 +80,7 @@ def test_compare_endpoint_valid_request(mock_bq_client: MagicMock) -> None:
 
 def test_compare_endpoint_minimal_query(mock_bq_client: MagicMock) -> None:
     """Verify compare endpoint works with minimal required fields."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = []
 
     with patch("app.agent.orchestrator.bigquery.Client", return_value=mock_bq_client):
         response = client.post(
@@ -117,9 +113,7 @@ def test_compare_endpoint_query_too_long() -> None:
 
 def test_compare_endpoint_query_max_length_4000(mock_bq_client: MagicMock) -> None:
     """Verify 4000-character query is accepted and passes validation."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = []
 
     with patch("app.agent.orchestrator.bigquery.Client", return_value=mock_bq_client):
         response = client.post("/api/compare", json={"query": "Compare " + ("x" * 3992)})
@@ -143,9 +137,7 @@ def test_compare_endpoint_top_k_bounds(mock_bq_client: MagicMock) -> None:
     assert resp_high.status_code == 422
 
     # Within boundary
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = []
     with patch("app.agent.orchestrator.bigquery.Client", return_value=mock_bq_client):
         resp_valid = client.post(
             "/api/compare",
@@ -156,9 +148,7 @@ def test_compare_endpoint_top_k_bounds(mock_bq_client: MagicMock) -> None:
 
 def test_compare_endpoint_category_sanitization(mock_bq_client: MagicMock) -> None:
     """Verify whitespace-only category is stripped to None without failing validation."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = []
 
     with patch("app.agent.orchestrator.bigquery.Client", return_value=mock_bq_client):
         response = client.post(

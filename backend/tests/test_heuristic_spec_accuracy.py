@@ -72,9 +72,7 @@ def mock_two_laptops_bq_client():
         },
     ]
 
-    mock_job = MagicMock()
-    mock_job.result.return_value = sample_products
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = sample_products
     return mock_client
 
 
@@ -206,9 +204,7 @@ def test_heuristic_spec_accuracy_equal_prices(mock_bq_client):
             "in_stock": True,
         },
     ]
-    mock_job = MagicMock()
-    mock_job.result.return_value = products
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = products
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     resp = orchestrator.compare("Laptop A vs Laptop B")

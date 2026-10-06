@@ -24,17 +24,15 @@ from app.tools.catalog import query_catalog
 def test_catalog_tokenizes_two_character_brand_and_model():
     """Verify query_catalog produces sub-token LIKE patterns for 2-character brands and models (LG, C3, HP)."""
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = []
 
     query_catalog(
         keywords=["LG C3 OLED", "Samsung S90C"],
         client=mock_client,
     )
 
-    mock_client.query.assert_called_once()
-    job_config = mock_client.query.call_args[1]["job_config"]
+    mock_client.query_and_wait.assert_called_once()
+    job_config = mock_client.query_and_wait.call_args[1]["job_config"]
     patterns_param = next(p for p in job_config.query_parameters if p.name == "product_patterns")
     patterns = patterns_param.values
 
@@ -49,17 +47,15 @@ def test_catalog_tokenizes_two_character_brand_and_model():
 def test_catalog_tokenizes_hp_brand_sub_token():
     """Verify query_catalog produces sub-token LIKE pattern for 2-character brand 'HP'."""
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = []
 
     query_catalog(
         keywords=["HP Envy", "Dell XPS"],
         client=mock_client,
     )
 
-    mock_client.query.assert_called_once()
-    job_config = mock_client.query.call_args[1]["job_config"]
+    mock_client.query_and_wait.assert_called_once()
+    job_config = mock_client.query_and_wait.call_args[1]["job_config"]
     patterns_param = next(p for p in job_config.query_parameters if p.name == "product_patterns")
     patterns = patterns_param.values
 
@@ -72,9 +68,7 @@ def test_catalog_tokenizes_hp_brand_sub_token():
 def test_catalog_excludes_two_character_stopwords():
     """Verify 2-character grammatical stopwords are excluded from SQL sub-token patterns."""
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = []
 
     query_catalog(
         keywords=[
@@ -83,8 +77,8 @@ def test_catalog_excludes_two_character_stopwords():
         client=mock_client,
     )
 
-    mock_client.query.assert_called_once()
-    job_config = mock_client.query.call_args[1]["job_config"]
+    mock_client.query_and_wait.assert_called_once()
+    job_config = mock_client.query_and_wait.call_args[1]["job_config"]
     patterns_param = next(p for p in job_config.query_parameters if p.name == "product_patterns")
     patterns = patterns_param.values
 
@@ -120,17 +114,15 @@ def test_catalog_excludes_two_character_stopwords():
 def test_catalog_excludes_single_character_tokens():
     """Verify single-character tokens (len < 2) are not added as sub-token patterns."""
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = []
 
     query_catalog(
         keywords=["Sony TV A B C 1 2 3"],
         client=mock_client,
     )
 
-    mock_client.query.assert_called_once()
-    job_config = mock_client.query.call_args[1]["job_config"]
+    mock_client.query_and_wait.assert_called_once()
+    job_config = mock_client.query_and_wait.call_args[1]["job_config"]
     patterns_param = next(p for p in job_config.query_parameters if p.name == "product_patterns")
     patterns = patterns_param.values
 

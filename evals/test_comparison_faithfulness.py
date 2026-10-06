@@ -97,7 +97,7 @@ def build_catalog_from_evalset(benchmark_data: list[dict]) -> MagicMock:
 
     client = MagicMock()
 
-    def mock_query(sql: str, job_config=None):
+    def mock_query_and_wait(sql: str, job_config=None, wait_timeout=None):
         patterns = []
         category = None
         if job_config and hasattr(job_config, "query_parameters"):
@@ -121,11 +121,9 @@ def build_catalog_from_evalset(benchmark_data: list[dict]) -> MagicMock:
             else:
                 matches.append(prod)
 
-        mock_job = MagicMock()
-        mock_job.result.return_value = matches[:10]
-        return mock_job
+        return matches[:10]
 
-    client.query = mock_query
+    client.query_and_wait = mock_query_and_wait
     return client
 
 

@@ -11,9 +11,9 @@ from app.tools.catalog import query_catalog
 
 def test_query_catalog_deduplicates_identical_skus():
     """Verify query_catalog deduplicates rows sharing the same SKU."""
-    mock_job = MagicMock()
+    mock_client = MagicMock()
     # Simulate BigQuery returning duplicate rows for Dell XPS and Apple MacBook
-    mock_job.result.return_value = [
+    mock_client.query_and_wait.return_value = [
         {
             "sku": "6575132",
             "name": 'Dell - XPS 13" Laptop',
@@ -51,9 +51,6 @@ def test_query_catalog_deduplicates_identical_skus():
             "in_stock": True,
         },
     ]
-
-    mock_client = MagicMock()
-    mock_client.query.return_value = mock_job
 
     results = query_catalog(keywords=["mac", "dell"], client=mock_client)
     assert len(results) == 2

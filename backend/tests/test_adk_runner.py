@@ -341,7 +341,7 @@ class TestADKRunnerIntegration:
 
         catalog.catalog_circuit_breaker.reset()
         failing_client = MagicMock()
-        failing_client.query.side_effect = RuntimeError(
+        failing_client.query_and_wait.side_effect = RuntimeError(
             "Reauthentication is needed. Please run `gcloud auth application-default login`."
         )
         with pytest.raises(RuntimeError, match="Reauthentication"):
@@ -350,7 +350,7 @@ class TestADKRunnerIntegration:
                 client=failing_client,
                 use_cache=False,
             )
-        assert failing_client.query.call_count == 1
+        assert failing_client.query_and_wait.call_count == 1
 
     def test_ephemeral_runner_and_reused_query_intent_orchestrator(self):
         """Verify run_adk_agent_sync uses ephemeral session service when session_id is None and QueryIntentAgent reuses self.orchestrator."""

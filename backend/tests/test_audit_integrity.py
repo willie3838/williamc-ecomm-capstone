@@ -167,7 +167,7 @@ def test_multi_agent_coordinator_uses_adk_sequential_agent_and_session_state():
 
     mock_bq = MagicMock()
     # Return mock catalog rows
-    mock_bq.query.return_value.result.return_value = [
+    mock_bq.query_and_wait.return_value = [
         {
             "sku": "6534606",
             "name": "Apple MacBook Air 13-inch M3",
