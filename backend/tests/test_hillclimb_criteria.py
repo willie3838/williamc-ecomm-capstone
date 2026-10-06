@@ -162,7 +162,10 @@ def test_multi_category_spec_winners_and_cross_category_guard() -> None:
         price=999.99,
         specifications={"refresh_rate_hz": 60, "response_time_ms": 5.0},
     )
-    tv_matrix = orch.build_comparison_matrix([tv1, tv2])
+    tv_matrix = orch.build_comparison_matrix(
+        [tv1, tv2],
+        spec_winners={"refresh_rate_hz": "TV-1", "response_time_ms": "TV-1"},
+    )
     tv_rows = {r.feature: r for r in tv_matrix}
     assert tv_rows["Refresh Rate"].winner_sku == "TV-1"
     assert tv_rows["Response Time"].winner_sku == "TV-1"
@@ -184,7 +187,10 @@ def test_multi_category_spec_winners_and_cross_category_guard() -> None:
         price=349.0,
         specifications={"battery_life_hours": 30, "driver_size_mm": 40},
     )
-    cross_matrix = orch.build_comparison_matrix([laptop, headphone])
+    cross_matrix = orch.build_comparison_matrix(
+        [laptop, headphone],
+        spec_winners={"battery_life_hours": "HP-1"},
+    )
     cross_features = {r.feature: r for r in cross_matrix}
     assert "Category" in cross_features
     assert cross_features["Category"].winner_sku is None

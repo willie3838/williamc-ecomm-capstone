@@ -80,17 +80,26 @@ STAGE4_SYNTHESIS_PROMPT_TEMPLATE = (
     "Analyze the side-by-side technical specifications and customer query to produce a grounded comparison narrative and persona buying recommendations.\n\n"
     "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
     "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
-    "2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts up to 18 hours'). You must explicitly cite each of the {num_prods} products: {sku_tags_list}. Do not omit citations or relegate them to the end.\n"
-    "3. MULTI-DIMENSION TRADE-OFF SYNTHESIS: In 'summary', compare products across all key matrix dimensions (Price/Value $, Processor/RAM/Storage, Display/Resolution/Hz, Battery/Endurance, and Weight/Connectivity) using bullet points ('- ') and explicit trade-off connectors ('whereas', 'conversely', 'leads in', 'versus', 'Trade-Off Analysis:', 'Executive Verdict:').\n"
-    "4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide {num_prods} distinct persona recommendations (citing each of the {num_prods} compared products: {sku_tags_list}) separated by semicolons ('; '), each formatted as 'Best for <Persona>: <Product Name> [SKU: <sku>] — <quantitative spec and price rationale>'.\n"
-    "5. CONCISE SYNTHESIS: Keep 'summary' under {summary_word_limit} words and 'recommendations' under {recs_word_limit} words.\n"
-    "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n"
-    "7. SPEC WINNERS ('spec_winners'): Populate 'spec_winners' as a JSON object mapping each specification key ({spec_keys_str}) to the winning product's SKU string (e.g., '{example_sku}'). Use domain knowledge to determine which spec is objectively better (e.g., higher RAM/storage/refresh rate/battery life/Bluetooth version/peak brightness/driver size, stronger processor/GPU tier, lower weight_lbs/weight_oz/response_time_ms). Use 'tie' if products are equal, or 'none' if subjective (e.g., color, form_factor).\n\n"
+    "2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the short product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts 18h'). Cite ALL {num_prods} products ({sku_tags_list}) in 'summary' AND in 'recommendations' using their short names.\n"
+    "3. MULTI-DIMENSION TRADE-OFF SYNTHESIS: In 'summary', write 3 ultra-concise bullet points ('- ', max 12 words per bullet) comparing exact Price/Value $ figures (always state the exact $ price), Processor/RAM/Storage, Display, and Battery/Weight using trade-off connectors ('whereas', 'versus') plus a 1-sentence 'Executive Verdict:' (max 12 words).\n"
+    "4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide {num_prods} distinct persona recommendations separated by semicolons ('; '), each max 10 words formatted as 'Best for <Persona>: <Short Product Name> [SKU: <sku>] — <3-5 word spec & $ rationale>'.\n"
+    "5. STRICT BREVITY CAP: Keep 'summary' strictly under {summary_word_limit} words and 'recommendations' strictly under {recs_word_limit} words. Be telegraphic; omit articles ('the', 'a') and filler words.\n"
+    "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
     "<user_query>{query}</user_query>\n\n"
     "Retrieved Catalog Products:\n{candidates_desc}\n\n"
-    "Comparison Matrix:\n{matrix_desc}\n\n"
     "{price_grounding_section}"
-    'Return a valid JSON object matching the requested schema with exact keys: {{"summary": "...", "recommendations": "...", "spec_winners": {{"<spec_key>": "<winning_sku_or_tie_or_none>"}}}}.'
+    'Return a valid JSON object matching the requested schema with exact keys: {{"summary": "...", "recommendations": "..."}}.'
+)
+
+STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE = (
+    "You are an expert Best Buy Technical Specification Matrix Evaluator.\n"
+    "Evaluate the technical specifications across the compared products ({sku_tags_list}) and determine the objective winner for each specification key: {spec_keys_str}.\n"
+    "Rules:\n"
+    "- Map each specification key ({spec_keys_str}) to the winning product's SKU string (e.g., '{example_sku}').\n"
+    "- Use domain knowledge to determine which spec is objectively better (e.g., higher RAM/storage/refresh rate/battery life/Bluetooth version/peak brightness/driver size, stronger processor/GPU tier, lower weight_lbs/weight_oz/response_time_ms).\n"
+    "- Use 'tie' if products are equal, or 'none' if subjective (e.g., color, form_factor).\n\n"
+    "Retrieved Catalog Products:\n{candidates_desc}\n\n"
+    'Return a valid JSON object matching the requested schema with exact key: {{"spec_winners": {{"<spec_key>": "<winning_sku_or_tie_or_none>"}}}}.'
 )
 
 FOLLOWUP_CHAT_PROMPT_TEMPLATE = (
@@ -196,6 +205,32 @@ def format_stage4_synthesis_prompt(
             candidates_desc=candidates_desc,
             matrix_desc=matrix_desc,
             price_grounding_section=price_grounding_section,
+        )
+
+
+def format_stage4_matrix_winners_prompt(
+    *,
+    sku_tags_list: str,
+    spec_keys_str: str,
+    example_sku: str,
+    candidates_desc: str,
+    template: str | None = None,
+) -> str:
+    """Format the Stage 4 Parallel Matrix Winner Specialist prompt."""
+    active_tpl = template or STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE
+    try:
+        return active_tpl.format(
+            sku_tags_list=sku_tags_list,
+            spec_keys_str=spec_keys_str,
+            example_sku=example_sku,
+            candidates_desc=candidates_desc,
+        )
+    except Exception:
+        return STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE.format(
+            sku_tags_list=sku_tags_list,
+            spec_keys_str=spec_keys_str,
+            example_sku=example_sku,
+            candidates_desc=candidates_desc,
         )
 
 

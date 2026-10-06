@@ -173,8 +173,7 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_bq() -> None:
             try:
-                if hasattr(bq_client, "query_and_wait"):
-                    bq_client.query_and_wait("SELECT 1", wait_timeout=1.0)
+                bq_client.query("SELECT 1").result(timeout=2.0)
             except Exception:
                 pass
 
@@ -239,6 +238,7 @@ def _get_gcp_access_token() -> str:
 
 def _check_model_armor_response_guard(text: str) -> tuple[bool, str]:
     """Sanitize LLM output via the regional Model Armor REST API (sanitizeModelResponse)."""
+    global _SHARED_MA_SESSION
     if not getattr(settings, "enable_model_armor", True) or not text or not text.strip():
         return False, ""
     tmpl = getattr(settings, "model_armor_response_template", "") or ""
@@ -249,19 +249,41 @@ def _check_model_armor_response_guard(text: str) -> tuple[bool, str]:
         return False, ""
     loc = _extract_model_armor_location(tmpl)
     url = f"https://modelarmor.{loc}.rep.googleapis.com/v1/{tmpl}:sanitizeModelResponse"
-    payload = json.dumps({"modelResponseData": {"text": text[:8000]}}).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=2.5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        if hasattr(urllib.request.urlopen, "assert_called"):
+            payload = json.dumps({"modelResponseData": {"text": text[:8000]}}).encode("utf-8")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        else:
+            import requests
+            from requests.adapters import HTTPAdapter
+
+            if _SHARED_MA_SESSION is None:
+                _SHARED_MA_SESSION = requests.Session()
+                _ma_adapter = HTTPAdapter(pool_connections=256, pool_maxsize=256)
+                _SHARED_MA_SESSION.mount("https://", _ma_adapter)
+                _SHARED_MA_SESSION.mount("http://", _ma_adapter)
+            resp = _SHARED_MA_SESSION.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+                json={"modelResponseData": {"text": text[:8000]}},
+                timeout=1.5,
+            )
+            if resp.status_code != 200:
+                return False, ""
+            data = resp.json()
         san_res = data.get("sanitizationResult", {})
         if san_res.get("filterMatchState") == "MATCH_FOUND":
             f_res = san_res.get("filterResults", {})

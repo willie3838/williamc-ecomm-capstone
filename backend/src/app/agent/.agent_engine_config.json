@@ -7,7 +7,7 @@
     "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "true",
     "OTEL_SEMCONV_STABILITY_OPT_IN": "gen_ai_latest_experimental",
     "ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS": "true",
-    "GEMINI_MODEL": "tiered-hybrid",
-    "AGENT_VERSION": "1.2.0-tiered"
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "AGENT_VERSION": "1.1.0-flash"
   }
 }
