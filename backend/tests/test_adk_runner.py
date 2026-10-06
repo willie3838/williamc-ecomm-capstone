@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from google.adk.agents import Agent
 from google.adk.memory import VertexAiMemoryBankService
-from google.adk.runners import InMemoryRunner
+from google.adk.runners import InMemoryRunner, Runner
 from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 
 from app.agent.orchestrator import ComparisonOrchestrator
@@ -25,9 +25,10 @@ class TestADKRunnerIntegration:
     """Verify ADK Runner lifecycle, VertexAiSessionService management, and integration."""
 
     def test_get_adk_runner_defaults(self):
-        """Verify get_adk_runner initializes a CatalogAdkRunner with VertexAiSessionService."""
+        """Verify get_adk_runner initializes a CatalogAdkRunner (regular Runner, not InMemoryRunner) with VertexAiSessionService."""
         runner = get_adk_runner()
-        assert isinstance(runner, InMemoryRunner)
+        assert isinstance(runner, Runner)
+        assert not isinstance(runner, InMemoryRunner)
         assert isinstance(runner, CatalogAdkRunner)
         assert runner.agent is not None
         assert runner.agent.name == "catalog_comparison_orchestrator"
@@ -361,7 +362,11 @@ class TestADKRunnerIntegration:
         assert isinstance(q_agent.orchestrator, ComparisonOrchestrator)
 
         with patch("app.agent.runner.create_catalog_runner") as mock_create:
-            mock_runner = InMemoryRunner(agent=q_agent.adk_agent, app_name="app")
+            mock_runner = Runner(
+                agent=q_agent.adk_agent,
+                app_name="app",
+                session_service=InMemorySessionService(),
+            )
             mock_create.return_value = mock_runner
             with patch("app.agent.runner.run_adk_agent") as mock_run:
 

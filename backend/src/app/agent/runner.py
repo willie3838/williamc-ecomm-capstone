@@ -35,7 +35,7 @@ from google.adk.memory.base_memory_service import BaseMemoryService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.models.google_llm import Gemini as _AdkGemini  # noqa: F401
-from google.adk.runners import InMemoryRunner, Runner
+from google.adk.runners import Runner
 from google.adk.sessions import (
     BaseSessionService,
     InMemorySessionService,
@@ -464,12 +464,12 @@ def create_catalog_app(
 catalog_app = create_catalog_app()
 
 
-class CatalogAdkRunner(InMemoryRunner):
+class CatalogAdkRunner(Runner):
     """Production ADK Runner backed by CatalogVertexAiSessionService and CatalogVertexAiMemoryBankService."""
 
     def __init__(
         self,
-        agent: BaseAgent | None = None,
+        agent: BaseAgent | Any | None = None,
         *,
         app: App | None = None,
         app_name: str = "app",
@@ -479,10 +479,14 @@ class CatalogAdkRunner(InMemoryRunner):
     ) -> None:
         kwargs.pop("hermetic", None)
         active_app = app or create_catalog_app(name=app_name, root_agent=agent)
-        super().__init__(app=active_app, **kwargs)
-        self.session_service = session_service or get_default_session_service()
-        self.memory_service = memory_service or get_default_memory_service()
-        self.auto_create_session = True
+        super().__init__(
+            app=active_app,
+            app_name=app_name,
+            session_service=session_service or get_default_session_service(),
+            memory_service=memory_service or get_default_memory_service(),
+            auto_create_session=True,
+            **kwargs,
+        )
 
 
 # Global singleton services and default runner
@@ -661,5 +665,25 @@ def run_adk_agent_sync(
     return final_text, events
 
 
+def create_workflow_runner(
+    workflow: BaseAgent | None = None,
+    session_service: BaseSessionService | None = None,
+    memory_service: BaseMemoryService | None = None,
+    app_name: str = "catalog_multi_agent_pipeline",
+) -> CatalogAdkRunner:
+    """Create a CatalogAdkRunner wrapping the 4-node ADK 2.0 Workflow graph."""
+    if workflow is None:
+        from app.agent.multi_agent import MultiAgentCoordinator
+
+        workflow = MultiAgentCoordinator().adk_workflow
+    return create_catalog_runner(
+        agent=workflow,
+        session_service=session_service,
+        memory_service=memory_service,
+        app_name=app_name,
+    )
+
+
 # Export default singleton instance for ADK module conventions
 catalog_runner = get_adk_runner()
+

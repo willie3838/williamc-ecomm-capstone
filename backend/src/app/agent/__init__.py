@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.agent.runner import (
         catalog_runner,
         create_catalog_runner,
+        create_workflow_runner,
         get_adk_runner,
         run_adk_agent,
     )
@@ -45,6 +46,7 @@ __all__ = [
     "catalog_agent",
     "catalog_runner",
     "create_catalog_runner",
+    "create_workflow_runner",
     "flush_events_to_memory_before_compaction",
     "get_adk_runner",
     "prune_tool_outputs",
@@ -84,6 +86,7 @@ def __getattr__(name: str) -> Any:
     if name in {
         "catalog_runner",
         "create_catalog_runner",
+        "create_workflow_runner",
         "get_adk_runner",
         "run_adk_agent",
     }:
@@ -92,6 +95,7 @@ def __getattr__(name: str) -> Any:
         val = getattr(runner, name)
         globals()[name] = val
         return val
+
 
     if name in {
         "CatalogAnchoredEventSummarizer",
