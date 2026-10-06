@@ -68,12 +68,19 @@ class ComparisonAgentState:
 class QueryIntentAgent:
     """Specialist agent responsible for query parsing, intent extraction, and security sanitization."""
 
-    def __init__(self, model: str | None = None, synthesis_model: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+        bq_client: bigquery.Client | None = None,
+    ) -> None:
         self.model, self.synthesis_model, _ = resolve_model_pair(
             model=model, synthesis_model=synthesis_model
         )
         self.orchestrator = ComparisonOrchestrator(
-            model=self.model, synthesis_model=self.synthesis_model
+            bq_client=bq_client,
+            model=self.model,
+            synthesis_model=self.synthesis_model,
         )
         self.adk_agent = Agent(
             name="query_intent_specialist",
@@ -101,7 +108,13 @@ class QueryIntentAgent:
             orchestrator = (
                 self.orchestrator
                 if active_model == self.model
-                else ComparisonOrchestrator(model=active_model, synthesis_model=active_synthesis)
+                or type(self.orchestrator) is not ComparisonOrchestrator
+                else ComparisonOrchestrator(
+                    bq_client=self.orchestrator.bq_client,
+                    genai_client=self.orchestrator.genai_client,
+                    model=active_model,
+                    synthesis_model=active_synthesis,
+                )
             )
             orchestrator.synthesis_model = active_synthesis
             orchestrator._active_category_hint = state.detected_category
@@ -510,7 +523,9 @@ class MultiAgentCoordinator:
             s2_model = self.model
             s3_model = self.synthesis_model
 
-        self.intent_agent = QueryIntentAgent(model=s1_model, synthesis_model=self.synthesis_model)
+        self.intent_agent = QueryIntentAgent(
+            model=s1_model, synthesis_model=self.synthesis_model, bq_client=bq_client
+        )
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
         self.relevance_agent = RelevanceDetectorAgent(
             bq_client=bq_client, model=s2_model, synthesis_model=self.synthesis_model

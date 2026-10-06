@@ -403,3 +403,31 @@ def test_no_model_armor_global_rewrite_or_lite_bypass() -> None:
     )
     assert '"lite" not in' not in ha_src, "Skipping Model Armor on 'lite' models is forbidden!"
     assert '"lite" not in' not in orch_src, "Skipping Model Armor on 'lite' models is forbidden!"
+
+
+def test_zero_pytest_or_mock_branches_in_production_code() -> None:
+    """Ensure production code under backend/src/app contains zero test-environment detection branches."""
+    app_root = Path(__file__).resolve().parents[1] / "src" / "app"
+    forbidden_patterns = (
+        "PYTEST_CURRENT_TEST",
+        "assert_called",
+        '"pytest" in sys.modules',
+        "'pytest' in sys.modules",
+        '"Mock" in type(',
+        "'Mock' in type(",
+    )
+    violations: list[str] = []
+    for py_file in sorted(app_root.rglob("*.py")):
+        content = py_file.read_text(encoding="utf-8")
+        for line_no, line in enumerate(content.splitlines(), start=1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            for pat in forbidden_patterns:
+                if pat in line:
+                    rel_path = py_file.relative_to(app_root.parents[2])
+                    violations.append(f"{rel_path}:{line_no}: found {pat!r} -> {stripped}")
+    assert not violations, (
+        "Production code in backend/src/app/ must NEVER branch on pytest or mock attributes:\n"
+        + "\n".join(violations)
+    )

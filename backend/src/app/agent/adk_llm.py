@@ -27,13 +27,16 @@ from app.observability.tracing import get_tracer
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_GENAI_CLIENT_CLS = genai.Client
 _SHARED_VERTEX_CLIENT: genai.Client | None = None
+_LAST_CACHED_US_CENTRAL1_CLIENT: genai.Client | None = None
 _VERTEX_AUTH_CHECKED: bool = False
 _CLIENT_LOCK = threading.Lock()
-_VERTEX_CLIENTS: dict[str, genai.Client] = {}
+_VERTEX_CLIENTS: dict[tuple[str, Any], genai.Client] = {}
 _SHARED_MA_SESSION: Any = None
 _SHARED_GCP_CREDS: Any = None
 _VERIFIED_SAFE_PROMPTS: set[str] = set()
+_VERIFIED_SAFE_RESPONSES: set[str] = set()
 _VERTEX_CALL_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 
@@ -61,11 +64,16 @@ def _is_preview_or_3x_model(model: str | None) -> bool:
 
 def _get_shared_vertex_client(location: str = "us-central1") -> genai.Client:
     """Return a shared Vertex AI genai.Client for the given location to reuse HTTP/2 TLS connections."""
-    global _SHARED_VERTEX_CLIENT, _VERTEX_CLIENTS
+    global _SHARED_VERTEX_CLIENT, _LAST_CACHED_US_CENTRAL1_CLIENT, _VERTEX_CLIENTS
     with _CLIENT_LOCK:
-        if location == "us-central1" and _SHARED_VERTEX_CLIENT is not None:
+        if (
+            location == "us-central1"
+            and _SHARED_VERTEX_CLIENT is not None
+            and _SHARED_VERTEX_CLIENT is not _LAST_CACHED_US_CENTRAL1_CLIENT
+        ):
             return _SHARED_VERTEX_CLIENT
-        if location not in _VERTEX_CLIENTS:
+        cache_key = (location, genai.Client)
+        if cache_key not in _VERTEX_CLIENTS:
             os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
             client = genai.Client(
                 vertexai=True,
@@ -75,14 +83,14 @@ def _get_shared_vertex_client(location: str = "us-central1") -> genai.Client:
             if (
                 _SHARED_GCP_CREDS is not None
                 and getattr(_SHARED_GCP_CREDS, "valid", False)
-                and not hasattr(genai.Client, "assert_called")
                 and hasattr(client, "_api_client")
             ):
                 client._api_client._credentials = _SHARED_GCP_CREDS
-            _VERTEX_CLIENTS[location] = client
+            _VERTEX_CLIENTS[cache_key] = client
         if location == "us-central1":
-            _SHARED_VERTEX_CLIENT = _VERTEX_CLIENTS[location]
-        return _VERTEX_CLIENTS[location]
+            _SHARED_VERTEX_CLIENT = _VERTEX_CLIENTS[cache_key]
+            _LAST_CACHED_US_CENTRAL1_CLIENT = _SHARED_VERTEX_CLIENT
+        return _VERTEX_CLIENTS[cache_key]
 
 
 def _get_vertex_client_for_model(
@@ -126,7 +134,7 @@ def _get_vertex_client_for_model(
 def _warm_vertex_client_and_auth() -> None:
     """Pre-warm shared Vertex AI client, BigQuery client, and Model Armor session concurrently."""
     global _VERTEX_AUTH_CHECKED, _SHARED_MA_SESSION, _SHARED_GCP_CREDS
-    if _VERTEX_AUTH_CHECKED or hasattr(genai.Client, "assert_called"):
+    if _VERTEX_AUTH_CHECKED or not getattr(settings, "enable_background_warmup", False):
         return
     _VERTEX_AUTH_CHECKED = True
     try:
@@ -220,7 +228,7 @@ def _extract_model_armor_location(template_path: str) -> str:
 def _get_gcp_access_token() -> str:
     """Return a valid GCP Bearer token for Regional Endpoint Model Armor REST calls."""
     global _SHARED_GCP_CREDS
-    if hasattr(genai.Client, "assert_called"):
+    if genai.Client is not _DEFAULT_GENAI_CLIENT_CLS:
         return ""
     try:
         import google.auth
@@ -240,6 +248,9 @@ def _get_gcp_access_token() -> str:
 def _check_model_armor_response_guard(text: str) -> tuple[bool, str]:
     """Sanitize LLM output via the regional Model Armor REST API (sanitizeModelResponse)."""
     if not getattr(settings, "enable_model_armor", True) or not text or not text.strip():
+        return False, ""
+    clean_resp = text.strip()
+    if clean_resp in _VERIFIED_SAFE_RESPONSES:
         return False, ""
     tmpl = getattr(settings, "model_armor_response_template", "") or ""
     if not tmpl:
@@ -296,6 +307,9 @@ def _check_model_armor_response_guard(text: str) -> tuple[bool, str]:
                     reasons.append(f"RAI ({r_name})")
             reason_str = ", ".join(reasons) if reasons else "Safety / Policy"
             return True, f"The model response violated {reason_str} filters."
+        if len(_VERIFIED_SAFE_RESPONSES) > 512:
+            _VERIFIED_SAFE_RESPONSES.clear()
+        _VERIFIED_SAFE_RESPONSES.add(clean_resp)
     except Exception as exc:
         logger.debug("Model Armor response guard REST check skipped: %s", exc)
     return False, ""
@@ -307,7 +321,7 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
     if (
         not prompt_text
         or not getattr(settings, "enable_model_armor", True)
-        or hasattr(genai.Client, "assert_called")
+        or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
     ):
         return False, ""
     clean_text = _extract_user_query(prompt_text) or prompt_text.strip()
@@ -611,12 +625,6 @@ class CatalogAdkLlm(BaseLlm):
         os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
         if self._injected_client is not None:
             client = self._injected_client
-        elif hasattr(genai.Client, "assert_called"):
-            client = genai.Client(
-                vertexai=True,
-                project=settings.gcp_project,
-                location="us-central1",
-            )
         else:
             client = _get_vertex_client_for_model(self.model)
 
@@ -651,17 +659,11 @@ class CatalogAdkLlm(BaseLlm):
             "1",
         ) or getattr(settings, "benchmark_actual_model", False)
         target_model = self.model
-        is_mocked_shared_client = hasattr(_get_shared_vertex_client, "assert_called")
-        if (
-            not is_benchmark_actual
-            and self._injected_client is None
-            and not hasattr(genai.Client, "assert_called")
-        ):
+        if not is_benchmark_actual and self._injected_client is None:
             if (
                 has_catalog_tool
                 or inferred_schema in (QueryIntentAnalysis, CandidateRankingResponse)
                 or target_model == "gemini-1.5-flash"
-                or (inferred_schema is ComparisonSynthesis and not is_mocked_shared_client)
             ):
                 target_model = "gemini-2.5-flash-lite"
             elif target_model in ("gemini-2.5-pro", "tiered-hybrid"):
@@ -707,12 +709,6 @@ class CatalogAdkLlm(BaseLlm):
             )
         ]
 
-        is_mocked_client = bool(
-            self._injected_client is not None
-            or hasattr(genai.Client, "assert_called")
-            or is_mocked_shared_client
-        )
-
         if inferred_schema is not None and (
             config is None or getattr(config, "response_schema", None) is None
         ):
@@ -740,7 +736,7 @@ class CatalogAdkLlm(BaseLlm):
                     effective_config.thinking_config = _build_thinking_config(target_model)
                 if not getattr(effective_config, "max_output_tokens", None):
                     effective_config.max_output_tokens = effective_max_tokens
-                if has_catalog_tool and not is_mocked_client:
+                if has_catalog_tool and self._injected_client is None:
                     effective_config.tools = clean_catalog_tools if is_tool_selection_turn else None
                     if is_tool_selection_turn:
                         effective_config.system_instruction = (
@@ -779,10 +775,10 @@ class CatalogAdkLlm(BaseLlm):
                     safety_settings=getattr(config, "safety_settings", None),
                     tools=(
                         clean_catalog_tools
-                        if (is_tool_selection_turn and not is_mocked_client)
+                        if (is_tool_selection_turn and self._injected_client is None)
                         else (
                             None
-                            if (has_catalog_tool and not is_mocked_client)
+                            if (has_catalog_tool and self._injected_client is None)
                             else getattr(config, "tools", None)
                         )
                     ),
@@ -793,7 +789,7 @@ class CatalogAdkLlm(BaseLlm):
 
         use_concurrent_ma = (
             getattr(settings, "enable_model_armor", True)
-            and not is_mocked_client
+            and self._injected_client is None
             and "lite" in target_model
             and (is_tool_selection_turn or inferred_schema is QueryIntentAnalysis)
         )
@@ -835,7 +831,7 @@ class CatalogAdkLlm(BaseLlm):
                 )
 
             try:
-                if is_mocked_client:
+                if self._injected_client is not None:
                     response = _invoke_vertex(effective_config)
                 else:
                     response = _VERTEX_CALL_POOL.submit(_invoke_vertex, effective_config).result(
@@ -950,7 +946,7 @@ class CatalogAdkLlm(BaseLlm):
             ):
                 span.set_attribute("ai.safety.blocked", True)
                 span.set_attribute("ai.safety.block_reason", block_reason)
-                if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
+                if self._injected_client is not None:
                     raise ValueError(f"Prompt blocked by safety/Model Armor filter: {block_reason}")
                 yield _build_model_armor_refusal_response(
                     reason_code=block_reason.split(".")[-1],
@@ -976,7 +972,7 @@ class CatalogAdkLlm(BaseLlm):
                 ):
                     span.set_attribute("ai.safety.blocked", True)
                     span.set_attribute("ai.safety.block_reason", finish_reason)
-                    if self._injected_client is not None or hasattr(genai.Client, "assert_called"):
+                    if self._injected_client is not None:
                         raise ValueError(
                             f"Response blocked by safety/Model Armor filter: {finish_reason}"
                         )

@@ -50,6 +50,7 @@ from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
+_DEFAULT_GENAI_CLIENT_CLS = genai.Client
 
 
 class SecurityViolationError(RuntimeError):
@@ -647,11 +648,7 @@ class ComparisonOrchestrator:
         self.last_output_tokens = 0
         self._active_category_hint = None
         self.last_synthesis_model: str = self.synthesis_model
-        if (
-            self.genai_client is None
-            and not bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            and not hasattr(genai.Client, "assert_called")
-        ):
+        if self.genai_client is None and getattr(settings, "enable_background_warmup", False):
             from app.agent.adk_llm import (
                 _get_shared_vertex_client,
                 _warm_vertex_client_and_auth,
@@ -688,13 +685,6 @@ class ComparisonOrchestrator:
         """Return injected genai_client if provided, or return the shared Vertex AI genai.Client."""
         if self.genai_client is not None:
             return self.genai_client
-        if hasattr(genai.Client, "assert_called"):
-            os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
-            return genai.Client(
-                vertexai=True,
-                project=settings.gcp_project,
-                location="us-central1",
-            )
 
         target_model = model or self.model
         return _get_vertex_client_for_model(target_model)
@@ -705,7 +695,6 @@ class ComparisonOrchestrator:
         model: str,
         contents: Any,
         config: types.GenerateContentConfig,
-        is_mock_env: bool = False,
     ) -> Any:
         """Invoke Vertex AI generate_content in us-central1 with failover on transient errors."""
         try:
@@ -721,19 +710,12 @@ class ComparisonOrchestrator:
             )
 
             if _is_preview_or_3x_model(model):
-                if is_mock_env:
-                    fb_client = _get_shared_vertex_client(location="us-central1")
-                    return fb_client.models.generate_content(
-                        model=model,
-                        contents=contents,
-                        config=config,
-                    )
                 logger.info(
                     "Model %s call on global endpoint failed (%s); failing over to us-central1",
                     model,
                     err,
                 )
-                fb_client = _get_shared_vertex_client(location="us-central1")
+                fb_client = self.genai_client or _get_shared_vertex_client(location="us-central1")
                 return fb_client.models.generate_content(
                     model=model,
                     contents=contents,
@@ -753,7 +735,7 @@ class ComparisonOrchestrator:
                     config=config,
                 )
 
-            if not is_mock_env and any(
+            if any(
                 tok in str(err).lower()
                 for tok in (
                     "429",
@@ -766,7 +748,7 @@ class ComparisonOrchestrator:
                 )
             ):
                 time.sleep(0.1)
-                fb_client = _get_shared_vertex_client(location="us-central1")
+                fb_client = self.genai_client or _get_shared_vertex_client(location="us-central1")
                 return fb_client.models.generate_content(
                     model=model,
                     contents=contents,
@@ -1400,11 +1382,6 @@ class ComparisonOrchestrator:
 
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
 
-        is_mock_env = (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
-        )
         _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config(mode="response_only")
@@ -1419,11 +1396,18 @@ class ComparisonOrchestrator:
             thinking_config=thinking_cfg,
         )
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+        can_speculate = (
+            self.genai_client is None
+            and self.bq_client is None
+            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
+            and not is_benchmark_actual
+            and getattr(settings, "enable_speculative_prelaunch", False)
+        )
         spec_key = self._get_speculative_synth_key(products, query, active_model)
         legacy_spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
         req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
         local_synth_fut = None
-        if isinstance(req_spec, dict) and not is_mock_env and not is_benchmark_actual:
+        if isinstance(req_spec, dict) and can_speculate:
             with req_spec["lock"]:
                 local_synth_fut = req_spec["synth"].pop(spec_key, None)
                 if local_synth_fut is None:
@@ -1450,7 +1434,7 @@ class ComparisonOrchestrator:
                     valid_skus={p.sku for p in products},
                 )
             )
-            if not is_mock_env and not is_benchmark_actual
+            if isinstance(req_spec, dict) and can_speculate
             else None
         )
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
@@ -1469,7 +1453,6 @@ class ComparisonOrchestrator:
                         call_model,
                         prompt,
                         config,
-                        is_mock_env=is_mock_env,
                     )
             except Exception as call_err:
                 if armor_cfg is not None:
@@ -1492,7 +1475,6 @@ class ComparisonOrchestrator:
                         call_model,
                         prompt,
                         fallback_config,
-                        is_mock_env=is_mock_env,
                     )
                 else:
                     raise call_err
@@ -1578,7 +1560,6 @@ class ComparisonOrchestrator:
                     call_model,
                     prompt,
                     retry_cfg,
-                    is_mock_env=is_mock_env,
                 )
                 retry_usage = getattr(retry_resp, "usage_metadata", None)
                 if retry_usage:
@@ -1693,7 +1674,6 @@ class ComparisonOrchestrator:
                 spec_rerank_model,
                 rerank_prompt,
                 rerank_cfg,
-                False,
             )
             if isinstance(req_spec, dict):
                 with req_spec["lock"]:
@@ -1742,7 +1722,6 @@ class ComparisonOrchestrator:
                     spec_synth_model,
                     spec_prompt,
                     spec_config,
-                    False,
                 )
                 if isinstance(req_spec, dict):
                     with req_spec["lock"]:
@@ -1803,14 +1782,16 @@ class ComparisonOrchestrator:
             template=stage1_tpl,
         )
 
-        is_mock_env = (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
-        )
         call_model, _, _ = resolve_model_pair(model=model)
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
-        if not is_mock_env and not is_benchmark_actual:
+        can_speculate = (
+            self.genai_client is None
+            and self.bq_client is None
+            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
+            and not is_benchmark_actual
+            and getattr(settings, "enable_speculative_prelaunch", False)
+        )
+        if can_speculate:
             req_spec: dict[str, Any] = {
                 "rerank": {},
                 "synth": {},
@@ -1825,6 +1806,8 @@ class ComparisonOrchestrator:
                 self.synthesis_model,
                 req_spec,
             )
+        else:
+            _REQUEST_SPECULATIVE_LOCAL.current = None
         client = self._get_genai_client(model=call_model)
         armor_cfg = get_model_armor_config(mode="prompt_only")
         thinking_cfg = _build_thinking_config(call_model)
@@ -1847,7 +1830,6 @@ class ComparisonOrchestrator:
                     call_model,
                     prompt,
                     config,
-                    is_mock_env=is_mock_env,
                 )
             except Exception as call_err:
                 if armor_cfg is not None:
@@ -1868,7 +1850,6 @@ class ComparisonOrchestrator:
                         call_model,
                         prompt,
                         fallback_config,
-                        is_mock_env=is_mock_env,
                     )
                 else:
                     raise call_err
@@ -1934,7 +1915,6 @@ class ComparisonOrchestrator:
                 call_model,
                 prompt,
                 config,
-                is_mock_env=is_mock_env,
             )
             retry_usage = getattr(retry_response, "usage_metadata", None)
             if retry_usage:
@@ -2167,22 +2147,19 @@ class ComparisonOrchestrator:
             return []
 
         # Launch concurrent speculative Stage 4 synthesis alongside Stage 3 reranking in live mode
-        is_mock_env = (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
-        )
         entity_kw = (
             (self.extract_keywords(original_query) or keywords) if original_query else keywords
         )
         target_count = min(5, max(2, len(entity_kw)))
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
-        if (
-            not is_mock_env
+        can_speculate = (
+            self.genai_client is None
+            and self.bq_client is None
+            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
             and not is_benchmark_actual
-            and intent.is_comparison_eligible
-            and len(unique_products) >= 2
-        ):
+            and getattr(settings, "enable_speculative_prelaunch", False)
+        )
+        if can_speculate and intent.is_comparison_eligible and len(unique_products) >= 2:
             spec_prods = self._select_best_entity_candidates(
                 unique_products, entity_kw, target_count
             )
@@ -2222,7 +2199,6 @@ class ComparisonOrchestrator:
                         spec_synth_model,
                         spec_prompt,
                         spec_config,
-                        False,
                     )
                     if isinstance(req_spec, dict):
                         with req_spec["lock"]:
@@ -2257,7 +2233,7 @@ class ComparisonOrchestrator:
         if (
             len(products) <= 1
             and self.genai_client is None
-            and not hasattr(genai.Client, "assert_called")
+            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
         ):
             return list(products)
 
@@ -2274,11 +2250,6 @@ class ComparisonOrchestrator:
             template=stage3_tpl,
         )
 
-        is_mock_env = (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
-        )
         call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
         thinking_cfg = _build_thinking_config(call_model)
@@ -2292,11 +2263,18 @@ class ComparisonOrchestrator:
             thinking_config=thinking_cfg,
         )
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+        can_speculate = (
+            self.genai_client is None
+            and self.bq_client is None
+            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
+            and not is_benchmark_actual
+            and getattr(settings, "enable_speculative_prelaunch", False)
+        )
         rerank_key = self._get_speculative_rerank_key(products, sanitized_query, call_model)
         legacy_rerank_key = (tuple(sorted(p.sku for p in products[:10])), sanitized_query)
         req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
         local_rerank_fut = None
-        if isinstance(req_spec, dict) and not is_mock_env and not is_benchmark_actual:
+        if isinstance(req_spec, dict) and can_speculate:
             with req_spec["lock"]:
                 local_rerank_fut = req_spec["rerank"].pop(rerank_key, None)
                 if local_rerank_fut is None:
@@ -2323,7 +2301,7 @@ class ComparisonOrchestrator:
                     valid_skus={p.sku for p in products},
                 )
             )
-            if not is_mock_env and not is_benchmark_actual
+            if isinstance(req_spec, dict) and can_speculate
             else None
         )
 
@@ -2343,7 +2321,6 @@ class ComparisonOrchestrator:
                     call_model,
                     prompt,
                     config,
-                    is_mock_env=is_mock_env,
                 )
 
             # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
@@ -3097,18 +3074,9 @@ class ComparisonOrchestrator:
                             )
             return False, ""
 
-        is_sync_guard_env = (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or self.genai_client is not None
-            or hasattr(genai.Client, "assert_called")
-        )
-        ma_guard_future: Future[tuple[bool, str]] | None = None
-        if is_sync_guard_env:
-            is_ma_blocked, ma_block_detail = _run_ma_guard()
-            if is_ma_blocked:
-                return _make_refusal(ma_block_detail)
-        else:
-            ma_guard_future = _SPECULATIVE_PRELAUNCH_POOL.submit(_run_ma_guard)
+        is_ma_blocked, ma_block_detail = _run_ma_guard()
+        if is_ma_blocked:
+            return _make_refusal(ma_block_detail)
 
         # Context lines for products
         product_blocks: list[str] = []
@@ -3178,20 +3146,12 @@ class ComparisonOrchestrator:
             chat_span.set_attribute("gen_ai.system", "vertexai")
             chat_span.set_attribute("gen_ai.request.model", call_model)
             resp = None
-            is_mock_chat_env = (
-                bool(os.environ.get("PYTEST_CURRENT_TEST"))
-                or self.genai_client is not None
-                or hasattr(genai.Client, "assert_called")
-                or hasattr(client, "assert_called")
-                or "Mock" in type(client).__name__
-            )
             try:
                 resp = self._call_genai_with_failover(
                     client,
                     call_model,
                     prompt,
                     config,
-                    is_mock_env=is_mock_chat_env,
                 )
             except Exception as call_err:
                 err_msg = str(call_err).lower()
@@ -3205,15 +3165,9 @@ class ComparisonOrchestrator:
                         "Model Armor template lookup failed in region (%s); retrying without template.",
                         call_err,
                     )
-                    if ma_guard_future is not None:
-                        try:
-                            ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
-                        except Exception:
-                            ma_blocked, ma_reason = False, ""
-                    else:
-                        ma_blocked, ma_reason = _check_model_armor_prompt_guard(
-                            clean_message or message
-                        )
+                    ma_blocked, ma_reason = _check_model_armor_prompt_guard(
+                        clean_message or message
+                    )
                     if ma_blocked:
                         return _make_refusal(
                             ma_reason or "The prompt violated Model Armor security filters."
@@ -3231,7 +3185,6 @@ class ComparisonOrchestrator:
                             call_model,
                             prompt,
                             fallback_config,
-                            is_mock_env=is_mock_chat_env,
                         )
                     except Exception as retry_err:
                         logger.error("Fallback chat generation failed: %s", retry_err)
@@ -3241,16 +3194,6 @@ class ComparisonOrchestrator:
                 else:
                     logger.error("Live chat generation failed: %s", call_err)
                     raise RuntimeError(f"Live chat generation failed: {call_err}") from call_err
-
-            if ma_guard_future is not None:
-                try:
-                    ma_blocked, ma_reason = ma_guard_future.result(timeout=8.0)
-                    if ma_blocked:
-                        return _make_refusal(
-                            ma_reason or "The prompt violated Model Armor security filters."
-                        )
-                except Exception:
-                    pass
 
             # (4) Inspect resp.prompt_feedback.block_reason and resp.candidates[0].finish_reason
             blocked_reasons = {
@@ -3312,21 +3255,12 @@ class ComparisonOrchestrator:
         reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text
 
         # Persist follow-up chat interaction in Vertex AI Session Service and Memory Bank
-        if os.environ.get("PYTEST_CURRENT_TEST"):
-            _persist_chat_session_and_memory(
-                session_id=session_id,
-                user_message=clean_message or message,
-                model_reply=reply_scrubbed,
-                user_id=resolved_user_id,
-            )
-        else:
-            _CHAT_PERSIST_POOL.submit(
-                _persist_chat_session_and_memory,
-                session_id,
-                clean_message or message,
-                reply_scrubbed,
-                resolved_user_id,
-            )
+        _persist_chat_session_and_memory(
+            session_id=session_id,
+            user_message=clean_message or message,
+            model_reply=reply_scrubbed,
+            user_id=resolved_user_id,
+        )
 
         latency_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
         trace_id = get_current_trace_id()
