@@ -921,8 +921,10 @@ class MultiAgentCoordinator:
             s2_active = stage2_model or active_routing
             s3_active = stage3_model or active_synthesis
 
-        if (model and model.lower() == "stage-optimal") or use_optimal:
+        if (model and model.lower() == "stage-optimal") or use_stage_optimal_models:
             effective_model_version = f"stage-optimal({s1_active}+{s2_active}+{s3_active})@001"
+        elif use_optimal:
+            effective_model_version = f"tiered-hybrid({s1_active}+{s2_active}+{s3_active})@001"
         elif (model and model.lower() == "tiered-hybrid") or is_hybrid:
             effective_model_version = f"tiered-hybrid({active_routing}+{active_synthesis})@001"
         elif model:

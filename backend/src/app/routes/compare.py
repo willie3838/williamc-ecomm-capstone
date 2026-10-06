@@ -321,9 +321,8 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     if effective_model is None and (
         not request.agent_version or request.agent_version in ("1.0.0", "1.2.0-tiered")
     ):
-        effective_model = "stage-optimal"
         stage_cfg = resolve_stage_models()
-    elif effective_model and effective_model.strip().lower() == "stage-optimal":
+    elif effective_model and effective_model.strip().lower() in ("stage-optimal", "tiered-hybrid"):
         stage_cfg = resolve_stage_models()
     effective_synthesis = request.synthesis_model
 
@@ -333,7 +332,7 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
             return _invoke_remote_reasoning_engine(
                 resource_name=settings.agent_runtime_resource_name,
                 request=request,
-                effective_model=effective_model,
+                effective_model=effective_model or "stage-optimal",
                 effective_synthesis=effective_synthesis
                 or (stage_cfg["stage3_synthesis"] if stage_cfg else None),
                 user_id=request.user_id,

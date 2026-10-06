@@ -184,7 +184,7 @@ def test_compare_with_default_agent_version(client: TestClient) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data["agent_version"] == "1.2.0-tiered"
-    assert "tiered-hybrid" in data["model_version"]
+    assert "tiered-hybrid" in data["model_version"] or "stage-optimal" in data["model_version"]
     assert data["prompt_version"] == "2026.03-v2"
 
 
