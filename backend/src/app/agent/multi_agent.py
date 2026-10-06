@@ -83,12 +83,19 @@ _ACTIVE_WORKFLOW_STATE: ContextVar[ComparisonAgentState | None] = ContextVar(
 class QueryIntentAgent:
     """Specialist agent responsible for query parsing, intent extraction, and security sanitization."""
 
-    def __init__(self, model: str | None = None, synthesis_model: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+        bq_client: bigquery.Client | None = None,
+    ) -> None:
         self.model, self.synthesis_model, _ = resolve_model_pair(
             model=model, synthesis_model=synthesis_model
         )
         self.orchestrator = ComparisonOrchestrator(
-            model=self.model, synthesis_model=self.synthesis_model
+            bq_client=bq_client,
+            model=self.model,
+            synthesis_model=self.synthesis_model,
         )
         self.adk_llm = CatalogAdkLlm(model=self.model, genai_client=self.orchestrator.genai_client)
         self.adk_agent = Agent(
@@ -115,9 +122,14 @@ class QueryIntentAgent:
 
             # Execute specialist ADK Agent via CatalogAdkRunner
             orchestrator = (
-                ComparisonOrchestrator(model=active_model, synthesis_model=active_synthesis)
-                if hasattr(ComparisonOrchestrator, "assert_called")
-                else self.orchestrator
+                self.orchestrator
+                if active_model == self.model and type(self.orchestrator) is ComparisonOrchestrator
+                else ComparisonOrchestrator(
+                    bq_client=self.orchestrator.bq_client,
+                    genai_client=self.orchestrator.genai_client,
+                    model=active_model,
+                    synthesis_model=active_synthesis,
+                )
             )
             orchestrator.synthesis_model = active_synthesis
             orchestrator._active_rerank_model = state.stage2_model or state.model or self.model
@@ -550,7 +562,9 @@ class MultiAgentCoordinator:
             s2_model = self.model
             s3_model = self.synthesis_model
 
-        self.intent_agent = QueryIntentAgent(model=s1_model, synthesis_model=self.synthesis_model)
+        self.intent_agent = QueryIntentAgent(
+            model=s1_model, synthesis_model=self.synthesis_model, bq_client=bq_client
+        )
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
         self.relevance_agent = RelevanceDetectorAgent(
             bq_client=bq_client, model=s2_model, synthesis_model=self.synthesis_model
@@ -940,14 +954,14 @@ class MultiAgentCoordinator:
             _REQUEST_SPECULATIVE_LOCAL.current = None
             safe_q_early = sanitize_user_prompt(raw_query)
             early_tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", safe_q_early or "")
-            is_mock_env = (
-                bool(os.environ.get("PYTEST_CURRENT_TEST"))
-                or self.orchestrator.genai_client is not None
-                or hasattr(query_catalog, "assert_called")
+            can_prelaunch = (
+                self.orchestrator.genai_client is None
+                and self.orchestrator.bq_client is None
+                and getattr(settings, "enable_speculative_prelaunch", False)
             )
             is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
             if (
-                not is_mock_env
+                can_prelaunch
                 and not is_benchmark_actual
                 and len(early_tagged_skus) < 2
                 and safe_q_early
