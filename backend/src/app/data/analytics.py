@@ -1,6 +1,5 @@
 import concurrent.futures
 import logging
-import os
 import threading
 from datetime import UTC, datetime
 from typing import Any
@@ -64,8 +63,6 @@ class AnalyticsService:
             return None
         if self._firestore_client is not None and not self._firestore_pool:
             return self._firestore_client
-        if os.getenv("PYTEST_CURRENT_TEST"):
-            return None
 
         if self._firestore_pool:
             with self._client_lock:
@@ -113,8 +110,6 @@ class AnalyticsService:
             return None
         if self._bq_client is not None:
             return self._bq_client
-        if os.getenv("PYTEST_CURRENT_TEST"):
-            return None
 
         with self._client_lock:
             if self._bq_client is not None:

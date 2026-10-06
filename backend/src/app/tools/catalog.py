@@ -62,26 +62,32 @@ class CatalogCircuitBreaker:
 
 catalog_circuit_breaker = CatalogCircuitBreaker()
 
-_SHARED_BQ_CLIENT: bigquery.Client | None = None
+_SHARED_BQ_CLIENT: Any = None
+_SHARED_BQ_CLIENT_CLS: Any = None
 _BQ_CLIENT_LOCK = threading.Lock()
 
 
 def _get_shared_bq_client() -> bigquery.Client:
     """Return a shared BigQuery client singleton to avoid per-query credential refresh overhead."""
-    global _SHARED_BQ_CLIENT
+    global _SHARED_BQ_CLIENT, _SHARED_BQ_CLIENT_CLS
+    if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
+        return _SHARED_BQ_CLIENT
     with _BQ_CLIENT_LOCK:
-        if _SHARED_BQ_CLIENT is None:
-            client = bigquery.Client(project=settings.gcp_project)
-            try:
-                from requests.adapters import HTTPAdapter
+        if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
+            return _SHARED_BQ_CLIENT
+        client = bigquery.Client(project=settings.gcp_project)
+        try:
+            from requests.adapters import HTTPAdapter
+            from requests.sessions import Session as RequestsSession
 
-                adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
-                if hasattr(client, "_http") and hasattr(client._http, "mount"):
-                    client._http.mount("https://", adapter)
-                    client._http.mount("http://", adapter)
-            except Exception:
-                pass
-            _SHARED_BQ_CLIENT = client
+            adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
+            if isinstance(getattr(client, "_http", None), RequestsSession):
+                client._http.mount("https://", adapter)
+                client._http.mount("http://", adapter)
+        except Exception:
+            pass
+        _SHARED_BQ_CLIENT = client
+        _SHARED_BQ_CLIENT_CLS = bigquery.Client
         return _SHARED_BQ_CLIENT
 
 
@@ -131,10 +137,7 @@ def query_catalog(
 
         injected_client = client is not None
         if client is None:
-            if hasattr(bigquery.Client, "assert_called"):
-                client = bigquery.Client(project=settings.gcp_project)
-            else:
-                client = _get_shared_bq_client()
+            client = _get_shared_bq_client()
 
         is_exact_sku_batch = bool(clean_keywords) and all(
             re.fullmatch(r"\d{4,14}|SKU[A-Za-z0-9_-]+", k, re.IGNORECASE) for k in clean_keywords
@@ -346,20 +349,9 @@ def query_catalog(
                         "attempt": attempt,
                     },
                 )
-                if (
-                    not injected_client
-                    and not hasattr(bigquery.Client, "assert_called")
-                    and not hasattr(client.query, "assert_called")
-                    and hasattr(client, "query_and_wait")
-                ):
-                    results = client.query_and_wait(
-                        query_sql, job_config=job_config, wait_timeout=timeout_seconds
-                    )
-                    query_job = results
-                else:
-                    query_job = client.query(query_sql, job_config=job_config)
-                    # Enforce query result timeout
-                    results = query_job.result(timeout=timeout_seconds)
+                query_job = client.query(query_sql, job_config=job_config)
+                # Enforce query result timeout
+                results = query_job.result(timeout=timeout_seconds)
                 catalog_circuit_breaker.record_success()
                 break
             except Exception as err:

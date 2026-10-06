@@ -202,3 +202,14 @@ def test_compare_with_canary_agent_version(client: TestClient) -> None:
     assert data["agent_version"] == "1.1.0-flash"
     assert "gemini-2.5-flash" in data["model_version"]
     assert data["prompt_version"] == "2026.03-v2"
+
+
+def test_prompts_service_no_test_detection_branches() -> None:
+    """Verify prompts_service.py contains zero PYTEST_CURRENT_TEST or assert_called branches."""
+    from pathlib import Path
+
+    import app.agent.prompts_service as ps_mod
+
+    src = Path(ps_mod.__file__).read_text(encoding="utf-8")
+    for forbidden in ("PYTEST_CURRENT_TEST", "assert_called", "pytest", '"Mock"'):
+        assert forbidden not in src, f"Forbidden token {forbidden!r} found in prompts_service.py"
