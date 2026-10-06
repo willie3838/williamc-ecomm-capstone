@@ -35,7 +35,7 @@ from google.adk.memory.base_memory_service import BaseMemoryService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.memory.vertex_ai_memory_bank_service import VertexAiMemoryBankService
 from google.adk.models.google_llm import Gemini as _AdkGemini  # noqa: F401
-from google.adk.runners import InMemoryRunner, Runner
+from google.adk.runners import Runner
 from google.adk.sessions import (
     BaseSessionService,
     InMemorySessionService,
@@ -70,10 +70,6 @@ def _resolve_agent_engine_id(explicit_id: str | None = None) -> str | None:
         or getattr(_settings, "agent_engine_id", None)
         or getattr(_settings, "agent_runtime_resource_name", None)
     )
-    if not raw:
-        from app.config import _resolve_default_agent_engine_id
-
-        raw = _resolve_default_agent_engine_id()
     if not raw:
         return None
     raw_str = str(raw).strip()
@@ -125,6 +121,7 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         self.project_id = resolved_project
         self.location = resolved_location
         self._fallback_memory = InMemorySessionService()
+        self._remote_session_id_map: dict[tuple[str, str], str] = {}
 
     @property
     def agent_engine_id(self) -> str | None:
@@ -142,10 +139,6 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         if not engine_id:
             return False
         self._agent_engine_id = engine_id
-        if os.environ.get(
-            "PYTEST_CURRENT_TEST"
-        ) and "test_vertex_ai_session_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
-            return False
         return True
 
     async def create_session(
@@ -164,17 +157,28 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             state=state,
             session_id=session_id,
         )
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or session_id is None
-        ):
+        if self._should_use_vertex_remote():
             try:
-                remote_session = await super().create_session(
-                    app_name=self.agent_engine_id or app_name,
-                    user_id=user_id,
-                    state=state,
-                    session_id=session_id,
-                    **kwargs,
-                )
+                try:
+                    remote_session = await super().create_session(
+                        app_name=self.agent_engine_id or app_name,
+                        user_id=user_id,
+                        state=state,
+                        session_id=session_id,
+                        **kwargs,
+                    )
+                except ValueError:
+                    # Fallback if upstream ADK / Vertex rejects user-provided session_id
+                    remote_session = await super().create_session(
+                        app_name=self.agent_engine_id or app_name,
+                        user_id=user_id,
+                        state=state,
+                        session_id=None,
+                        **kwargs,
+                    )
+                if session_id and remote_session.id != session_id:
+                    self._remote_session_id_map[(user_id, session_id)] = str(remote_session.id)
+                    remote_session.id = session_id
                 remote_session.app_name = app_name
                 return remote_session
             except Exception as exc:
@@ -198,19 +202,17 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             session_id=session_id,
             config=config,
         )
-        if local_session is not None and not os.environ.get("PYTEST_CURRENT_TEST"):
-            return local_session
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (session_id and session_id.isdigit())
-        ):
+        if self._should_use_vertex_remote() and session_id:
+            remote_sid = self._remote_session_id_map.get((user_id, session_id), session_id)
             try:
                 remote_session = await super().get_session(
                     app_name=self.agent_engine_id or app_name,
                     user_id=user_id,
-                    session_id=session_id,
+                    session_id=remote_sid,
                     config=config,
                 )
                 if remote_session is not None:
+                    remote_session.id = session_id
                     remote_session.app_name = app_name
                     return remote_session
             except Exception as exc:
@@ -254,14 +256,13 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             user_id=user_id,
             session_id=session_id,
         )
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (session_id and session_id.isdigit())
-        ):
+        remote_sid = self._remote_session_id_map.pop((user_id, session_id), session_id)
+        if self._should_use_vertex_remote() and remote_sid:
             try:
                 await super().delete_session(
                     app_name=self.agent_engine_id or app_name,
                     user_id=user_id,
-                    session_id=session_id,
+                    session_id=remote_sid,
                 )
             except Exception as exc:
                 logger.debug("VertexAiSessionService.delete_session note: %s", exc)
@@ -269,11 +270,18 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
     async def append_event(self, session: Session, event: Event) -> Event:
         updated = await self._fallback_memory.append_event(session=session, event=event)
         sid = str(getattr(session, "id", "") or "")
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or (sid and sid.isdigit())
-        ):
+        if self._should_use_vertex_remote() and sid:
+            uid = str(getattr(session, "user_id", "") or "")
+            remote_sid = self._remote_session_id_map.get((uid, sid), sid)
             try:
-                await super().append_event(session=session, event=event)
+                remote_session = session.model_copy(
+                    update={
+                        "id": remote_sid,
+                        "app_name": self.agent_engine_id or session.app_name,
+                        "events": list(session.events),
+                    }
+                )
+                await super().append_event(session=remote_session, event=event)
             except Exception as exc:
                 logger.debug("VertexAiSessionService.append_event note: %s", exc)
         return updated
@@ -307,9 +315,10 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         super().__init__(
             project=resolved_project,
             location=resolved_location,
-            agent_engine_id=resolved_engine_id,
+            agent_engine_id=resolved_engine_id or "local",
             express_mode_api_key=express_mode_api_key,
         )
+        self._agent_engine_id = resolved_engine_id
         self.project_id = resolved_project
         self.location = resolved_location
         self._fallback_memory = InMemoryMemoryService()
@@ -326,19 +335,13 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         if not engine_id:
             return False
         self._agent_engine_id = engine_id
-        if os.environ.get(
-            "PYTEST_CURRENT_TEST"
-        ) and "test_vertex_ai_memory_bank_service" not in os.environ.get("PYTEST_CURRENT_TEST", ""):
-            return False
         return True
 
     async def add_session_to_memory(self, session: Session) -> None:
         uid = getattr(session, "user_id", None) or "default_user"
         self._users_with_memories.add(uid)
         await self._fallback_memory.add_session_to_memory(session)
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or uid != "default_user"
-        ):
+        if self._should_use_vertex_remote():
             try:
                 await super().add_session_to_memory(session)
             except Exception as exc:
@@ -361,9 +364,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
             session_id=session_id,
             custom_metadata=custom_metadata,
         )
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or user_id != "default_user"
-        ):
+        if self._should_use_vertex_remote():
             try:
                 await super().add_events_to_memory(
                     app_name=self.agent_engine_id or app_name,
@@ -393,9 +394,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
             )
         except NotImplementedError:
             pass
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST")) or user_id != "default_user"
-        ):
+        if self._should_use_vertex_remote():
             try:
                 await super().add_memory(
                     app_name=self.agent_engine_id or app_name,
@@ -413,11 +412,7 @@ class CatalogVertexAiMemoryBankService(VertexAiMemoryBankService):
         user_id: str,
         query: str,
     ) -> Any:
-        if self._should_use_vertex_remote() and (
-            bool(os.environ.get("PYTEST_CURRENT_TEST"))
-            or user_id != "default_user"
-            or user_id in self._users_with_memories
-        ):
+        if self._should_use_vertex_remote():
             try:
                 return await super().search_memory(
                     app_name=self.agent_engine_id or app_name,
@@ -464,12 +459,12 @@ def create_catalog_app(
 catalog_app = create_catalog_app()
 
 
-class CatalogAdkRunner(InMemoryRunner):
+class CatalogAdkRunner(Runner):
     """Production ADK Runner backed by CatalogVertexAiSessionService and CatalogVertexAiMemoryBankService."""
 
     def __init__(
         self,
-        agent: BaseAgent | None = None,
+        agent: BaseAgent | Any | None = None,
         *,
         app: App | None = None,
         app_name: str = "app",
@@ -479,10 +474,14 @@ class CatalogAdkRunner(InMemoryRunner):
     ) -> None:
         kwargs.pop("hermetic", None)
         active_app = app or create_catalog_app(name=app_name, root_agent=agent)
-        super().__init__(app=active_app, **kwargs)
-        self.session_service = session_service or get_default_session_service()
-        self.memory_service = memory_service or get_default_memory_service()
-        self.auto_create_session = True
+        super().__init__(
+            app=active_app,
+            app_name=app_name,
+            session_service=session_service or get_default_session_service(),
+            memory_service=memory_service or get_default_memory_service(),
+            auto_create_session=True,
+            **kwargs,
+        )
 
 
 # Global singleton services and default runner
@@ -659,6 +658,25 @@ def run_adk_agent_sync(
                 break
 
     return final_text, events
+
+
+def create_workflow_runner(
+    workflow: BaseAgent | None = None,
+    session_service: BaseSessionService | None = None,
+    memory_service: BaseMemoryService | None = None,
+    app_name: str = "catalog_multi_agent_pipeline",
+) -> CatalogAdkRunner:
+    """Create a CatalogAdkRunner wrapping the 4-node ADK 2.0 Workflow graph."""
+    if workflow is None:
+        from app.agent.multi_agent import MultiAgentCoordinator
+
+        workflow = MultiAgentCoordinator().adk_workflow
+    return create_catalog_runner(
+        agent=workflow,
+        session_service=session_service,
+        memory_service=memory_service,
+        app_name=app_name,
+    )
 
 
 # Export default singleton instance for ADK module conventions

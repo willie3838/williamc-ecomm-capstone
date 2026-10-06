@@ -415,3 +415,144 @@ def test_multi_agent_coordinator_session_and_category(mock_query_catalog):
     )
     assert response is not None
     assert len(response.products) == 2
+
+
+def test_adk_workflow_graph_structure_and_no_sequential_agent():
+    """Verify MultiAgentCoordinator uses ADK 2.0 Workflow graph and removes legacy SequentialAgent."""
+    from google.adk.workflow import FunctionNode, Workflow
+
+    coordinator = MultiAgentCoordinator()
+    assert not hasattr(coordinator, "adk_sequential_agent"), (
+        "Legacy adk_sequential_agent must be removed in favor of adk_workflow"
+    )
+    assert hasattr(coordinator, "adk_workflow")
+    assert isinstance(coordinator.adk_workflow, Workflow)
+    assert coordinator.adk_workflow.name == "catalog_multi_agent_pipeline"
+    assert coordinator.adk_workflow.graph is not None
+
+    function_nodes = [
+        n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
+    ]
+    assert len(function_nodes) == 4
+    assert {n.name for n in function_nodes} == {
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "relevance_detector_specialist",
+        "spec_comparison_specialist",
+    }
+
+    state = ComparisonAgentState(raw_query="Compare MacBook Air and Dell XPS")
+    assert state.use_adk_runner is True
+
+
+@patch("app.agent.multi_agent.query_catalog")
+def test_adk_workflow_execution_emits_events_and_traverses_full_graph(mock_query_catalog):
+    """Verify execute_workflow_async runs the ADK Workflow via Runner and traverses all 4 nodes for eligible comparisons."""
+    import asyncio
+
+    mock_query_catalog.return_value = [
+        {
+            "sku": "1001",
+            "name": "Sony WH-1000XM5",
+            "price": 399.99,
+            "brand": "Sony",
+            "category": "Headphones",
+            "specifications": {"battery_life_hours": 30.0},
+        },
+        {
+            "sku": "1002",
+            "name": "Bose QuietComfort Ultra",
+            "price": 429.99,
+            "brand": "Bose",
+            "category": "Headphones",
+            "specifications": {"battery_life_hours": 24.0},
+        },
+    ]
+
+    coordinator = MultiAgentCoordinator()
+    initial_state = ComparisonAgentState(
+        raw_query="Compare Sony WH-1000XM5 [SKU: 1001] and Bose QuietComfort Ultra [SKU: 1002]",
+    )
+    final_state, events = asyncio.run(coordinator.execute_workflow_async(initial_state))
+
+    emitted_nodes = [
+        e.custom_metadata["node"]
+        for e in events
+        if e.custom_metadata and "node" in e.custom_metadata
+    ]
+    assert emitted_nodes == [
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "relevance_detector_specialist",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.stage_trace == [
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "relevance_detector_specialist",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.workflow_routes["query_intent_specialist"] == "ELIGIBLE"
+    assert final_state.workflow_routes["catalog_retrieval_step"] == "HAS_CANDIDATES"
+    assert final_state.comparison_response is not None
+    assert len(final_state.comparison_response.products) == 2
+
+
+def test_adk_workflow_conditional_skip_retrieval_route_on_opinion_query():
+    """Verify ADK Workflow graph takes SKIP_RETRIEVAL conditional edge on opinion queries, bypassing Stages 2 and 3."""
+    import asyncio
+
+    coordinator = MultiAgentCoordinator()
+    initial_state = ComparisonAgentState(raw_query="this is a stupid laptop")
+    final_state, events = asyncio.run(coordinator.execute_workflow_async(initial_state))
+
+    assert final_state.workflow_routes["query_intent_specialist"] == "SKIP_RETRIEVAL"
+    emitted_nodes = [
+        e.custom_metadata["node"]
+        for e in events
+        if e.custom_metadata and "node" in e.custom_metadata
+    ]
+    assert emitted_nodes == [
+        "query_intent_specialist",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.stage_trace == [
+        "query_intent_specialist",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.comparison_response is not None
+    assert final_state.comparison_response.products == []
+
+
+@patch("app.agent.multi_agent.query_catalog")
+def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
+    """Verify ADK Workflow graph takes EMPTY_CANDIDATES conditional edge when Stage 2 returns 0 products, bypassing Stage 3."""
+    import asyncio
+
+    mock_query_catalog.return_value = []
+
+    coordinator = MultiAgentCoordinator()
+    initial_state = ComparisonAgentState(
+        raw_query="Compare NonExistentGadgetA and NonExistentGadgetB"
+    )
+    final_state, events = asyncio.run(coordinator.execute_workflow_async(initial_state))
+
+    assert final_state.workflow_routes["query_intent_specialist"] == "ELIGIBLE"
+    assert final_state.workflow_routes["catalog_retrieval_step"] == "EMPTY_CANDIDATES"
+    emitted_nodes = [
+        e.custom_metadata["node"]
+        for e in events
+        if e.custom_metadata and "node" in e.custom_metadata
+    ]
+    assert emitted_nodes == [
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.stage_trace == [
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "spec_comparison_specialist",
+    ]
+    assert final_state.comparison_response is not None
+    assert final_state.comparison_response.products == []

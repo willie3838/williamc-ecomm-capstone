@@ -80,17 +80,31 @@ def test_catalog_retrieval_step_skipped_for_non_comparison():
     assert result.step_history[-1]["status"] == "SKIPPED"
 
 
-def test_sequential_agent_only_contains_three_llm_agents():
-    """Verify SequentialAgent contains ONLY the 3 real LLM specialist agents."""
+def test_adk_workflow_contains_four_graph_nodes_and_specialist_adk_agents():
+    """Verify ADK 2.0 Workflow graph contains all 4 stage nodes while only the 3 LLM stages hold an Agent."""
+    from google.adk.agents import Agent
+    from google.adk.workflow import FunctionNode, Workflow
+
     coordinator = MultiAgentCoordinator()
-    sub_agent_names = [agent.name for agent in coordinator.adk_sequential_agent.sub_agents]
-    assert len(sub_agent_names) == 3, (
-        f"Expected 3 sub-agents, got {len(sub_agent_names)}: {sub_agent_names}"
-    )
-    assert "query_intent_specialist" in sub_agent_names
-    assert "relevance_detector_specialist" in sub_agent_names
-    assert "spec_comparison_specialist" in sub_agent_names
-    assert "catalog_retrieval_specialist" not in sub_agent_names
+    assert not hasattr(coordinator, "adk_sequential_agent")
+    assert isinstance(coordinator.adk_workflow, Workflow)
+    assert coordinator.adk_workflow.graph is not None
+
+    function_nodes = [
+        n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
+    ]
+    assert len(function_nodes) == 4
+    assert {n.name for n in function_nodes} == {
+        "query_intent_specialist",
+        "catalog_retrieval_step",
+        "relevance_detector_specialist",
+        "spec_comparison_specialist",
+    }
+
+    assert isinstance(coordinator.intent_agent.adk_agent, Agent)
+    assert isinstance(coordinator.relevance_agent.adk_agent, Agent)
+    assert isinstance(coordinator.comparison_agent.adk_agent, Agent)
+    assert not hasattr(coordinator.retrieval_agent, "adk_agent")
 
 
 def test_multi_agent_coordinator_deterministic_retrieval_integration():
@@ -124,13 +138,20 @@ def test_build_thinking_config_coverage():
     assert cfg_20 is not None
     assert getattr(cfg_20, "thinking_budget", None) == 0
 
-    # 3.x, pro, 1.5, and flash-lite reject thinking_budget=0
-    assert _build_thinking_config("gemini-3.5-flash") is None
-    assert _build_thinking_config("gemini-3.6-flash") is None
-    assert _build_thinking_config("gemini-3.7-flash") is None
-    assert _build_thinking_config("gemini-3.8-flash") is None
-    assert _build_thinking_config("gemini-2.5-flash-lite") is None
-    assert _build_thinking_config("gemini-3.1-flash-lite") is None
+    # All Flash and Flash-Lite models (2.0, 2.5, 3.x) use thinking_budget=0
+    for flash_model in (
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+    ):
+        cfg_f = _build_thinking_config(flash_model)
+        assert cfg_f is not None
+        assert getattr(cfg_f, "thinking_budget", None) == 0
+
     cfg_25_pro = _build_thinking_config("gemini-2.5-pro")
     assert cfg_25_pro is not None
     assert getattr(cfg_25_pro, "thinking_budget", None) == 128

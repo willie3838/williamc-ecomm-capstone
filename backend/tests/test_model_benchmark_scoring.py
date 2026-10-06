@@ -126,14 +126,13 @@ class TestThinkingConfigAcrossAllStageModels:
         assert len(STAGE_MODELS) == 9
         for model in STAGE_MODELS:
             cfg = _build_thinking_config(model)
-            if model == "gemini-2.5-flash":
-                assert cfg is not None
-                assert cfg.thinking_budget == 0
-            elif model == "gemini-2.5-pro":
-                assert cfg is not None
+            assert cfg is not None, f"Expected ThinkingConfig for {model}, got None"
+            if model == "gemini-2.5-pro":
                 assert cfg.thinking_budget == 128
             else:
-                assert cfg is None, f"Expected None for {model}, got {cfg}"
+                assert cfg.thinking_budget == 0, (
+                    f"Expected thinking_budget=0 for {model}, got {cfg.thinking_budget}"
+                )
 
     @pytest.mark.parametrize(
         "model_id",
@@ -168,7 +167,8 @@ class TestThinkingConfigAcrossAllStageModels:
         assert mock_client.models.generate_content.called
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
         config: types.GenerateContentConfig = call_kwargs["config"]
-        assert config.thinking_config is None, (
+        assert config.thinking_config is not None
+        assert config.thinking_config.thinking_budget == 0, (
             f"classify_intent_with_llm passed thinking_config={config.thinking_config} "
             f"for model {model_id}"
         )
@@ -206,7 +206,8 @@ class TestThinkingConfigAcrossAllStageModels:
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
         config: types.GenerateContentConfig = call_kwargs.get("config")
         if config is not None:
-            assert config.thinking_config is None, (
+            assert config.thinking_config is not None
+            assert config.thinking_config.thinking_budget == 0, (
                 f"_call_real_vertex_gemini passed thinking_config={config.thinking_config} "
                 f"for model {model_id}"
             )
@@ -253,7 +254,8 @@ class TestThinkingConfigAcrossAllStageModels:
         assert len(responses) >= 1
         call_kwargs = mock_client.models.generate_content.call_args.kwargs
         config: types.GenerateContentConfig = call_kwargs["config"]
-        assert config.thinking_config is None, (
+        assert config.thinking_config is not None
+        assert config.thinking_config.thinking_budget == 0, (
             f"CatalogAdkLlm.generate_content_async passed thinking_config={config.thinking_config} "
             f"for model {model_id}"
         )

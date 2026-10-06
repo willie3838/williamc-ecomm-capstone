@@ -194,10 +194,18 @@ def test_multi_agent_coordinator_uses_adk_sequential_agent_and_session_state():
         },
     ]
 
+    from google.adk.workflow import FunctionNode, Workflow
+
     coordinator = MultiAgentCoordinator(bq_client=mock_bq, model="gemini-2.5-flash")
-    assert hasattr(coordinator, "adk_sequential_agent"), "adk_sequential_agent missing"
-    assert len(coordinator.adk_sequential_agent.sub_agents) == 3, (
-        "Expected 3 specialist sub-agents (QueryIntent, RelevanceDetector, SpecComparison)"
+    assert not hasattr(coordinator, "adk_sequential_agent")
+    assert hasattr(coordinator, "adk_workflow"), "adk_workflow missing"
+    assert isinstance(coordinator.adk_workflow, Workflow)
+    assert coordinator.adk_workflow.graph is not None
+    function_nodes = [
+        n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
+    ]
+    assert len(function_nodes) == 4, (
+        "Expected 4 FunctionNode stages in adk_workflow (QueryIntent, CatalogRetrieval, RelevanceDetector, SpecComparison)"
     )
 
     # Execute pipeline

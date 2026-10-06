@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.agent.runner import (
         catalog_runner,
         create_catalog_runner,
+        create_workflow_runner,
         get_adk_runner,
         run_adk_agent,
     )
@@ -45,6 +46,7 @@ __all__ = [
     "catalog_agent",
     "catalog_runner",
     "create_catalog_runner",
+    "create_workflow_runner",
     "flush_events_to_memory_before_compaction",
     "get_adk_runner",
     "prune_tool_outputs",
@@ -84,6 +86,7 @@ def __getattr__(name: str) -> Any:
     if name in {
         "catalog_runner",
         "create_catalog_runner",
+        "create_workflow_runner",
         "get_adk_runner",
         "run_adk_agent",
     }:
@@ -109,12 +112,9 @@ def __getattr__(name: str) -> Any:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-import os as _os  # noqa: E402
+try:
+    from app.agent.agent import _register_reasoning_engine_query_method as _reg_re
 
-if "PYTEST_CURRENT_TEST" not in _os.environ:
-    try:
-        from app.agent.agent import _register_reasoning_engine_query_method as _reg_re
-
-        _reg_re()
-    except Exception:
-        pass
+    _reg_re()
+except Exception:
+    pass

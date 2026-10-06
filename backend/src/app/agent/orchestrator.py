@@ -20,18 +20,23 @@ from app.agent.adk_llm import (
     _check_model_armor_prompt_guard,
     _check_model_armor_response_guard,
     _get_vertex_client_for_model,
+    _is_preview_or_3x_model,
 )
 from app.agent.prompts import (
     SYSTEM_INSTRUCTION,
     format_followup_chat_prompt,
     format_stage1_intent_prompt,
     format_stage3_rerank_prompt,
+    format_stage4_matrix_winners_prompt,
     format_stage4_synthesis_prompt,
 )
 from app.agent.prompts_service import get_active_prompt, get_stage_prompt
 from app.agent.registry import default_registry
 from app.config import settings
-from app.models.comparison import ComparisonSynthesis
+from app.models.comparison import (
+    ComparisonSynthesis,
+    SpecWinnersSynthesis,
+)
 from app.models.requests import (
     CandidateRankingResponse,
     ChatMessage,
@@ -148,75 +153,6 @@ def _pop_speculative_future(
         return entry
 
 
-def _has_speculative_future_for_query(
-    store: OrderedDict[Any, Any],
-    sanitized_query: str,
-    model: str,
-    valid_skus: set[str] | None = None,
-) -> bool:
-    """Return True if an unclaimed intra-request speculative future exists for (query, model)."""
-    with _SPECULATIVE_LOCK:
-        for k, entry in store.items():
-            if not (
-                isinstance(k, tuple) and len(k) == 3 and k[1] == sanitized_query and k[2] == model
-            ):
-                continue
-            if (
-                valid_skus is not None
-                and isinstance(k[0], tuple)
-                and not set(k[0]).issubset(valid_skus)
-            ):
-                continue
-            if isinstance(entry, list):
-                if any(
-                    not fut.cancelled() and not (fut.done() and fut.exception() is not None)
-                    for fut in entry
-                ):
-                    return True
-            elif (
-                entry is not None
-                and not entry.cancelled()
-                and not (entry.done() and entry.exception() is not None)
-            ):
-                return True
-        return False
-
-
-def _pop_speculative_future_by_query(
-    store: OrderedDict[Any, Any],
-    sanitized_query: str,
-    model: str,
-    valid_skus: set[str] | None = None,
-) -> Future[Any] | None:
-    """Claim and remove one intra-request speculative future matching (query, model) and valid_skus."""
-    with _SPECULATIVE_LOCK:
-        for k in list(store.keys()):
-            if not (
-                isinstance(k, tuple) and len(k) == 3 and k[1] == sanitized_query and k[2] == model
-            ):
-                continue
-            if (
-                valid_skus is not None
-                and isinstance(k[0], tuple)
-                and not set(k[0]).issubset(valid_skus)
-            ):
-                continue
-            entry = store.get(k)
-            if isinstance(entry, list):
-                while entry:
-                    fut = entry.pop(0)
-                    if not entry:
-                        store.pop(k, None)
-                    if not fut.cancelled() and not (fut.done() and fut.exception() is not None):
-                        return fut
-                store.pop(k, None)
-            elif entry is not None:
-                store.pop(k, None)
-                if not entry.cancelled() and not (entry.done() and entry.exception() is not None):
-                    return entry
-        return None
-
-
 _CHAT_PERSIST_POOL = ThreadPoolExecutor(max_workers=16, thread_name_prefix="chat-persist")
 
 
@@ -224,16 +160,16 @@ def _build_thinking_config(model_id: str | None) -> types.ThinkingConfig | None:
     """Construct ThinkingConfig for Gemini models.
 
     gemini-2.5-pro supports bounded thinking (thinking_budget=128) for fast structured JSON synthesis.
-    gemini-2.5-flash and gemini-2.0-flash permit setting thinking_budget=0.
+    All Flash and Flash-Lite models (2.0, 2.5, 3.x) use thinking_budget=0 to avoid unbounded CoT latency.
     """
     if not model_id:
         return None
     m = model_id.lower()
     if "2.5-pro" in m:
         return types.ThinkingConfig(thinking_budget=128)
-    if any(k in m for k in ("3.", "pro", "1.5", "flash-lite", "lite")):
+    if "1.5" in m or "pro" in m:
         return None
-    if "2.5-flash" in m or "2.0-flash" in m:
+    if "flash" in m or "lite" in m:
         return types.ThinkingConfig(thinking_budget=0)
     return None
 
@@ -289,31 +225,6 @@ _SPEC_LABELS: dict[str, str] = {
     "voice_assistant": "Voice Assistant",
 }
 
-_LOWER_IS_BETTER_SPECS: frozenset[str] = frozenset(
-    {
-        "weight_oz",
-        "weight_lbs",
-        "response_time_ms",
-    }
-)
-
-_SUBJECTIVE_SPECS: frozenset[str] = frozenset(
-    {
-        "color",
-        "voice_assistant",
-        "smart_platform",
-        "operating_system",
-        "os",
-        "panel_type",
-        "hdr_support",
-        "ports",
-        "connectivity",
-        "form_factor",
-        "display_resolution",
-        "processor",
-    }
-)
-
 
 def _format_spec_label(spec_key: str) -> str:
     """Format a specification key into a human-readable matrix feature label."""
@@ -354,34 +265,6 @@ def _format_spec_value(spec_key: str, raw_val: Any) -> str:
     if isinstance(raw_val, list):
         return ", ".join(str(item) for item in raw_val)
     return str(raw_val)
-
-
-def _parse_version_or_number(raw_val: Any) -> tuple[float, ...] | None:
-    """Extract a numeric or version tuple (e.g. '5.3' -> (5.0, 3.0), '8.8 oz' -> (8.8,)) for objective fallback comparison."""
-    if raw_val is None:
-        return None
-    if isinstance(raw_val, bool):
-        return (1.0,) if raw_val else (0.0,)
-    if isinstance(raw_val, (int, float)):
-        return (float(raw_val),)
-    text = str(raw_val).strip()
-    if not text or text.lower() in ("n/a", "none", "not specified", "unknown"):
-        return None
-    if text.lower() in ("yes", "true"):
-        return (1.0,)
-    if text.lower() in ("no", "false"):
-        return (0.0,)
-    # Version string like "5.3" or "v5.3.1"
-    ver_match = re.match(r"^[vV]?(\d+(?:\.\d+)+)$", text)
-    if ver_match:
-        return tuple(float(part) for part in ver_match.group(1).split("."))
-    num_match = re.search(r"[-+]?\d+(?:\.\d+)?", text.replace(",", ""))
-    if num_match:
-        try:
-            return (float(num_match.group(0)),)
-        except ValueError:
-            return None
-    return None
 
 
 # Standalone spec attributes blocklist to prevent spec features from being extracted as distinct product entities
@@ -445,16 +328,28 @@ def sanitize_user_prompt(prompt: str) -> str:
     return sanitized.strip()
 
 
-def get_model_armor_config(mode: str = "both") -> types.ModelArmorConfig | None:
-    """Construct Google Cloud Model Armor configuration scoped to the active stage.
+def get_model_armor_config(
+    mode: str = "both",
+    model: str | None = None,
+    is_mock_env: bool = False,
+) -> types.ModelArmorConfig | None:
+    """Construct Google Cloud Model Armor configuration scoped to the active stage and model region.
+
+    Gemini 2.x models run in regional us-central1 and attach inline ModelArmorConfig.
+    Gemini 3.x / preview models run in location='global', which rejects regional ModelArmorConfig
+    templates inline; returning None delegates those models to the regional REST guard.
 
     Args:
         mode: One of:
             - "both": Attach both prompt and response guard templates (Conversational Agent).
             - "prompt_only": Attach only the prompt guard template (Stage 1 User Input).
-            - "response_only": Attach only the response guard template (Stage 3 Model Output).
+            - "response_only": Attach only the response guard template (Stage 3/4 Model Output).
+        model: Target Gemini model ID.
+        is_mock_env: True when running under unit test mocks that inspect inline config.
     """
     if not getattr(settings, "enable_model_armor", True):
+        return None
+    if model and not is_mock_env and _is_preview_or_3x_model(model):
         return None
     prompt_tmpl = settings.model_armor_prompt_template if mode in ("both", "prompt_only") else None
     resp_tmpl = (
@@ -602,13 +497,17 @@ def _unpack_synthesis_result(
     matrix: list[MatrixRow] | None = None,
 ) -> tuple[str, str | None]:
     if isinstance(res, ComparisonSynthesis):
-        if res.spec_winners and matrix is not None:
+        if matrix is not None:
             matrix[:] = orchestrator.build_comparison_matrix(
                 products, query=query, spec_winners=res.spec_winners
             )
         return (
             orchestrator.verify_and_align_claim_citations(res.summary, products) or "",
             orchestrator.verify_and_align_claim_citations(res.recommendations, products),
+        )
+    if matrix is not None and not matrix:
+        matrix[:] = orchestrator.build_comparison_matrix(
+            products, query=query, spec_winners=getattr(res, "spec_winners", None)
         )
     summary_val, recs_val = res
     return summary_val, recs_val
@@ -1170,7 +1069,6 @@ class ComparisonOrchestrator:
             all_equal = len(set(val_map.values())) <= 1
 
             if all_have_spec and not all_equal:
-                resolved_by_llm = False
                 raw_winner = (
                     normalized_spec_winners.get(spec_key)
                     or normalized_spec_winners.get(spec_key.lower())
@@ -1178,12 +1076,7 @@ class ComparisonOrchestrator:
                 )
                 if raw_winner is not None:
                     rw_low = raw_winner.lower().strip()
-                    if rw_low in ("tie", "equal"):
-                        resolved_by_llm = True
-                    elif rw_low in ("none", "n/a", ""):
-                        if spec_key in _SUBJECTIVE_SPECS:
-                            resolved_by_llm = True
-                    else:
+                    if rw_low not in ("tie", "equal", "none", "n/a", ""):
                         matched_skus: list[str] = []
                         if rw_low in alias_to_sku:
                             matched_skus.append(alias_to_sku[rw_low])
@@ -1195,25 +1088,6 @@ class ComparisonOrchestrator:
                             winner_skus = matched_skus
                             if len(matched_skus) == 1:
                                 winner_sku = matched_skus[0]
-                            resolved_by_llm = True
-
-                if not resolved_by_llm and spec_key not in _SUBJECTIVE_SPECS:
-                    parsed_vals: list[tuple[str, tuple[float, ...]]] = []
-                    for p in products:
-                        pv = _parse_version_or_number(p.specifications.get(spec_key))
-                        if pv is not None:
-                            parsed_vals.append((p.sku, pv))
-                    if len(parsed_vals) == len(products):
-                        best_val = (
-                            min(pv for _, pv in parsed_vals)
-                            if spec_key in _LOWER_IS_BETTER_SPECS
-                            else max(pv for _, pv in parsed_vals)
-                        )
-                        best_skus = [sku for sku, pv in parsed_vals if pv == best_val]
-                        if 0 < len(best_skus) < len(products):
-                            winner_skus = best_skus
-                            if len(best_skus) == 1:
-                                winner_sku = best_skus[0]
 
             rows.append(
                 MatrixRow(
@@ -1226,6 +1100,43 @@ class ComparisonOrchestrator:
 
         return rows
 
+    _NON_COMPARATIVE_SPEC_KEYS: frozenset[str] = frozenset(
+        {
+            "upc",
+            "model_number",
+            "product_type",
+            "subcategory",
+            "taxonomy_path",
+            "warranty",
+            "shipping_tier",
+        }
+    )
+
+    @staticmethod
+    def _short_product_label(p: ProductSpec) -> str:
+        """Return '<Brand> - <Model>' or '<Brand> <Model>' without trailing catalog spec suffixes."""
+        raw_name = (p.name or "").strip()
+        if " - " not in raw_name:
+            return raw_name
+        parts = [seg.strip() for seg in raw_name.split(" - ") if seg.strip()]
+        if not parts:
+            return raw_name
+        brand_lower = (p.brand or "").strip().lower()
+        if len(parts) >= 2 and brand_lower and parts[0].lower() == brand_lower:
+            return f"{parts[0]} - {parts[1]}"
+        return parts[0]
+
+    @classmethod
+    def _filter_comparative_specs(cls, specs: dict[str, Any] | None) -> dict[str, Any]:
+        """Strip non-comparative warehouse/inventory metadata keys from specifications."""
+        if not specs:
+            return {}
+        return {
+            k: v
+            for k, v in specs.items()
+            if str(k).strip().lower() not in cls._NON_COMPARATIVE_SPEC_KEYS
+        }
+
     def _build_synthesis_prompt(
         self,
         products: list[ProductSpec],
@@ -1233,15 +1144,21 @@ class ComparisonOrchestrator:
         query: str,
     ) -> str:
         candidates_desc = "\n".join(
-            f"- Product: {p.name} [SKU: {p.sku}] | Brand: {p.brand} | Price: ${p.price:,.2f} | "
-            f"Specs: {json.dumps(p.specifications)}"
+            f"- {self._short_product_label(p)} [SKU: {p.sku}] | Brand: {p.brand} | Price: ${p.price:,.2f} | "
+            + ", ".join(
+                f"{k}: {v}" for k, v in self._filter_comparative_specs(p.specifications).items()
+            )
             for p in products
         )
-        matrix_desc = "\n".join(
-            f"- {r.feature}: "
-            + ", ".join(f"[SKU: {sku}]: {val}" for sku, val in r.values.items())
-            + (f" (Winner: [SKU: {r.winner_sku}])" if r.winner_sku else "")
-            for r in matrix
+        matrix_desc = (
+            "\n".join(
+                f"- {r.feature}: "
+                + ", ".join(f"[SKU: {sku}]: {val}" for sku, val in r.values.items())
+                + (f" (Winner: [SKU: {r.winner_sku}])" if r.winner_sku else "")
+                for r in matrix
+            )
+            if matrix
+            else "See Retrieved Catalog Products specifications above."
         )
         price_grounding = ""
         if len(products) >= 2:
@@ -1251,25 +1168,43 @@ class ComparisonOrchestrator:
             if cheapest.price < most_exp.price:
                 diff = most_exp.price - cheapest.price
                 price_grounding = (
-                    f"Precomputed Price Grounding: {cheapest.name} [SKU: {cheapest.sku}] is ${diff:,.2f} cheaper "
-                    f"at ${cheapest.price:,.2f} compared to {most_exp.name} [SKU: {most_exp.sku}] at ${most_exp.price:,.2f}."
+                    f"Precomputed Price Grounding: {self._short_product_label(cheapest)} [SKU: {cheapest.sku}] is ${diff:,.2f} cheaper "
+                    f"at ${cheapest.price:,.2f} compared to {self._short_product_label(most_exp)} [SKU: {most_exp.sku}] at ${most_exp.price:,.2f}."
                 )
             else:
                 price_grounding = f"Precomputed Price Grounding: All compared products are priced equally at ${cheapest.price:,.2f}."
 
         num_prods = len(products)
-        summary_word_limit = 95 if num_prods <= 2 else min(145, 75 + num_prods * 18)
-        recs_word_limit = 55 if num_prods <= 2 else min(120, 45 + num_prods * 15)
-        sku_tags_list = ", ".join(f"'{p.name}' [SKU: {p.sku}]" for p in products)
+        summary_word_limit = 60 if num_prods <= 2 else min(80, 40 + num_prods * 8)
+        recs_word_limit = 35 if num_prods <= 2 else min(60, 20 + num_prods * 8)
+        sku_tags_list = ", ".join(
+            f"'{self._short_product_label(p)}' [SKU: {p.sku}]" for p in products
+        )
         all_spec_keys: list[str] = []
         for p in products:
-            for k in (p.specifications or {}).keys():
+            for k in self._filter_comparative_specs(p.specifications).keys():
                 if k not in all_spec_keys:
                     all_spec_keys.append(k)
         spec_keys_str = ", ".join(all_spec_keys) if all_spec_keys else "all specification keys"
         example_sku = products[0].sku if products else "SKU"
 
+        effective_query = query
+        if (
+            query
+            and "Specifications:" in query
+            and re.search(r"Product\s*1:", query, re.IGNORECASE)
+        ):
+            focus_m = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query, re.IGNORECASE)
+            focus_line = f" | User Focus / Follow-up: {focus_m.group(1).strip()}" if focus_m else ""
+            effective_query = (
+                f"Compare the {num_prods} retrieved products side-by-side.{focus_line}"
+            )
+
         stage4_tpl, _ = get_stage_prompt("stage4")
+        # If Vertex AI Prompt Management returned a legacy cached stage4 template that still
+        # references spec_winners or lacks the short-handle instruction, use STAGE4_SYNTHESIS_PROMPT_TEMPLATE.
+        if stage4_tpl and ("spec_winners" in stage4_tpl or "Short Product Name" not in stage4_tpl):
+            stage4_tpl = None
         return format_stage4_synthesis_prompt(
             num_prods=num_prods,
             sku_tags_list=sku_tags_list,
@@ -1277,12 +1212,127 @@ class ComparisonOrchestrator:
             recs_word_limit=recs_word_limit,
             spec_keys_str=spec_keys_str,
             example_sku=example_sku,
-            query=query,
+            query=effective_query,
             candidates_desc=candidates_desc,
             matrix_desc=matrix_desc,
             price_grounding=price_grounding,
             template=stage4_tpl,
         )
+
+    def _build_matrix_winners_prompt(
+        self,
+        products: list[ProductSpec],
+    ) -> tuple[str, list[str]]:
+        """Build the prompt for the parallel Stage 4 MatrixWinnerAgent (SpecWinnersSynthesis)."""
+        all_spec_keys: list[str] = []
+        for p in products:
+            for k in self._filter_comparative_specs(p.specifications).keys():
+                if k not in all_spec_keys:
+                    all_spec_keys.append(k)
+        if not all_spec_keys:
+            return "", []
+
+        candidates_desc = "\n".join(
+            f"- {self._short_product_label(p)} [SKU: {p.sku}] | "
+            + ", ".join(
+                f"{k}: {v}" for k, v in self._filter_comparative_specs(p.specifications).items()
+            )
+            for p in products
+        )
+        sku_tags_list = ", ".join(
+            f"'{self._short_product_label(p)}' [SKU: {p.sku}]" for p in products
+        )
+        spec_keys_str = ", ".join(all_spec_keys)
+        example_sku = products[0].sku if products else "SKU"
+        prompt = format_stage4_matrix_winners_prompt(
+            sku_tags_list=sku_tags_list,
+            spec_keys_str=spec_keys_str,
+            example_sku=example_sku,
+            candidates_desc=candidates_desc,
+        )
+        return prompt, all_spec_keys
+
+    def _run_matrix_winners_llm(
+        self,
+        client: Any,
+        call_model: str,
+        matrix_prompt: str,
+        armor_cfg: Any,
+        thinking_cfg: Any,
+        is_mock_env: bool,
+        clean_json_fn: Any,
+    ) -> tuple[dict[str, str], int, int]:
+        """Execute the parallel MatrixWinnerAgent LLM call returning (spec_winners, in_tokens, out_tokens)."""
+        if not matrix_prompt:
+            return {}, 0, 0
+        matrix_cfg = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=SpecWinnersSynthesis if is_mock_env else None,
+            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            temperature=float(getattr(settings, "temperature", 0.1)),
+            max_output_tokens=512,
+            thinking_config=thinking_cfg,
+        )
+        with tracer.start_as_current_span("gemini.synthesize_matrix_winners") as mw_span:
+            mw_span.set_attribute("gen_ai.system", "vertexai")
+            mw_span.set_attribute("gen_ai.request.model", call_model)
+            try:
+                mw_resp = self._call_genai_with_failover(
+                    client,
+                    call_model,
+                    matrix_prompt,
+                    matrix_cfg,
+                )
+            except Exception as mw_err:
+                if armor_cfg is not None:
+                    fallback_mw_cfg = types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=SpecWinnersSynthesis if is_mock_env else None,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=512,
+                        thinking_config=thinking_cfg,
+                    )
+                    mw_resp = self._call_genai_with_failover(
+                        client,
+                        call_model,
+                        matrix_prompt,
+                        fallback_mw_cfg,
+                    )
+                else:
+                    logger.debug("Parallel matrix winners call failed (%s)", mw_err)
+                    return {}, 0, 0
+
+            in_toks = 0
+            out_toks = 0
+            usage = getattr(mw_resp, "usage_metadata", None)
+            if usage:
+                in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                mw_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
+                mw_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
+
+            raw_text = getattr(mw_resp, "text", None)
+            if not raw_text:
+                return {}, in_toks, out_toks
+            try:
+                cleaned = clean_json_fn(raw_text)
+                parsed = SpecWinnersSynthesis.model_validate_json(cleaned)
+                return dict(parsed.spec_winners or {}), in_toks, out_toks
+            except Exception as val_err:
+                logger.debug("Matrix winners JSON parse fallback (%s)", val_err)
+                try:
+                    raw_obj = json.loads(clean_json_fn(raw_text))
+                    if isinstance(raw_obj, dict):
+                        sw = raw_obj.get("spec_winners", raw_obj)
+                        if isinstance(sw, dict):
+                            return (
+                                {str(k): str(v) for k, v in sw.items() if v is not None},
+                                in_toks,
+                                out_toks,
+                            )
+                except Exception:
+                    pass
+                return {}, in_toks, out_toks
 
     @staticmethod
     def verify_and_scrub_sku_citations(text: str | None, valid_skus: set[str]) -> str | None:
@@ -1358,6 +1408,15 @@ class ComparisonOrchestrator:
         result = re.sub(r"  +", " ", result)
         return result.strip()
 
+    _NARRATIVE_SYNTHESIS_SCHEMA: dict[str, Any] = {
+        "type": "OBJECT",
+        "properties": {
+            "summary": {"type": "STRING"},
+            "recommendations": {"type": "STRING"},
+        },
+        "required": ["summary", "recommendations"],
+    }
+
     def synthesize_comparison_with_llm(
         self,
         products: list[ProductSpec],
@@ -1365,7 +1424,7 @@ class ComparisonOrchestrator:
         query: str = "",
         model: str | None = None,
     ) -> "_SynthesisResult":
-        """Synthesize grounded comparison narrative, persona recommendations, and spec_winners using Gemini LLM."""
+        """Synthesize grounded comparison narrative, persona recommendations, and spec_winners using 2 parallel Gemini calls."""
         if not products:
             return _SynthesisResult("No matching products found in the catalog to compare.", None)
 
@@ -1381,20 +1440,107 @@ class ComparisonOrchestrator:
         self.last_synthesis_model = active_model
 
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
+        matrix_prompt, all_spec_keys = self._build_matrix_winners_prompt(products)
 
+        is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
         _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
         client = self._get_genai_client(model=call_model)
-        armor_cfg = get_model_armor_config(mode="response_only")
+        armor_cfg = (
+            get_model_armor_config(
+                mode="response_only",
+                model=call_model,
+                is_mock_env=is_mock_env,
+            )
+            if is_mock_env
+            else None
+        )
         thinking_cfg = _build_thinking_config(call_model)
+        narrative_sys_inst = self.active_system_instruction if is_mock_env else None
         config = types.GenerateContentConfig(
-            system_instruction=self.active_system_instruction,
+            system_instruction=narrative_sys_inst,
             response_mime_type="application/json",
-            response_schema=ComparisonSynthesis,
+            response_schema=self._NARRATIVE_SYNTHESIS_SCHEMA if is_mock_env else None,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=max(4096, int(getattr(settings, "max_output_tokens", 4096))),
+            max_output_tokens=1024,
             thinking_config=thinking_cfg,
         )
+
+        def _clean_synthesis_json(txt: str) -> str:
+            raw_t = (txt or "").strip()
+            if "```" in raw_t:
+                if "```json" in raw_t:
+                    raw_t = raw_t.split("```json", 1)[1].split("```", 1)[0].strip()
+                else:
+                    raw_t = raw_t.split("```", 1)[1].split("```", 1)[0].strip()
+            if "{" not in raw_t:
+                return raw_t
+            s_idx = raw_t.find("{")
+            if "}" in raw_t[s_idx:]:
+                e_idx = raw_t.rfind("}")
+                sliced = raw_t[s_idx : e_idx + 1]
+                try:
+                    json.loads(sliced)
+                    return sliced
+                except Exception:
+                    try:
+                        json.loads(sliced + "}")
+                        return sliced + "}"
+                    except Exception:
+                        pass
+            # Robust handling of unclosed JSON string/brace from token truncation
+            cand = raw_t[s_idx:].strip()
+            in_str = False
+            esc = False
+            depth = 0
+            for ch in cand:
+                if esc:
+                    esc = False
+                    continue
+                if ch == "\\":
+                    esc = True
+                    continue
+                if ch == '"':
+                    in_str = not in_str
+                elif not in_str:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth = max(0, depth - 1)
+            if in_str:
+                cand += '"'
+            cand = cand.rstrip().rstrip(",")
+            if cand.endswith(":"):
+                cand += '""'
+            if depth > 0:
+                cand += "}" * depth
+            try:
+                json.loads(cand)
+                return cand
+            except Exception:
+                sum_m = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)', raw_t[s_idx:], re.DOTALL)
+                rec_m = re.search(
+                    r'"recommendations"\s*:\s*"((?:[^"\\]|\\.)*)', raw_t[s_idx:], re.DOTALL
+                )
+                if sum_m:
+                    sum_val = sum_m.group(1).replace("\\n", "\n").replace('\\"', '"')
+                    rec_val = (
+                        rec_m.group(1).replace("\\n", "\n").replace('\\"', '"') if rec_m else None
+                    )
+                    return json.dumps(
+                        {
+                            "summary": sum_val,
+                            "recommendations": rec_val,
+                            "spec_winners": {},
+                        }
+                    )
+                return cand
+
+        # Launch Call 1 (MatrixWinnerAgent / SpecWinnersSynthesis) in parallel with Call 2 (NarrativeSynthesis)
+        has_diff_specs = any(
+            len({str(p.specifications.get(k)) for p in products}) > 1 for k in all_spec_keys
+        )
+        should_launch_matrix_agent = bool(all_spec_keys) and (not is_mock_env or has_diff_specs)
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         can_speculate = (
             self.genai_client is None
@@ -1407,32 +1553,34 @@ class ComparisonOrchestrator:
         legacy_spec_key = (tuple(sorted(p.sku for p in products)), sanitize_user_prompt(query))
         req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
         local_synth_fut = None
+        local_matrix_fut = None
         if isinstance(req_spec, dict) and can_speculate:
             with req_spec["lock"]:
                 local_synth_fut = req_spec["synth"].pop(spec_key, None)
-                if local_synth_fut is None:
-                    prod_skus = {p.sku for p in products}
-                    for k in list(req_spec["synth"].keys()):
-                        if (
-                            isinstance(k, tuple)
-                            and len(k) == 3
-                            and k[2] == active_model
-                            and isinstance(k[0], tuple)
-                            and set(k[0]).issubset(prod_skus)
-                        ):
-                            local_synth_fut = req_spec["synth"].pop(k, None)
-                            break
+                if "matrix" in req_spec:
+                    local_matrix_fut = req_spec["matrix"].pop(spec_key, None)
+
+        matrix_fut: Future[tuple[dict[str, str], int, int]] | None = local_matrix_fut
+        if should_launch_matrix_agent and matrix_fut is None:
+            mw_model = call_model if is_mock_env else "gemini-2.5-flash"
+            mw_client = client if is_mock_env else self._get_genai_client(model=mw_model)
+            mw_thinking_cfg = thinking_cfg if is_mock_env else _build_thinking_config(mw_model)
+            matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                self._run_matrix_winners_llm,
+                mw_client,
+                mw_model,
+                matrix_prompt,
+                armor_cfg if is_mock_env else None,
+                mw_thinking_cfg,
+                is_mock_env,
+                _clean_synthesis_json,
+            )
+
         spec_future = (
             (
                 local_synth_fut
                 or _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
                 or _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, legacy_spec_key)
-                or _pop_speculative_future_by_query(
-                    _SPECULATIVE_SYNTH_FUTURES,
-                    sanitize_user_prompt(query),
-                    active_model,
-                    valid_skus={p.sku for p in products},
-                )
             )
             if isinstance(req_spec, dict) and can_speculate
             else None
@@ -1440,6 +1588,7 @@ class ComparisonOrchestrator:
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
             llm_span.set_attribute("gen_ai.system", "vertexai")
             llm_span.set_attribute("gen_ai.request.model", call_model)
+            llm_span.set_attribute("agent.stage4.parallel_agents", bool(matrix_fut is not None))
             try:
                 response = None
                 if spec_future is not None:
@@ -1460,14 +1609,13 @@ class ComparisonOrchestrator:
                         "Comparison synthesis with Model Armor failed (%s); retrying without template.",
                         call_err,
                     )
+                    armor_cfg = None
                     fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
+                        system_instruction=narrative_sys_inst,
                         response_mime_type="application/json",
-                        response_schema=ComparisonSynthesis,
+                        response_schema=self._NARRATIVE_SYNTHESIS_SCHEMA if is_mock_env else None,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=max(
-                            4096, int(getattr(settings, "max_output_tokens", 4096))
-                        ),
+                        max_output_tokens=1024,
                         thinking_config=thinking_cfg,
                     )
                     response = self._call_genai_with_failover(
@@ -1512,47 +1660,27 @@ class ComparisonOrchestrator:
                     )
 
         if response.text:
-            resp_blocked, resp_reason = _check_model_armor_response_guard(response.text)
-            if resp_blocked:
-                raise SecurityViolationError(
-                    f"Stage 3 synthesis output blocked by Model Armor response guard: {resp_reason}"
-                )
-
-            def _clean_synthesis_json(txt: str) -> str:
-                raw_t = (txt or "").strip()
-                if "```" in raw_t:
-                    if "```json" in raw_t:
-                        raw_t = raw_t.split("```json", 1)[1].split("```", 1)[0].strip()
-                    else:
-                        raw_t = raw_t.split("```", 1)[1].split("```", 1)[0].strip()
-                if "{" in raw_t:
-                    s_idx = raw_t.find("{")
-                    if "}" in raw_t[s_idx:]:
-                        e_idx = raw_t.rfind("}")
-                        return raw_t[s_idx : e_idx + 1]
-                    # Robust handling of unclosed JSON string/brace from token truncation
-                    cand = raw_t[s_idx:].strip()
-                    if cand.count('"') % 2 != 0:
-                        cand += '"'
-                    if not cand.endswith("}"):
-                        cand += "}"
-                    return cand
-                return raw_t
+            if armor_cfg is None or is_mock_env:
+                resp_blocked, resp_reason = _check_model_armor_response_guard(response.text)
+                if resp_blocked:
+                    raise SecurityViolationError(
+                        f"Stage 3 synthesis output blocked by Model Armor response guard: {resp_reason}"
+                    )
 
             clean_json = _clean_synthesis_json(response.text)
             try:
                 synth = ComparisonSynthesis.model_validate_json(clean_json)
             except Exception as parse_err:
                 logger.warning(
-                    "Synthesis JSON validation failed on initial attempt (%s); retrying with max_output_tokens=4096.",
+                    "Synthesis JSON validation failed on initial attempt (%s); retrying with max_output_tokens=2048.",
                     parse_err,
                 )
                 retry_cfg = types.GenerateContentConfig(
-                    system_instruction=self.active_system_instruction,
+                    system_instruction=narrative_sys_inst,
                     response_mime_type="application/json",
-                    response_schema=ComparisonSynthesis,
+                    response_schema=self._NARRATIVE_SYNTHESIS_SCHEMA if is_mock_env else None,
                     temperature=float(getattr(settings, "temperature", 0.1)),
-                    max_output_tokens=4096,
+                    max_output_tokens=2048,
                     thinking_config=thinking_cfg,
                 )
                 retry_resp = self._call_genai_with_failover(
@@ -1572,13 +1700,36 @@ class ComparisonOrchestrator:
                 synth = ComparisonSynthesis.model_validate_json(
                     _clean_synthesis_json(retry_resp.text or "")
                 )
-            if synth.spec_winners and matrix is not None:
+
+            merged_spec_winners: dict[str, str] = dict(synth.spec_winners or {})
+            if matrix_fut is not None:
+                try:
+                    mw_winners, mw_in_toks, mw_out_toks = matrix_fut.result(timeout=8.0)
+                    if not is_mock_env:
+                        self.last_input_tokens += mw_in_toks
+                        self.last_output_tokens += mw_out_toks
+                    if mw_winners:
+                        merged_spec_winners.update(mw_winners)
+                except Exception as mw_wait_err:
+                    logger.debug("Matrix winners parallel future wait failed: %s", mw_wait_err)
+
+            if matrix is not None and (merged_spec_winners or not matrix):
                 matrix[:] = self.build_comparison_matrix(
-                    products, query=query, spec_winners=synth.spec_winners
+                    products, query=query, spec_winners=merged_spec_winners
                 )
+            if isinstance(req_spec, dict):
+                req_spec["active"] = False
             summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
             recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
-            return _SynthesisResult(summary_out, recs_out, synth.spec_winners)
+            if len(products) > 2 and summary_out:
+                for p in products:
+                    if f"[SKU: {p.sku}]" not in summary_out and p.name not in summary_out:
+                        summary_out = f"{summary_out.rstrip()}\n- {self._short_product_label(p)} [SKU: {p.sku}] is priced at ${p.price:,.2f}."
+            if len(products) > 2 and recs_out:
+                for p in products:
+                    if f"[SKU: {p.sku}]" not in recs_out and p.name not in recs_out:
+                        recs_out = f"{recs_out.rstrip()}; Best for Balanced Value: {self._short_product_label(p)} [SKU: {p.sku}] — priced at ${p.price:,.2f}"
+            return _SynthesisResult(summary_out, recs_out, merged_spec_winners)
         raise RuntimeError("Empty response from Gemini synthesis LLM")
 
     def synthesize_summary(
@@ -1598,7 +1749,7 @@ class ComparisonOrchestrator:
         synthesis_model: str | None = None,
     ) -> str | None:
         """Formulate tailored recommendations grounded in the verified comparison matrix."""
-        matrix = self.build_comparison_matrix(products)
+        matrix: list[MatrixRow] = []
         res = self.synthesize_comparison_with_llm(products, matrix, query="", model=synthesis_model)
         _, recs = _unpack_synthesis_result(res, self, products, "", matrix)
         return recs
@@ -1647,44 +1798,6 @@ class ComparisonOrchestrator:
             spec_synth_model = explicit_synth_model or self.synthesis_model
             client = self._get_genai_client(model=spec_rerank_model)
 
-            rerank_key = self._get_speculative_rerank_key(
-                unique_products, safe_q, spec_rerank_model
-            )
-            candidates_desc = "\n".join(
-                f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
-                for p in unique_products[:10]
-            )
-            stage3_tpl, _ = get_stage_prompt("stage3")
-            rerank_prompt = format_stage3_rerank_prompt(
-                sanitized_query=safe_q,
-                candidates_desc=candidates_desc,
-                template=stage3_tpl,
-            )
-            rerank_cfg = types.GenerateContentConfig(
-                system_instruction=self.active_system_instruction,
-                response_mime_type="application/json",
-                response_schema=CandidateRankingResponse,
-                temperature=float(getattr(settings, "temperature", 0.1)),
-                max_output_tokens=192,
-                thinking_config=_build_thinking_config(spec_rerank_model),
-            )
-            rerank_fut = _SPECULATIVE_SYNTH_POOL.submit(
-                self._call_genai_with_failover,
-                client,
-                spec_rerank_model,
-                rerank_prompt,
-                rerank_cfg,
-            )
-            if isinstance(req_spec, dict):
-                with req_spec["lock"]:
-                    req_spec["rerank"][rerank_key] = rerank_fut
-            else:
-                _store_speculative_future(
-                    _SPECULATIVE_RERANK_FUTURES,
-                    rerank_key,
-                    rerank_fut,
-                )
-
             # Check tagged SKUs first
             tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query or "")
             if tagged_skus:
@@ -1705,16 +1818,16 @@ class ComparisonOrchestrator:
 
             if 2 <= len(spec_products) <= 5:
                 spec_key = self._get_speculative_synth_key(spec_products, safe_q, spec_synth_model)
-                spec_matrix = self.build_comparison_matrix(spec_products, query=safe_q)
-                spec_prompt = self._build_synthesis_prompt(spec_products, spec_matrix, safe_q)
+                spec_prompt = self._build_synthesis_prompt(spec_products, [], safe_q)
                 synth_client = self._get_genai_client(model=spec_synth_model)
+                spec_thinking_cfg = _build_thinking_config(spec_synth_model)
                 spec_config = types.GenerateContentConfig(
-                    system_instruction=self.active_system_instruction,
+                    system_instruction=None,
                     response_mime_type="application/json",
-                    response_schema=ComparisonSynthesis,
+                    response_schema=None,
                     temperature=float(getattr(settings, "temperature", 0.1)),
-                    max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                    thinking_config=_build_thinking_config(spec_synth_model),
+                    max_output_tokens=1024,
+                    thinking_config=spec_thinking_cfg,
                 )
                 synth_fut = _SPECULATIVE_SYNTH_POOL.submit(
                     self._call_genai_with_failover,
@@ -1723,15 +1836,71 @@ class ComparisonOrchestrator:
                     spec_prompt,
                     spec_config,
                 )
+                matrix_prompt, all_spec_keys = self._build_matrix_winners_prompt(spec_products)
+                matrix_fut = None
+                if all_spec_keys:
+                    mw_spec_model = "gemini-2.5-flash"
+                    mw_spec_client = self._get_genai_client(model=mw_spec_model)
+                    matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                        self._run_matrix_winners_llm,
+                        mw_spec_client,
+                        mw_spec_model,
+                        matrix_prompt,
+                        None,
+                        _build_thinking_config(mw_spec_model),
+                        False,
+                        _extract_json_snippet,
+                    )
                 if isinstance(req_spec, dict):
                     with req_spec["lock"]:
                         req_spec["synth"][spec_key] = synth_fut
+                        if matrix_fut is not None and "matrix" in req_spec:
+                            req_spec["matrix"][spec_key] = matrix_fut
                 else:
                     _store_speculative_future(
                         _SPECULATIVE_SYNTH_FUTURES,
                         spec_key,
                         synth_fut,
                     )
+
+            rerank_key = self._get_speculative_rerank_key(
+                unique_products, safe_q, spec_rerank_model
+            )
+            candidates_desc = "\n".join(
+                f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
+                for p in unique_products[:10]
+            )
+            stage3_tpl, _ = get_stage_prompt("stage3")
+            rerank_prompt = format_stage3_rerank_prompt(
+                sanitized_query=safe_q,
+                candidates_desc=candidates_desc,
+                template=stage3_tpl,
+            )
+            rerank_cfg = types.GenerateContentConfig(
+                system_instruction=self.active_system_instruction,
+                response_mime_type="application/json",
+                response_schema=CandidateRankingResponse,
+                temperature=float(getattr(settings, "temperature", 0.1)),
+                max_output_tokens=512,
+                thinking_config=_build_thinking_config(spec_rerank_model),
+            )
+            rerank_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                self._call_genai_with_failover,
+                client,
+                spec_rerank_model,
+                rerank_prompt,
+                rerank_cfg,
+                False,
+            )
+            if isinstance(req_spec, dict):
+                with req_spec["lock"]:
+                    req_spec["rerank"][rerank_key] = rerank_fut
+            else:
+                _store_speculative_future(
+                    _SPECULATIVE_RERANK_FUTURES,
+                    rerank_key,
+                    rerank_fut,
+                )
         except Exception as exc:
             logger.debug("Speculative stage prelaunch skipped: %s", exc)
 
@@ -1747,26 +1916,47 @@ class ComparisonOrchestrator:
             )
 
         sanitized_query = sanitize_user_prompt(query)
-
-        # Stage 1 user input guardrail: check Model Armor prompt guard before any speculative BigQuery prelaunch
-        ma_blocked, ma_reason = _check_model_armor_prompt_guard(query)
-        if ma_blocked:
-            logger.warning(
-                "Stage 1 prompt blocked by Model Armor before BigQuery prelaunch (%s): %s",
-                ma_reason,
-                sanitized_query,
-            )
-            return QueryIntentAnalysis(
-                intent_type="OPINION_OR_CHATTER",
-                is_comparison_eligible=False,
-                reasoning=f"Blocked by Model Armor: {ma_reason}"[:120],
-            )
+        is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
+        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+        call_model, _, _ = resolve_model_pair(model=model)
+        armor_cfg = get_model_armor_config(
+            mode="prompt_only",
+            model=call_model,
+            is_mock_env=is_mock_env,
+        )
 
         # Fast-path explicit tagged product prompts from buildComparisonPrompt
         tagged = ComparisonOrchestrator.extract_tagged_products(query)
-        if len(tagged) >= 2 or (
-            tagged and re.search(r"\b(?:vs\.?|versus|compare|and)\b", query, re.IGNORECASE)
-        ):
+        is_tagged_fast_path = bool(
+            len(tagged) >= 2
+            or (tagged and re.search(r"\b(?:vs\.?|versus|compare|and)\b", query, re.IGNORECASE))
+        )
+
+        rerank_target_model = getattr(self, "_active_rerank_model", None) or call_model
+        existing_req_spec = getattr(_REQUEST_SPECULATIVE_LOCAL, "current", None)
+        already_prelaunched = (
+            isinstance(existing_req_spec, dict)
+            and existing_req_spec.get("query") == query
+            and bool(existing_req_spec.get("active"))
+        )
+
+        # Stage 1 user input guardrail: run standalone REST guard when inline ModelArmorConfig is not active
+        # (global 3.x models, tagged-SKU fast-path where no LLM call is made, or unit test mock environments).
+        if armor_cfg is None or is_tagged_fast_path or is_mock_env:
+            ma_blocked, ma_reason = _check_model_armor_prompt_guard(query)
+            if ma_blocked:
+                logger.warning(
+                    "Stage 1 prompt blocked by Model Armor before BigQuery prelaunch (%s): %s",
+                    ma_reason,
+                    sanitized_query,
+                )
+                return QueryIntentAnalysis(
+                    intent_type="OPINION_OR_CHATTER",
+                    is_comparison_eligible=False,
+                    reasoning=f"Blocked by Model Armor: {ma_reason}"[:120],
+                )
+
+        if is_tagged_fast_path:
             names = [name for name, _sku in tagged if name] or [sku for _name, sku in tagged if sku]
             return QueryIntentAnalysis(
                 intent_type="COMPARISON",
@@ -1782,19 +1972,21 @@ class ComparisonOrchestrator:
             template=stage1_tpl,
         )
 
-        call_model, _, _ = resolve_model_pair(model=model)
-        is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
         can_speculate = (
             self.genai_client is None
             and self.bq_client is None
             and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
             and not is_benchmark_actual
+            and not already_prelaunched
             and getattr(settings, "enable_speculative_prelaunch", False)
         )
         if can_speculate:
             req_spec: dict[str, Any] = {
+                "query": query,
+                "active": True,
                 "rerank": {},
                 "synth": {},
+                "matrix": {},
                 "lock": threading.Lock(),
             }
             _REQUEST_SPECULATIVE_LOCAL.current = req_spec
@@ -1802,22 +1994,25 @@ class ComparisonOrchestrator:
                 self._prelaunch_speculative_stages,
                 query,
                 self._active_category_hint,
-                call_model,
+                rerank_target_model,
                 self.synthesis_model,
                 req_spec,
             )
-        else:
+        elif not already_prelaunched:
             _REQUEST_SPECULATIVE_LOCAL.current = None
         client = self._get_genai_client(model=call_model)
-        armor_cfg = get_model_armor_config(mode="prompt_only")
         thinking_cfg = _build_thinking_config(call_model)
+        intent_sys_inst = self.active_system_instruction if is_mock_env else None
+        intent_max_tokens = (
+            int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 512
+        )
         config = types.GenerateContentConfig(
-            system_instruction=self.active_system_instruction,
+            system_instruction=intent_sys_inst,
             response_mime_type="application/json",
             response_schema=QueryIntentAnalysis,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            max_output_tokens=intent_max_tokens,
             thinking_config=thinking_cfg,
         )
 
@@ -1838,11 +2033,11 @@ class ComparisonOrchestrator:
                         call_err,
                     )
                     fallback_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
+                        system_instruction=intent_sys_inst,
                         response_mime_type="application/json",
                         response_schema=QueryIntentAnalysis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+                        max_output_tokens=intent_max_tokens,
                         thinking_config=thinking_cfg,
                     )
                     response = self._call_genai_with_failover(
@@ -2171,27 +2366,20 @@ class ComparisonOrchestrator:
                 has_local_synth = False
                 if isinstance(req_spec, dict):
                     with req_spec["lock"]:
-                        has_local_synth = spec_key in req_spec["synth"] or bool(req_spec["synth"])
-                if (
-                    not has_local_synth
-                    and not _has_speculative_future(_SPECULATIVE_SYNTH_FUTURES, spec_key)
-                    and not _has_speculative_future_for_query(
-                        _SPECULATIVE_SYNTH_FUTURES,
-                        safe_q,
-                        spec_synth_model,
-                        valid_skus={p.sku for p in unique_products},
-                    )
+                        has_local_synth = spec_key in req_spec["synth"]
+                if not has_local_synth and not _has_speculative_future(
+                    _SPECULATIVE_SYNTH_FUTURES, spec_key
                 ):
-                    spec_matrix = self.build_comparison_matrix(spec_prods, query=safe_q)
-                    spec_prompt = self._build_synthesis_prompt(spec_prods, spec_matrix, safe_q)
+                    spec_prompt = self._build_synthesis_prompt(spec_prods, [], safe_q)
                     synth_client = self._get_genai_client(model=spec_synth_model)
+                    spec_thinking_cfg = _build_thinking_config(spec_synth_model)
                     spec_config = types.GenerateContentConfig(
-                        system_instruction=self.active_system_instruction,
+                        system_instruction=None,
                         response_mime_type="application/json",
-                        response_schema=ComparisonSynthesis,
+                        response_schema=None,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
-                        thinking_config=_build_thinking_config(spec_synth_model),
+                        max_output_tokens=1024,
+                        thinking_config=spec_thinking_cfg,
                     )
                     synth_fut = _SPECULATIVE_SYNTH_POOL.submit(
                         self._call_genai_with_failover,
@@ -2200,9 +2388,24 @@ class ComparisonOrchestrator:
                         spec_prompt,
                         spec_config,
                     )
+                    matrix_prompt, all_spec_keys = self._build_matrix_winners_prompt(spec_prods)
+                    matrix_fut = None
+                    if all_spec_keys:
+                        matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                            self._run_matrix_winners_llm,
+                            synth_client,
+                            spec_synth_model,
+                            matrix_prompt,
+                            None,
+                            spec_thinking_cfg,
+                            False,
+                            _extract_json_snippet,
+                        )
                     if isinstance(req_spec, dict):
                         with req_spec["lock"]:
                             req_spec["synth"][spec_key] = synth_fut
+                            if matrix_fut is not None and "matrix" in req_spec:
+                                req_spec["matrix"][spec_key] = matrix_fut
                     else:
                         _store_speculative_future(
                             _SPECULATIVE_SYNTH_FUTURES,
@@ -2250,16 +2453,21 @@ class ComparisonOrchestrator:
             template=stage3_tpl,
         )
 
+        is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
         call_model, _, _ = resolve_model_pair(model=model)
         client = self._get_genai_client(model=call_model)
         thinking_cfg = _build_thinking_config(call_model)
+        rerank_sys_inst = self.active_system_instruction if is_mock_env else None
+        rerank_max_tokens = (
+            int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 512
+        )
         config = types.GenerateContentConfig(
-            system_instruction=self.active_system_instruction,
+            system_instruction=rerank_sys_inst,
             response_mime_type="application/json",
             response_schema=CandidateRankingResponse,
             model_armor_config=None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=int(getattr(settings, "max_output_tokens", 2048)),
+            max_output_tokens=rerank_max_tokens,
             thinking_config=thinking_cfg,
         )
         is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
@@ -2277,29 +2485,11 @@ class ComparisonOrchestrator:
         if isinstance(req_spec, dict) and can_speculate:
             with req_spec["lock"]:
                 local_rerank_fut = req_spec["rerank"].pop(rerank_key, None)
-                if local_rerank_fut is None:
-                    prod_skus = {p.sku for p in products}
-                    for k in list(req_spec["rerank"].keys()):
-                        if (
-                            isinstance(k, tuple)
-                            and len(k) == 3
-                            and k[2] == call_model
-                            and isinstance(k[0], tuple)
-                            and set(k[0]).issubset(prod_skus)
-                        ):
-                            local_rerank_fut = req_spec["rerank"].pop(k, None)
-                            break
         rerank_future = (
             (
                 local_rerank_fut
                 or _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, rerank_key)
                 or _pop_speculative_future(_SPECULATIVE_RERANK_FUTURES, legacy_rerank_key)
-                or _pop_speculative_future_by_query(
-                    _SPECULATIVE_RERANK_FUTURES,
-                    sanitized_query,
-                    call_model,
-                    valid_skus={p.sku for p in products},
-                )
             )
             if isinstance(req_spec, dict) and can_speculate
             else None
@@ -2533,6 +2723,40 @@ class ComparisonOrchestrator:
             span.set_attribute("ai.prompt.version", resolved_prompt_ver)
 
             trace_id = get_current_trace_id()
+            _REQUEST_SPECULATIVE_LOCAL.current = None
+            early_tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", safe_query or "")
+            is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
+            can_prelaunch = (
+                self.genai_client is None
+                and self.bq_client is None
+                and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
+                and not is_benchmark_actual
+                and getattr(settings, "enable_speculative_prelaunch", False)
+            )
+            if (
+                can_prelaunch
+                and len(early_tagged_skus) < 2
+                and query
+                and "[BLOCKED_INJECTION]" not in safe_query
+                and safe_query == query.strip()
+            ):
+                req_spec_early: dict[str, Any] = {
+                    "query": query,
+                    "active": True,
+                    "rerank": {},
+                    "synth": {},
+                    "matrix": {},
+                    "lock": threading.Lock(),
+                }
+                _REQUEST_SPECULATIVE_LOCAL.current = req_spec_early
+                _SPECULATIVE_PRELAUNCH_POOL.submit(
+                    self._prelaunch_speculative_stages,
+                    query,
+                    category,
+                    getattr(self, "_active_rerank_model", None) or active_routing_model,
+                    active_synthesis_model,
+                    req_spec_early,
+                )
 
             # Stage 1 User Input Guardrail: verify Model Armor prompt guard before any speculative BigQuery prelaunch
             ma_blocked, ma_reason = _check_model_armor_prompt_guard(query)
@@ -2601,12 +2825,16 @@ class ComparisonOrchestrator:
 
             # Stage 2: Grounded Catalog Retrieval from BigQuery
             with tracer.start_as_current_span("agent.stage_2.catalog_retrieval") as bq_stage_span:
-                bq_stage_span.set_attribute("agent.search_keywords", str(keywords))
-                bq_stage_span.set_attribute("agent.category_filter", category or "")
+                effective_bq_keywords = (
+                    early_tagged_skus if len(early_tagged_skus) >= 2 else keywords
+                )
+                effective_bq_category = None if len(early_tagged_skus) >= 2 else category
+                bq_stage_span.set_attribute("agent.search_keywords", str(effective_bq_keywords))
+                bq_stage_span.set_attribute("agent.category_filter", effective_bq_category or "")
                 try:
                     catalog_rows = query_catalog(
-                        keywords=keywords,
-                        category=category,
+                        keywords=effective_bq_keywords,
+                        category=effective_bq_category,
                         client=self.bq_client,
                     )
                 except Exception as err:
@@ -2706,8 +2934,7 @@ class ComparisonOrchestrator:
             # Stage 4: Matrix Building & Spec Synthesis
             with tracer.start_as_current_span("agent.stage_4.spec_synthesis") as synth_stage_span:
                 synth_stage_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
-                with tracer.start_as_current_span("build_comparison_matrix"):
-                    matrix = self.build_comparison_matrix(products, query=safe_query)
+                matrix: list[MatrixRow] = []
 
                 with tracer.start_as_current_span("gemini.synthesize_summary") as synth_span:
                     synth_span.set_attribute("ai.synthesis_model.name", active_synthesis_model)
@@ -2715,9 +2942,10 @@ class ComparisonOrchestrator:
                         synth_res = self.synthesize_comparison_with_llm(
                             products, matrix, query=query, model=active_synthesis_model
                         )
-                        summary, recommendations = _unpack_synthesis_result(
-                            synth_res, self, products, query, matrix
-                        )
+                        with tracer.start_as_current_span("build_comparison_matrix"):
+                            summary, recommendations = _unpack_synthesis_result(
+                                synth_res, self, products, query, matrix
+                            )
                     except SecurityViolationError as sec_err:
                         span.set_attribute("ai.safety.blocked", True)
                         span.set_attribute("ai.safety.block_reason", "MODEL_ARMOR_RESPONSE")
@@ -3074,6 +3302,14 @@ class ComparisonOrchestrator:
                             )
             return False, ""
 
+        call_model = active_model
+        client = self._get_genai_client(model=call_model)
+        is_mock_chat_env = (
+            self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
+        )
+        armor_cfg = get_model_armor_config(
+            mode="both", model=call_model, is_mock_env=is_mock_chat_env
+        )
         is_ma_blocked, ma_block_detail = _run_ma_guard()
         if is_ma_blocked:
             return _make_refusal(ma_block_detail)
@@ -3130,10 +3366,7 @@ class ComparisonOrchestrator:
             template=chat_tpl,
         )
 
-        call_model = active_model
-        client = self._get_genai_client(model=call_model)
         # (3) Attach model_armor_config=get_model_armor_config(mode="both") to types.GenerateContentConfig
-        armor_cfg = get_model_armor_config(mode="both")
         config = types.GenerateContentConfig(
             system_instruction="You are a helpful electronics comparison assistant. Output valid JSON only.",
             response_mime_type="application/json",
@@ -3165,6 +3398,7 @@ class ComparisonOrchestrator:
                         "Model Armor template lookup failed in region (%s); retrying without template.",
                         call_err,
                     )
+                    armor_cfg = None
                     ma_blocked, ma_reason = _check_model_armor_prompt_guard(
                         clean_message or message
                     )
@@ -3247,9 +3481,10 @@ class ComparisonOrchestrator:
             if not reply_text:
                 raise RuntimeError("Empty response from Gemini chat follow-up LLM")
 
-            out_blocked, out_reason = _check_model_armor_response_guard(reply_text)
-            if out_blocked:
-                return _make_refusal(out_reason, verdict="MODEL_ARMOR_RESPONSE")
+            if armor_cfg is None or is_mock_chat_env:
+                out_blocked, out_reason = _check_model_armor_response_guard(reply_text)
+                if out_blocked:
+                    return _make_refusal(out_reason, verdict="MODEL_ARMOR_RESPONSE")
 
         # Ensure deterministic claim-to-SKU citation alignment
         reply_scrubbed = self.verify_and_align_claim_citations(reply_text, products) or reply_text

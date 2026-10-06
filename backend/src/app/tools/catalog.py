@@ -62,26 +62,32 @@ class CatalogCircuitBreaker:
 
 catalog_circuit_breaker = CatalogCircuitBreaker()
 
-_SHARED_BQ_CLIENT: bigquery.Client | None = None
+_SHARED_BQ_CLIENT: Any = None
+_SHARED_BQ_CLIENT_CLS: Any = None
 _BQ_CLIENT_LOCK = threading.Lock()
 
 
 def _get_shared_bq_client() -> bigquery.Client:
     """Return a shared BigQuery client singleton to avoid per-query credential refresh overhead."""
-    global _SHARED_BQ_CLIENT
+    global _SHARED_BQ_CLIENT, _SHARED_BQ_CLIENT_CLS
+    if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
+        return _SHARED_BQ_CLIENT
     with _BQ_CLIENT_LOCK:
-        if _SHARED_BQ_CLIENT is None:
-            client = bigquery.Client(project=settings.gcp_project)
-            try:
-                from requests.adapters import HTTPAdapter
+        if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
+            return _SHARED_BQ_CLIENT
+        client = bigquery.Client(project=settings.gcp_project)
+        try:
+            from requests.adapters import HTTPAdapter
+            from requests.sessions import Session as RequestsSession
 
-                adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
-                if hasattr(client, "_http") and hasattr(client._http, "mount"):
-                    client._http.mount("https://", adapter)
-                    client._http.mount("http://", adapter)
-            except Exception:
-                pass
-            _SHARED_BQ_CLIENT = client
+            adapter = HTTPAdapter(pool_connections=64, pool_maxsize=64)
+            if isinstance(getattr(client, "_http", None), RequestsSession):
+                client._http.mount("https://", adapter)
+                client._http.mount("http://", adapter)
+        except Exception:
+            pass
+        _SHARED_BQ_CLIENT = client
+        _SHARED_BQ_CLIENT_CLS = bigquery.Client
         return _SHARED_BQ_CLIENT
 
 
@@ -131,104 +137,109 @@ def query_catalog(
 
         injected_client = client is not None
         if client is None:
-            if hasattr(bigquery.Client, "assert_called"):
-                client = bigquery.Client(project=settings.gcp_project)
-            else:
-                client = _get_shared_bq_client()
+            client = _get_shared_bq_client()
 
-        patterns = [f"%{k}%" for k in clean_keywords]
-        # Also include individual model/brand sub-tokens so non-contiguous catalog names match
-        stopwords = {
-            "about",
-            "an",
-            "and",
-            "are",
-            "as",
-            "at",
-            "be",
-            "been",
-            "best",
-            "better",
-            "by",
-            "describe",
-            "details",
-            "do",
-            "feature",
-            "features",
-            "find",
-            "for",
-            "from",
-            "give",
-            "go",
-            "good",
-            "he",
-            "how",
-            "if",
-            "in",
-            "info",
-            "information",
-            "is",
-            "it",
-            "look",
-            "looking",
-            "me",
-            "my",
-            "need",
-            "no",
-            "of",
-            "on",
-            "or",
-            "search",
-            "show",
-            "so",
-            "spec",
-            "specs",
-            "speed",
-            "tell",
-            "the",
-            "to",
-            "top",
-            "up",
-            "us",
-            "versus",
-            "vs",
-            "want",
-            "was",
-            "we",
-            "were",
-            "what",
-            "when",
-            "where",
-            "which",
-            "who",
-            "why",
-            "with",
-        }
-        entity_token_groups: list[list[str]] = []
-        for k in clean_keywords:
-            tokens = [
-                t.lower()
-                for t in re.findall(r"[a-zA-Z0-9]+", k)
-                if t.lower() not in stopwords and len(t) >= 2
+        is_exact_sku_batch = bool(clean_keywords) and all(
+            re.fullmatch(r"\d{4,14}|SKU[A-Za-z0-9_-]+", k, re.IGNORECASE) for k in clean_keywords
+        )
+
+        if is_exact_sku_batch:
+            patterns = list(dict.fromkeys(k.lower() for k in clean_keywords))
+            entity_token_groups = []
+            where_clauses = ["LOWER(sku) IN UNNEST(@product_patterns)"]
+        else:
+            patterns = [f"%{k}%" for k in clean_keywords]
+            # Also include individual model/brand sub-tokens so non-contiguous catalog names match
+            stopwords = {
+                "about",
+                "an",
+                "and",
+                "are",
+                "as",
+                "at",
+                "be",
+                "been",
+                "best",
+                "better",
+                "by",
+                "describe",
+                "details",
+                "do",
+                "feature",
+                "features",
+                "find",
+                "for",
+                "from",
+                "give",
+                "go",
+                "good",
+                "he",
+                "how",
+                "if",
+                "in",
+                "info",
+                "information",
+                "is",
+                "it",
+                "look",
+                "looking",
+                "me",
+                "my",
+                "need",
+                "no",
+                "of",
+                "on",
+                "or",
+                "search",
+                "show",
+                "so",
+                "spec",
+                "specs",
+                "speed",
+                "tell",
+                "the",
+                "to",
+                "top",
+                "up",
+                "us",
+                "versus",
+                "vs",
+                "want",
+                "was",
+                "we",
+                "were",
+                "what",
+                "when",
+                "where",
+                "which",
+                "who",
+                "why",
+                "with",
+            }
+            entity_token_groups = []
+            for k in clean_keywords:
+                tokens = [
+                    t.lower()
+                    for t in re.findall(r"[a-zA-Z0-9]+", k)
+                    if t.lower() not in stopwords and len(t) >= 2
+                ]
+                for t in tokens:
+                    patterns.append(f"%{t}%")
+                dedup_tokens = list(dict.fromkeys(tokens))
+                if dedup_tokens:
+                    entity_token_groups.append(dedup_tokens)
+            # Deduplicate while preserving order
+            patterns = list(dict.fromkeys(patterns))
+            where_clauses = [
+                "(EXISTS (SELECT 1 FROM UNNEST(@product_patterns) AS pat "
+                "WHERE LOWER(name) LIKE LOWER(pat) "
+                "OR LOWER(brand) LIKE LOWER(pat) "
+                "OR LOWER(category) LIKE LOWER(pat) "
+                "OR LOWER(sku) LIKE LOWER(pat)))"
             ]
-            for t in tokens:
-                patterns.append(f"%{t}%")
-            dedup_tokens = list(dict.fromkeys(tokens))
-            if dedup_tokens:
-                entity_token_groups.append(dedup_tokens)
-        # Deduplicate while preserving order
-        patterns = list(dict.fromkeys(patterns))
 
         query_params: list[bigquery.ArrayQueryParameter | bigquery.ScalarQueryParameter] = [
             bigquery.ArrayQueryParameter("product_patterns", "STRING", patterns),
-        ]
-
-        where_clauses = [
-            "(EXISTS (SELECT 1 FROM UNNEST(@product_patterns) AS pat "
-            "WHERE LOWER(name) LIKE LOWER(pat) "
-            "OR LOWER(brand) LIKE LOWER(pat) "
-            "OR LOWER(category) LIKE LOWER(pat) "
-            "OR LOWER(sku) LIKE LOWER(pat)))"
         ]
 
         if category:
@@ -259,7 +270,9 @@ def query_catalog(
                 )
             entity_score_exprs.append("(" + " + ".join(term_checks) + ")")
 
-        if len(entity_score_exprs) >= 2:
+        if is_exact_sku_batch:
+            order_by_sql = " price ASC"
+        elif len(entity_score_exprs) >= 2:
             best_score_sql = f"GREATEST({', '.join(entity_score_exprs)})"
             when_clauses = " ".join(
                 f"WHEN {expr} >= {best_score_sql} THEN {idx}"
@@ -336,20 +349,9 @@ def query_catalog(
                         "attempt": attempt,
                     },
                 )
-                if (
-                    not injected_client
-                    and not hasattr(bigquery.Client, "assert_called")
-                    and not hasattr(client.query, "assert_called")
-                    and hasattr(client, "query_and_wait")
-                ):
-                    results = client.query_and_wait(
-                        query_sql, job_config=job_config, wait_timeout=timeout_seconds
-                    )
-                    query_job = results
-                else:
-                    query_job = client.query(query_sql, job_config=job_config)
-                    # Enforce query result timeout
-                    results = query_job.result(timeout=timeout_seconds)
+                query_job = client.query(query_sql, job_config=job_config)
+                # Enforce query result timeout
+                results = query_job.result(timeout=timeout_seconds)
                 catalog_circuit_breaker.record_success()
                 break
             except Exception as err:
