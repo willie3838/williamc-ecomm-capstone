@@ -556,4 +556,3 @@ def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
     ]
     assert final_state.comparison_response is not None
     assert final_state.comparison_response.products == []
-

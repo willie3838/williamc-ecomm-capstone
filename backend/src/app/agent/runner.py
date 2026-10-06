@@ -686,4 +686,3 @@ def create_workflow_runner(
 
 # Export default singleton instance for ADK module conventions
 catalog_runner = get_adk_runner()
-

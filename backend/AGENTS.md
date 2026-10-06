@@ -32,7 +32,7 @@ backend/
 │       │   ├── prompts.py     # Anti-hallucination default system instructions
 │       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
 │       │   ├── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
-│       │   └── runner.py      # Google ADK InMemoryRunner execution engine & session management
+│       │   └── runner.py      # Google ADK Runner execution engine & session management
 │       └── tools/             # Agent tools
 │           ├── __init__.py
 │           └── catalog.py     # query_catalog BigQuery parameterized tool
@@ -149,7 +149,7 @@ backend/
 4. **Multi-Node Architecture, Relevance Gating & Pure Deterministic SQL Step**:
    - The `/api/compare` endpoint executes through `MultiAgentCoordinator` across 4 specialist nodes: `QueryIntentAgent`, `CatalogRetrievalStep` (aliased to `CatalogRetrievalAgent`), `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
    - **Node 2 Pure Deterministic SQL Step (`CatalogRetrievalStep`)**: Node 2 executes parameterized BigQuery SQL with pattern-matched relevance ordering and SKU deduplication directly. LLM tool-calling overhead (`self.adk_agent`, `model`, `use_llm_tool_call`, and `process_with_llm_tool_call`) is removed, guaranteeing 0.0% spec hallucination and ultra-low latency (~120ms P95).
-   - **Google ADK SequentialAgent Architecture**: The `adk_sequential_agent` pipeline encapsulates exclusively the 3 real LLM specialist agents: `QueryIntentAgent`, `RelevanceDetectorAgent`, and `SpecComparisonAgent`.
+   - **Google ADK 2.0 `Workflow` Graph Architecture**: The `adk_workflow` graph (`google.adk.workflow.Workflow`) orchestrates all 4 `FunctionNode` stages (`query_intent_specialist`, `catalog_retrieval_step`, `relevance_detector_specialist`, `spec_comparison_specialist`) with conditional routing edges (`ELIGIBLE` vs `SKIP_RETRIEVAL` and `HAS_CANDIDATES` vs `EMPTY_CANDIDATES`), while only the 3 LLM stages hold an ADK `Agent`.
    - `QueryIntentAgent` and `ComparisonOrchestrator` semantically classify query intent using Gemini structured JSON generation (`QueryIntentAnalysis`), eliminating brittle hardcoded regex word lists.
    - Subjective rants, complaints, or opinions without comparison intent (e.g., 'this is a stupid laptop') are classified as `OPINION_OR_CHATTER` with `is_comparison_eligible=False` and suppressed.
    - Early opinion query gating: Non-comparative rants and opinions are rejected immediately before BigQuery catalog querying to eliminate unnecessary database load and guarantee fast matrix suppression.
@@ -165,8 +165,8 @@ backend/
     - System prompts (`app/agent/prompts.py`) use synthetic placeholder SKUs (`[SKU: 9000001]`) and abstract device models ("Model Alpha", "Model Beta") to prevent data leakage and benchmark memorization.
     - Category classification leverages semantic Gemini structured classification (`QueryIntentAnalysis`) while supporting fast-path taxonomy aliases across all primary consumer electronics categories (`Laptops`, `Tablets`, `Headphones`, `Smart Home`, `TVs`).
     - All spec grounding relies exclusively on dynamic `query_catalog` tool results, satisfying counterfactual perturbation invariance.
-7. **Google ADK Runner, `VertexAiSessionService`, `VertexAiMemoryBankService` & Events Compaction (`app.agent.runner`, `app.agent.memory_config`, `app.agent.hermetic_adapter`)**:
-    - Operates through `CatalogAdkRunner` (`google.adk.runners.InMemoryRunner` with `auto_create_session=True`), `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`), and `CatalogVertexAiMemoryBankService` (`google.adk.memory.VertexAiMemoryBankService`).
+7. **Google ADK Runner, `VertexAiSessionService`, `VertexAiMemoryBankService` & Events Compaction (`app.agent.runner`, `app.agent.memory_config`, `app.agent.adk_llm`)**:
+    - Operates through `CatalogAdkRunner` (`google.adk.runners.Runner` with `auto_create_session=True`), `CatalogVertexAiSessionService` (`google.adk.sessions.VertexAiSessionService`), and `CatalogVertexAiMemoryBankService` (`google.adk.memory.VertexAiMemoryBankService`).
     - `CatalogVertexAiSessionService` and `CatalogVertexAiMemoryBankService` automatically resolve `GOOGLE_CLOUD_AGENT_ENGINE_ID` injected at runtime by Agent Runtime (Vertex AI Agent Engine) or fallback to `backend/deployment_metadata.json` (`2445220951441276928`), while transparently falling back to `InMemorySessionService`/`InMemoryMemoryService` during local development, `pytest`, and offline evaluations.
     - Wires ADK `App` with `EventsCompactionConfig(token_threshold=32000, event_retention_size=5, compaction_interval=8, overlap_size=2, summarizer=LlmEventSummarizer(llm=CatalogAdkLlm('gemini-2.5-flash')))` and `ResumabilityConfig(is_resumable=True)`.
     - `create_adk_agent()` equips `PreloadMemoryTool` and `after_agent_callback=generate_memories_callback` (calling `callback_context.add_session_to_memory()`) to persist session memories automatically into Vertex AI Memory Bank.

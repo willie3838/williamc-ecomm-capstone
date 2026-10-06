@@ -107,7 +107,6 @@ def test_adk_workflow_contains_four_graph_nodes_and_specialist_adk_agents():
     assert not hasattr(coordinator.retrieval_agent, "adk_agent")
 
 
-
 def test_multi_agent_coordinator_deterministic_retrieval_integration():
     """Verify MultiAgentCoordinator routes through deterministic retrieval step seamlessly."""
     coordinator = MultiAgentCoordinator()

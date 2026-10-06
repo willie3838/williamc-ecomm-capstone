@@ -96,7 +96,6 @@ def __getattr__(name: str) -> Any:
         globals()[name] = val
         return val
 
-
     if name in {
         "CatalogAnchoredEventSummarizer",
         "SUMMARY_BANNER_PREFIX",
