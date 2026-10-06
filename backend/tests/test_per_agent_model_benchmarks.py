@@ -519,9 +519,38 @@ def test_per_stage_optimal_models_configuration() -> None:
     assert is_hybrid is True
 
 
-def test_multi_agent_coordinator_stage_optimal_routing(mock_bq: MagicMock) -> None:
-    """Verify MultiAgentCoordinator supports stage-optimal routing across specialists."""
+def test_multi_agent_coordinator_stage_optimal_routing(
+    mock_bq: MagicMock, monkeypatch: Any
+) -> None:
+    """Verify MultiAgentCoordinator uses stage-optimal models by default and honors env var overrides."""
+    # 1. Default MultiAgentCoordinator() (no arguments) uses stage-optimal models
+    default_coord = MultiAgentCoordinator(bq_client=mock_bq)
+    assert default_coord.use_stage_optimal_models is True
+    assert default_coord.intent_agent.model == "gemini-3.5-flash-lite"
+    assert default_coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert default_coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
+
+    # 2. Explicit model="stage-optimal"
     coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
     assert coord.intent_agent.model == "gemini-3.5-flash-lite"
     assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
     assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
+
+    # 3. Environment variable overrides (README / Rollback Playbook)
+    monkeypatch.setenv("STAGE1_INTENT_MODEL", "gemini-2.5-flash")
+    monkeypatch.setenv("STAGE2_RELEVANCE_MODEL", "gemini-3.5-flash-lite")
+    monkeypatch.setenv("STAGE3_SYNTHESIS_MODEL", "gemini-2.5-flash-lite")
+    monkeypatch.setenv("STAGE4_MATRIX_WINNERS_MODEL", "gemini-2.5-flash-lite")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
+    env_resolved = resolve_stage_models()
+    assert env_resolved["stage1_intent"] == "gemini-2.5-flash"
+    assert env_resolved["stage2_relevance"] == "gemini-3.5-flash-lite"
+    assert env_resolved["stage3_synthesis"] == "gemini-2.5-flash-lite"
+    assert env_resolved["stage4_matrix_winners"] == "gemini-2.5-flash-lite"
+    assert env_resolved["stage5_chat"] == "gemini-2.5-flash-lite"
+
+    env_coord = MultiAgentCoordinator(bq_client=mock_bq)
+    assert env_coord.intent_agent.model == "gemini-2.5-flash"
+    assert env_coord.relevance_agent.model == "gemini-3.5-flash-lite"
+    assert env_coord.comparison_agent.synthesis_model == "gemini-2.5-flash-lite"

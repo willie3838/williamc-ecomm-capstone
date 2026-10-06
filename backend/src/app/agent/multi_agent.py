@@ -539,28 +539,41 @@ class MultiAgentCoordinator:
         bq_client: bigquery.Client | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
-        use_stage_optimal_models: bool = False,
+        use_stage_optimal_models: bool | None = None,
     ) -> None:
         from app.agent.adk_llm import _warm_vertex_client_and_auth
 
         _warm_vertex_client_and_auth()
         self.bq_client = bq_client
-        self.use_stage_optimal_models = use_stage_optimal_models or (
-            model is not None and model.lower() == "stage-optimal"
-        )
+        if use_stage_optimal_models is None:
+            self.use_stage_optimal_models = (
+                model is None or model.strip().lower() == "stage-optimal"
+            )
+        else:
+            self.use_stage_optimal_models = use_stage_optimal_models or (
+                model is not None and model.strip().lower() == "stage-optimal"
+            )
         self.model, self.synthesis_model, self.is_tiered_hybrid = resolve_model_pair(
-            model=model, synthesis_model=synthesis_model
+            model="stage-optimal" if self.use_stage_optimal_models and model is None else model,
+            synthesis_model=synthesis_model,
         )
 
+        stage_cfg = resolve_stage_models()
         if self.use_stage_optimal_models:
-            stage_cfg = resolve_stage_models()
             s1_model = stage_cfg["stage1_intent"]
             s2_model = stage_cfg["stage2_relevance"]
-            s3_model = stage_cfg["stage3_synthesis"]
+            s3_model = (
+                synthesis_model
+                if synthesis_model
+                and synthesis_model.strip().lower() not in ("stage-optimal", "tiered-hybrid")
+                else stage_cfg["stage3_synthesis"]
+            )
+            chat_model = stage_cfg["stage5_chat"]
         else:
             s1_model = self.model
             s2_model = self.model
             s3_model = self.synthesis_model
+            chat_model = self.synthesis_model
 
         self.intent_agent = QueryIntentAgent(
             model=s1_model, synthesis_model=self.synthesis_model, bq_client=bq_client
@@ -578,7 +591,7 @@ class MultiAgentCoordinator:
         self.chat_agent = Agent(
             name="followup_chat_specialist",
             model=CatalogAdkLlm(
-                model=self.synthesis_model,
+                model=chat_model,
                 genai_client=self.orchestrator.genai_client,
             ),
             instruction=SYSTEM_INSTRUCTION,
@@ -848,6 +861,9 @@ class MultiAgentCoordinator:
         use_stage_optimal_models: bool = False,
         user_id: str | None = None,
         use_adk_runner: bool = True,
+        stage1_model: str | None = None,
+        stage2_model: str | None = None,
+        stage3_model: str | None = None,
     ) -> CompareResponse:
         """Execute end-to-end multi-agent pipeline via the ADK 2.0 Workflow graph and Runner."""
         from app.agent.prompts_service import get_active_prompt
@@ -871,7 +887,16 @@ class MultiAgentCoordinator:
         )
         _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
 
-        base_model = "gemini-2.5-flash" if is_flash else (model or self.model)
+        use_optimal = not is_flash and (
+            use_stage_optimal_models
+            or (self.use_stage_optimal_models and model is None)
+            or (model is not None and model.strip().lower() == "stage-optimal")
+        )
+        base_model = (
+            "gemini-2.5-flash"
+            if is_flash
+            else ("stage-optimal" if use_optimal else (model or self.model))
+        )
         base_synthesis = synthesis_model or self.synthesis_model or base_model
         active_routing, active_synthesis, is_hybrid = resolve_model_pair(
             model=base_model,
@@ -879,20 +904,22 @@ class MultiAgentCoordinator:
             default_model=settings.gemini_model,
         )
 
-        use_optimal = (
-            use_stage_optimal_models
-            or self.use_stage_optimal_models
-            or (model is not None and model.lower() == "stage-optimal")
-        )
         if use_optimal:
             stage_cfg = resolve_stage_models()
-            s1_active = stage_cfg["stage1_intent"]
-            s2_active = stage_cfg["stage2_relevance"]
-            s3_active = stage_cfg["stage3_synthesis"]
+            s1_active = stage1_model or stage_cfg["stage1_intent"]
+            s2_active = stage2_model or stage_cfg["stage2_relevance"]
+            s3_active = stage3_model or (
+                synthesis_model
+                if synthesis_model
+                and synthesis_model.strip().lower() not in ("stage-optimal", "tiered-hybrid")
+                else stage_cfg["stage3_synthesis"]
+            )
+            active_routing = s1_active
+            active_synthesis = s3_active
         else:
-            s1_active = active_routing
-            s2_active = active_routing
-            s3_active = active_synthesis
+            s1_active = stage1_model or active_routing
+            s2_active = stage2_model or active_routing
+            s3_active = stage3_model or active_synthesis
 
         if (model and model.lower() == "stage-optimal") or use_optimal:
             effective_model_version = f"stage-optimal({s1_active}+{s2_active}+{s3_active})@001"
@@ -1060,8 +1087,13 @@ class MultiAgentCoordinator:
             if user_id:
                 span.set_attribute("user_id", user_id)
 
-            active_model = model or self.model
-            active_synthesis = synthesis_model or self.synthesis_model
+            if self.use_stage_optimal_models and model is None and synthesis_model is None:
+                chat_stage_model = resolve_stage_models()["stage5_chat"]
+                active_model = chat_stage_model
+                active_synthesis = chat_stage_model
+            else:
+                active_model = model or self.model
+                active_synthesis = synthesis_model or self.synthesis_model
             span.set_attribute("ai.model.name", active_model or "")
             span.set_attribute("ai.synthesis_model.name", active_synthesis or "")
 

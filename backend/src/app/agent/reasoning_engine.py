@@ -75,6 +75,9 @@ class CatalogComparisonReasoningEngine:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        stage1_model: str | None = None,
+        stage2_model: str | None = None,
+        stage3_model: str | None = None,
         **_kwargs: Any,
     ) -> dict[str, Any]:
         """Serve comparison query on Vertex AI Agent Runtime."""
@@ -89,6 +92,9 @@ class CatalogComparisonReasoningEngine:
             agent_version=agent_version,
             model=model or self.model,
             synthesis_model=synthesis_model or self.synthesis_model,
+            stage1_model=stage1_model,
+            stage2_model=stage2_model,
+            stage3_model=stage3_model,
         )
         return response.model_dump()
 
@@ -100,6 +106,9 @@ class CatalogComparisonReasoningEngine:
         agent_version: str | None = None,
         model: str | None = None,
         synthesis_model: str | None = None,
+        stage1_model: str | None = None,
+        stage2_model: str | None = None,
+        stage3_model: str | None = None,
         **_kwargs: Any,
     ) -> Iterable[dict[str, Any]]:
         """Serve streaming turn events for Vertex AI Agent Runtime :streamQuery."""
@@ -110,6 +119,9 @@ class CatalogComparisonReasoningEngine:
             agent_version=agent_version,
             model=model,
             synthesis_model=synthesis_model,
+            stage1_model=stage1_model,
+            stage2_model=stage2_model,
+            stage3_model=stage3_model,
         )
         yield {"event_type": "comparison_completed", "data": result}
 

@@ -369,25 +369,57 @@ STAGE_OPTIMAL_MODELS: dict[str, str] = {
     "stage2_relevance": "gemini-2.5-flash-lite",
     "stage3_synthesis": "gemini-2.5-pro",
     "stage3_fast_synthesis": "gemini-2.5-flash-lite",
+    "stage4_matrix_winners": "gemini-2.5-flash",
+    "stage5_chat": "gemini-2.5-flash",
 }
 
 
 def resolve_stage_models(fast_synthesis: bool = False) -> dict[str, str]:
-    """Resolve optimal models per specialist pipeline stage from settings or defaults."""
-    s1 = getattr(settings, "stage1_intent_model", STAGE_OPTIMAL_MODELS["stage1_intent"])
-    s2 = getattr(settings, "stage2_relevance_model", STAGE_OPTIMAL_MODELS["stage2_relevance"])
+    """Resolve optimal models per specialist pipeline stage from env vars, settings, or defaults."""
+    s1 = (
+        os.environ.get("STAGE1_INTENT_MODEL")
+        or getattr(settings, "stage1_intent_model", None)
+        or STAGE_OPTIMAL_MODELS["stage1_intent"]
+    )
+    s2 = (
+        os.environ.get("STAGE2_RELEVANCE_MODEL")
+        or os.environ.get("STAGE3_RELEVANCE_MODEL")
+        or getattr(settings, "stage2_relevance_model", None)
+        or STAGE_OPTIMAL_MODELS["stage2_relevance"]
+    )
     s3 = (
-        getattr(
-            settings, "stage3_fast_synthesis_model", STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"]
+        (
+            os.environ.get("STAGE3_FAST_SYNTHESIS_MODEL")
+            or getattr(settings, "stage3_fast_synthesis_model", None)
+            or STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"]
         )
         if fast_synthesis
-        else getattr(settings, "stage3_synthesis_model", STAGE_OPTIMAL_MODELS["stage3_synthesis"])
+        else (
+            os.environ.get("STAGE3_SYNTHESIS_MODEL")
+            or os.environ.get("STAGE4_SYNTHESIS_MODEL")
+            or getattr(settings, "stage3_synthesis_model", None)
+            or STAGE_OPTIMAL_MODELS["stage3_synthesis"]
+        )
+    )
+    s4_mw = (
+        os.environ.get("STAGE4_MATRIX_WINNERS_MODEL")
+        or getattr(settings, "stage4_matrix_winners_model", None)
+        or STAGE_OPTIMAL_MODELS["stage4_matrix_winners"]
+    )
+    s5_chat = (
+        os.environ.get("STAGE5_CHAT_MODEL")
+        or os.environ.get("GEMINI_MODEL")
+        or getattr(settings, "stage5_chat_model", None)
+        or getattr(settings, "gemini_model", None)
+        or STAGE_OPTIMAL_MODELS["stage5_chat"]
     )
     return {
         "stage1_intent": s1,
         "stage2_retrieval": "deterministic-bq-sql",
         "stage2_relevance": s2,
         "stage3_synthesis": s3,
+        "stage4_matrix_winners": s4_mw,
+        "stage5_chat": s5_chat,
     }
 
 
@@ -401,16 +433,21 @@ def resolve_model_pair(
     Returns:
         tuple[str, str, bool]: (routing_model, synthesis_model, is_tiered_hybrid)
     """
-    fallback = default_model or getattr(settings, "gemini_model", "gemini-2.5-flash")
+    fallback = (
+        default_model
+        or os.environ.get("GEMINI_MODEL")
+        or getattr(settings, "gemini_model", "gemini-2.5-flash")
+    )
     raw_model = (model or fallback or "").strip()
 
     if raw_model.lower() == "stage-optimal":
-        routing = getattr(settings, "stage1_intent_model", "gemini-3.5-flash-lite")
+        stage_cfg = resolve_stage_models()
+        routing = stage_cfg["stage1_intent"]
         syn = (synthesis_model or "").strip()
         synthesis = (
             syn
             if syn and syn.lower() not in ("stage-optimal", "tiered-hybrid")
-            else getattr(settings, "stage3_synthesis_model", "gemini-2.5-pro")
+            else stage_cfg["stage3_synthesis"]
         )
         return routing, synthesis, True
 
@@ -1562,7 +1599,9 @@ class ComparisonOrchestrator:
 
         matrix_fut: Future[tuple[dict[str, str], int, int]] | None = local_matrix_fut
         if should_launch_matrix_agent and matrix_fut is None:
-            mw_model = call_model if is_mock_env else "gemini-2.5-flash"
+            mw_model = (
+                call_model if is_mock_env else resolve_stage_models()["stage4_matrix_winners"]
+            )
             mw_client = client if is_mock_env else self._get_genai_client(model=mw_model)
             mw_thinking_cfg = thinking_cfg if is_mock_env else _build_thinking_config(mw_model)
             matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
@@ -1839,7 +1878,7 @@ class ComparisonOrchestrator:
                 matrix_prompt, all_spec_keys = self._build_matrix_winners_prompt(spec_products)
                 matrix_fut = None
                 if all_spec_keys:
-                    mw_spec_model = "gemini-2.5-flash"
+                    mw_spec_model = resolve_stage_models()["stage4_matrix_winners"]
                     mw_spec_client = self._get_genai_client(model=mw_spec_model)
                     matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
                         self._run_matrix_winners_llm,

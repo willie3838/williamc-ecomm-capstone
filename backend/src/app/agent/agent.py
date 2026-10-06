@@ -149,6 +149,9 @@ def _register_reasoning_engine_query_method() -> None:
                         agent_version=parsed_msg.get("agent_version"),
                         model=parsed_msg.get("model"),
                         synthesis_model=parsed_msg.get("synthesis_model"),
+                        stage1_model=parsed_msg.get("stage1_model"),
+                        stage2_model=parsed_msg.get("stage2_model"),
+                        stage3_model=parsed_msg.get("stage3_model"),
                     )
                     return
                 user_text = _extract_message_text(message)
@@ -198,6 +201,9 @@ def _register_reasoning_engine_query_method() -> None:
                         agent_version=parsed_msg.get("agent_version"),
                         model=parsed_msg.get("model"),
                         synthesis_model=parsed_msg.get("synthesis_model"),
+                        stage1_model=parsed_msg.get("stage1_model"),
+                        stage2_model=parsed_msg.get("stage2_model"),
+                        stage3_model=parsed_msg.get("stage3_model"),
                     )
                     yield res
                     return

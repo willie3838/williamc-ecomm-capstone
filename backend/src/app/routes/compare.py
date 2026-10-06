@@ -173,7 +173,7 @@ def _warm_remote_engine_client() -> None:
         pass
 
     try:
-        _get_coordinator("tiered-hybrid", None)
+        _get_coordinator("stage-optimal", None)
     except Exception:
         pass
 
@@ -184,7 +184,7 @@ def _warm_remote_engine_client() -> None:
                 request=ComparisonRequest(
                     query="MacBook Air M3 vs Dell XPS 13", category="Laptops"
                 ),
-                effective_model="tiered-hybrid",
+                effective_model="stage-optimal",
                 effective_synthesis=None,
             )
     except Exception:
@@ -197,6 +197,9 @@ def _invoke_remote_reasoning_engine(
     effective_model: str | None,
     effective_synthesis: str | None,
     user_id: str | None = None,
+    stage1_model: str | None = None,
+    stage2_model: str | None = None,
+    stage3_model: str | None = None,
 ) -> ComparisonResponse:
     """Invoke remote Vertex AI Agent Runtime (:query) via pooled HTTP session or SDK client."""
     resolved_uid = user_id or request.user_id
@@ -257,23 +260,28 @@ def _invoke_remote_reasoning_engine(
 
     gateway_uid = resolved_uid or request.session_id or "cloud-run-gateway"
     url = f"https://{region}-aiplatform.googleapis.com/v1beta1/{resource_name}:streamQuery"
+    msg_dict: dict[str, Any] = {
+        "__compare_request__": True,
+        "query": request.query,
+        "category": request.category,
+        "session_id": request.session_id,
+        "user_id": gateway_uid,
+        "agent_version": request.agent_version,
+        "model": effective_model,
+        "synthesis_model": effective_synthesis,
+    }
+    if stage1_model:
+        msg_dict["stage1_model"] = stage1_model
+    if stage2_model:
+        msg_dict["stage2_model"] = stage2_model
+    if stage3_model:
+        msg_dict["stage3_model"] = stage3_model
     payload = {
         "class_method": "stream_query",
         "input": {
             "user_id": gateway_uid,
             "session_id": request.session_id,
-            "message": json.dumps(
-                {
-                    "__compare_request__": True,
-                    "query": request.query,
-                    "category": request.category,
-                    "session_id": request.session_id,
-                    "user_id": gateway_uid,
-                    "agent_version": request.agent_version,
-                    "model": effective_model,
-                    "synthesis_model": effective_synthesis,
-                }
-            ),
+            "message": json.dumps(msg_dict),
         },
     }
     resp = _REMOTE_ENGINE_SESSION.post(
@@ -305,14 +313,18 @@ if getattr(settings, "enable_background_warmup", False):
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
     import app.main as app_main
-    from app.agent.orchestrator import ComparisonOrchestrator
+    from app.agent.orchestrator import ComparisonOrchestrator, resolve_stage_models
 
-    # Default to tiered-hybrid for production if not explicitly specified
+    # Default to stage-optimal (single source of truth in config.py / env vars)
     effective_model = request.model
+    stage_cfg: dict[str, str] | None = None
     if effective_model is None and (
         not request.agent_version or request.agent_version in ("1.0.0", "1.2.0-tiered")
     ):
-        effective_model = "tiered-hybrid"
+        effective_model = "stage-optimal"
+        stage_cfg = resolve_stage_models()
+    elif effective_model and effective_model.strip().lower() == "stage-optimal":
+        stage_cfg = resolve_stage_models()
     effective_synthesis = request.synthesis_model
 
     # Delegate to remote Vertex AI Agent Runtime (Reasoning Engine) if configured
@@ -322,8 +334,12 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
                 resource_name=settings.agent_runtime_resource_name,
                 request=request,
                 effective_model=effective_model,
-                effective_synthesis=effective_synthesis,
+                effective_synthesis=effective_synthesis
+                or (stage_cfg["stage3_synthesis"] if stage_cfg else None),
                 user_id=request.user_id,
+                stage1_model=stage_cfg["stage1_intent"] if stage_cfg else None,
+                stage2_model=stage_cfg["stage2_relevance"] if stage_cfg else None,
+                stage3_model=stage_cfg["stage3_synthesis"] if stage_cfg else None,
             )
         except Exception as remote_err:
             logger.warning(

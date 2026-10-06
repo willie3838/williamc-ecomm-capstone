@@ -123,12 +123,22 @@ class Settings(BaseSettings):
     stage3_synthesis_model: str = Field(
         default="gemini-2.5-pro",
         alias="STAGE3_SYNTHESIS_MODEL",
-        description="Stage 3 Spec Comparison Specialist deep quality synthesis model",
+        description="Stage 3/4 Spec Comparison Specialist deep quality narrative synthesis model",
     )
     stage3_fast_synthesis_model: str = Field(
         default="gemini-2.5-flash-lite",
         alias="STAGE3_FAST_SYNTHESIS_MODEL",
-        description="Stage 3 Spec Comparison Specialist low-latency synthesis model",
+        description="Stage 3/4 Spec Comparison Specialist low-latency synthesis model",
+    )
+    stage4_matrix_winners_model: str = Field(
+        default="gemini-2.5-flash",
+        alias="STAGE4_MATRIX_WINNERS_MODEL",
+        description="Stage 4 Call 2 parallel matrix row winner specialist model",
+    )
+    stage5_chat_model: str = Field(
+        default="gemini-2.5-flash",
+        alias="STAGE5_CHAT_MODEL",
+        description="Stage 5 conversational follow-up chat specialist model (falls back to GEMINI_MODEL)",
     )
     agent_version: str = Field(
         default="1.2.0-tiered",
