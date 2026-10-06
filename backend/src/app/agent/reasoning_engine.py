@@ -43,10 +43,7 @@ class CatalogComparisonReasoningEngine:
             from app.observability import tracing as tracing_mod
             from app.observability.tracing import setup_tracing
 
-            export_to_cloud = (
-                "PYTEST_CURRENT_TEST" not in os.environ
-                and os.environ.get("EXPORT_TRACES_TO_CLOUD", "false").lower() == "true"
-            )
+            export_to_cloud = os.environ.get("EXPORT_TRACES_TO_CLOUD", "false").lower() == "true"
             if getattr(tracing_mod, "_GLOBAL_TRACER_PROVIDER", None) is None or export_to_cloud:
                 setup_tracing(
                     service_name="techbuy-catalog-comparison-agent",

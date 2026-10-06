@@ -398,41 +398,46 @@ class TestADKRunnerIntegration:
             user_id="user_test_1",
             id="test_session_mem_1",
         )
-        await service.add_session_to_memory(session=session)
+        with patch.object(
+            service, "_get_api_client", side_effect=RuntimeError("offline fallback test")
+        ):
+            await service.add_session_to_memory(session=session)
 
-        await service.add_events_to_memory(
-            app_name="app",
-            user_id="user_test_1",
-            session_id="test_session_mem_1",
-            events=[],
-        )
+            await service.add_events_to_memory(
+                app_name="app",
+                user_id="user_test_1",
+                session_id="test_session_mem_1",
+                events=[],
+            )
 
-        await service.add_memory(
-            app_name="app",
-            user_id="user_test_1",
-            memories=["Customer prefers lightweight 13-inch laptops with high battery life."],
-        )
+            await service.add_memory(
+                app_name="app",
+                user_id="user_test_1",
+                memories=["Customer prefers lightweight 13-inch laptops with high battery life."],
+            )
 
-        search_res = await service.search_memory(
-            app_name="app",
-            user_id="user_test_1",
-            query="battery life laptop",
-        )
-        assert search_res is not None
+            search_res = await service.search_memory(
+                app_name="app",
+                user_id="user_test_1",
+                query="battery life laptop",
+            )
+            assert search_res is not None
 
-    def test_resolve_default_agent_engine_id_from_deployment_metadata(self):
+    def test_resolve_default_agent_engine_id_from_deployment_metadata(self, monkeypatch):
         """Verify agent_engine_id resolves to deployment_metadata.json default when env is unset."""
         from app.agent.runner import _resolve_agent_engine_id
         from app.config import Settings
-
-        resolved = _resolve_agent_engine_id(None)
-        assert resolved == "2445220951441276928"
+        from app.config import settings as global_settings
 
         settings = Settings(
             gcp_project="fde-bestbuy-sandbox-dev-508321",
             google_cloud_agent_engine_id=None,
         )
         assert settings.agent_engine_id == "2445220951441276928"
+
+        monkeypatch.setattr(global_settings, "agent_engine_id", settings.agent_engine_id)
+        resolved = _resolve_agent_engine_id(None)
+        assert resolved == "2445220951441276928"
 
     def test_catalog_adk_runner_with_compaction_and_resumability(self):
         """Verify CatalogAdkRunner wires EventsCompactionConfig and ResumabilityConfig."""
@@ -601,3 +606,323 @@ class TestADKRunnerIntegration:
                 )
                 assert "<recalled_user_memories>" in str(prompt_arg)
                 assert "lightweight under 3 lbs" in str(prompt_arg)
+
+    @pytest.mark.asyncio
+    async def test_vertex_ai_session_service_production_non_digit_session_id(self, monkeypatch):
+        """Verify create_session, get_session, append_event, and delete_session call Vertex AI when PYTEST_CURRENT_TEST is unset and session_id is alphanumeric."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setenv(
+            "GOOGLE_CLOUD_AGENT_ENGINE_ID",
+            "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/reasoningEngines/9876543210",
+        )
+        service = CatalogVertexAiSessionService()
+        assert service._should_use_vertex_remote() is True
+
+        async def _empty_async_iter():
+            if False:
+                yield None
+
+        mock_api_client = MagicMock()
+        mock_create_resp = MagicMock()
+        mock_create_resp.response.name = (
+            "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/"
+            "reasoningEngines/9876543210/sessions/sess_prod_abc123"
+        )
+        mock_create_resp.response.session_state = {"category": "Laptops"}
+        mock_create_resp.response.update_time.timestamp.return_value = 1700000000.0
+        mock_api_client.agent_engines.sessions.create = AsyncMock(return_value=mock_create_resp)
+
+        mock_get_resp = MagicMock()
+        mock_get_resp.name = mock_create_resp.response.name
+        mock_get_resp.user_id = "prod_user"
+        mock_get_resp.session_state = {"category": "Laptops"}
+        mock_get_resp.update_time.timestamp.return_value = 1700000000.0
+        mock_api_client.agent_engines.sessions.get = AsyncMock(return_value=mock_get_resp)
+        mock_api_client.agent_engines.sessions.events.list = AsyncMock(
+            side_effect=lambda **_kw: _empty_async_iter()
+        )
+        mock_api_client.agent_engines.sessions.events.append = AsyncMock(return_value=None)
+        mock_api_client.agent_engines.sessions.delete = AsyncMock(return_value=None)
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_api_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(service, "_get_api_client", return_value=mock_cm):
+            created = await service.create_session(
+                app_name="app",
+                user_id="prod_user",
+                state={"category": "Laptops"},
+                session_id="sess_prod_abc123",
+            )
+            assert created.id == "sess_prod_abc123"
+            assert created.app_name == "app"
+            mock_api_client.agent_engines.sessions.create.assert_awaited_once()
+
+            fetched = await service.get_session(
+                app_name="app",
+                user_id="prod_user",
+                session_id="sess_prod_abc123",
+            )
+            assert fetched is not None
+            assert fetched.id == "sess_prod_abc123"
+            assert fetched.app_name == "app"
+            mock_api_client.agent_engines.sessions.get.assert_awaited_once()
+
+            evt = Event(
+                author="user",
+                content=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(text="Compare OLED TVs")],
+                ),
+            )
+            await service.append_event(session=created, event=evt)
+            mock_api_client.agent_engines.sessions.events.append.assert_awaited_once()
+            assert len(created.events) == 1
+
+            await service.delete_session(
+                app_name="app",
+                user_id="prod_user",
+                session_id="sess_prod_abc123",
+            )
+            mock_api_client.agent_engines.sessions.delete.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_vertex_ai_session_service_maps_custom_session_id_on_value_error_fallback(
+        self, monkeypatch
+    ):
+        """Verify create_session falls back to session_id=None on ValueError and maps custom session_id across get, append, and delete."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setenv("GOOGLE_CLOUD_AGENT_ENGINE_ID", "9876543210")
+        service = CatalogVertexAiSessionService()
+
+        async def _empty_async_iter():
+            if False:
+                yield None
+
+        mock_api_client = MagicMock()
+        mock_create_resp = MagicMock()
+        mock_create_resp.response.name = (
+            "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/"
+            "reasoningEngines/9876543210/sessions/999888777"
+        )
+        mock_create_resp.response.session_state = {"category": "Tablets"}
+        mock_create_resp.response.update_time.timestamp.return_value = 1700000000.0
+
+        async def _create_side_effect(*, name, user_id, config):
+            if "session_id" in config:
+                raise ValueError("User-provided session id is not supported")
+            return mock_create_resp
+
+        mock_api_client.agent_engines.sessions.create = AsyncMock(side_effect=_create_side_effect)
+
+        mock_get_resp = MagicMock()
+        mock_get_resp.name = mock_create_resp.response.name
+        mock_get_resp.user_id = "prod_user"
+        mock_get_resp.session_state = {"category": "Tablets"}
+        mock_get_resp.update_time.timestamp.return_value = 1700000000.0
+        mock_api_client.agent_engines.sessions.get = AsyncMock(return_value=mock_get_resp)
+        mock_api_client.agent_engines.sessions.events.list = AsyncMock(
+            side_effect=lambda **_kw: _empty_async_iter()
+        )
+        mock_api_client.agent_engines.sessions.events.append = AsyncMock(return_value=None)
+        mock_api_client.agent_engines.sessions.delete = AsyncMock(return_value=None)
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_api_client)
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with patch.object(service, "_get_api_client", return_value=mock_cm):
+            created = await service.create_session(
+                app_name="app",
+                user_id="prod_user",
+                state={"category": "Tablets"},
+                session_id="sess_custom_1",
+            )
+            assert created.id == "sess_custom_1"
+            assert service._remote_session_id_map.get(("prod_user", "sess_custom_1")) == "999888777"
+            assert mock_api_client.agent_engines.sessions.create.await_count == 2
+
+            fetched = await service.get_session(
+                app_name="app",
+                user_id="prod_user",
+                session_id="sess_custom_1",
+            )
+            assert fetched is not None
+            assert fetched.id == "sess_custom_1"
+            mock_api_client.agent_engines.sessions.get.assert_awaited_with(
+                name="reasoningEngines/9876543210/sessions/999888777"
+            )
+
+            evt = Event(
+                author="user",
+                content=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(text="Compare iPad Pro")],
+                ),
+            )
+            await service.append_event(session=created, event=evt)
+            append_kwargs = mock_api_client.agent_engines.sessions.events.append.call_args.kwargs
+            assert append_kwargs["name"] == "reasoningEngines/9876543210/sessions/999888777"
+
+            await service.delete_session(
+                app_name="app",
+                user_id="prod_user",
+                session_id="sess_custom_1",
+            )
+            mock_api_client.agent_engines.sessions.delete.assert_awaited_once_with(
+                name="reasoningEngines/9876543210/sessions/999888777"
+            )
+            assert ("prod_user", "sess_custom_1") not in service._remote_session_id_map
+
+    @pytest.mark.asyncio
+    async def test_catalog_vertex_ai_memory_bank_service_production_default_user_delegation(
+        self, monkeypatch
+    ):
+        """Verify CatalogVertexAiMemoryBankService delegates to Vertex AI when PYTEST_CURRENT_TEST is unset even for default_user."""
+        from unittest.mock import AsyncMock
+
+        from google.adk.memory.base_memory_service import SearchMemoryResponse
+        from google.adk.sessions import Session
+
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+        monkeypatch.setenv("GOOGLE_CLOUD_AGENT_ENGINE_ID", "9876543210")
+
+        service = CatalogVertexAiMemoryBankService()
+        assert service._should_use_vertex_remote() is True
+
+        session = Session(app_name="app", user_id="default_user", id="sess_mem_prod")
+        with (
+            patch.object(
+                VertexAiMemoryBankService, "add_session_to_memory", new_callable=AsyncMock
+            ) as mock_add_sess,
+            patch.object(
+                VertexAiMemoryBankService, "add_events_to_memory", new_callable=AsyncMock
+            ) as mock_add_evts,
+            patch.object(
+                VertexAiMemoryBankService, "add_memory", new_callable=AsyncMock
+            ) as mock_add_mem,
+            patch.object(
+                VertexAiMemoryBankService,
+                "search_memory",
+                new_callable=AsyncMock,
+                return_value=SearchMemoryResponse(memories=[]),
+            ) as mock_search,
+        ):
+            await service.add_session_to_memory(session)
+            mock_add_sess.assert_awaited_once()
+
+            await service.add_events_to_memory(
+                app_name="app",
+                user_id="default_user",
+                events=[],
+                session_id="sess_mem_prod",
+            )
+            mock_add_evts.assert_awaited_once()
+
+            await service.add_memory(
+                app_name="app",
+                user_id="default_user",
+                memories=["Prefers OLED displays"],
+            )
+            mock_add_mem.assert_awaited_once()
+
+            res = await service.search_memory(
+                app_name="app",
+                user_id="default_user",
+                query="OLED",
+            )
+            assert res is not None
+            mock_search.assert_awaited_once()
+
+    def test_zero_pytest_or_isdigit_branches_in_runner_and_entrypoints(self):
+        """Verify runner.py, agent.py, reasoning_engine.py, and agent/__init__.py have zero test-detection or .isdigit() session branches."""
+        agent_dir = Path(__file__).resolve().parents[1] / "src" / "app" / "agent"
+        target_files = [
+            agent_dir / "runner.py",
+            agent_dir / "agent.py",
+            agent_dir / "reasoning_engine.py",
+            agent_dir / "__init__.py",
+        ]
+        forbidden = (
+            "PYTEST_CURRENT_TEST",
+            "assert_called",
+            '"pytest" in sys.modules',
+            "'pytest' in sys.modules",
+            ".isdigit()",
+        )
+        violations: list[str] = []
+        for path in target_files:
+            text = path.read_text(encoding="utf-8")
+            for lineno, line in enumerate(text.splitlines(), start=1):
+                for tok in forbidden:
+                    if tok in line:
+                        violations.append(f"{path.name}:{lineno}: {line.strip()}")
+        assert not violations, "Forbidden branches found:\n" + "\n".join(violations)
+
+    @pytest.mark.asyncio
+    async def test_vertex_ai_session_service_fallbacks_and_agent_module_lazy_exports(
+        self, monkeypatch
+    ):
+        """Verify fallback resilience when remote Vertex AI raises and lazy exports in app.agent."""
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        import app.agent as agent_pkg
+
+        # Exercise lazy __getattr__ branches in app.agent.__init__
+        assert agent_pkg.__getattr__("MultiAgentCoordinator") is not None
+        assert agent_pkg.__getattr__("ComparisonOrchestrator") is not None
+        assert agent_pkg.__getattr__("get_adk_runner") is not None
+        assert agent_pkg.__getattr__("CatalogAnchoredEventSummarizer") is not None
+        with pytest.raises(AttributeError):
+            agent_pkg.__getattr__("NonExistentSymbolXYZ")
+
+        monkeypatch.setenv("GOOGLE_CLOUD_AGENT_ENGINE_ID", "9876543210")
+        service = CatalogVertexAiSessionService()
+        assert isinstance(service.sessions, dict)
+
+        with patch.object(
+            service, "_get_api_client", side_effect=RuntimeError("remote unavailable")
+        ):
+            created = await service.create_session(
+                app_name="app",
+                user_id="fallback_user",
+                session_id="sess_fallback_1",
+            )
+            assert created.id == "sess_fallback_1"
+
+            fetched = await service.get_session(
+                app_name="app",
+                user_id="fallback_user",
+                session_id="sess_fallback_1",
+            )
+            assert fetched is not None
+            assert fetched.id == "sess_fallback_1"
+
+            listed = await service.list_sessions(app_name="app", user_id="fallback_user")
+            assert len(listed.sessions) >= 1
+
+            evt = Event(
+                author="user",
+                content=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(text="Fallback event")],
+                ),
+            )
+            await service.append_event(session=created, event=evt)
+            await service.delete_session(
+                app_name="app",
+                user_id="fallback_user",
+                session_id="sess_fallback_1",
+            )
