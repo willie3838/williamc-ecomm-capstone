@@ -236,13 +236,12 @@ def _register_reasoning_engine_query_method() -> None:
         logger.debug("Could not update _ALLOWED_AGENT_ENGINE_CLASS_METHODS: %s", exc)
 
     try:
-        import os
-        import sys
         import threading
 
+        from app.config import settings
+
         if (
-            "PYTEST_CURRENT_TEST" not in os.environ
-            and "pytest" not in sys.modules
+            getattr(settings, "enable_background_warmup", False)
             and reasoning_engine._coordinator is None
         ):
             threading.Thread(target=reasoning_engine.set_up, daemon=True).start()

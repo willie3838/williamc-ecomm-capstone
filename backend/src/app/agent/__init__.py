@@ -109,12 +109,9 @@ def __getattr__(name: str) -> Any:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-import os as _os  # noqa: E402
+try:
+    from app.agent.agent import _register_reasoning_engine_query_method as _reg_re
 
-if "PYTEST_CURRENT_TEST" not in _os.environ:
-    try:
-        from app.agent.agent import _register_reasoning_engine_query_method as _reg_re
-
-        _reg_re()
-    except Exception:
-        pass
+    _reg_re()
+except Exception:
+    pass
