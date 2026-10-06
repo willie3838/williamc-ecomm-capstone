@@ -1016,8 +1016,7 @@ def test_stage3_inband_blocks_and_compare_catches_security_violation(mock_bq_cli
         orch_cand.synthesize_comparison_with_llm([p1, p2], [], query="MacBook vs Dell")
 
     # 3. compare() catches SecurityViolationError and returns status="refused", blocked_by_model_armor=True
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {
             "sku": "6534606",
             "name": "MacBook Air M3",
@@ -1037,7 +1036,6 @@ def test_stage3_inband_blocks_and_compare_catches_security_violation(mock_bq_cli
             "in_stock": True,
         },
     ]
-    mock_bq_client.query.return_value = mock_job
     orch_cmp = ComparisonOrchestrator(bq_client=mock_bq_client)
     with patch.object(
         orch_cmp,

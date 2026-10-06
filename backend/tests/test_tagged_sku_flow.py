@@ -327,13 +327,10 @@ def test_relevance_detector_agent_supports_3_4_5_tagged_skus():
 
 def test_catalog_retrieval_and_sql_direct_sku_lookup_for_tagged_queries(mock_bq_client):
     """Verify tagged SKU prompts query BigQuery directly via LOWER(sku) IN UNNEST(@product_patterns)."""
-    from unittest.mock import MagicMock
-
     from app.agent.multi_agent import CatalogRetrievalAgent
     from app.tools.catalog import query_catalog
 
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {
             "sku": "6534606",
             "name": 'Apple MacBook Air 13.6" Laptop',
@@ -353,7 +350,6 @@ def test_catalog_retrieval_and_sql_direct_sku_lookup_for_tagged_queries(mock_bq_
             "in_stock": True,
         },
     ]
-    mock_bq_client.query.return_value = mock_job
 
     retrieval_agent = CatalogRetrievalAgent(bq_client=mock_bq_client)
     state = ComparisonAgentState(
@@ -367,9 +363,9 @@ def test_catalog_retrieval_and_sql_direct_sku_lookup_for_tagged_queries(mock_bq_
     updated_state = retrieval_agent.process(state)
     assert len(updated_state.retrieved_products) == 2
 
-    mock_bq_client.query.assert_called_once()
-    sql_arg = mock_bq_client.query.call_args[0][0]
-    job_config = mock_bq_client.query.call_args[1]["job_config"]
+    mock_bq_client.query_and_wait.assert_called_once()
+    sql_arg = mock_bq_client.query_and_wait.call_args[0][0]
+    job_config = mock_bq_client.query_and_wait.call_args[1]["job_config"]
     patterns_param = next(p for p in job_config.query_parameters if p.name == "product_patterns")
 
     assert "LOWER(sku) IN UNNEST(@product_patterns)" in sql_arg

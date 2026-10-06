@@ -77,16 +77,14 @@ def test_circuit_breaker_and_cache() -> None:
     assert cb.state == "CLOSED"
 
     mock_bq = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq.query_and_wait.return_value = [
         {"sku": "SKU-1", "name": "Item 1", "price": 100.0, "specifications": {}}
     ]
-    mock_bq.query.return_value = mock_job
 
     res1 = query_catalog(keywords=["Laptop"], client=mock_bq)
     res2 = query_catalog(keywords=["Laptop"], client=mock_bq)
     assert len(res1) == 1 and len(res2) == 1
-    assert mock_bq.query.call_count == 2
+    assert mock_bq.query_and_wait.call_count == 2
 
 
 def test_multi_category_spec_winners_and_cross_category_guard() -> None:

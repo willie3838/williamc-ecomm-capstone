@@ -532,10 +532,8 @@ def test_query_catalog_sql_deduplicates_skus_via_qualify() -> None:
     from app.tools.catalog import query_catalog
 
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = []
 
     query_catalog(keywords=["MacBook"], client=mock_client)
-    sql_arg = mock_client.query.call_args[0][0]
+    sql_arg = mock_client.query_and_wait.call_args[0][0]
     assert "QUALIFY ROW_NUMBER() OVER (PARTITION BY sku" in sql_arg

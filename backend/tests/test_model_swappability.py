@@ -66,9 +66,7 @@ def _build_mock_bq_client_with_two_laptops() -> MagicMock:
         },
     ]
     mock_client = MagicMock()
-    mock_job = MagicMock()
-    mock_job.result.return_value = sample_products
-    mock_client.query.return_value = mock_job
+    mock_client.query_and_wait.return_value = sample_products
     return mock_client
 
 

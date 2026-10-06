@@ -25,8 +25,8 @@ class TestBigQueryFailureModes:
     def test_bigquery_503_service_unavailable_retries_and_orchestrator_recovers(self):
         """Verify 503 transient database failure triggers retry with backoff and orchestrator returns graceful degradation response."""
         mock_client = MagicMock(spec=bigquery.Client)
-        # Mock query to raise 503 ServiceUnavailable on all attempts
-        mock_client.query.side_effect = g_exceptions.ServiceUnavailable(
+        # Mock query_and_wait to raise 503 ServiceUnavailable on all attempts
+        mock_client.query_and_wait.side_effect = g_exceptions.ServiceUnavailable(
             "BigQuery transient outage (simulated)"
         )
 
@@ -43,7 +43,7 @@ class TestBigQueryFailureModes:
     def test_bigquery_connection_timeout_orchestrator_recovery(self):
         """Verify connection timeout is caught by orchestrator without unhandled crash."""
         mock_client = MagicMock(spec=bigquery.Client)
-        mock_client.query.side_effect = TimeoutError(
+        mock_client.query_and_wait.side_effect = TimeoutError(
             "Connection to BigQuery timed out after 3000ms"
         )
 
@@ -76,9 +76,9 @@ class TestBigQueryFailureModes:
             "in_stock": True,
         }
 
-        mock_query_job.result.return_value = [corrupted_row, valid_row]
+        mock_query_job.__iter__.return_value = [corrupted_row, valid_row]
         mock_query_job.total_bytes_billed = 1024
-        mock_client.query.return_value = mock_query_job
+        mock_client.query_and_wait.return_value = mock_query_job
 
         results = query_catalog(keywords=["laptop"], client=mock_client)
         # Valid row should survive quarantine

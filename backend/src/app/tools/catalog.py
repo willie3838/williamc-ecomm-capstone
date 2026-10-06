@@ -76,6 +76,7 @@ def _get_shared_bq_client() -> bigquery.Client:
         if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
             return _SHARED_BQ_CLIENT
         client = bigquery.Client(project=settings.gcp_project)
+        client.default_job_creation_mode = "JOB_CREATION_OPTIONAL"
         try:
             from requests.adapters import HTTPAdapter
             from requests.sessions import Session as RequestsSession
@@ -349,9 +350,10 @@ def query_catalog(
                         "attempt": attempt,
                     },
                 )
-                query_job = client.query(query_sql, job_config=job_config)
-                # Enforce query result timeout
-                results = query_job.result(timeout=timeout_seconds)
+                results = client.query_and_wait(
+                    query_sql, job_config=job_config, wait_timeout=timeout_seconds
+                )
+                query_job = results
                 catalog_circuit_breaker.record_success()
                 break
             except Exception as err:
@@ -394,7 +396,9 @@ def query_catalog(
         if query_job is not None:
             raw_billed = getattr(query_job, "total_bytes_billed", None)
             if raw_billed is None:
-                raw_billed = getattr(query_job, "bytes_billed", 0)
+                raw_billed = getattr(query_job, "bytes_billed", None)
+            if raw_billed is None:
+                raw_billed = getattr(query_job, "total_bytes_processed", 0)
             try:
                 bytes_billed = int(raw_billed)
             except (TypeError, ValueError):

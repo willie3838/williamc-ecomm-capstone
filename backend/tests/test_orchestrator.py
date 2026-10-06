@@ -1,7 +1,6 @@
 """Unit tests for the ADK Comparison Orchestrator and grounding rules."""
 
 import json
-from unittest.mock import MagicMock
 
 from app.agent.orchestrator import ComparisonOrchestrator, catalog_agent
 from app.agent.prompts import SYSTEM_INSTRUCTION
@@ -59,11 +58,9 @@ def test_orchestrator_grounding_and_citations(mock_bq_client):
         },
     ]
 
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {**p, "specifications": json.dumps(p["specifications"])} for p in sample_products
     ]
-    mock_bq_client.query.return_value = mock_job
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     response = orchestrator.compare(
@@ -95,9 +92,7 @@ def test_orchestrator_grounding_and_citations(mock_bq_client):
 
 def test_orchestrator_empty_catalog(mock_bq_client):
     """Assert orchestrator handles when products are not found in catalog."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = []
-    mock_bq_client.query.return_value = mock_job
+    mock_bq_client.query_and_wait.return_value = []
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     response = orchestrator.compare(query="Compare NonexistentProductA and NonexistentProductB")
@@ -111,8 +106,7 @@ def test_orchestrator_empty_catalog(mock_bq_client):
 
 def test_orchestrator_single_product(mock_bq_client):
     """Assert orchestrator handles when only 1 product is matched in catalog."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {
             "sku": "1111111",
             "name": "Single Laptop",
@@ -126,7 +120,6 @@ def test_orchestrator_single_product(mock_bq_client):
             "in_stock": True,
         }
     ]
-    mock_bq_client.query.return_value = mock_job
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     response = orchestrator.compare(query="MacBook Air")
@@ -139,8 +132,7 @@ def test_orchestrator_single_product(mock_bq_client):
 
 def test_orchestrator_product2_better_specs_and_equal_price(mock_bq_client):
     """Assert orchestrator correctly identifies product 2 when cheaper and has better specs."""
-    mock_job = MagicMock()
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {
             "sku": "2222222",
             "name": "Product Alpha",
@@ -164,7 +156,6 @@ def test_orchestrator_product2_better_specs_and_equal_price(mock_bq_client):
             "in_stock": True,
         },
     ]
-    mock_bq_client.query.return_value = mock_job
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     response = orchestrator.compare(query="Alpha vs Beta")
@@ -179,7 +170,7 @@ def test_orchestrator_product2_better_specs_and_equal_price(mock_bq_client):
     )
 
     # Equal price comparison test
-    mock_job.result.return_value = [
+    mock_bq_client.query_and_wait.return_value = [
         {
             "sku": "4444444",
             "name": "Product Same Price 1",
@@ -204,7 +195,7 @@ def test_orchestrator_product2_better_specs_and_equal_price(mock_bq_client):
 
 def test_orchestrator_query_catalog_exception_handling(mock_bq_client):
     """Assert orchestrator gracefully handles exceptions raised by query_catalog."""
-    mock_bq_client.query.side_effect = RuntimeError("BigQuery failure")
+    mock_bq_client.query_and_wait.side_effect = RuntimeError("BigQuery failure")
 
     orchestrator = ComparisonOrchestrator(bq_client=mock_bq_client)
     response = orchestrator.compare(query="MacBook vs XPS")

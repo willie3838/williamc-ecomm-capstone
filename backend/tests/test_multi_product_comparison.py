@@ -150,17 +150,15 @@ def test_end_to_end_orchestrator_multi_product(sample_catalog_products):
 
     mock_bq = MagicMock()
 
-    def _query_side_effect(sql, job_config=None):
-        job = MagicMock()
+    def _query_side_effect(sql, job_config=None, wait_timeout=None):
         params = getattr(job_config, "query_parameters", []) if job_config else []
         cat_val = next(
             (getattr(p, "value", None) for p in params if getattr(p, "name", "") == "category"),
             "Laptops",
         )
-        job.result.return_value = headphone_rows if cat_val == "Headphones" else laptop_rows
-        return job
+        return headphone_rows if cat_val == "Headphones" else laptop_rows
 
-    mock_bq.query.side_effect = _query_side_effect
+    mock_bq.query_and_wait.side_effect = _query_side_effect
     orch = ComparisonOrchestrator(bq_client=mock_bq)
 
     # 3-product query

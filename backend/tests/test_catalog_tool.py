@@ -32,12 +32,11 @@ def test_query_catalog_empty_keywords(mock_bq_client):
     """Verify that empty keywords list returns an empty list without querying BigQuery."""
     result = query_catalog(keywords=[], client=mock_bq_client)
     assert result == []
-    mock_bq_client.query.assert_not_called()
+    mock_bq_client.query_and_wait.assert_not_called()
 
 
 def test_query_catalog_success(mock_bq_client):
     """Verify parameterized query execution and response formatting."""
-    mock_query_job = MagicMock()
     mock_rows = [
         {
             "sku": "6534606",
@@ -79,8 +78,7 @@ def test_query_catalog_success(mock_bq_client):
         },
     ]
 
-    mock_query_job.result.return_value = mock_rows
-    mock_bq_client.query.return_value = mock_query_job
+    mock_bq_client.query_and_wait.return_value = mock_rows
 
     results = query_catalog(
         keywords=["MacBook Air", "Dell XPS"],
@@ -92,9 +90,9 @@ def test_query_catalog_success(mock_bq_client):
     )
 
     assert len(results) == 2
-    mock_bq_client.query.assert_called_once()
-    sql_arg = mock_bq_client.query.call_args[0][0]
-    job_config = mock_bq_client.query.call_args[1]["job_config"]
+    mock_bq_client.query_and_wait.assert_called_once()
+    sql_arg = mock_bq_client.query_and_wait.call_args[0][0]
+    job_config = mock_bq_client.query_and_wait.call_args[1]["job_config"]
 
     # Assert SQL is parameterized and contains table reference
     assert "catalog.products" in sql_arg
@@ -125,7 +123,7 @@ def test_query_catalog_success(mock_bq_client):
 
 def test_query_catalog_handles_exceptions(mock_bq_client):
     """Verify that query_catalog handles BigQuery errors gracefully."""
-    mock_bq_client.query.side_effect = RuntimeError("BigQuery connection failed")
+    mock_bq_client.query_and_wait.side_effect = RuntimeError("BigQuery connection failed")
 
     with pytest.raises(RuntimeError) as exc_info:
         query_catalog(keywords=["MacBook"], client=mock_bq_client)
@@ -137,12 +135,11 @@ def test_query_catalog_whitespace_keywords(mock_bq_client):
     """Verify whitespace-only keywords return empty list."""
     results = query_catalog(keywords=["  ", ""], client=mock_bq_client)
     assert results == []
-    mock_bq_client.query.assert_not_called()
+    mock_bq_client.query_and_wait.assert_not_called()
 
 
 def test_query_catalog_invalid_specifications_json(mock_bq_client):
     """Verify fallback to empty dict when specifications contains invalid JSON."""
-    mock_query_job = MagicMock()
     mock_rows = [
         {
             "sku": "9999999",
@@ -165,8 +162,7 @@ def test_query_catalog_invalid_specifications_json(mock_bq_client):
             "in_stock": True,
         },
     ]
-    mock_query_job.result.return_value = mock_rows
-    mock_bq_client.query.return_value = mock_query_job
+    mock_bq_client.query_and_wait.return_value = mock_rows
 
     results = query_catalog(keywords=["Generic"], client=mock_bq_client)
     assert len(results) == 2
@@ -200,8 +196,7 @@ def test_catalog_circuit_breaker_and_stateless_execution():
 
     # 3. Verify query_catalog always executes direct BigQuery queries (stateless, zero in-memory cache)
     local_bq = MagicMock()
-    mock_query_job = MagicMock()
-    mock_query_job.result.return_value = [
+    local_bq.query_and_wait.return_value = [
         {
             "sku": "101",
             "name": "Apple MacBook Pro",
@@ -213,12 +208,11 @@ def test_catalog_circuit_breaker_and_stateless_execution():
             "in_stock": True,
         }
     ]
-    local_bq.query.return_value = mock_query_job
     res1 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq)
     res2 = query_catalog(keywords=["MacBook ProUniqueKey"], client=local_bq)
     assert res1 == res2
-    # Stateless: Every query invokes client.query, no in-memory cache hit
-    assert local_bq.query.call_count == 2
+    # Stateless: Every query invokes client.query_and_wait, no in-memory cache hit
+    assert local_bq.query_and_wait.call_count == 2
 
 
 def test_shared_bq_client_keyed_by_class_identity_across_patches():
@@ -235,8 +229,7 @@ def test_shared_bq_client_keyed_by_class_identity_across_patches():
 
     with patch("app.tools.catalog.bigquery.Client") as mock_cls_1:
         mock_client_1 = MagicMock()
-        mock_job_1 = MagicMock()
-        mock_job_1.result.return_value = [
+        mock_client_1.query_and_wait.return_value = [
             {
                 "sku": "111",
                 "name": "Laptop 1",
@@ -248,7 +241,6 @@ def test_shared_bq_client_keyed_by_class_identity_across_patches():
                 "in_stock": True,
             }
         ]
-        mock_client_1.query.return_value = mock_job_1
         mock_cls_1.return_value = mock_client_1
 
         c1_a = _get_shared_bq_client()
@@ -263,8 +255,7 @@ def test_shared_bq_client_keyed_by_class_identity_across_patches():
 
     with patch("app.tools.catalog.bigquery.Client") as mock_cls_2:
         mock_client_2 = MagicMock()
-        mock_job_2 = MagicMock()
-        mock_job_2.result.return_value = [
+        mock_client_2.query_and_wait.return_value = [
             {
                 "sku": "222",
                 "name": "Laptop 2",
@@ -276,7 +267,6 @@ def test_shared_bq_client_keyed_by_class_identity_across_patches():
                 "in_stock": True,
             }
         ]
-        mock_client_2.query.return_value = mock_job_2
         mock_cls_2.return_value = mock_client_2
 
         c2 = _get_shared_bq_client()

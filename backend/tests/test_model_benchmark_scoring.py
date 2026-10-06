@@ -115,7 +115,7 @@ def mock_bq() -> MagicMock:
             "in_stock": True,
         },
     ]
-    bq.query.return_value.result.return_value = rows
+    bq.query_and_wait.return_value = rows
     return bq
 
 

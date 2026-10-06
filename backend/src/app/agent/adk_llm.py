@@ -182,7 +182,7 @@ def _warm_vertex_client_and_auth() -> None:
 
         def _warm_bq() -> None:
             try:
-                bq_client.query("SELECT 1").result(timeout=2.0)
+                bq_client.query_and_wait("SELECT 1", wait_timeout=2.0)
             except Exception:
                 pass
 
