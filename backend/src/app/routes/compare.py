@@ -3,7 +3,6 @@
 import asyncio
 import concurrent.futures
 import logging
-import os
 import threading
 import time
 from typing import Annotated, Any
@@ -12,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.agent.agent_card import build_a2a_agent_card
-from app.config import Settings, get_settings
+from app.config import Settings, get_settings, settings
 from app.data.analytics import analytics_service
 from app.models import (
     AgentVersionsResponse,
@@ -30,7 +29,7 @@ from app.models import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_COORDINATOR_CACHE: dict[tuple[str | None, str | None], Any] = {}
+_COORDINATOR_CACHE: dict[tuple[str | None, str | None, Any], Any] = {}
 _COORDINATOR_LOCK = threading.Lock()
 _REQUEST_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=300, thread_name_prefix="api-worker"
@@ -43,9 +42,6 @@ _CATALOG_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 )
 _ANALYTICS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
     max_workers=256, thread_name_prefix="analytics-worker"
-)
-_TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=64, thread_name_prefix="telemetry-bg"
 )
 
 
@@ -128,9 +124,7 @@ def _get_coordinator(model: str | None, synthesis_model: str | None) -> Any:
         globals()["MultiAgentCoordinator"] = MultiAgentCoordinator
         coord_cls = MultiAgentCoordinator
 
-    if hasattr(coord_cls, "assert_called"):
-        return coord_cls(model=model, synthesis_model=synthesis_model)
-    key = (model, synthesis_model)
+    key = (model, synthesis_model, coord_cls)
     coord = _COORDINATOR_CACHE.get(key)
     if coord is None:
         with _COORDINATOR_LOCK:
@@ -153,20 +147,12 @@ def __getattr__(name: str) -> Any:
 
 _REMOTE_ENGINE_SESSION: Any = None
 _REMOTE_ENGINE_CREDS: Any = None
-_REMOTE_ENGINE_LOCK = __import__("threading").Lock()
-
-
-def _is_test_or_eval_env() -> bool:
-    import sys
-
-    return bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
+_REMOTE_ENGINE_LOCK = threading.Lock()
 
 
 def _warm_remote_engine_client() -> None:
     """Pre-warm ADC credentials, HTTP session, local coordinator, and remote Reasoning Engine."""
     global _REMOTE_ENGINE_SESSION, _REMOTE_ENGINE_CREDS
-    if _is_test_or_eval_env():
-        return
     try:
         import google.auth
         import requests
@@ -186,17 +172,13 @@ def _warm_remote_engine_client() -> None:
     except Exception:
         pass
 
-    if _is_test_or_eval_env():
-        return
     try:
         _get_coordinator("tiered-hybrid", None)
     except Exception:
         pass
 
     try:
-        from app.config import settings
-
-        if settings.agent_runtime_resource_name and not _is_test_or_eval_env():
+        if settings.agent_runtime_resource_name:
             _invoke_remote_reasoning_engine(
                 resource_name=settings.agent_runtime_resource_name,
                 request=ComparisonRequest(
@@ -216,13 +198,14 @@ def _invoke_remote_reasoning_engine(
     effective_synthesis: str | None,
     user_id: str | None = None,
 ) -> ComparisonResponse:
-    """Invoke remote Vertex AI Agent Runtime (:query) via pooled HTTP session or unit-test mock."""
+    """Invoke remote Vertex AI Agent Runtime (:query) via pooled HTTP session or SDK client."""
     resolved_uid = user_id or request.user_id
     import sys
 
     re_mod = sys.modules.get("vertexai.preview.reasoning_engines")
-    if re_mod is not None and hasattr(getattr(re_mod, "ReasoningEngine", None), "assert_called"):
-        remote_agent = re_mod.ReasoningEngine(resource_name)
+    re_cls = getattr(re_mod, "ReasoningEngine", None) if re_mod is not None else None
+    if re_cls is not None and callable(re_cls) and not isinstance(re_cls, type):
+        remote_agent = re_cls(resource_name)
         query_kwargs: dict[str, Any] = {
             "query": request.query,
             "category": request.category,
@@ -305,8 +288,6 @@ def _invoke_remote_reasoning_engine(
     if resp.status_code != 200:
         raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:300]}")
 
-    import json
-
     lines = [ln.strip() for ln in resp.text.splitlines() if ln.strip()]
     if not lines:
         raise RuntimeError("Empty response from ReasoningEngine :streamQuery")
@@ -317,14 +298,14 @@ def _invoke_remote_reasoning_engine(
     return ComparisonResponse.model_validate(raw_output)
 
 
-if not _is_test_or_eval_env():
-    __import__("threading").Thread(target=_warm_remote_engine_client, daemon=True).start()
+if getattr(settings, "enable_background_warmup", False):
+    threading.Thread(target=_warm_remote_engine_client, daemon=True).start()
 
 
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
     import app.main as app_main
-    from app.config import settings
+    from app.agent.orchestrator import ComparisonOrchestrator
 
     # Default to tiered-hybrid for production if not explicitly specified
     effective_model = request.model
@@ -334,8 +315,8 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
         effective_model = "tiered-hybrid"
     effective_synthesis = request.synthesis_model
 
-    # Delegate to remote Vertex AI Agent Runtime (Reasoning Engine) if configured and not running in Pytest
-    if settings.agent_runtime_resource_name and not os.environ.get("PYTEST_CURRENT_TEST"):
+    # Delegate to remote Vertex AI Agent Runtime (Reasoning Engine) if configured
+    if settings.agent_runtime_resource_name:
         try:
             return _invoke_remote_reasoning_engine(
                 resource_name=settings.agent_runtime_resource_name,
@@ -350,9 +331,9 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
                 remote_err,
             )
 
-    # Honor unit test patches on app.main.ComparisonOrchestrator if present
+    # Honor custom/patched ComparisonOrchestrator on app.main if present
     orch_cls = app_main.__dict__.get("ComparisonOrchestrator")
-    if orch_cls is not None and hasattr(orch_cls, "assert_called"):
+    if orch_cls is not None and orch_cls is not ComparisonOrchestrator:
         orchestrator = orch_cls(
             model=request.model,
             synthesis_model=request.synthesis_model,
@@ -392,38 +373,6 @@ def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     )
 
 
-def _record_telemetry_sync(
-    request: ComparisonRequest,
-    result: ComparisonResponse,
-    latency_ms: float,
-) -> None:
-    """Persist session comparison counters and query telemetry off the critical path."""
-    if request.session_id:
-        analytics_service.increment_session_comparisons(request.session_id)
-        analytics_service.record_user_action(
-            UserActionRequest(
-                action_type="compare_request",
-                session_id=request.session_id,
-                query=request.query,
-                category=request.category,
-                target_skus=[p.sku for p in result.products],
-            ),
-            from_background=True,
-        )
-    analytics_service.record_query_telemetry(
-        query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
-        session_id=request.session_id,
-        query_text=request.query,
-        category=request.category,
-        latency_ms=latency_ms,
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens,
-        bq_bytes_billed=result.bq_bytes_billed,
-        retrieved_skus=[p.sku for p in result.products],
-        status="SUCCESS" if result.products else "DEGRADED",
-    )
-
-
 @router.post(
     "/compare",
     response_model=ComparisonResponse,
@@ -455,41 +404,33 @@ async def compare_products(
         timing_parts = [f"{k}={v}ms" for k, v in result.timing_breakdown_ms.items()]
         http_response.headers["X-Pipeline-Timing"] = ", ".join(timing_parts)
 
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        if request.session_id:
-            result.session_comparison_count = await asyncio.to_thread(
-                analytics_service.increment_session_comparisons, request.session_id
-            )
-            await asyncio.to_thread(
-                analytics_service.record_user_action,
-                UserActionRequest(
-                    action_type="compare_request",
-                    session_id=request.session_id,
-                    query=request.query,
-                    category=request.category,
-                    target_skus=[p.sku for p in result.products],
-                ),
-            )
-        await asyncio.to_thread(
-            analytics_service.record_query_telemetry,
-            query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
-            session_id=request.session_id,
-            query_text=request.query,
-            category=request.category,
-            latency_ms=latency_ms,
-            input_tokens=result.input_tokens,
-            output_tokens=result.output_tokens,
-            bq_bytes_billed=result.bq_bytes_billed,
-            retrieved_skus=[p.sku for p in result.products],
-            status="SUCCESS" if result.products else "DEGRADED",
+    if request.session_id:
+        result.session_comparison_count = await asyncio.to_thread(
+            analytics_service.increment_session_comparisons, request.session_id
         )
-    else:
-        if request.session_id:
-            with analytics_service._session_lock:
-                result.session_comparison_count = (
-                    analytics_service._local_session_counts.get(request.session_id, 0) + 1
-                )
-        _TELEMETRY_EXECUTOR.submit(_record_telemetry_sync, request, result, latency_ms)
+        await asyncio.to_thread(
+            analytics_service.record_user_action,
+            UserActionRequest(
+                action_type="compare_request",
+                session_id=request.session_id,
+                query=request.query,
+                category=request.category,
+                target_skus=[p.sku for p in result.products],
+            ),
+        )
+    await asyncio.to_thread(
+        analytics_service.record_query_telemetry,
+        query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
+        session_id=request.session_id,
+        query_text=request.query,
+        category=request.category,
+        latency_ms=latency_ms,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        bq_bytes_billed=result.bq_bytes_billed,
+        retrieved_skus=[p.sku for p in result.products],
+        status="SUCCESS" if result.products else "DEGRADED",
+    )
 
     return result
 
@@ -497,13 +438,14 @@ async def compare_products(
 def _execute_chat_sync(request: ChatRequest) -> ChatResponse:
     """Execute conversational chat synchronously inside worker thread."""
     import app.main as app_main
+    from app.agent.orchestrator import ComparisonOrchestrator
 
     effective_model = request.model
     effective_synthesis = request.synthesis_model
 
-    # Check mock/test patch on app.main.ComparisonOrchestrator
+    # Honor custom/patched ComparisonOrchestrator on app.main if present
     orch_cls = app_main.__dict__.get("ComparisonOrchestrator")
-    if orch_cls is not None and hasattr(orch_cls, "assert_called"):
+    if orch_cls is not None and orch_cls is not ComparisonOrchestrator:
         orchestrator = orch_cls(
             model=request.model,
             synthesis_model=request.synthesis_model,

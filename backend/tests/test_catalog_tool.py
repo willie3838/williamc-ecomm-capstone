@@ -219,3 +219,71 @@ def test_catalog_circuit_breaker_and_stateless_execution():
     assert res1 == res2
     # Stateless: Every query invokes client.query, no in-memory cache hit
     assert local_bq.query.call_count == 2
+
+
+def test_shared_bq_client_keyed_by_class_identity_across_patches():
+    """Verify _get_shared_bq_client re-instantiates when bigquery.Client is patched across multiple blocks without assert_called checks."""
+    from pathlib import Path
+    from unittest.mock import patch
+
+    import app.tools.catalog as catalog_mod
+    from app.tools.catalog import _get_shared_bq_client, query_catalog
+
+    catalog_src = Path(catalog_mod.__file__).read_text(encoding="utf-8")
+    for forbidden in ("PYTEST_CURRENT_TEST", "assert_called", "pytest", '"Mock"'):
+        assert forbidden not in catalog_src, f"Forbidden token {forbidden!r} found in catalog.py"
+
+    with patch("app.tools.catalog.bigquery.Client") as mock_cls_1:
+        mock_client_1 = MagicMock()
+        mock_job_1 = MagicMock()
+        mock_job_1.result.return_value = [
+            {
+                "sku": "111",
+                "name": "Laptop 1",
+                "brand": "Apple",
+                "category": "Laptops",
+                "price": 999.0,
+                "specifications": {},
+                "url": "https://www.techbuy.com/site/sku/111.p",
+                "in_stock": True,
+            }
+        ]
+        mock_client_1.query.return_value = mock_job_1
+        mock_cls_1.return_value = mock_client_1
+
+        c1_a = _get_shared_bq_client()
+        c1_b = _get_shared_bq_client()
+        assert c1_a is mock_client_1
+        assert c1_b is mock_client_1
+        assert mock_cls_1.call_count == 1
+
+        res_1 = query_catalog(keywords=["Laptop 1"])
+        assert len(res_1) == 1
+        assert res_1[0]["sku"] == "111"
+
+    with patch("app.tools.catalog.bigquery.Client") as mock_cls_2:
+        mock_client_2 = MagicMock()
+        mock_job_2 = MagicMock()
+        mock_job_2.result.return_value = [
+            {
+                "sku": "222",
+                "name": "Laptop 2",
+                "brand": "Dell",
+                "category": "Laptops",
+                "price": 1099.0,
+                "specifications": {},
+                "url": "https://www.techbuy.com/site/sku/222.p",
+                "in_stock": True,
+            }
+        ]
+        mock_client_2.query.return_value = mock_job_2
+        mock_cls_2.return_value = mock_client_2
+
+        c2 = _get_shared_bq_client()
+        assert c2 is mock_client_2
+        assert c2 is not mock_client_1
+        assert mock_cls_2.call_count == 1
+
+        res_2 = query_catalog(keywords=["Laptop 2"])
+        assert len(res_2) == 1
+        assert res_2[0]["sku"] == "222"

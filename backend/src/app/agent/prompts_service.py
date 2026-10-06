@@ -8,7 +8,6 @@ governed by environment variables and runtime failover).
 from __future__ import annotations
 
 import logging
-import os
 import time
 from typing import Any
 
@@ -149,9 +148,6 @@ def get_active_prompt(
         import vertexai
         from vertexai.preview import prompts
 
-        if os.environ.get("PYTEST_CURRENT_TEST") and not hasattr(prompts.get, "assert_called"):
-            return fallback_text, target_version
-
         cache_key = (target_prompt_id, target_version)
         now = time.monotonic()
         ttl_seconds = float(getattr(settings, "prompt_cache_ttl_seconds", 60))
@@ -168,27 +164,7 @@ def get_active_prompt(
         location = getattr(settings, "region", "us-central1")
         vertexai.init(project=project, location=location)
 
-        # Resolve logical prompt name (e.g. 'stage1-query-intent-prompt') to numeric GCP prompt_id if needed
         resolved_gcp_prompt_id = _NAME_TO_PROMPT_ID_CACHE.get(target_prompt_id, target_prompt_id)
-        if (
-            not hasattr(prompts.get, "assert_called")
-            and not resolved_gcp_prompt_id.isdigit()
-            and hasattr(prompts, "list")
-        ):
-            try:
-                for item in prompts.list():
-                    item_name = getattr(item, "prompt_name", None) or getattr(
-                        item, "display_name", ""
-                    )
-                    item_id = getattr(item, "prompt_id", None)
-                    if item_name and item_id:
-                        _NAME_TO_PROMPT_ID_CACHE[str(item_name)] = str(item_id)
-                resolved_gcp_prompt_id = _NAME_TO_PROMPT_ID_CACHE.get(
-                    target_prompt_id, target_prompt_id
-                )
-            except Exception:
-                pass
-
         prompt_obj: Any = prompts.get(
             prompt_id=resolved_gcp_prompt_id,
             version_id=target_version if not _is_dynamic_latest_version(target_version) else None,

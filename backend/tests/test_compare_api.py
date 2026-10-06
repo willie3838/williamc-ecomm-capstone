@@ -295,3 +295,58 @@ def test_catalog_endpoint_price_filters() -> None:
     data = response.json()
     for product in data["products"]:
         assert 1000.0 <= product["price"] <= 1500.0
+
+
+def test_compare_routes_no_test_detection_branches_and_session_counter(monkeypatch) -> None:
+    """Verify routes/compare.py has zero test-detection branches, keys coordinator cache by class, and increments session_comparison_count without PYTEST_CURRENT_TEST."""
+    from pathlib import Path
+
+    import app.routes.compare as compare_mod
+
+    src = Path(compare_mod.__file__).read_text(encoding="utf-8")
+    for forbidden in (
+        "PYTEST_CURRENT_TEST",
+        "assert_called",
+        "_is_test_or_eval_env",
+        '"pytest" in sys.modules',
+        "'pytest' in sys.modules",
+    ):
+        assert forbidden not in src, f"Forbidden token {forbidden!r} found in routes/compare.py"
+
+    # Verify _get_coordinator re-instantiates across multiple patch blocks
+    with patch("app.routes.compare.MultiAgentCoordinator") as mock_coord_1:
+        inst_1 = MagicMock()
+        mock_coord_1.return_value = inst_1
+        assert compare_mod._get_coordinator("gemini-2.5-flash", None) is inst_1
+        assert compare_mod._get_coordinator("gemini-2.5-flash", None) is inst_1
+        assert mock_coord_1.call_count == 1
+
+    with patch("app.routes.compare.MultiAgentCoordinator") as mock_coord_2:
+        inst_2 = MagicMock()
+        mock_coord_2.return_value = inst_2
+        assert compare_mod._get_coordinator("gemini-2.5-flash", None) is inst_2
+        assert inst_2 is not inst_1
+        assert mock_coord_2.call_count == 1
+
+    # Verify session_comparison_count increments accurately when PYTEST_CURRENT_TEST is unset
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    with patch("app.main.ComparisonOrchestrator") as mock_orch_cls:
+        mock_orch_cls.return_value.compare.side_effect = lambda **kw: ComparisonResponse(
+            summary="MacBook Air [SKU: 6534606] vs Dell XPS [SKU: 6575132]",
+            products=[],
+            comparison_matrix=[],
+            citations=[],
+            session_id=kw.get("session_id"),
+        )
+        r1 = client.post(
+            "/api/compare",
+            json={"query": "MacBook Air vs Dell XPS", "session_id": "sess-prod-counter-1"},
+        )
+        r2 = client.post(
+            "/api/compare",
+            json={"query": "MacBook Air vs Dell XPS", "session_id": "sess-prod-counter-1"},
+        )
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json()["session_comparison_count"] == 1
+        assert r2.json()["session_comparison_count"] == 2

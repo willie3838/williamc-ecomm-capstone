@@ -110,7 +110,17 @@ def test_analytics_api_endpoints():
 
 
 def test_analytics_service_client_initialization_branches(monkeypatch):
-    """Verify get_firestore_client and get_bq_client initialization branches."""
+    """Verify get_firestore_client and get_bq_client initialization branches without PYTEST_CURRENT_TEST."""
+    from pathlib import Path
+
+    import app.data.analytics as analytics_mod
+
+    analytics_src = Path(analytics_mod.__file__).read_text(encoding="utf-8")
+    for forbidden in ("PYTEST_CURRENT_TEST", "assert_called", "pytest", '"Mock"'):
+        assert forbidden not in analytics_src, (
+            f"Forbidden token {forbidden!r} found in analytics.py"
+        )
+
     # Branch 1: disable_cloud_clients=True
     service_disabled = AnalyticsService(disable_cloud_clients=True)
     assert service_disabled.get_firestore_client() is None
@@ -123,31 +133,26 @@ def test_analytics_service_client_initialization_branches(monkeypatch):
     assert service_cached.get_firestore_client() is mock_fs
     assert service_cached.get_bq_client() is mock_bq
 
-    # Branch 3: PYTEST_CURRENT_TEST returns None
-    service_fresh = AnalyticsService()
+    # Branch 3: Client construction raises Exception (even when PYTEST_CURRENT_TEST is set)
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "tests/test_analytics.py")
-    assert service_fresh.get_firestore_client() is None
-    assert service_fresh.get_bq_client() is None
-
-    # Branch 4: Unset PYTEST_CURRENT_TEST, client construction raises Exception
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    service_fresh = AnalyticsService(disable_cloud_clients=False)
     with patch("google.cloud.firestore.Client", side_effect=Exception("Firestore Init Error")):
         assert service_fresh.get_firestore_client() is None
 
     with patch("google.cloud.bigquery.Client", side_effect=Exception("BigQuery Init Error")):
         assert service_fresh.get_bq_client() is None
 
-    # Branch 5: Client construction succeeds
+    # Branch 4: Client construction succeeds (even when PYTEST_CURRENT_TEST is set)
     mock_created_fs = MagicMock()
     mock_created_bq = MagicMock()
     with patch("google.cloud.firestore.Client", return_value=mock_created_fs):
-        service_real_fs = AnalyticsService()
+        service_real_fs = AnalyticsService(disable_cloud_clients=False)
         assert service_real_fs.get_firestore_client() is mock_created_fs
         # Verify cached on second call
         assert service_real_fs.get_firestore_client() is mock_created_fs
 
     with patch("google.cloud.bigquery.Client", return_value=mock_created_bq):
-        service_real_bq = AnalyticsService()
+        service_real_bq = AnalyticsService(disable_cloud_clients=False)
         assert service_real_bq.get_bq_client() is mock_created_bq
         # Verify cached on second call
         assert service_real_bq.get_bq_client() is mock_created_bq
