@@ -15,9 +15,10 @@ Prompt Management and Model Selection are **strictly decoupled**:
 | **Global System Grounding** | `catalog-comparison-system-prompt` (`6969351484559327232`) | `SYSTEM_PROMPT_VERSION` *(falls back to `PROMPT_VERSION`)* | `VERTEX_PROMPT_ID` | `GEMINI_MODEL` | `gemini-2.5-flash` |
 | **Stage 1: Query Intent & Entity Extraction** | `stage1-query-intent-prompt` (`1204743961525092352`) | `STAGE1_PROMPT_VERSION` | `STAGE1_PROMPT_ID` | `STAGE1_INTENT_MODEL` | `gemini-3.5-flash-lite` |
 | **Stage 2: BigQuery SQL Retrieval** | *(Deterministic SQL — 0 LLM tokens)* | N/A | N/A | N/A | Parameterized SQL |
-| **Stage 3: Candidate Relevance Reranking** | `stage3-relevance-rerank-prompt` (`7625751130248577024`) | `STAGE3_PROMPT_VERSION` | `STAGE3_PROMPT_ID` | `STAGE2_RELEVANCE_MODEL` | `gemini-2.5-flash-lite` |
-| **Stage 4: Side-by-Side Spec Synthesis** | `stage4-spec-synthesis-prompt` (`121628251142488064`) | `STAGE4_PROMPT_VERSION` | `STAGE4_PROMPT_ID` | `STAGE3_SYNTHESIS_MODEL` / `STAGE3_FAST_SYNTHESIS_MODEL` | `gemini-2.5-pro` (`flash-lite` fast path) |
-| **Multi-Turn Follow-Up Chat** | `multi-turn-followup-chat-prompt` (`7445607145153757184`) | `CHAT_PROMPT_VERSION` | `CHAT_PROMPT_ID` | `GEMINI_MODEL` | `gemini-2.5-flash` |
+| **Stage 3: Candidate Relevance Reranking** | `stage3-relevance-rerank-prompt` (`7625751130248577024`) | `STAGE3_PROMPT_VERSION` | `STAGE3_PROMPT_ID` | `STAGE2_RELEVANCE_MODEL` *(or `STAGE3_RELEVANCE_MODEL`)* | `gemini-2.5-flash-lite` |
+| **Stage 4 (Call 1): Narrative Synthesis** | `stage4-spec-synthesis-prompt` (`121628251142488064`) | `STAGE4_PROMPT_VERSION` | `STAGE4_PROMPT_ID` | `STAGE3_SYNTHESIS_MODEL` *(or `STAGE4_SYNTHESIS_MODEL`)* / `STAGE3_FAST_SYNTHESIS_MODEL` | `gemini-2.5-pro` (`flash-lite` fast path) |
+| **Stage 4 (Call 2): Matrix Row Winners** | *(Inline compact spec-row winner prompt)* | N/A | N/A | `STAGE4_MATRIX_WINNERS_MODEL` | `gemini-2.5-flash` |
+| **Stage 5: Multi-Turn Follow-Up Chat** | `multi-turn-followup-chat-prompt` (`7445607145153757184`) | `CHAT_PROMPT_VERSION` | `CHAT_PROMPT_ID` | `STAGE5_CHAT_MODEL` *(or `GEMINI_MODEL`)* | `gemini-2.5-flash` |
 
 ---
 
@@ -89,11 +90,24 @@ PYTHONPATH=src uv run python scripts/seed_gcp_registry_and_prompts.py --skip-reg
 
 ## 3. Playbook B: Rolling Back or Switching Gemini Models per Stage
 
-Model selection is controlled independently of prompts via environment variables in [`backend/src/app/config.py`](../backend/src/app/config.py). Additionally, [`_call_genai_with_failover`](../backend/src/app/agent/orchestrator.py) automatically fails over across regions (`global` $\rightarrow$ `us-central1`) and model tiers on `429 RESOURCE_EXHAUSTED` or `503 UNAVAILABLE`.
+Model selection is governed from a **single source of truth**: [`resolve_stage_models()`](../backend/src/app/agent/orchestrator.py) + [`backend/src/app/config.py`](../backend/src/app/config.py). Every stage reads its environment variable dynamically at runtime and falls back to the benchmark-validated default in `config.py`. When Cloud Run delegates to the remote Vertex AI Reasoning Engine (`reasoningEngines/2445220951441276928`), Cloud Run automatically forwards the resolved `stage1_model`, `stage2_model`, and `stage3_model` in the request payload—so updating Cloud Run env vars takes effect across the entire pipeline immediately without redeploying the Reasoning Engine.
 
-### Switch or Roll Back Individual Stage Models on Cloud Run (~30s)
+### Option B1 — Temporary Local Override (Terminal / `.env`)
+```bash
+# Override any stage model locally:
+export STAGE1_INTENT_MODEL="gemini-2.5-flash"          # Stage 1: Query Intent (default: gemini-3.5-flash-lite)
+export STAGE2_RELEVANCE_MODEL="gemini-2.5-flash"       # Stage 3: Relevance Reranking (default: gemini-2.5-flash-lite)
+export STAGE3_SYNTHESIS_MODEL="gemini-2.5-flash-lite"  # Stage 4 Call 1: Narrative Synthesis (default: gemini-2.5-pro)
+export STAGE4_MATRIX_WINNERS_MODEL="gemini-2.5-flash"  # Stage 4 Call 2: Matrix Winners (default: gemini-2.5-flash)
+export STAGE5_CHAT_MODEL="gemini-2.5-flash-lite"       # Stage 5: Follow-Up Chat (default: gemini-2.5-flash)
 
-#### 1. Roll Back Stage 1 (Query Intent) Model
+# Revert local overrides back to code defaults:
+unset STAGE1_INTENT_MODEL STAGE2_RELEVANCE_MODEL STAGE3_SYNTHESIS_MODEL STAGE4_MATRIX_WINNERS_MODEL STAGE5_CHAT_MODEL
+```
+
+### Option B2 — Switch or Roll Back Individual Stage Models on Cloud Run (~15s, Zero Rebuild)
+
+#### 1. Switch Stage 1 (Query Intent) Model
 ```bash
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
@@ -101,7 +115,7 @@ gcloud run services update catalog-comparison-service \
   --update-env-vars="STAGE1_INTENT_MODEL=gemini-2.5-flash"
 ```
 
-#### 2. Roll Back Stage 3 (Candidate Relevance Reranking) Model
+#### 2. Switch Stage 3 (Candidate Relevance Reranking) Model
 ```bash
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
@@ -109,28 +123,35 @@ gcloud run services update catalog-comparison-service \
   --update-env-vars="STAGE2_RELEVANCE_MODEL=gemini-2.5-flash"
 ```
 
-#### 3. Roll Back Stage 4 (Comparative Synthesis) Model (e.g., Switch Pro $\rightarrow$ Flash for Lower Latency/Cost)
+#### 3. Switch Stage 4 (Comparative Synthesis) Models (Call 1 Narrative & Call 2 Matrix Winners)
 ```bash
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash,STAGE3_FAST_SYNTHESIS_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash-lite"
 ```
 
-#### 4. Roll Back Global Default & Multi-Turn Follow-Up Chat Model
+#### 4. Switch Stage 5 (Multi-Turn Follow-Up Chat) & Global Fallback Model
 ```bash
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="GEMINI_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE5_CHAT_MODEL=gemini-2.5-flash-lite,GEMINI_MODEL=gemini-2.5-flash"
 ```
 
-#### 5. Restore Default Tiered-Hybrid Model Fleet Configuration
+#### 5. Restore Default Benchmark-Optimal Model Fleet Configuration
 ```bash
+# Either remove custom env var overrides so Cloud Run uses config.py defaults:
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="GEMINI_MODEL=gemini-2.5-flash,STAGE1_INTENT_MODEL=gemini-3.5-flash-lite,STAGE2_RELEVANCE_MODEL=gemini-2.5-flash-lite,STAGE3_SYNTHESIS_MODEL=gemini-2.5-pro,STAGE3_FAST_SYNTHESIS_MODEL=gemini-2.5-flash-lite,AGENT_VERSION=1.2.0-tiered"
+  --remove-env-vars="STAGE1_INTENT_MODEL,STAGE2_RELEVANCE_MODEL,STAGE3_SYNTHESIS_MODEL,STAGE4_MATRIX_WINNERS_MODEL,STAGE5_CHAT_MODEL"
+
+# Or explicitly pin the default stage-optimal fleet:
+gcloud run services update catalog-comparison-service \
+  --project=fde-bestbuy-sandbox-dev-508321 \
+  --region=us-central1 \
+  --update-env-vars="GEMINI_MODEL=gemini-2.5-flash,STAGE1_INTENT_MODEL=gemini-3.5-flash-lite,STAGE2_RELEVANCE_MODEL=gemini-2.5-flash-lite,STAGE3_SYNTHESIS_MODEL=gemini-2.5-pro,STAGE3_FAST_SYNTHESIS_MODEL=gemini-2.5-flash-lite,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash,STAGE5_CHAT_MODEL=gemini-2.5-flash,AGENT_VERSION=1.2.0-tiered"
 ```
 
 ---

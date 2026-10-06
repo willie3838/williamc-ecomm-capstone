@@ -260,9 +260,10 @@ Prompt Management ([Vertex AI Studio](https://console.cloud.google.com/vertex-ai
 | :--- | :--- | :--- | :--- | :--- |
 | **Global System Grounding** | `catalog-comparison-system-prompt` (`6969351484559327232`) | `SYSTEM_PROMPT_VERSION` *(or `PROMPT_VERSION`)* | `GEMINI_MODEL` | `gemini-2.5-flash` |
 | **Stage 1: Query Intent** | `stage1-query-intent-prompt` (`1204743961525092352`) | `STAGE1_PROMPT_VERSION` | `STAGE1_INTENT_MODEL` | `gemini-3.5-flash-lite` |
-| **Stage 3: Relevance Rerank** | `stage3-relevance-rerank-prompt` (`7625751130248577024`) | `STAGE3_PROMPT_VERSION` | `STAGE2_RELEVANCE_MODEL` | `gemini-2.5-flash-lite` |
-| **Stage 4: Spec Synthesis** | `stage4-spec-synthesis-prompt` (`121628251142488064`) | `STAGE4_PROMPT_VERSION` | `STAGE3_SYNTHESIS_MODEL` / `STAGE3_FAST_SYNTHESIS_MODEL` | `gemini-2.5-pro` (`flash-lite` fast path) |
-| **Multi-Turn Follow-Up Chat** | `multi-turn-followup-chat-prompt` (`7445607145153757184`) | `CHAT_PROMPT_VERSION` | `GEMINI_MODEL` | `gemini-2.5-flash` |
+| **Stage 3: Relevance Rerank** | `stage3-relevance-rerank-prompt` (`7625751130248577024`) | `STAGE3_PROMPT_VERSION` | `STAGE2_RELEVANCE_MODEL` *(or `STAGE3_RELEVANCE_MODEL`)* | `gemini-2.5-flash-lite` |
+| **Stage 4 (Call 1): Narrative Synthesis** | `stage4-spec-synthesis-prompt` (`121628251142488064`) | `STAGE4_PROMPT_VERSION` | `STAGE3_SYNTHESIS_MODEL` *(or `STAGE4_SYNTHESIS_MODEL`)* / `STAGE3_FAST_SYNTHESIS_MODEL` | `gemini-2.5-pro` (`flash-lite` fast path) |
+| **Stage 4 (Call 2): Matrix Winners** | *(Inline compact spec-row winner prompt)* | N/A | `STAGE4_MATRIX_WINNERS_MODEL` | `gemini-2.5-flash` |
+| **Stage 5: Follow-Up Chat** | `multi-turn-followup-chat-prompt` (`7445607145153757184`) | `CHAT_PROMPT_VERSION` | `STAGE5_CHAT_MODEL` *(or `GEMINI_MODEL`)* | `gemini-2.5-flash` |
 
 ```bash
 # 1. Instant UI Rollback (when PROMPT_VERSION=latest):
@@ -274,12 +275,19 @@ gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 --region=us-central1 \
   --update-env-vars="ENABLE_VERTEX_PROMPT_REGISTRY=true,STAGE4_PROMPT_VERSION=1"
 
-# 3. Roll Back or Switch a Stage Model Version (e.g., switch Stage 4 Synthesis from Pro -> Flash):
+# 3. Temporarily Switch Any Stage Model (Local or Cloud Run — zero code rebuild):
+export STAGE1_INTENT_MODEL="gemini-2.5-flash" STAGE3_SYNTHESIS_MODEL="gemini-2.5-flash"  # Local override
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 --region=us-central1 \
-  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE1_INTENT_MODEL=gemini-2.5-flash,STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash"
 
-# 4. Sync Local Prompt Edits (idempotent — only creates a new version if prompt text changed):
+# 4. Revert Stage Models Back to Default Benchmark-Optimal Fleet:
+unset STAGE1_INTENT_MODEL STAGE2_RELEVANCE_MODEL STAGE3_SYNTHESIS_MODEL STAGE4_MATRIX_WINNERS_MODEL STAGE5_CHAT_MODEL
+gcloud run services update catalog-comparison-service \
+  --project=fde-bestbuy-sandbox-dev-508321 --region=us-central1 \
+  --remove-env-vars="STAGE1_INTENT_MODEL,STAGE2_RELEVANCE_MODEL,STAGE3_SYNTHESIS_MODEL,STAGE4_MATRIX_WINNERS_MODEL,STAGE5_CHAT_MODEL"
+
+# 5. Sync Local Prompt Edits (idempotent — only creates a new version if prompt text changed):
 cd backend && PYTHONPATH=src uv run python scripts/seed_gcp_registry_and_prompts.py --skip-registry
 ```
 
