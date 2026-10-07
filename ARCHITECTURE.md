@@ -325,10 +325,10 @@ class QueryIntentAnalysis(BaseModel):
 3. **Graceful Offline Heuristic Fallback**: In offline test environments or network degradation, the classifier falls back to heuristic token analysis, ensuring 100% hermetic CI reliability.
 4. **Relevance Gating**: Non-comparative rants (`OPINION_OR_CHATTER`) reject catalog candidates and suppress comparison matrices, returning conversational guidance instead.
 
-#### 3.2.2 Comparative Entity Balancing & Catalog SKU Deduplication
-To guarantee diverse and accurate comparisons across competing brands (e.g., `Mac vs Dell`, `Bose vs Sony`):
+#### 3.2.2 Comparative Entity Candidate Selection & Catalog SKU Deduplication
+To guarantee accurate comparisons across user-requested products (e.g., same-brand `MacBook Air vs MacBook Pro` or cross-brand `Mac vs Dell`, `Bose vs Sony`):
 1. **Catalog SKU Deduplication**: Both BigQuery retrieval (`query_catalog`) and `CatalogRetrievalAgent` enforce primary key SKU deduplication via `seen_skus`, preventing duplicate catalog records from corrupting candidate pools.
-2. **Multi-Product Comparative Entity Balancing (2 to 5 Products)**: When a customer query compares 2, 3, 4, or 5 distinct products or brands (e.g., `mac vs dell`, or multi-item queries like `Compare 5 smart 4K TVs: LG C3, Samsung S90C, Sony BRAVIA XR A80L, TCL QM8, and Hisense U8N`), `rank_and_select_products` leverages `_select_best_entity_candidates` to preserve and rank all $N \in [2, 5]$ distinct target products rather than truncating to 2 products. For pairwise comparisons, it balances candidate selection by picking the highest-scoring candidate from Brand A and the highest-scoring candidate from Brand B. This strictly eliminates the failure mode where identical or same-brand models crowd out user-specified items in multi-product comparisons.
+2. **Multi-Product Comparative Entity Candidate Selection (2 to 5 Products)**: When a customer query compares 2, 3, 4, or 5 distinct products or brands (e.g., `MacBook Air vs MacBook Pro`, `mac vs dell`, or multi-item queries like `Compare 5 smart 4K TVs: LG C3, Samsung S90C, Sony BRAVIA XR A80L, TCL QM8, and Hisense U8N`), candidate ranking leverages `_select_best_entity_candidates` to select top matching candidates per keyword entity phrase without forcing candidates to belong to different brands. This natively supports both same-brand comparisons (e.g., MacBook Air vs MacBook Pro) and multi-brand comparisons (e.g., LG vs Samsung vs Sony), while tracking used SKUs to eliminate duplicate products.
 3. **Session Counter & Analytics Resilience**: `AnalyticsService` tracks comparison counters per `session_id` in Firestore (`sessions` collection) with an automatic in-memory fallback dictionary. All Firestore network calls (`add`, `get`, `set`, `update`) are bounded by 2.0-second timeouts executed via worker threads to prevent hanging during transient disruptions or missing database backends. In automated test environments (`PYTEST_CURRENT_TEST`), live cloud network calls are skipped in favor of mocked/in-memory handling to guarantee sub-second hermetic execution.
 
 ### 3.3 Deterministic Greater-Set Comparison Matrix & Hybrid Flash-Lite Preference Router
@@ -595,7 +595,7 @@ sequenceDiagram
     end
     LLM_Stage1-->>Orchestrator: Intent=COMPARISON, Category=TVs
     Note over Orchestrator: Deterministic Candidate Selection (<1ms)
-    Orchestrator->>Orchestrator: Preserve tagged SKU click order & balance entities
+    Orchestrator->>Orchestrator: Preserve tagged SKU click order & match entity candidates
     Orchestrator->>LLM_Stage3: synthesize_comparison_with_llm()
     LLM_Stage3-->>Orchestrator: ComparisonSynthesis JSON
     Orchestrator->>Client: 200 OK (P95 = 2.18s vs 3.48s sequential)
@@ -609,15 +609,15 @@ sequenceDiagram
 
 2. **Deterministic Candidate Selection (<1ms)**:
    - Preserves tagged `[SKU: ...]` click ordering directly on retrieved catalog rows.
-   - For multi-brand natural language queries, `_select_best_entity_candidates` balances candidates across target entities rather than invoking redundant LLM reranking.
+   - For natural language queries, `_select_best_entity_candidates` selects top matching candidates across target entity phrases (supporting both same-brand and multi-brand comparisons) without invoking redundant LLM reranking.
 
 #### 2. Thread Safety & Connection Pooling
 - Intra-stage concurrent futures (Model Armor prompt/response guards and deterministic matrix construction) execute on `_SPECULATIVE_SYNTH_POOL` (`max_workers=512`) with `.result(timeout=8.0)` and zero cross-request LLM caching.
 - `_call_genai_with_failover` routes Vertex AI requests in `us-central1` using shared `genai.Client` instances and a 256-connection `_SHARED_MA_SESSION` HTTPAdapter pool.
 
-#### 3. 2-Character Sub-Token & Entity Balancing Integration
+#### 3. 2-Character Sub-Token & Entity Candidate Selection Integration
 - **2-Character Sub-Token SQL Tokenization (`catalog.py`)**: Sub-token extraction enforces `len(t) >= 2` coupled with an exhaustive 2-letter English grammatical stopword filter (`an`, `as`, `at`, `be`, `by`, `do`, `go`, `he`, `if`, `in`, `is`, `it`, `me`, `my`, `no`, `of`, `on`, `or`, `so`, `to`, `up`, `us`, `we`, `vs`). This allows critical consumer electronics brand tokens (e.g., `LG`, `HP`) and model tokens (e.g., `C3`, `G3`, `M3`) to be tokenized into parameterized SQL `LIKE` patterns (`%lg%`, `%c3%`, `%hp%`) without incurring table scan overhead from grammatical prepositions.
-- **2-Character Entity Balancing (`orchestrator.py`)**: `_balance_entities()` accepts candidate name sub-tokens and user keywords of length `len(tok) >= 2` and `len(kw.strip()) >= 2`. In queries like *"LG C3 vs Samsung S90C"* or *"HP Envy vs Dell XPS"*, candidate lists starting with multiple products of one brand immediately balance the alternative 2-character brand or model candidate into slot 2, ensuring speculative Stage 4 synthesis operates on the correct multi-brand product pair.
+- **2-Character Entity Candidate Selection (`orchestrator.py`)**: `_select_best_entity_candidates()` accepts candidate name sub-tokens and user keywords of length `len(tok) >= 2` and `len(kw.strip()) >= 2`. In queries like *"LG C3 vs Samsung S90C"* or *"HP Envy vs Dell XPS"*, candidate scoring evaluates 2-character brand and model tokens to match the alternative candidate into slot 2, ensuring synthesis operates on the correct product pair without brand-locking restrictions.
 
 ### 6.3 OpenTelemetry & Cloud Operations Tracing
 - **Tracing**: Instrumenting FastAPI middleware and Google ADK tool calls with OpenTelemetry SDK, exporting spans to Google Cloud Trace. Every trace carries `session_id`, `query`, `target_skus`, and `bq_bytes_billed`.
