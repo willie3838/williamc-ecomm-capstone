@@ -24,6 +24,7 @@ def _isolate_unit_test_state(monkeypatch: pytest.MonkeyPatch) -> Generator[None,
 
     monkeypatch.setattr(settings, "agent_engine_id", None, raising=False)
     monkeypatch.setattr(settings, "agent_runtime_resource_name", None, raising=False)
+    monkeypatch.setattr(settings, "enable_background_warmup", False, raising=False)
     monkeypatch.setattr(analytics_service, "_disable_cloud_clients", True, raising=False)
 
     def _clear_caches() -> None:

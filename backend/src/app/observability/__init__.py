@@ -1,7 +1,7 @@
-"""Observability package for OpenTelemetry distributed tracing and Google Cloud Logging."""
+from typing import Any
 
 from app.config import Settings
-from app.observability.logging import CloudLoggingJsonFormatter, setup_logging
+from app.observability.logging import CloudLoggingJsonFormatter, get_logger, setup_logging
 from app.observability.middleware import ObservabilityMiddleware
 from app.observability.tracing import (
     extract_cloud_trace_context,
@@ -37,6 +37,7 @@ def setup_observability(settings: Settings) -> None:
 __all__ = [
     "CloudLoggingJsonFormatter",
     "ObservabilityMiddleware",
+    "TelemetryLogger",
     "extract_cloud_trace_context",
     "extract_w3c_traceparent",
     "format_cloud_trace_context",
@@ -44,9 +45,19 @@ __all__ = [
     "get_current_trace_context",
     "get_current_trace_id",
     "get_in_memory_exporter",
+    "get_logger",
     "get_tracer",
     "setup_logging",
     "setup_observability",
     "setup_tracing",
+    "telemetry_logger",
     "trace_span",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in ("TelemetryLogger", "telemetry_logger"):
+        from app.data import analytics
+
+        return getattr(analytics, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

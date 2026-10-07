@@ -159,3 +159,8 @@ def setup_logging(
     root_logger.addHandler(handler)
 
     return handler
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Return a named standard Python logger."""
+    return logging.getLogger(name)

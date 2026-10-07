@@ -76,19 +76,15 @@ STAGE3_RERANK_PROMPT_TEMPLATE = (
 )
 
 STAGE4_SYNTHESIS_PROMPT_TEMPLATE = (
-    "You are an expert Best Buy Catalog Product Comparison Specialist.\n"
-    "Analyze the side-by-side technical specifications and customer query to produce a grounded comparison narrative and persona buying recommendations.\n\n"
-    "NON-NEGOTIABLE OPERATIONAL PRINCIPLES:\n"
-    "1. ZERO HALLUCINATION: All specifications and prices must come strictly from the retrieved product specs below.\n"
-    "2. STRICT CITATIONS: Every claim, specification contrast, product mention, and recommendation MUST include an inline verifiable SKU citation using the exact syntax: [SKU: <sku>] immediately following the short product name or claim (e.g. 'Apple MacBook Air [SKU: 6534606] lasts 18h'). Cite ALL {num_prods} products ({sku_tags_list}) in 'summary' AND in 'recommendations' using their short names.\n"
-    "3. MULTI-DIMENSION TRADE-OFF SYNTHESIS: In 'summary', write 3 ultra-concise bullet points ('- ', max 12 words per bullet) comparing exact Price/Value $ figures (always state the exact $ price), Processor/RAM/Storage, Display, and Battery/Weight using trade-off connectors ('whereas', 'versus') plus a 1-sentence 'Executive Verdict:' (max 12 words).\n"
-    "4. TARGETED PERSONA RECOMMENDATIONS: In 'recommendations', provide {num_prods} distinct persona recommendations separated by semicolons ('; '), each max 10 words formatted as 'Best for <Persona>: <Short Product Name> [SKU: <sku>] — <3-5 word spec & $ rationale>'.\n"
-    "5. STRICT BREVITY CAP: Keep 'summary' strictly under {summary_word_limit} words and 'recommendations' strictly under {recs_word_limit} words. Be telegraphic; omit articles ('the', 'a') and filler words.\n"
-    "6. USER INTENT FOCUS: If the customer query specifies a focus, persona, or constraint (e.g., 'good for gaming', 'office work', 'battery life', 'only price'), directly tailor the comparison narrative and primary recommendation to address that specific criterion first.\n\n"
-    "<user_query>{query}</user_query>\n\n"
-    "Retrieved Catalog Products:\n{candidates_desc}\n\n"
+    "Best Buy Catalog Comparison Specialist. Ground strictly in <catalog_products>.\n"
+    "RULES:\n"
+    "1. Cite ALL {num_prods} products ({sku_tags_list}) using Short Product Name [SKU: <sku>] and exact $ price in 'summary' AND 'recommendations'.\n"
+    "2. 'summary' (<={summary_word_limit} words): 3 telegraphic '- ' bullets (<=10 words each) contrasting $ price, CPU/RAM/Storage, Display/Battery ('whereas'/'versus') + 'Executive Verdict:' (<=10 words). Prioritize any <user_query> focus.\n"
+    "3. 'recommendations' (<={recs_word_limit} words): {num_prods} persona picks separated by '; ' as 'Best for <Persona>: <Short Product Name> [SKU: <sku>] — <spec & $ reason>'.\n"
+    "<user_query>{query}</user_query>\n"
+    "<catalog_products>\n{candidates_desc}\n</catalog_products>\n"
     "{price_grounding_section}"
-    'Return a valid JSON object matching the requested schema with exact keys: {{"summary": "...", "recommendations": "..."}}.'
+    'Return JSON: {{"summary": "...", "recommendations": "..."}}.'
 )
 
 STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE = (

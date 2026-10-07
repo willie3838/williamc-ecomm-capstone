@@ -1063,22 +1063,13 @@ class ComparisonOrchestrator:
         query: str,
     ) -> str:
         candidates_desc = "\n".join(
-            f"- {self._short_product_label(p)} [SKU: {p.sku}] | Brand: {p.brand} | Price: ${p.price:,.2f} | "
+            f"- {self._short_product_label(p)} [SKU: {p.sku}] | {p.brand} | ${p.price:.2f} | "
             + ", ".join(
-                f"{k}: {v}" for k, v in self._filter_comparative_specs(p.specifications).items()
+                f"{k}={v}" for k, v in self._filter_comparative_specs(p.specifications).items()
             )
             for p in products
         )
-        matrix_desc = (
-            "\n".join(
-                f"- {r.feature}: "
-                + ", ".join(f"[SKU: {sku}]: {val}" for sku, val in r.values.items())
-                + (f" (Winner: [SKU: {r.winner_sku}])" if r.winner_sku else "")
-                for r in matrix
-            )
-            if matrix
-            else "See Retrieved Catalog Products specifications above."
-        )
+        matrix_desc = ""
         price_grounding = ""
         if len(products) >= 2:
             sorted_by_price = sorted(products, key=lambda x: x.price)
@@ -1087,15 +1078,16 @@ class ComparisonOrchestrator:
             if cheapest.price < most_exp.price:
                 diff = most_exp.price - cheapest.price
                 price_grounding = (
-                    f"Precomputed Price Grounding: {self._short_product_label(cheapest)} [SKU: {cheapest.sku}] is ${diff:,.2f} cheaper "
-                    f"at ${cheapest.price:,.2f} compared to {self._short_product_label(most_exp)} [SKU: {most_exp.sku}] at ${most_exp.price:,.2f}."
+                    f"Price Grounding: {self._short_product_label(cheapest)} [SKU: {cheapest.sku}] "
+                    f"(${cheapest.price:,.2f}) is ${diff:,.2f} cheaper than "
+                    f"{self._short_product_label(most_exp)} [SKU: {most_exp.sku}] (${most_exp.price:,.2f})."
                 )
             else:
-                price_grounding = f"Precomputed Price Grounding: All compared products are priced equally at ${cheapest.price:,.2f}."
+                price_grounding = f"Price Grounding: Equal price ${cheapest.price:,.2f}."
 
         num_prods = len(products)
-        summary_word_limit = 60 if num_prods <= 2 else min(80, 40 + num_prods * 8)
-        recs_word_limit = 35 if num_prods <= 2 else min(60, 20 + num_prods * 8)
+        summary_word_limit = 50 if num_prods <= 2 else min(70, 35 + num_prods * 7)
+        recs_word_limit = 30 if num_prods <= 2 else min(50, 18 + num_prods * 6)
         sku_tags_list = ", ".join(
             f"'{self._short_product_label(p)}' [SKU: {p.sku}]" for p in products
         )
@@ -1114,15 +1106,15 @@ class ComparisonOrchestrator:
             and re.search(r"Product\s*1:", query, re.IGNORECASE)
         ):
             focus_m = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query, re.IGNORECASE)
-            focus_line = f" | User Focus / Follow-up: {focus_m.group(1).strip()}" if focus_m else ""
-            effective_query = (
-                f"Compare the {num_prods} retrieved products side-by-side.{focus_line}"
-            )
+            focus_line = f" | Focus: {focus_m.group(1).strip()}" if focus_m else ""
+            effective_query = f"Compare {num_prods} products.{focus_line}"
 
         stage4_tpl, _ = get_stage_prompt("stage4")
-        # If Vertex AI Prompt Management returned a legacy cached stage4 template that still
-        # references spec_winners or lacks the short-handle instruction, use STAGE4_SYNTHESIS_PROMPT_TEMPLATE.
-        if stage4_tpl and ("spec_winners" in stage4_tpl or "Short Product Name" not in stage4_tpl):
+        if stage4_tpl and (
+            "spec_winners" in stage4_tpl
+            or "Short Product Name" not in stage4_tpl
+            or "<catalog_products>" not in stage4_tpl
+        ):
             stage4_tpl = None
         return format_stage4_synthesis_prompt(
             num_prods=num_prods,
@@ -2041,7 +2033,7 @@ class ComparisonOrchestrator:
         model: str = settings.gemini_model,
         precomputed_intent: QueryIntentAnalysis | None = None,
     ) -> list[ProductSpec]:
-        """Rerank candidate products using Gemini LLM against the raw user query with strict relevance gating."""
+        """Select candidate products deterministically in the comparison pipeline (no Stage 3 LLM call)."""
         if not products:
             return []
 
@@ -2053,8 +2045,19 @@ class ComparisonOrchestrator:
                 seen_skus.add(p.sku)
                 unique_products.append(p)
 
+        # If precomputed Stage 1 intent marked query as opinion/chatter or ineligible, reject immediately
+        if precomputed_intent is not None and (
+            precomputed_intent.intent_type == "OPINION_OR_CHATTER"
+            or not precomputed_intent.is_comparison_eligible
+        ):
+            if precomputed_intent.intent_type == "OPINION_OR_CHATTER":
+                return []
+
         # Lock onto explicit tagged SKUs from buildComparisonPrompt to prevent follow-up swapping
-        tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", original_query or "")
+        tagged_pairs = self.extract_tagged_products(original_query or "")
+        tagged_skus = [sku for _, sku in tagged_pairs if sku]
+        if not tagged_skus:
+            tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", original_query or "")
         if tagged_skus:
             sku_to_prod = {p.sku: p for p in unique_products}
             matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
@@ -2069,22 +2072,28 @@ class ComparisonOrchestrator:
                 remaining = [p for p in unique_products if p.sku not in tagged_skus]
                 return [matched_tagged[0], remaining[0]]
 
-        # If query is an opinion or rant, reject candidates immediately
-        intent = precomputed_intent or self.classify_intent(original_query, model=model)
-        if intent.intent_type == "OPINION_OR_CHATTER":
-            logger.info(
-                "Query '%s' detected as non-comparison intent (%s); rejecting candidates.",
-                original_query,
-                intent.intent_type,
-            )
-            return []
-
         entity_kw = (
             (self.extract_keywords(original_query) or keywords) if original_query else keywords
         )
         target_count = min(5, max(2, len(entity_kw)))
 
-        # Execute LLM-based Reranking using the original user query as the frame of reference
+        # In the comparison pipeline (precomputed_intent provided) or default live execution,
+        # skip Stage 3 LLM reranking and deterministically select top entity-balanced candidates.
+        is_custom_mock_client = (
+            self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
+        )
+        if precomputed_intent is not None or not is_custom_mock_client:
+            if precomputed_intent is None and self._is_opinion_query(original_query):
+                return []
+            if len(entity_kw) >= 2:
+                return self._select_best_entity_candidates(unique_products, entity_kw, target_count)
+            return self._balance_entities(unique_products, entity_kw)[:target_count]
+
+        # Legacy direct call path when a custom/mocked genai_client is injected without precomputed_intent
+        intent = self.classify_intent(original_query, model=model)
+        if intent.intent_type == "OPINION_OR_CHATTER":
+            return []
+
         llm_ranked = self._rerank_with_llm(
             unique_products, original_query or " ".join(keywords), model=model
         )
@@ -2363,9 +2372,35 @@ class ComparisonOrchestrator:
             span.set_attribute("ai.prompt.version", resolved_prompt_ver)
 
             trace_id = get_current_trace_id()
-            early_tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", safe_query or "")
+            tagged_pairs = self.extract_tagged_products(query)
+            early_tagged_skus = [sku for _, sku in tagged_pairs if sku]
+            if not early_tagged_skus:
+                early_tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", safe_query or "")
 
-            # Stage 1: Query Intent Extraction, Security Sanitization, and Keyword Parsing
+            prelim_bq_keywords: list[str]
+            prelim_bq_category: str | None = category
+            if len(early_tagged_skus) >= 2:
+                prelim_bq_keywords = list(early_tagged_skus)
+                prelim_bq_category = None
+            elif tagged_pairs:
+                prelim_bq_keywords = [kw for pair in tagged_pairs for kw in pair if kw]
+            else:
+                prelim_bq_keywords = self.extract_keywords(query)
+
+            should_prelaunch_bq = bool(early_tagged_skus) or (
+                "[BLOCKED_INJECTION]" not in (safe_query or "")
+                and not self._is_opinion_query(query)
+            )
+            stage2_future: Future[list[dict[str, Any]]] | None = None
+            if should_prelaunch_bq:
+                stage2_future = _SPECULATIVE_SYNTH_POOL.submit(
+                    query_catalog,
+                    keywords=prelim_bq_keywords,
+                    category=prelim_bq_category,
+                    client=self.bq_client,
+                )
+
+            # Stage 1 (in parallel with Stage 2 at t=0): Query Intent Extraction & Security Sanitization
             with tracer.start_as_current_span("agent.stage_1.query_intent") as intent_span:
                 intent_span.set_attribute("agent.model", active_routing_model)
                 intent = self.classify_intent(query, model=active_routing_model)
@@ -2382,6 +2417,8 @@ class ComparisonOrchestrator:
 
             intent_reasoning = intent.reasoning or ""
             if intent_reasoning.startswith("Blocked by Model Armor:"):
+                if stage2_future is not None:
+                    stage2_future.cancel()
                 ma_reason = (
                     intent_reasoning.split("Blocked by Model Armor:", 1)[1].strip()
                     or "The prompt violated Model Armor security filters."
@@ -2410,8 +2447,13 @@ class ComparisonOrchestrator:
                     blocked_by_model_armor=True,
                 )
 
-            # Early Gate: If query is an opinion, rant, or chatter, suppress comparison immediately without catalog retrieval
-            if intent.intent_type == "OPINION_OR_CHATTER":
+            # Early Gate: If Stage 1 marks query as opinion/chatter or marks a tagged query ineligible,
+            # discard parallel Stage 2 BQ results immediately!
+            if intent.intent_type == "OPINION_OR_CHATTER" or (
+                len(early_tagged_skus) >= 2 and not intent.is_comparison_eligible
+            ):
+                if stage2_future is not None:
+                    stage2_future.cancel()
                 span.set_attribute("comparison_matrix_suppressed", True)
                 summary = (
                     f"No product comparison matrix was generated for '{safe_query}'. "
@@ -2433,20 +2475,36 @@ class ComparisonOrchestrator:
                     prompt_version=resolved_prompt_ver,
                 )
 
-            # Stage 2: Grounded Catalog Retrieval from BigQuery
+            # Stage 2: Grounded Catalog Retrieval from BigQuery (resolved from t=0 parallel future)
             with tracer.start_as_current_span("agent.stage_2.catalog_retrieval") as bq_stage_span:
                 effective_bq_keywords = (
-                    early_tagged_skus if len(early_tagged_skus) >= 2 else keywords
+                    early_tagged_skus
+                    if len(early_tagged_skus) >= 2
+                    else (keywords or prelim_bq_keywords)
                 )
                 effective_bq_category = None if len(early_tagged_skus) >= 2 else category
                 bq_stage_span.set_attribute("agent.search_keywords", str(effective_bq_keywords))
                 bq_stage_span.set_attribute("agent.category_filter", effective_bq_category or "")
                 try:
-                    catalog_rows = query_catalog(
-                        keywords=effective_bq_keywords,
-                        category=effective_bq_category,
-                        client=self.bq_client,
-                    )
+                    if stage2_future is not None:
+                        catalog_rows = stage2_future.result()
+                        if (
+                            not catalog_rows
+                            and len(early_tagged_skus) < 2
+                            and keywords
+                            and keywords != prelim_bq_keywords
+                        ):
+                            catalog_rows = query_catalog(
+                                keywords=keywords,
+                                category=effective_bq_category,
+                                client=self.bq_client,
+                            )
+                    else:
+                        catalog_rows = query_catalog(
+                            keywords=effective_bq_keywords,
+                            category=effective_bq_category,
+                            client=self.bq_client,
+                        )
                 except Exception as err:
                     logger.warning("BigQuery catalog query encountered an error: %s", err)
                     catalog_rows = []

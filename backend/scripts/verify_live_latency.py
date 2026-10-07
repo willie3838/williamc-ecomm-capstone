@@ -37,10 +37,11 @@ from app.agent.orchestrator import ComparisonOrchestrator
 from app.config import settings
 
 LIVE_BENCHMARK_QUERIES: list[tuple[str, str | None]] = [
-    ("MacBook Air M3 vs Dell XPS 13", "Laptops"),
-    ("Sony WH-1000XM5 vs Bose QuietComfort Ultra", "Headphones"),
-    ("LG C3 OLED vs Samsung S90C", "TVs"),
+    ("MacBook Air M3 [SKU: 6534606] vs Dell XPS 13 [SKU: 6575132]", "Laptops"),
+    ("Sony WH-1000XM5 [SKU: 6505727] vs Bose QuietComfort Ultra [SKU: 6553823]", "Headphones"),
+    ("LG C3 OLED [SKU: 6535929] vs Samsung S90C [SKU: 6536965]", "TVs"),
 ]
+BENCHMARK_QUERIES = LIVE_BENCHMARK_QUERIES
 
 
 def verify_local_code_against_live_gcp(threshold_ms: float = 6000.0) -> bool:

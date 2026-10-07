@@ -242,6 +242,11 @@ class Settings(BaseSettings):
         alias="ENABLE_MODEL_ARMOR",
         description="Enable Google Cloud Model Armor security guardrails",
     )
+    enable_background_warmup: bool = Field(
+        default=True,
+        alias="ENABLE_BACKGROUND_WARMUP",
+        description="Enable non-blocking background warmup of BigQuery and Vertex AI clients on startup",
+    )
     temperature: float = Field(
         default=0.1,
         alias="AGENT_TEMPERATURE",
