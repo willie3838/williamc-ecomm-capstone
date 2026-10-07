@@ -90,7 +90,13 @@ PYTHONPATH=src uv run python scripts/seed_gcp_registry_and_prompts.py --skip-reg
 
 ## 3. Playbook B: Rolling Back or Switching Gemini Models per Stage
 
-Model selection is governed from a **single source of truth**: [`resolve_stage_models()`](../backend/src/app/agent/orchestrator.py) + [`backend/src/app/config.py`](../backend/src/app/config.py). Every stage reads its environment variable dynamically at runtime and falls back to the benchmark-validated default in `config.py`. When Cloud Run delegates to the remote Vertex AI Reasoning Engine (`reasoningEngines/2445220951441276928`), Cloud Run automatically forwards the resolved `stage1_model`, `stage2_model`, and `stage3_model` in the request payload—so updating Cloud Run env vars takes effect across the entire pipeline immediately without redeploying the Reasoning Engine.
+Model selection is governed from a **single source of truth**: [`resolve_stage_models()`](../backend/src/app/agent/orchestrator.py) + [`backend/src/app/config.py`](../backend/src/app/config.py). Every stage reads its environment variable dynamically at runtime and falls back to the benchmark-validated default in `config.py`.
+
+> [!IMPORTANT]
+> **Vertex AI Reasoning Engine (`AGENT_RUNTIME_RESOURCE_NAME`) Precedence & In-Process Rollback**:
+> When Cloud Run is configured with `AGENT_RUNTIME_RESOURCE_NAME` (pointing to remote Vertex AI Reasoning Engine `projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928`), `/api/compare` delegates execution to the remote Vertex AI Reasoning Engine.
+> Because the remote Reasoning Engine runs an immutable pre-deployed instance on Vertex AI Agent Runtime, **Vertex AI Reasoning Engine (`AGENT_RUNTIME_RESOURCE_NAME`) must be disabled on Cloud Run (`--remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"`) for stage model environment variables to take effect immediately**.
+> Removing `AGENT_RUNTIME_RESOURCE_NAME` seamlessly activates Cloud Run's native in-process `MultiAgentCoordinator` execution path (`_get_coordinator()`), which immediately reads and applies the updated stage model environment variables on live requests with zero code rebuild (~15s revision update).
 
 ### Option B1 — Temporary Local Override (Terminal / `.env`)
 ```bash
@@ -107,12 +113,15 @@ unset STAGE1_INTENT_MODEL STAGE2_RELEVANCE_MODEL STAGE3_SYNTHESIS_MODEL STAGE4_M
 
 ### Option B2 — Switch or Roll Back Individual Stage Models on Cloud Run (~15s, Zero Rebuild)
 
+To ensure stage model environment variables take effect immediately, every stage model switch command removes `AGENT_RUNTIME_RESOURCE_NAME` so Cloud Run executes locally via `MultiAgentCoordinator`.
+
 #### 1. Switch Stage 1 (Query Intent) Model
 ```bash
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="STAGE1_INTENT_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE1_INTENT_MODEL=gemini-2.5-flash" \
+  --remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"
 ```
 
 #### 2. Switch Stage 3 (Candidate Relevance Reranking) Model
@@ -120,7 +129,8 @@ gcloud run services update catalog-comparison-service \
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="STAGE2_RELEVANCE_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE2_RELEVANCE_MODEL=gemini-2.5-flash" \
+  --remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"
 ```
 
 #### 3. Switch Stage 4 (Comparative Synthesis) Models (Call 1 Narrative & Call 2 Matrix Winners)
@@ -128,7 +138,8 @@ gcloud run services update catalog-comparison-service \
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash-lite"
+  --update-env-vars="STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash-lite" \
+  --remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"
 ```
 
 #### 4. Switch Stage 5 (Multi-Turn Follow-Up Chat) & Global Fallback Model
@@ -136,22 +147,23 @@ gcloud run services update catalog-comparison-service \
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="STAGE5_CHAT_MODEL=gemini-2.5-flash-lite,GEMINI_MODEL=gemini-2.5-flash"
+  --update-env-vars="STAGE5_CHAT_MODEL=gemini-2.5-flash-lite,GEMINI_MODEL=gemini-2.5-flash" \
+  --remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"
 ```
 
 #### 5. Restore Default Benchmark-Optimal Model Fleet Configuration
 ```bash
-# Either remove custom env var overrides so Cloud Run uses config.py defaults:
+# Option 5A: Remove custom stage overrides (uses config.py defaults in-process):
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
   --remove-env-vars="STAGE1_INTENT_MODEL,STAGE2_RELEVANCE_MODEL,STAGE3_SYNTHESIS_MODEL,STAGE4_MATRIX_WINNERS_MODEL,STAGE5_CHAT_MODEL"
 
-# Or explicitly pin the default stage-optimal fleet:
+# Option 5B: Explicitly pin the default stage-optimal fleet AND re-enable remote Vertex AI Reasoning Engine:
 gcloud run services update catalog-comparison-service \
   --project=fde-bestbuy-sandbox-dev-508321 \
   --region=us-central1 \
-  --update-env-vars="GEMINI_MODEL=gemini-2.5-flash,STAGE1_INTENT_MODEL=gemini-3.5-flash-lite,STAGE2_RELEVANCE_MODEL=gemini-2.5-flash-lite,STAGE3_SYNTHESIS_MODEL=gemini-2.5-pro,STAGE3_FAST_SYNTHESIS_MODEL=gemini-2.5-flash-lite,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash,STAGE5_CHAT_MODEL=gemini-2.5-flash,AGENT_VERSION=1.2.0-tiered"
+  --update-env-vars="AGENT_RUNTIME_RESOURCE_NAME=projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928,GEMINI_MODEL=gemini-2.5-flash,STAGE1_INTENT_MODEL=gemini-3.5-flash-lite,STAGE2_RELEVANCE_MODEL=gemini-2.5-flash-lite,STAGE3_SYNTHESIS_MODEL=gemini-2.5-pro,STAGE3_FAST_SYNTHESIS_MODEL=gemini-2.5-flash-lite,STAGE4_MATRIX_WINNERS_MODEL=gemini-2.5-flash,STAGE5_CHAT_MODEL=gemini-2.5-flash,AGENT_VERSION=1.2.0-tiered"
 ```
 
 ---
