@@ -771,6 +771,9 @@ class MultiAgentCoordinator:
                 user_id=user_id,
                 session_id=resolved_sid,
             )
+        prior_event_count = (
+            len(sess.events) if sess and hasattr(sess, "events") and sess.events else 0
+        )
 
         runner = Runner(
             node=self.adk_workflow,
@@ -818,7 +821,16 @@ class MultiAgentCoordinator:
             local_session_service is not session_service
             and getattr(session_service, "_should_use_vertex_remote", lambda: False)()
         ):
-            events_snapshot = list(emitted_events)
+            all_sess_events = (
+                list(updated_sess.events)
+                if updated_sess and hasattr(updated_sess, "events") and updated_sess.events
+                else []
+            )
+            new_events_snapshot = (
+                all_sess_events[prior_event_count:]
+                if len(all_sess_events) > prior_event_count
+                else list(emitted_events)
+            )
             state_snapshot = dict(self.last_session_state)
 
             async def _sync_remote_session() -> None:
@@ -828,8 +840,13 @@ class MultiAgentCoordinator:
                     session_id=resolved_sid,
                     state=state_snapshot,
                 )
-                for ev in events_snapshot:
-                    await session_service.append_event(session=remote_sess, event=ev)
+                for ev in new_events_snapshot:
+                    try:
+                        await session_service.append_event(
+                            session=remote_sess, event=ev, remote_only=True
+                        )
+                    except TypeError:
+                        await session_service.append_event(session=remote_sess, event=ev)
 
             def _bg_sync() -> None:
                 try:
@@ -966,7 +983,9 @@ class MultiAgentCoordinator:
             from app.agent.orchestrator import _run_async_safely
 
             state, _events = _run_async_safely(
-                lambda: self.execute_workflow_async(state, user_id=resolved_uid)
+                lambda: self.execute_workflow_async(
+                    state, user_id=resolved_uid, session_id=session_id
+                )
             )
             self.last_state = state
 

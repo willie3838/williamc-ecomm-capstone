@@ -926,3 +926,104 @@ class TestADKRunnerIntegration:
                 user_id="fallback_user",
                 session_id="sess_fallback_1",
             )
+
+    @pytest.mark.asyncio
+    async def test_create_session_existing_l1_does_not_raise_already_exists(self):
+        """Verify calling create_session with an existing session_id resolves pre-existing L1 session."""
+        service = CatalogVertexAiSessionService()
+        s1 = await service.create_session(
+            app_name="app",
+            user_id="user_1",
+            session_id="sess_123",
+            state={"initial": True},
+        )
+        assert s1.id == "sess_123"
+        assert s1.state.get("initial") is True
+
+        # Call create_session again with same session_id and updated state
+        s2 = await service.create_session(
+            app_name="app",
+            user_id="user_1",
+            session_id="sess_123",
+            state={"updated": True},
+        )
+        assert s2.id == "sess_123"
+        assert s2.state.get("updated") is True
+
+    @pytest.mark.asyncio
+    async def test_create_session_remote_already_exists_recovers_via_get_session(self, monkeypatch):
+        """Verify remote create_session already-exists error checks get_session before fallback to None."""
+        from unittest.mock import AsyncMock
+
+        from google.adk.sessions import Session
+
+        monkeypatch.setenv("GOOGLE_CLOUD_AGENT_ENGINE_ID", "9876543210")
+        service = CatalogVertexAiSessionService()
+        assert service._should_use_vertex_remote() is True
+
+        remote_existing = Session(
+            id="remote_sess_existing",
+            app_name="9876543210",
+            user_id="user_remote",
+            state={"remote": "existing"},
+        )
+
+        with (
+            patch(
+                "google.adk.sessions.VertexAiSessionService.create_session",
+                side_effect=ValueError("Session already exists: remote_sess_existing"),
+            ),
+            patch(
+                "google.adk.sessions.VertexAiSessionService.get_session",
+                new_callable=AsyncMock,
+                return_value=remote_existing,
+            ) as mock_get_sess,
+        ):
+            res = await service.create_session(
+                app_name="app",
+                user_id="user_remote",
+                session_id="remote_sess_existing",
+                state={"extra": 1},
+            )
+            assert res.id == "remote_sess_existing"
+            mock_get_sess.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_append_event_remote_only_and_deduplication(self):
+        """Verify append_event with remote_only=True bypasses L1 memory and avoids event duplication."""
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        service = CatalogVertexAiSessionService()
+        sess = await service.create_session(
+            app_name="app",
+            user_id="user_ev",
+            session_id="sess_ev",
+        )
+        evt1 = Event(
+            id="evt_1",
+            author="user",
+            content=genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text="Hello turn 1")],
+            ),
+        )
+        # Normal append
+        await service.append_event(session=sess, event=evt1)
+        assert len(sess.events) == 1
+
+        # Second append of the same event should NOT duplicate in fallback memory
+        await service.append_event(session=sess, event=evt1)
+        assert len(sess.events) == 1
+
+        evt2 = Event(
+            id="evt_2",
+            author="model",
+            content=genai_types.Content(
+                role="model",
+                parts=[genai_types.Part.from_text(text="Hello turn 2")],
+            ),
+        )
+        # remote_only=True should not append to fallback memory
+        await service.append_event(session=sess, event=evt2, remote_only=True)
+        assert len(sess.events) == 1
