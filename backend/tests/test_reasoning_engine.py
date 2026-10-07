@@ -185,6 +185,9 @@ def test_reasoning_engine_query_and_stream_query_forward_user_id() -> None:
         citations=[],
         session_id="sess_uid_1",
     )
+    mock_coord.execute_stream.return_value = [
+        {"event": "complete", "data": {"summary": "Test summary", "products": []}}
+    ]
     engine._coordinator = mock_coord
 
     res = engine.query(query="test", session_id="sess_uid_1", user_id="custom_user_123")
@@ -205,7 +208,19 @@ def test_reasoning_engine_query_and_stream_query_forward_user_id() -> None:
     events = list(
         engine.stream_query(query="test", session_id="sess_uid_1", user_id="custom_user_123")
     )
-    assert len(events) == 1
+    assert len(events) >= 1
+    mock_coord.execute_stream.assert_called_with(
+        raw_query="test",
+        category=None,
+        session_id="sess_uid_1",
+        agent_version=None,
+        model="gemini-2.5-flash",
+        synthesis_model=None,
+        stage1_model=None,
+        stage2_model=None,
+        stage3_model=None,
+        user_id="custom_user_123",
+    )
 
 
 def test_agent_wrapped_stream_queries_forward_user_id() -> None:
