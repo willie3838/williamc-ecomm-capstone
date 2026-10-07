@@ -334,6 +334,29 @@ To guarantee diverse and accurate comparisons across competing brands (e.g., `Ma
 2. **Multi-Product Comparative Entity Balancing (2 to 5 Products)**: When a customer query compares 2, 3, 4, or 5 distinct products or brands (e.g., `mac vs dell`, or multi-item queries like `Compare 5 smart 4K TVs: LG C3, Samsung S90C, Sony BRAVIA XR A80L, TCL QM8, and Hisense U8N`), `rank_and_select_products` leverages `_select_best_entity_candidates` to preserve and rank all $N \in [2, 5]$ distinct target products rather than truncating to 2 products. For pairwise comparisons, it balances candidate selection by picking the highest-scoring candidate from Brand A and the highest-scoring candidate from Brand B. This strictly eliminates the failure mode where identical or same-brand models crowd out user-specified items in multi-product comparisons.
 3. **Session Counter & Analytics Resilience**: `AnalyticsService` tracks comparison counters per `session_id` in Firestore (`sessions` collection) with an automatic in-memory fallback dictionary. All Firestore network calls (`add`, `get`, `set`, `update`) are bounded by 2.0-second timeouts executed via worker threads to prevent hanging during transient disruptions or missing database backends. In automated test environments (`PYTEST_CURRENT_TEST`), live cloud network calls are skipped in favor of mocked/in-memory handling to guarantee sub-second hermetic execution.
 
+### 3.3 Deterministic Greater-Set Comparison Matrix & Hybrid Flash-Lite Preference Router
+
+To guarantee zero spec hallucination and deterministic evaluation across consumer electronics comparisons involving 2 to 5 products, `ComparisonOrchestrator` delegates matrix construction directly to `MatrixEvaluator` (`backend/src/app/agent/matrix_evaluator.py`):
+
+1. **Greater-Set Union (Up to 5 Products)**:
+   - Ingests 2, 3, 4, or 5 products and extracts the full union of non-warehouse specification keys present across any of the compared products.
+   - Warehouse metadata (`upc`, `model_number`, `shipping_tier`, `taxonomy`, `created_at`, `updated_at`, `product_id`, etc.) is strictly filtered out.
+2. **Missing Spec Rule (Missing Automatically Loses)**:
+   - Products lacking a spec (`None`, empty string, or `"not specified"`) automatically lose to any product with a valid spec.
+   - If only 1 product has the spec, that product wins; if multiple products have it, the best value wins; if all lack it, the row is neutral (`winner_sku=None, winner_skus=[]`).
+3. **Comprehensive Polarity Engine Across All 5 Categories**:
+   - **Higher is Better**: RAM (`ram_gb`), storage (`storage_gb`), battery life (`battery_life_hours`), display size (`display_size_in`), HDMI ports (`hdmi_ports`), driver size (`driver_size_mm`), sensor range (`sensor_range_ft`), refresh rate (`refresh_rate_hz`), brightness (`brightness_nits`), screen resolution pixel count (`parse_resolution_pixels` parsing `8K`, `4K`, `QHD`, `FHD`, `720p`, `Retina`).
+   - **Lower is Better**: Price (`price`), weight (`weight_lbs`, `weight_oz`), response time (`response_time_ms`).
+   - **Boolean True is Better**: Noise cancellation (`noise_canceling`), sensor included, stylus included.
+   - **Progressive Tiers**: Display panel tiers (Tier 5 Tandem OLED/QD-OLED down to Tier 0 TN/TFT/VA) and Processor tiers (Tier 7 M4 Max/Core Ultra 9 down to Tier 1 AMD A10).
+   - **Synonymous Key Normalization**: Normalizes equivalent keys (`panel_type` ↔ `display_technology`, `screen_size_in` ↔ `display_size_in`, `noise_cancellation` ↔ `noise_canceling`, `resolution` ↔ `display_resolution`).
+4. **Tie Resolution**:
+   - Subset ties among a subset of products populate `winner_sku=None` and `winner_skus=[tied_skus]`.
+   - All-way ties leave `winner_sku=None` and `winner_skus=[]`.
+5. **Hybrid Flash-Lite Preference Router**:
+   - Clean product comparison queries without extra user constraints execute `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
+   - When the user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.
+
 ---
 
 ## 4. Data Engineering & Schemas
