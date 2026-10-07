@@ -32,20 +32,19 @@ def test_benchmark_actual_model_flag_in_orchestrator(monkeypatch):
     assert call_args[1].get("model") == "gemini-3.5-flash"
 
 
-def test_speculative_cache_keys_include_model():
-    """Verify speculative cache keys include the target model to prevent cross-model pollution."""
+def test_speculative_cache_keys_removed_and_models_isolated():
+    """Verify speculative cache key helpers are removed and orchestrator instances isolate synthesis_model."""
     p1 = ProductSpec(sku="111", name="P1", brand="B1", price=100.0, category="Laptops")
     p2 = ProductSpec(sku="222", name="P2", brand="B2", price=200.0, category="Laptops")
+    assert p1.sku != p2.sku
 
     orch1 = ComparisonOrchestrator(model="gemini-2.5-flash", synthesis_model="gemini-2.5-flash")
     orch2 = ComparisonOrchestrator(model="gemini-3.5-flash", synthesis_model="gemini-3.5-flash")
 
-    key1 = orch1._get_speculative_synth_key([p1, p2], "compare p1 and p2", "gemini-2.5-flash")
-    key2 = orch2._get_speculative_synth_key([p1, p2], "compare p1 and p2", "gemini-3.5-flash")
-
-    assert key1 != key2
-    assert key1[2] == "gemini-2.5-flash"
-    assert key2[2] == "gemini-3.5-flash"
+    assert not hasattr(orch1, "_get_speculative_synth_key")
+    assert not hasattr(orch1, "_get_speculative_rerank_key")
+    assert orch1.synthesis_model == "gemini-2.5-flash"
+    assert orch2.synthesis_model == "gemini-3.5-flash"
 
 
 def test_vertex_client_routing_for_preview_and_3x_models():

@@ -249,18 +249,17 @@ def test_orchestrator_extraction_and_speculative_helpers():
     kw3 = orch.extract_keywords("Price breakdown: Sony WH-1000XM5 vs Bose QC45")
     assert any("Sony" in k for k in kw3)
 
-    # _get_speculative_synth_key / _get_speculative_rerank_key
+    # Verify speculative prelaunch helpers are removed
     prod1 = ProductSpec(
         sku="111", name="Product A", brand="Brand A", category="Laptops", price=999.0
     )
     prod2 = ProductSpec(
         sku="222", name="Product B", brand="Brand B", category="Laptops", price=1299.0
     )
-    synth_key = orch._get_speculative_synth_key([prod2, prod1], "Compare A and B")
-    assert synth_key[0] == ("111", "222")
-
-    rerank_key = orch._get_speculative_rerank_key([prod2, prod1], "Compare A and B")
-    assert rerank_key[0] == ("111", "222")
+    assert prod1.sku != prod2.sku
+    assert not hasattr(orch, "_get_speculative_synth_key")
+    assert not hasattr(orch, "_get_speculative_rerank_key")
+    assert not hasattr(orch, "_prelaunch_speculative_stages")
 
 
 def test_orchestrator_build_comparison_matrix():

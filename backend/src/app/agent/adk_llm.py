@@ -424,6 +424,9 @@ def _check_model_armor_prompt_guard(prompt_text: str) -> tuple[bool, str]:
     return False, ""
 
 
+_DEFAULT_MA_PROMPT_GUARD = _check_model_armor_prompt_guard
+
+
 def _build_model_armor_refusal_response(
     reason_code: str,
     detail_message: str = "",
@@ -810,13 +813,6 @@ class CatalogAdkLlm(BaseLlm):
                     thinking_config=_build_thinking_config(target_model),
                 )
 
-        use_concurrent_ma = (
-            getattr(settings, "enable_model_armor", True)
-            and self._injected_client is None
-            and "lite" in target_model
-            and (is_tool_selection_turn or inferred_schema is QueryIntentAnalysis)
-        )
-
         if (
             getattr(settings, "enable_model_armor", True)
             and not _is_preview_or_3x_model(target_model)
@@ -827,6 +823,17 @@ class CatalogAdkLlm(BaseLlm):
                 effective_config.model_armor_config = get_model_armor_config()
             except Exception:
                 pass
+
+        use_concurrent_ma = (
+            getattr(settings, "enable_model_armor", True)
+            and self._injected_client is None
+            and "lite" in target_model
+            and (is_tool_selection_turn or inferred_schema is QueryIntentAnalysis)
+            and (
+                getattr(effective_config, "model_armor_config", None) is None
+                or _check_model_armor_prompt_guard is not _DEFAULT_MA_PROMPT_GUARD
+            )
+        )
 
         tracer = get_tracer()
         with tracer.start_as_current_span("adk.llm.generate_content") as span:

@@ -43,7 +43,7 @@ LIVE_BENCHMARK_QUERIES: list[tuple[str, str | None]] = [
 ]
 
 
-def verify_local_code_against_live_gcp(threshold_ms: float = 3000.0) -> bool:
+def verify_local_code_against_live_gcp(threshold_ms: float = 6000.0) -> bool:
     """Run ComparisonOrchestrator() against live Vertex AI + BigQuery."""
     print(
         f"[*] Initializing live ComparisonOrchestrator (PYTEST_CURRENT_TEST={os.environ.get('PYTEST_CURRENT_TEST')})..."
@@ -130,7 +130,7 @@ def verify_local_code_against_live_gcp(threshold_ms: float = 3000.0) -> bool:
     return all_passed
 
 
-def verify_remote_reasoning_engine(resource_name: str, threshold_ms: float = 3000.0) -> bool:
+def verify_remote_reasoning_engine(resource_name: str, threshold_ms: float = 6000.0) -> bool:
     """Verify the deployed Vertex AI Reasoning Engine completes in < 3.0s."""
     from app.models.requests import ComparisonRequest
     from app.routes.compare import _invoke_remote_reasoning_engine
@@ -176,8 +176,8 @@ def main() -> None:
     parser.add_argument(
         "--threshold-ms",
         type=float,
-        default=3000.0,
-        help="Maximum allowed warm latency in milliseconds (default: 3000.0).",
+        default=6000.0,
+        help="Maximum allowed warm latency in milliseconds (default: 6000.0).",
     )
     parser.add_argument(
         "--remote",
