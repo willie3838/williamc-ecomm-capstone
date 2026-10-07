@@ -145,7 +145,7 @@ def test_multi_agent_coordinator_dynamic_model_swapping() -> None:
         synthesis_model="gemini-2.5-pro",
     )
     assert coordinator.intent_agent.model == "gemini-2.5-flash"
-    assert coordinator.relevance_agent.model == "gemini-2.5-flash"
+    assert not hasattr(coordinator, "relevance_agent")
     assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
 
     result = coordinator.execute("Compare MacBook Air M3 and Dell XPS 13", category="Laptops")
@@ -240,11 +240,6 @@ def test_benchmark_models_and_vertex_experiments_logging(tmp_path: Path, monkeyp
             target_keywords=["MacBook Air", "Dell XPS"],
             reasoning="Comparison query",
         ),
-    )
-    monkeypatch.setattr(
-        ComparisonOrchestrator,
-        "_rerank_with_llm",
-        lambda self_o, cands, *a, **kw: list(cands),
     )
 
     def _mock_synth(

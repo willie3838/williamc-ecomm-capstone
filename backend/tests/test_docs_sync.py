@@ -25,7 +25,6 @@ def test_agent_components_documented_in_architecture():
         "QueryIntentAgent",
         "CatalogRetrievalAgent",
         "CatalogRetrievalStep",
-        "RelevanceDetectorAgent",
         "SpecComparisonAgent",
         "MultiAgentCoordinator",
     ]
@@ -45,7 +44,7 @@ def test_agent_components_documented_in_backend_agents_guide():
 
     required_terms = [
         "MultiAgentCoordinator",
-        "RelevanceDetectorAgent",
+        "SpecComparisonAgent",
         "multi_agent.py",
     ]
 

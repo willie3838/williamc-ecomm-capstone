@@ -61,7 +61,9 @@ def test_eval_benchmark_no_latency_clamping_and_hoisted_orchestrator():
         for n in ast.walk(run_per_stage_fn)
         if isinstance(n, ast.For) and isinstance(n.target, ast.Name) and n.target.id == "model"
     ]
-    assert len(stage_for_loops) >= 3, "Expected at least 3 stage loops (Stage 1, 2, 3)"
+    assert len(stage_for_loops) >= 2, (
+        "Expected at least 2 specialist stage loops (Stage 1, Stage 3)"
+    )
     for loop in stage_for_loops:
         inner_cases_loop = next(
             (
@@ -90,7 +92,7 @@ def test_no_model_or_schema_spoofing_in_orchestrator():
     orch_file = BACKEND_DIR / "src" / "app" / "agent" / "orchestrator.py"
     content = orch_file.read_text(encoding="utf-8")
 
-    # Neither classify_intent_with_llm nor _rerank_with_llm nor synthesize_comparison_with_llm should have:
+    # Neither classify_intent_with_llm nor synthesize_comparison_with_llm should have:
     # call_model = "gemini-2.5-flash-lite" if not is_mock_env else ...
     assert 'call_model = "gemini-2.5-flash-lite" if not is_mock_env else' not in content, (
         "orchestrator.py contains test-vs-live model spoofing!"
@@ -99,8 +101,8 @@ def test_no_model_or_schema_spoofing_in_orchestrator():
     assert "response_schema=QueryIntentAnalysis if is_mock_env else None" not in content, (
         "orchestrator.py drops QueryIntentAnalysis schema in live mode!"
     )
-    assert "response_schema=CandidateRankingResponse if is_mock_env else None" not in content, (
-        "orchestrator.py drops CandidateRankingResponse schema in live mode!"
+    assert "CandidateRankingResponse" not in content, (
+        "orchestrator.py still references CandidateRankingResponse!"
     )
     assert "response_schema=ComparisonSynthesis if is_mock_env else None" not in content, (
         "orchestrator.py drops ComparisonSynthesis schema in live mode!"
@@ -204,8 +206,8 @@ def test_multi_agent_coordinator_uses_adk_sequential_agent_and_session_state():
     function_nodes = [
         n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
     ]
-    assert len(function_nodes) == 4, (
-        "Expected 4 FunctionNode stages in adk_workflow (QueryIntent, CatalogRetrieval, RelevanceDetector, SpecComparison)"
+    assert len(function_nodes) == 3, (
+        "Expected 3 FunctionNode stages in adk_workflow (QueryIntent, CatalogRetrieval, SpecComparison)"
     )
 
     # Execute pipeline
@@ -221,7 +223,6 @@ def test_multi_agent_coordinator_uses_adk_sequential_agent_and_session_state():
     assert isinstance(session_state, dict), "last_session_state must be a dict"
     assert "stage_1_intent" in session_state, "stage_1_intent missing from session.state"
     assert "stage_2_retrieval" in session_state, "stage_2_retrieval missing from session.state"
-    assert "stage_3_relevance" in session_state, "stage_3_relevance missing from session.state"
     assert "stage_4_synthesis" in session_state, "stage_4_synthesis missing from session.state"
 
 
@@ -379,7 +380,7 @@ def test_analytics_service_no_fake_uuid_shortcut() -> None:
 
 
 def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists() -> None:
-    """MultiAgentCoordinator must propagate synthesis_model to QueryIntentAgent and RelevanceDetectorAgent."""
+    """MultiAgentCoordinator must propagate synthesis_model to QueryIntentAgent and SpecComparisonAgent."""
     from app.agent.multi_agent import MultiAgentCoordinator
 
     mock_bq = MagicMock()
@@ -389,7 +390,6 @@ def test_multi_agent_coordinator_propagates_synthesis_model_to_all_specialists()
         synthesis_model="gemini-2.5-pro",
     )
     assert coordinator.intent_agent.synthesis_model == "gemini-2.5-pro"
-    assert coordinator.relevance_agent.synthesis_model == "gemini-2.5-pro"
     assert coordinator.comparison_agent.synthesis_model == "gemini-2.5-pro"
 
 

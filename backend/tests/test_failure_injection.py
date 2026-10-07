@@ -99,17 +99,8 @@ class TestVertexAIFailureModes:
         )
 
         orchestrator = ComparisonOrchestrator()
-        p1 = ProductSpec(
-            sku="111", name="Apple MacBook Air", price=1099.0, brand="Apple", category="Laptops"
-        )
-        p2 = ProductSpec(
-            sku="222", name="Dell XPS 13", price=999.0, brand="Dell", category="Laptops"
-        )
-
         with pytest.raises(g_exceptions.ResourceExhausted):
-            orchestrator.rank_and_select_products(
-                [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
-            )
+            orchestrator.classify_intent_with_llm("MacBook vs XPS")
 
     @patch("google.genai.Client")
     def test_vertex_ai_500_internal_error_raises_error(self, mock_client_cls):
@@ -121,17 +112,8 @@ class TestVertexAIFailureModes:
         )
 
         orchestrator = ComparisonOrchestrator()
-        p1 = ProductSpec(
-            sku="111", name="Sony WH-1000XM5", price=399.0, brand="Sony", category="Headphones"
-        )
-        p2 = ProductSpec(
-            sku="222", name="Bose QC Ultra", price=429.0, brand="Bose", category="Headphones"
-        )
-
         with pytest.raises(g_exceptions.InternalServerError):
-            orchestrator.rank_and_select_products(
-                [p1, p2], keywords=["sony", "bose"], original_query="Sony vs Bose"
-            )
+            orchestrator.classify_intent_with_llm("Sony vs Bose")
 
     @patch("google.genai.Client")
     def test_vertex_ai_garbage_json_response_handling(self, mock_client_cls):
@@ -139,22 +121,13 @@ class TestVertexAIFailureModes:
         mock_client = MagicMock()
         mock_client_cls.return_value = mock_client
         mock_response = MagicMock()
-        mock_response.text = "Here is your ranking: 1. MacBook 2. Dell! (I am not returning JSON)"
+        mock_response.text = "Here is your intent: 1. MacBook 2. Dell! (I am not returning JSON)"
         mock_response.candidates = [MagicMock(finish_reason="STOP")]
         mock_client.models.generate_content.return_value = mock_response
 
         orchestrator = ComparisonOrchestrator()
-        p1 = ProductSpec(
-            sku="111", name="Apple MacBook Air", price=1099.0, brand="Apple", category="Laptops"
-        )
-        p2 = ProductSpec(
-            sku="222", name="Dell XPS 13", price=999.0, brand="Dell", category="Laptops"
-        )
-
         with pytest.raises((RuntimeError, ValueError)):
-            orchestrator.rank_and_select_products(
-                [p1, p2], keywords=["macbook", "xps"], original_query="MacBook vs XPS"
-            )
+            orchestrator.classify_intent_with_llm("MacBook vs XPS")
 
 
 class TestDataCorruptionAndBoundaryFailures:

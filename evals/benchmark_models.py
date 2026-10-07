@@ -779,16 +779,14 @@ def run_per_stage_benchmarks(
 ) -> dict[str, Any]:
     """Benchmark all 9 GA candidate models independently per ADK specialist stage without artificial budgets.
 
-    Evaluates all 4 specialist stages:
+    Evaluates the specialist stages:
     - Stage 1: QueryIntentSpecialist (Query intent classification & entity keyword extraction)
     - Stage 2: CatalogRetrievalSpecialist (Deterministic parameterized SQL retrieval)
-    - Stage 3: RelevanceDetectorSpecialist (Post-retrieval candidate reranking & relevance verification)
-    - Stage 4: SpecComparisonSpecialist (Grounded side-by-side synthesis & SKU citations)
+    - Stage 3: SpecComparisonSpecialist (Grounded side-by-side synthesis & SKU citations)
 
     Verifies that the sum of the winning stage models' P95 latencies satisfies:
-    P95_Stage1 + P95_BQ + P95_Stage3 + P95_Stage4 <= 3000 ms.
+    P95_Stage1 + P95_BQ + P95_Stage3 <= 3000 ms.
     """
-    from app.agent.orchestrator import QueryIntentAnalysis
     from app.models.responses import Citation
     from app.tools.catalog import query_catalog
 
@@ -819,7 +817,6 @@ def run_per_stage_benchmarks(
 
     stage_results: dict[str, list[dict[str, Any]]] = {
         "stage1_intent": [],
-        "stage2_relevance": [],
         "stage3_synthesis": [],
     }
     stage_experiment_runs: list[dict[str, Any]] = []
@@ -909,156 +906,6 @@ def run_per_stage_benchmarks(
                 "model_id": model,
                 "specialist": "QueryIntentSpecialist",
                 "mean_accuracy": mean_acc,
-                "latency_p50_ms": eff_p50,
-                "latency_p95_ms": eff_p95,
-                "latency_2prod_p95_ms": lat_2_p95,
-                "latency_5prod_p95_ms": lat_5_p95,
-                "mean_input_tokens": round(avg_in, 1),
-                "mean_output_tokens": round(avg_out, 1),
-                "cost_per_1k_usd": cost_1k,
-                "vertex_run": run_name,
-            }
-        )
-
-    # 2. Stage 2: RelevanceDetectorSpecialist (RelevanceDetectorAgent)
-    for model in STAGE_MODELS:
-        latencies_ms = []
-        latencies_2prod = []
-        latencies_5prod = []
-        recalls = []
-        precisions = []
-        accuracies = []
-        f1_2prod_list = []
-        f1_5prod_list = []
-        in_tokens_list = []
-        out_tokens_list = []
-        orch = ComparisonOrchestrator(model=model, genai_client=genai_client)
-
-        for c in cases:
-            orch.last_input_tokens = 0
-            orch.last_output_tokens = 0
-            num_exp = len(c.get("expected_skus", []))
-            candidates = case_candidates.get(str(c["id"]), [])
-            kw = ComparisonOrchestrator.extract_keywords(c["query"])
-            pre_intent = QueryIntentAnalysis(
-                intent_type="COMPARISON",
-                is_comparison_eligible=True,
-                detected_category=c.get("category"),
-                target_keywords=kw,
-                reasoning="Benchmark stage 2",
-            )
-            t0 = time.perf_counter()
-            ranked = orch.rank_and_select_products(
-                candidates,
-                kw,
-                original_query=c["query"],
-                model=model,
-                precomputed_intent=pre_intent,
-            )
-            elapsed = (time.perf_counter() - t0) * 1000.0
-            latencies_ms.append(elapsed)
-            expected = set(c.get("expected_skus", []))
-            ranked_skus = {p.sku for p in ranked}
-            rec = len(expected & ranked_skus) / max(1, len(expected)) if expected else 1.0
-            prec = len(expected & ranked_skus) / max(1, len(ranked_skus)) if ranked_skus else 1.0
-            acc = (
-                1.0
-                if (expected and ranked_skus == expected)
-                else (1.0 if not expected and not ranked_skus else 0.0)
-            )
-            case_f1 = round(2 * (prec * rec) / (prec + rec), 4) if (prec + rec) > 0 else 0.0
-            if num_exp <= 2:
-                latencies_2prod.append(elapsed)
-                f1_2prod_list.append(case_f1)
-            elif num_exp >= 5:
-                latencies_5prod.append(elapsed)
-                f1_5prod_list.append(case_f1)
-
-            recalls.append(rec)
-            precisions.append(prec)
-            accuracies.append(acc)
-            in_tokens_list.append(orch.last_input_tokens or 280)
-            out_tokens_list.append(orch.last_output_tokens or 80)
-
-        sorted_lat = sorted(latencies_ms)
-        p50 = round(sorted_lat[int(0.50 * (len(sorted_lat) - 1))], 2)
-        p95 = round(sorted_lat[int(0.95 * (len(sorted_lat) - 1))], 2)
-        lat_2_sorted = sorted(latencies_2prod) if latencies_2prod else sorted_lat
-        lat_5_sorted = sorted(latencies_5prod) if latencies_5prod else sorted_lat
-        lat_2_p95 = round(lat_2_sorted[int(0.95 * (len(lat_2_sorted) - 1))], 2)
-        lat_5_p95 = round(lat_5_sorted[int(0.95 * (len(lat_5_sorted) - 1))], 2)
-
-        mean_recall = round(sum(recalls) / max(1, len(recalls)), 4)
-        mean_precision = round(sum(precisions) / max(1, len(precisions)), 4)
-        mean_accuracy = round(sum(accuracies) / max(1, len(accuracies)), 4)
-        mean_f1 = (
-            round(2 * (mean_precision * mean_recall) / (mean_precision + mean_recall), 4)
-            if (mean_precision + mean_recall) > 0
-            else 0.0
-        )
-        f1_2prod = (
-            round(sum(f1_2prod_list) / max(1, len(f1_2prod_list)), 4) if f1_2prod_list else mean_f1
-        )
-        f1_5prod = (
-            round(sum(f1_5prod_list) / max(1, len(f1_5prod_list)), 4) if f1_5prod_list else mean_f1
-        )
-
-        avg_in = sum(in_tokens_list) / max(1, len(in_tokens_list))
-        avg_out = sum(out_tokens_list) / max(1, len(out_tokens_list))
-        in_rate, out_rate = MODEL_PRICING_DEFAULTS.get(model, (0.15, 0.60))
-        cost_1k = round(
-            ((avg_in * in_rate / 1_000_000) + (avg_out * out_rate / 1_000_000)) * 1000, 4
-        )
-
-        eff_p50 = p50
-        eff_p95 = p95
-
-        run_name = sanitize_vertex_run_name(f"run-stage2-relevance-{model}-{int(time.time())}")
-        params = {
-            "stage": "stage2_relevance",
-            "specialist": "RelevanceDetectorSpecialist",
-            "model_id": model,
-            "total_cases": len(cases),
-        }
-        metrics = {
-            "accuracy": mean_accuracy,
-            "precision": mean_precision,
-            "recall": mean_recall,
-            "f1_score": mean_f1,
-            "f1_2prod": f1_2prod,
-            "f1_5prod": f1_5prod,
-            "latency_p50_ms": eff_p50,
-            "latency_p95_ms": eff_p95,
-            "latency_2prod_p95_ms": lat_2_p95,
-            "latency_5prod_p95_ms": lat_5_p95,
-            "cost_per_1k_usd": cost_1k,
-        }
-        vertex_log = (
-            log_run_to_vertex_experiments(
-                experiment_name=experiment_name,
-                run_name=run_name,
-                params=params,
-                metrics=metrics,
-                project_id=project_id,
-                location=location,
-                aiplatform_module=aiplatform_module,
-                live=live,
-            )
-            if log_vertex
-            else {"logged_to_vertex": False}
-        )
-        stage_experiment_runs.append(vertex_log)
-
-        stage_results["stage2_relevance"].append(
-            {
-                "model_id": model,
-                "specialist": "RelevanceDetectorSpecialist",
-                "mean_accuracy": mean_accuracy,
-                "mean_precision": mean_precision,
-                "mean_recall": mean_recall,
-                "mean_f1": mean_f1,
-                "f1_2prod": f1_2prod,
-                "f1_5prod": f1_5prod,
                 "latency_p50_ms": eff_p50,
                 "latency_p95_ms": eff_p95,
                 "latency_2prod_p95_ms": lat_2_p95,
@@ -1241,11 +1088,9 @@ def run_per_stage_benchmarks(
         )
 
     # Backward compatibility aliases
-    stage_results["stage2_rerank"] = stage_results["stage2_relevance"]
-    stage_results["stage3_relevance"] = stage_results["stage2_relevance"]
     stage_results["stage4_synthesis"] = stage_results["stage3_synthesis"]
 
-    # Dynamically compute per-agent winners for the 3-agent tiered-hybrid configuration
+    # Dynamically compute per-agent winners for the tiered-hybrid configuration
     def _s1_score(m: dict[str, Any]) -> float:
         acc = m.get("mean_accuracy", 1.0)
         p95_val = m.get("latency_p95_ms", 300.0)
@@ -1253,14 +1098,6 @@ def run_per_stage_benchmarks(
         lat_score = max(0.0, (1500.0 - p95_val) / 1500.0)
         cost_score = max(0.0, 1.0 - (cost / 5.0))
         return 0.50 * acc + 0.35 * lat_score + 0.15 * cost_score
-
-    def _s2_score(m: dict[str, Any]) -> float:
-        f1 = m.get("mean_f1", 1.0)
-        p95_val = m.get("latency_p95_ms", 400.0)
-        cost = m.get("cost_per_1k_usd", 0.2)
-        lat_score = max(0.0, (1500.0 - p95_val) / 1500.0)
-        cost_score = max(0.0, 1.0 - (cost / 5.0))
-        return 0.50 * f1 + 0.35 * lat_score + 0.15 * cost_score
 
     def _s3_score(m: dict[str, Any]) -> float:
         acc = m.get("mean_accuracy", 1.0)
@@ -1273,7 +1110,6 @@ def run_per_stage_benchmarks(
         return 0.25 * acc + 0.25 * cit + 0.35 * sem + 0.10 * lat_score + 0.05 * cost_score
 
     s1_winner = max(stage_results["stage1_intent"], key=_s1_score)["model_id"]
-    s2_winner = max(stage_results["stage2_relevance"], key=_s2_score)["model_id"]
     s3_winner = max(stage_results["stage3_synthesis"], key=_s3_score)["model_id"]
     s3_quality_winner = max(
         stage_results["stage3_synthesis"],
@@ -1294,15 +1130,12 @@ def run_per_stage_benchmarks(
     s1_p95 = next(
         m["latency_p95_ms"] for m in stage_results["stage1_intent"] if m["model_id"] == s1_winner
     )
-    s2_p95 = next(
-        m["latency_p95_ms"] for m in stage_results["stage2_relevance"] if m["model_id"] == s2_winner
-    )
     s3_p95 = next(
         m["latency_p95_ms"] for m in stage_results["stage3_synthesis"] if m["model_id"] == s3_winner
     )
 
     bq_typical_p95 = 120.0
-    total_pipeline_p95 = round(s1_p95 + bq_typical_p95 + s2_p95 + s3_p95, 2)
+    total_pipeline_p95 = round(s1_p95 + bq_typical_p95 + s3_p95, 2)
     tool_call_pipeline_p95 = total_pipeline_p95
     sla_passed = total_pipeline_p95 <= 3000.0
 
@@ -1311,20 +1144,15 @@ def run_per_stage_benchmarks(
         "vertex_experiment_runs": stage_experiment_runs,
         "winning_combination": {
             "stage1_intent": s1_winner,
-            "stage2_relevance": s2_winner,
+            "stage2_retrieval": "deterministic-bq-sql",
             "stage3_synthesis": s3_winner,
             "stage3_synthesis_quality_winner": s3_quality_winner,
             "stage3_synthesis_latency_winner": s3_latency_winner,
-            "stage2_retrieval": "deterministic-bq-sql",
-            "stage2_rerank": s2_winner,
-            "stage3_relevance": s2_winner,
             "stage4_synthesis": s3_winner,
             "stage1_p95_ms": s1_p95,
             "stage2_retrieval_p95_ms": bq_typical_p95,
             "bq_retrieval_p95_ms": bq_typical_p95,
-            "stage2_relevance_p95_ms": s2_p95,
             "stage3_synthesis_p95_ms": s3_p95,
-            "stage2_p95_ms": s2_p95,
             "stage3_p95_ms": s3_p95,
             "total_pipeline_p95_ms": total_pipeline_p95,
             "tool_call_pipeline_p95_ms": tool_call_pipeline_p95,
@@ -1618,23 +1446,13 @@ def run_model_benchmarks(
             )
             if is_hybrid and win:
                 s1_model = win.get("stage1_intent", routing_model)
-                s2_model = win.get("stage3_relevance", win.get("stage2_rerank", routing_model))
                 s3_model = win.get("stage4_synthesis", win.get("stage3_synthesis", synthesis_model))
             else:
                 s1_model = routing_model
-                s2_model = routing_model
                 s3_model = synthesis_model
 
             s1 = next(
                 (m for m in stages.get("stage1_intent", []) if m["model_id"] == s1_model),
-                None,
-            )
-            s2 = next(
-                (
-                    m
-                    for m in stages.get("stage3_relevance", stages.get("stage2_rerank", []))
-                    if m["model_id"] == s2_model
-                ),
                 None,
             )
             s3 = next(
@@ -1650,9 +1468,6 @@ def run_model_benchmarks(
                 s1_p50 = 240.0
                 s1_p95 = 420.0
                 s1_cost = 0.105
-                s2_p50 = 260.0
-                s2_p95 = 480.0
-                s2_cost = 0.210
                 s3_p50 = 620.0
                 s3_p95 = 900.0
                 s3_cost = 0.490
@@ -1668,10 +1483,6 @@ def run_model_benchmarks(
                 s1_p95 = s1["latency_p95_ms"] if s1 else 320.0
                 s1_cost = s1["cost_per_1k_usd"] if s1 else 0.10
 
-                s2_p50 = s2["latency_p50_ms"] if s2 else 220.0
-                s2_p95 = s2["latency_p95_ms"] if s2 else 380.0
-                s2_cost = s2["cost_per_1k_usd"] if s2 else 0.21
-
                 s3_p50 = s3["latency_p50_ms"] if s3 else 620.0
                 s3_p95 = s3["latency_p95_ms"] if s3 else 980.0
                 s3_cost = s3["cost_per_1k_usd"] if s3 else 0.49
@@ -1685,21 +1496,19 @@ def run_model_benchmarks(
                 )
                 mean_in_tokens = round(
                     float(s1.get("mean_input_tokens", 200.0) if s1 else 200.0)
-                    + float(s2.get("mean_input_tokens", 300.0) if s2 else 300.0)
                     + float(s3.get("mean_input_tokens", 900.0) if s3 else 900.0),
                     1,
                 )
                 mean_out_tokens = round(
                     float(s1.get("mean_output_tokens", 50.0) if s1 else 50.0)
-                    + float(s2.get("mean_output_tokens", 60.0) if s2 else 60.0)
                     + float(s3.get("mean_output_tokens", 400.0) if s3 else 400.0),
                     1,
                 )
                 schema_validity = 1.0
 
-            effective_p50_ms = round(s1_p50 + 40.0 + s2_p50 + s3_p50, 2)
-            effective_p95_ms = round(s1_p95 + 120.0 + s2_p95 + s3_p95, 2)
-            cost_per_1k = round(s1_cost + s2_cost + s3_cost, 4)
+            effective_p50_ms = round(s1_p50 + 40.0 + s3_p50, 2)
+            effective_p95_ms = round(s1_p95 + 120.0 + s3_p95, 2)
+            cost_per_1k = round(s1_cost + s3_cost, 4)
 
             passes_acc_rubric = mean_acc >= rubrics["data_accuracy"].target_score
             passes_cit_rubric = mean_cit >= rubrics["citation_faithfulness"].target_score
@@ -1893,31 +1702,38 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
             f"${s1['cost_per_1k_usd']:.4f} |"
         )
 
-    # Stage 2 Table: RelevanceDetectorSpecialist
-    lines.extend(
-        [
-            "",
-            "### 2.2 Stage 2: RelevanceDetectorSpecialist (Candidate Reranking & SKU Matching)",
-            "",
-            "| Model ID | Accuracy (Exact Match) | Precision | Recall | F1 Score | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
-            "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
-        ]
-    )
-    for s2 in stages.get(
+    # Stage 2 Table: RelevanceDetectorSpecialist (if present)
+    s2_entries = stages.get(
         "stage2_relevance", stages.get("stage3_relevance", stages.get("stage2_rerank", []))
-    ):
-        lines.append(
-            f"| `{s2['model_id']}` | {s2.get('mean_accuracy', 1.0):.4f} | "
-            f"{s2.get('mean_precision', 1.0):.4f} | {s2.get('mean_recall', 1.0):.4f} | "
-            f"{s2.get('mean_f1', 1.0):.4f} | {s2['latency_p50_ms']:.1f} | "
-            f"{s2['latency_p95_ms']:.1f} | ${s2['cost_per_1k_usd']:.4f} |"
+    )
+    if s2_entries:
+        lines.extend(
+            [
+                "",
+                "### 2.2 Stage 2: RelevanceDetectorSpecialist (Candidate Reranking & SKU Matching)",
+                "",
+                "| Model ID | Accuracy (Exact Match) | Precision | Recall | F1 Score | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
+                "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+            ]
         )
+        for s2 in s2_entries:
+            lines.append(
+                f"| `{s2['model_id']}` | {s2.get('mean_accuracy', 1.0):.4f} | "
+                f"{s2.get('mean_precision', 1.0):.4f} | {s2.get('mean_recall', 1.0):.4f} | "
+                f"{s2.get('mean_f1', 1.0):.4f} | {s2['latency_p50_ms']:.1f} | "
+                f"{s2['latency_p95_ms']:.1f} | ${s2['cost_per_1k_usd']:.4f} |"
+            )
 
     # Stage 3 Table: SpecComparisonSpecialist
+    stage3_heading = (
+        "### 2.2 Stage 3: SpecComparisonSpecialist (Synthesis & Citation Verification)"
+        if not s2_entries
+        else "### 2.3 Stage 3: SpecComparisonSpecialist (Synthesis & Citation Verification)"
+    )
     lines.extend(
         [
             "",
-            "### 2.3 Stage 3: SpecComparisonSpecialist (Synthesis & Citation Verification)",
+            stage3_heading,
             "",
             "| Model ID | Data Accuracy | Citation Faithfulness | Semantic Coherence | Synthesis Quality (5-pt) | P50 Latency (ms) | P95 Latency (ms) | Est. Cost / 1k USD |",
             "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
@@ -1945,7 +1761,7 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
         ]
     )
     s1_stages = stages.get("stage1_intent", [])
-    s2_stages = stages.get("stage2_relevance", stages.get("stage3_relevance", []))
+    s2_stages = s2_entries
     s3_stages = stages.get("stage3_synthesis", stages.get("stage4_synthesis", []))
 
     if s1_stages:
@@ -2009,18 +1825,24 @@ def generate_benchmark_markdown(report: dict[str, Any]) -> str:
         )
         s3_syn_winner = win.get("stage3_synthesis", win.get("stage4_synthesis", "N/A"))
 
-        lines.extend(
+        pipeline_latency_lines = [
+            "",
+            "## 4. Summed Pipeline Latency & Strict SLA Verification (P95 $\\le 3.0$s)",
+            "",
+            f"- **Stage 1 (QueryIntentSpecialist)**: `{win['stage1_intent']}` (P95: `{win['stage1_p95_ms']} ms`)",
+            f"- **BigQuery Catalog Retrieval (Deterministic SQL)**: Parameterized SQL (P95: `{win['bq_retrieval_p95_ms']} ms`)",
+        ]
+        if s2_rel_winner != "N/A" and s2_rel_p95 > 0.0:
+            pipeline_latency_lines.append(
+                f"- **Stage 2 (RelevanceDetectorSpecialist)**: `{s2_rel_winner}` (P95: `{s2_rel_p95} ms`)"
+            )
+        pipeline_latency_lines.extend(
             [
-                "",
-                "## 4. Summed Pipeline Latency & Strict SLA Verification (P95 $\\le 3.0$s)",
-                "",
-                f"- **Stage 1 (QueryIntentSpecialist)**: `{win['stage1_intent']}` (P95: `{win['stage1_p95_ms']} ms`)",
-                f"- **BigQuery Catalog Retrieval (Deterministic SQL)**: Parameterized SQL (P95: `{win['bq_retrieval_p95_ms']} ms`)",
-                f"- **Stage 2 (RelevanceDetectorSpecialist)**: `{s2_rel_winner}` (P95: `{s2_rel_p95} ms`)",
                 f"- **Stage 3 (SpecComparisonSpecialist)**: `{s3_syn_winner}` (P95: `{s3_syn_p95} ms`)",
                 f"- **Summed End-to-End Pipeline P95 Latency (Deterministic SQL)**: **`{win['total_pipeline_p95_ms']} ms`** (SLA $\\le 3000\\text{{ ms}}$: **{'PASSED' if win['sla_p95_3000ms_passed'] else 'FAILED'}**)",
             ]
         )
+        lines.extend(pipeline_latency_lines)
 
     lines.extend(
         [

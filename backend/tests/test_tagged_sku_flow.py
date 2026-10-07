@@ -1,10 +1,9 @@
 import pytest
 
 from app.agent.multi_agent import (
+    CatalogRetrievalStep,
     ComparisonAgentState,
     QueryIntentAgent,
-    RelevanceDetectorAgent,
-    RelevanceRerankerAgent,
 )
 from app.agent.orchestrator import ComparisonOrchestrator
 from app.models.responses import ProductSpec
@@ -120,27 +119,40 @@ def test_extract_keywords_with_inline_sku_tags():
     assert any("Dell XPS 13" in kw for kw in keywords)
 
 
-def test_rank_and_select_locks_on_tagged_skus_ignoring_gaming_distractor(sample_products):
-    """Verify rank_and_select_products locks onto tagged SKUs (6534606, 6575132) despite gaming follow-up."""
-    orch = ComparisonOrchestrator()
-    keywords = ['Apple MacBook Air 13.6" Laptop', 'Dell XPS 13"']
-    ranked = orch.rank_and_select_products(
-        sample_products,
-        keywords,
-        original_query=SAMPLE_TAGGED_QUERY,
-    )
-    assert len(ranked) == 2
-    ranked_skus = [p.sku for p in ranked]
-    assert ranked_skus == ["6534606", "6575132"]
-    assert "9999999" not in ranked_skus
+def test_compare_and_retrieval_step_lock_on_tagged_skus_ignoring_gaming_distractor(
+    sample_products, monkeypatch
+):
+    """Verify CatalogRetrievalStep and compare() lock onto tagged SKUs (6534606, 6575132) despite gaming follow-up."""
+    from unittest.mock import patch
 
-    # Verify alias rank_and_select_candidates exists and behaves identically
-    ranked_via_alias = orch.rank_and_select_candidates(
-        sample_products,
-        keywords,
-        original_query=SAMPLE_TAGGED_QUERY,
+    import app.agent.orchestrator as orch_mod
+
+    step = CatalogRetrievalStep()
+    state = ComparisonAgentState(
+        raw_query=SAMPLE_TAGGED_QUERY,
+        sanitized_query=SAMPLE_TAGGED_QUERY,
+        intent_type="COMPARISON",
+        is_comparison_eligible=True,
+        target_keywords=['Apple MacBook Air 13.6" Laptop', 'Dell XPS 13"'],
     )
-    assert [p.sku for p in ranked_via_alias] == ["6534606", "6575132"]
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in sample_products],
+    ):
+        processed_state = step.process(state)
+    assert len(processed_state.retrieved_products) >= 2
+    retrieved_skus = [p.sku for p in processed_state.retrieved_products[:2]]
+    assert retrieved_skus == ["6534606", "6575132"]
+    assert "9999999" not in retrieved_skus
+
+    orch = ComparisonOrchestrator()
+    monkeypatch.setattr(
+        orch_mod,
+        "query_catalog",
+        lambda **kwargs: [p.model_dump() for p in sample_products],
+    )
+    resp = orch.compare(SAMPLE_TAGGED_QUERY, category="Laptops")
+    assert [p.sku for p in resp.products] == ["6534606", "6575132"]
 
 
 def test_build_comparison_matrix_extracts_user_focus_without_body_false_triggers(sample_products):
@@ -169,10 +181,11 @@ def test_build_comparison_matrix_extracts_user_focus_without_body_false_triggers
     assert refresh_idx < processor_idx
 
 
-def test_relevance_detector_agent_locks_tagged_skus(sample_products):
-    """Verify RelevanceDetectorAgent (and alias RelevanceRerankerAgent) locks onto tagged SKUs."""
-    agent = RelevanceDetectorAgent()
-    assert RelevanceRerankerAgent is RelevanceDetectorAgent
+def test_catalog_retrieval_step_locks_tagged_skus(sample_products):
+    """Verify CatalogRetrievalStep locks onto tagged SKUs and preserves order."""
+    from unittest.mock import patch
+
+    step = CatalogRetrievalStep()
 
     state = ComparisonAgentState(
         raw_query=SAMPLE_TAGGED_QUERY,
@@ -180,13 +193,16 @@ def test_relevance_detector_agent_locks_tagged_skus(sample_products):
         intent_type="COMPARISON",
         is_comparison_eligible=True,
         target_keywords=['Apple MacBook Air 13.6" Laptop', 'Dell XPS 13"'],
-        retrieved_products=sample_products,
     )
 
-    processed_state = agent.process(state)
-    assert len(processed_state.ranked_products) == 2
-    assert [p.sku for p in processed_state.ranked_products] == ["6534606", "6575132"]
-    assert "9999999" not in [p.sku for p in processed_state.ranked_products]
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in sample_products],
+    ):
+        processed_state = step.process(state)
+    assert len(processed_state.retrieved_products) >= 2
+    assert [p.sku for p in processed_state.retrieved_products[:2]] == ["6534606", "6575132"]
+    assert "9999999" not in [p.sku for p in processed_state.retrieved_products[:2]]
 
 
 def test_query_intent_agent_extracts_tagged_keywords():
@@ -201,18 +217,19 @@ def test_query_intent_agent_extracts_tagged_keywords():
     assert not any("battery" in kw.lower() for kw in processed.target_keywords)
 
 
-def test_app_agent_exports_relevance_reranker_agent():
-    """Verify app.agent exports RelevanceDetectorAgent and RelevanceRerankerAgent."""
+def test_app_agent_does_not_export_relevance_detector_agent():
+    """Verify app.agent no longer exports RelevanceDetectorAgent or RelevanceRerankerAgent."""
     import app.agent as agent_pkg
 
-    assert hasattr(agent_pkg, "RelevanceDetectorAgent")
-    assert hasattr(agent_pkg, "RelevanceRerankerAgent")
-    assert agent_pkg.RelevanceRerankerAgent is agent_pkg.RelevanceDetectorAgent
+    assert not hasattr(agent_pkg, "RelevanceDetectorAgent")
+    assert not hasattr(agent_pkg, "RelevanceRerankerAgent")
 
 
-def test_rank_and_select_supports_up_to_5_tagged_skus():
-    """Verify rank_and_select_products returns up to 5 tagged products without truncating to 2."""
-    orch = ComparisonOrchestrator()
+def test_catalog_retrieval_step_supports_up_to_5_tagged_skus():
+    """Verify CatalogRetrievalStep returns up to 5 tagged products in click order."""
+    from unittest.mock import patch
+
+    step = CatalogRetrievalStep()
     prods = [
         ProductSpec(
             sku=f"SKU00{i}",
@@ -225,41 +242,61 @@ def test_rank_and_select_supports_up_to_5_tagged_skus():
     ]
     # 3 tagged SKUs
     query_3 = "Compare: [SKU: SKU001] vs [SKU: SKU002] vs [SKU: SKU003]"
-    ranked_3 = orch.rank_and_select_products(
-        prods, ["Laptop Model 1", "Laptop Model 2", "Laptop Model 3"], original_query=query_3
+    state_3 = ComparisonAgentState(
+        raw_query=query_3,
+        sanitized_query=query_3,
+        target_keywords=["Laptop Model 1", "Laptop Model 2", "Laptop Model 3"],
     )
-    assert len(ranked_3) == 3
-    assert [p.sku for p in ranked_3] == ["SKU001", "SKU002", "SKU003"]
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in prods],
+    ):
+        res_3 = step.process(state_3)
+    assert len(res_3.retrieved_products[:3]) == 3
+    assert [p.sku for p in res_3.retrieved_products[:3]] == ["SKU001", "SKU002", "SKU003"]
 
     # 4 tagged SKUs
     query_4 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004]"
-    ranked_4 = orch.rank_and_select_products(
-        prods, ["Model 1", "Model 2", "Model 3", "Model 4"], original_query=query_4
+    state_4 = ComparisonAgentState(
+        raw_query=query_4,
+        sanitized_query=query_4,
+        target_keywords=["Model 1", "Model 2", "Model 3", "Model 4"],
     )
-    assert len(ranked_4) == 4
-    assert [p.sku for p in ranked_4] == ["SKU001", "SKU002", "SKU003", "SKU004"]
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in prods],
+    ):
+        res_4 = step.process(state_4)
+    assert len(res_4.retrieved_products[:4]) == 4
+    assert [p.sku for p in res_4.retrieved_products[:4]] == ["SKU001", "SKU002", "SKU003", "SKU004"]
 
     # 5 tagged SKUs
     query_5 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004], [SKU: SKU005]"
-    ranked_5 = orch.rank_and_select_products(
-        prods,
-        ["Model 1", "Model 2", "Model 3", "Model 4", "Model 5"],
-        original_query=query_5,
+    state_5 = ComparisonAgentState(
+        raw_query=query_5,
+        sanitized_query=query_5,
+        target_keywords=["Model 1", "Model 2", "Model 3", "Model 4", "Model 5"],
     )
-    assert len(ranked_5) == 5
-    assert [p.sku for p in ranked_5] == ["SKU001", "SKU002", "SKU003", "SKU004", "SKU005"]
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in prods],
+    ):
+        res_5 = step.process(state_5)
+    assert len(res_5.retrieved_products[:5]) == 5
+    assert [p.sku for p in res_5.retrieved_products[:5]] == [
+        "SKU001",
+        "SKU002",
+        "SKU003",
+        "SKU004",
+        "SKU005",
+    ]
 
-    # 6 tagged SKUs -> capped at 5
-    query_6 = "Compare: [SKU: SKU001], [SKU: SKU002], [SKU: SKU003], [SKU: SKU004], [SKU: SKU005], [SKU: SKU006]"
-    ranked_6 = orch.rank_and_select_products(
-        prods, ["1", "2", "3", "4", "5", "6"], original_query=query_6
-    )
-    assert len(ranked_6) == 5
 
+def test_catalog_retrieval_untagged_multi_product_queries():
+    """Verify untagged multi-product queries retrieve catalog products."""
+    from unittest.mock import patch
 
-def test_rank_and_select_untagged_multi_product_queries():
-    """Verify untagged multi-product queries return min(5, max(2, len(keywords))) products."""
-    orch = ComparisonOrchestrator()
+    step = CatalogRetrievalStep()
     prods = [
         ProductSpec(
             sku=f"SKU00{i}",
@@ -270,32 +307,26 @@ def test_rank_and_select_untagged_multi_product_queries():
         )
         for i in range(1, 7)
     ]
-    kw_2 = ["Brand1", "Brand2"]
-    res_2 = orch.rank_and_select_products(prods, kw_2, original_query="Compare Brand1 and Brand2")
-    assert len(res_2) == 2
-
-    kw_3 = ["Brand1", "Brand2", "Brand3"]
-    res_3 = orch.rank_and_select_products(
-        prods, kw_3, original_query="Compare Brand1, Brand2, and Brand3"
-    )
-    assert len(res_3) == 3
-
-    kw_4 = ["Brand1", "Brand2", "Brand3", "Brand4"]
-    res_4 = orch.rank_and_select_products(
-        prods, kw_4, original_query="Compare Brand1, Brand2, Brand3, Brand4"
-    )
-    assert len(res_4) == 4
-
-    kw_5 = ["Brand1", "Brand2", "Brand3", "Brand4", "Brand5"]
-    res_5 = orch.rank_and_select_products(
-        prods, kw_5, original_query="Compare Brand1, Brand2, Brand3, Brand4, Brand5"
-    )
-    assert len(res_5) == 5
+    for count in (2, 3, 4, 5):
+        kw = [f"Brand{i}" for i in range(1, count + 1)]
+        state = ComparisonAgentState(
+            raw_query="Compare " + ", ".join(kw),
+            sanitized_query="Compare " + ", ".join(kw),
+            target_keywords=kw,
+        )
+        with patch(
+            "app.agent.multi_agent.query_catalog",
+            return_value=[p.model_dump() for p in prods[:count]],
+        ):
+            res = step.process(state)
+        assert len(res.retrieved_products) == count
 
 
-def test_relevance_detector_agent_supports_3_4_5_tagged_skus():
-    """Verify RelevanceDetectorAgent locks onto 3, 4, and 5 tagged SKUs without truncation."""
-    agent = RelevanceDetectorAgent()
+def test_catalog_retrieval_step_supports_3_4_5_tagged_skus():
+    """Verify CatalogRetrievalStep locks onto 3, 4, and 5 tagged SKUs without truncation."""
+    from unittest.mock import patch
+
+    step = CatalogRetrievalStep()
     prods = [
         ProductSpec(
             sku=f"SKU00{i}",
@@ -316,11 +347,14 @@ def test_relevance_detector_agent_supports_3_4_5_tagged_skus():
             intent_type="COMPARISON",
             is_comparison_eligible=True,
             target_keywords=[f"Model {i}" for i in range(1, count + 1)],
-            retrieved_products=prods,
         )
-        updated = agent.process(state)
-        assert len(updated.ranked_products) == count
-        assert [p.sku for p in updated.ranked_products] == [
+        with patch(
+            "app.agent.multi_agent.query_catalog",
+            return_value=[p.model_dump() for p in prods],
+        ):
+            updated = step.process(state)
+        assert len(updated.retrieved_products[:count]) == count
+        assert [p.sku for p in updated.retrieved_products[:count]] == [
             f"SKU00{i}" for i in range(1, count + 1)
         ]
 
@@ -559,7 +593,7 @@ def test_multi_agent_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(
     function_nodes = [
         n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
     ]
-    assert len(function_nodes) == 4
+    assert len(function_nodes) == 3
     join_nodes = [n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, JoinNode)]
     assert len(join_nodes) == 1
     assert join_nodes[0].name == "intent_retrieval_join"
@@ -649,15 +683,14 @@ def test_multi_agent_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(
 def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matrix_winners(
     monkeypatch, sample_products
 ):
-    """Verify Stage 3 never calls _rerank_with_llm in comparison pipeline while Stage 4 keeps _run_matrix_winners_llm + build_comparison_matrix."""
+    """Verify _rerank_with_llm and relevance_agent are removed while compare keeps _run_matrix_winners_llm + build_comparison_matrix."""
     import app.agent.multi_agent as ma_mod
     import app.agent.orchestrator as orch_mod
     from app.agent.multi_agent import MultiAgentCoordinator
 
     orch = ComparisonOrchestrator()
-
-    def forbidden_rerank(*args, **kwargs):
-        raise AssertionError("_rerank_with_llm must not be called in comparison pipeline!")
+    assert not hasattr(orch, "_rerank_with_llm")
+    assert not hasattr(orch, "rank_and_select_products")
 
     matrix_winners_called = {"count": 0}
     orig_mw = orch._run_matrix_winners_llm
@@ -666,12 +699,11 @@ def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matri
         matrix_winners_called["count"] += 1
         return orig_mw(*args, **kwargs)
 
-    monkeypatch.setattr(orch, "_rerank_with_llm", forbidden_rerank)
     monkeypatch.setattr(orch, "_run_matrix_winners_llm", spy_mw)
     monkeypatch.setattr(
         orch_mod,
         "query_catalog",
-        lambda **kwargs: [p.model_dump() for p in sample_products],
+        lambda **kwargs: [p.model_dump() for p in sample_products[:2]],
     )
 
     # Under hybrid routing, preference/focus queries invoke Stage 4 parallel matrix winners
@@ -688,9 +720,7 @@ def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matri
 
     # Also check MultiAgentCoordinator
     coordinator = MultiAgentCoordinator()
-    monkeypatch.setattr(
-        coordinator.relevance_agent.orchestrator, "_rerank_with_llm", forbidden_rerank
-    )
+    assert not hasattr(coordinator, "relevance_agent")
     monkeypatch.setattr(
         ma_mod,
         "query_catalog",

@@ -17,8 +17,6 @@ if TYPE_CHECKING:
         ComparisonAgentState,
         MultiAgentCoordinator,
         QueryIntentAgent,
-        RelevanceDetectorAgent,
-        RelevanceRerankerAgent,
         SpecComparisonAgent,
     )
     from app.agent.orchestrator import ComparisonOrchestrator, catalog_agent
@@ -38,8 +36,6 @@ __all__ = [
     "ComparisonOrchestrator",
     "MultiAgentCoordinator",
     "QueryIntentAgent",
-    "RelevanceDetectorAgent",
-    "RelevanceRerankerAgent",
     "SUMMARY_BANNER_PREFIX",
     "SYSTEM_INSTRUCTION",
     "SpecComparisonAgent",
@@ -63,8 +59,6 @@ def __getattr__(name: str) -> Any:
         "ComparisonAgentState",
         "MultiAgentCoordinator",
         "QueryIntentAgent",
-        "RelevanceDetectorAgent",
-        "RelevanceRerankerAgent",
         "SpecComparisonAgent",
     }:
         from app.agent import multi_agent

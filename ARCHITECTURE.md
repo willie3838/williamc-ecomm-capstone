@@ -65,7 +65,7 @@ The end-to-end architecture is organized into **6 modular zones** connecting the
 | :--- | :--- | :--- | :--- |
 | **🔵 Zone 1** | **Client & Perimeter Security** | `frontend/src/App.tsx`, `cloudrun.tf`, `vpc_sc.tf`, `iam.tf` | React 18 SPA UI, Cloud Run Native IAP, VPC Service Controls perimeter, and least-privilege `catalog-agent-sa` IAM. |
 | **🟣 Zone 2** | **Cloud Run API Gateway** | `main.py`, `routes/compare.py`, `agent_card.py`, `middleware.py` | FastAPI endpoints (`/api/compare`, `/api/chat`, `/health`, `/health/ready`), A2A Agent Card (`/.well-known/agent-card.json`), and OpenTelemetry middleware. |
-| **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `adk_llm.py` | 4-Stage `MultiAgentCoordinator` (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalAgent` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent` with `ComparisonSynthesis.spec_winners`), Model Armor, and Vertex AI Prompt Management. |
+| **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `adk_llm.py` | 3-Node `MultiAgentCoordinator` (`QueryIntentAgent` + `CatalogRetrievalStep` in parallel $\rightarrow$ `JoinNode` $\rightarrow$ `SpecComparisonAgent` with `ComparisonSynthesis.spec_winners`), Model Armor, and Vertex AI Prompt Management. |
 | **🟠 Zone 4** | **Data, Storage & Telemetry Layer** | `tools/catalog.py`, `data/ingest.py`, `data/analytics.py`, `bigquery.tf` | Partitioned/clustered BigQuery catalog (`catalog.products`), GCS seed bucket, Firestore session store, and BigQuery telemetry sinks. |
 | **🟣 Zone 5** | **Evaluation & Anti-Overfitting Flywheel** | `evals/runner.py`, `trajectory_grader.py`, `pairwise_judge.py` | 80-pair benchmark + counterfactual holdout datasets, `ADKTrajectoryEvaluator`, and swapped-order pairwise LLM judge. |
 | **⚪ Zone 6** | **GitOps CI/CD & Cloud Operations** | `cloudbuild.yaml`, `clouddeploy.yaml`, `Dockerfile`, `terraform/` | Automated `ruff` + `pytest` ($\ge 80\%$) + eval gates, non-root Docker build, in-place Agent Engine rollout, and 0% $\rightarrow$ 100% Cloud Run canary. |
@@ -100,11 +100,10 @@ flowchart TB
             RUNNER["CatalogAdkRunner (CatalogVertexAiSessionService & InMemorySessionService)"]:::agent
             ROUTER["MultiAgentCoordinator & ComparisonOrchestrator"]:::agent
 
-            subgraph Pipeline ["4-Stage Specialist Pipeline (Parallel t=0 Stage 1+2 & 0ms Stage 3)"]
+            subgraph Pipeline ["3-Stage Specialist Pipeline (Parallel t=0 Stage 1+2 & Join Barrier)"]
                 N1["Stage 1 (t=0 Parallel): QueryIntentAgent (Prompt Sanitization & Gemini Flash-Lite Intent)"]:::agent
                 N2["Stage 2 (t=0 Parallel): CatalogRetrievalStep (Direct Tagged SKU SQL & Circuit Breaker)"]:::agent
-                N3["Stage 3 (0ms Deterministic): RelevanceDetectorAgent (Exact Tagged SKU Lock & Brand Entity Balancing)"]:::agent
-                N4["Stage 4: SpecComparisonAgent (Compact Synthesis Prompt + Parallel _run_matrix_winners_llm + build_comparison_matrix)"]:::agent
+                N3["Stage 3: SpecComparisonAgent (Compact Synthesis Prompt + Parallel _run_matrix_winners_llm + build_comparison_matrix)"]:::agent
             end
 
             GEMINI["CatalogAdkLlm (BaseLlm in app.agent.adk_llm: Live Vertex AI Gemini 2.5 Pro / Flash / Flash-Lite)"]:::agent
@@ -258,7 +257,7 @@ sequenceDiagram
 
 ### 3.2 Single-Agent vs. Multi-Agent Systems Architectural Trade-off Evaluation
 
-To address complex consumer electronics comparison workflows, our architecture implements a modular 4-Node Multi-Agent Cooperative System (`MultiAgentCoordinator`) backed by Google ADK:
+To address complex consumer electronics comparison workflows, our architecture implements a modular 3-Node Multi-Agent Cooperative System (`MultiAgentCoordinator`) backed by Google ADK:
 
 
 ```mermaid
@@ -268,44 +267,42 @@ flowchart LR
     classDef sqlNode fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#7c2d12
     classDef suppress fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
 
-    Coord["MultiAgentCoordinator (State Management & 4 Stage Spans)"]:::coord
+    Coord["MultiAgentCoordinator (State Management & 3 Stage Spans)"]:::coord
 
-    subgraph MultiAgent ["4-Node Cooperative Pipeline (Google ADK)"]
+    subgraph MultiAgent ["3-Node Cooperative Pipeline (Google ADK)"]
         Q["Node 1: QueryIntentAgent (Prompt Sanitization, Entity Extraction & Intent Classification)"]:::llmNode
         R["Node 2: CatalogRetrievalStep / CatalogRetrievalAgent (Deterministic Parameterized BigQuery SQL & SKU Deduplication)"]:::sqlNode
-        RD["Node 3: RelevanceDetectorAgent (LLM Reranking >= 6.0 & Brand Entity Balancing)"]:::llmNode
-        S["Node 4: SpecComparisonAgent (Matrix Construction, Winner Badging & Grounded SKU Synthesis)"]:::llmNode
+        Join["JoinNode: intent_retrieval_join (Fan-in Barrier & State Merge)"]:::coord
+        S["Node 3: SpecComparisonAgent (Matrix Construction, Winner Badging & Grounded SKU Synthesis)"]:::llmNode
         G["Conversational Guidance Only (comparison_matrix = [] when Opinion/Chatter or < 2 SKUs)"]:::suppress
 
-        Q -->|"is_comparison_eligible = True"| R
-        Q -.->|"OPINION_OR_CHATTER (Bypass BQ)"| G
-        R -->|"Candidate Products"| RD
-        RD -->|">= 2 Verified SKUs"| S
-        RD -.->|"< 2 Relevant SKUs"| G
+        Q --> Join
+        R --> Join
+        Join -->|">= 2 Verified SKUs"| S
+        Join -.->|"< 2 Relevant SKUs or OPINION_OR_CHATTER"| G
     end
 
     style MultiAgent fill:#f8fafc,stroke:#94a3b8,stroke-width:1.5px,color:#0f172a
-    Coord -.-> Q & R & RD & S
+    Coord -.-> Q & R & S
 ```
 
 #### Detailed Trade-Off Dimension Analysis
 
 | Architectural Dimension | Single-Agent Orchestration (`ComparisonOrchestrator`) | Multi-Node Cooperative Pipeline (`MultiAgentCoordinator`) | Architectural Decision / Winner |
 | :--- | :--- | :--- | :--- |
-| **End-to-End Latency (P95 SLA $\le 3.0$s)** | **Fastest (~1.1s - 1.8s)**: Single round-trip loop avoids inter-agent IPC and serialization overhead. | **Fast (~1.4s - 2.2s)**: In-process typed state handoffs with early bypass on opinion queries. | **Multi-Node Winner**: Bypasses BQ and matrix generation on non-comparisons, saving latency. |
-| **Relevance & Intent Gating** | **Heuristic Fallback Risk**: Naive token overlap risks matching broad categories (e.g. "laptop" in rants like "this is a stupid laptop"). | **Strict Multi-Tier Gate**: Node 1 detects opinion rants; Node 3 runs pure LLM reranking; Node 4 suppresses comparison matrix if $< 2$ products match. | **Multi-Node Winner**: Completely eliminates irrelevant matrix generation on subjective queries. |
-| **Fault Isolation & Error Recovery** | **Coupled**: Exception during extraction can abort the entire turn unless wrapped in monolithic try-catch blocks. | **Isolated**: Each specialist agent (`QueryIntentAgent`, `CatalogRetrievalStep` / `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) executes under independent spans and circuit breakers. | **Multi-Node Winner**: Granular retries; retrieval failure gracefully degrades without aborting intent analysis. |
-| **Context Window Efficiency & Token Cost** | **Larger Prompt Overhead**: Single prompt carries instructions for extraction, SQL tool schemas, grounding rules, and comparison table formatting. | **Leaner Modular Prompts**: Each agent receives a focused micro-instruction set (Intent agent receives query; Retrieval receives entities; Relevance Detector evaluates candidates). | **Multi-Node Winner**: Eliminates prompt crowding and reduces LLM tokens spent on rants. |
+| **End-to-End Latency (P95 SLA $\le 3.0$s)** | **Fastest (~1.1s - 1.8s)**: Single round-trip loop avoids inter-agent IPC and serialization overhead. | **Fast (~1.3s - 2.1s)**: In-process typed state handoffs with parallel fan-out at `t=0` and early bypass on opinion queries. | **Multi-Node Winner**: Bypasses BQ and matrix generation on non-comparisons, saving latency. |
+| **Relevance & Intent Gating** | **Heuristic Fallback Risk**: Naive token overlap risks matching broad categories (e.g. "laptop" in rants like "this is a stupid laptop"). | **Strict Multi-Tier Gate**: Node 1 detects opinion rants; Node 2 performs deterministic SQL retrieval; Node 3 suppresses comparison matrix if $< 2$ products match or intent is opinion. | **Multi-Node Winner**: Completely eliminates irrelevant matrix generation on subjective queries. |
+| **Fault Isolation & Error Recovery** | **Coupled**: Exception during extraction can abort the entire turn unless wrapped in monolithic try-catch blocks. | **Isolated**: Each specialist agent (`QueryIntentAgent`, `CatalogRetrievalStep` / `CatalogRetrievalAgent`, `SpecComparisonAgent`) executes under independent spans and circuit breakers. | **Multi-Node Winner**: Granular retries; retrieval failure gracefully degrades without aborting intent analysis. |
+| **Context Window Efficiency & Token Cost** | **Larger Prompt Overhead**: Single prompt carries instructions for extraction, SQL tool schemas, grounding rules, and comparison table formatting. | **Leaner Modular Prompts**: Each agent receives a focused micro-instruction set (Intent agent receives query; Retrieval runs deterministic SQL; Spec Comparison evaluates matrix & synthesis). | **Multi-Node Winner**: Eliminates prompt crowding and reduces LLM tokens spent on rants. |
 | **Maintainability & Testability** | **Monolithic Evolution**: Modifying ranking logic risks regressing query parsing or SKU citation generation. | **Decoupled Contracts**: Specialist agents test hermetically with isolated mock fixtures (`test_multi_agent.py`). | **Multi-Node Winner**: Distinct code ownership, modular prompt engineering, and independent evaluation flywheels. |
 
-**Synthesis Decision**: The production API endpoint (`POST /api/compare`) executes via **`MultiAgentCoordinator`** across an executable **Google ADK 2.0 `Workflow` graph (`google.adk.workflow.Workflow`)** with 4 `FunctionNode` stages (`query_intent_specialist`, `catalog_retrieval_step`, `relevance_detector_specialist`, `spec_comparison_specialist`), parallel fan-out edges `(START, (intent_node, retrieval_node))`, and a native `JoinNode(name="intent_retrieval_join")` barrier (`((intent_node, retrieval_node), stage_join_node)`). Node 2 is a pure deterministic parameterized BigQuery SQL step (**`CatalogRetrievalStep`**, aliased as `CatalogRetrievalAgent`), while Nodes 1, 3, and 4 encapsulate the 3 specialist agents (**`QueryIntentAgent`**, **`RelevanceDetectorAgent`**, and **`SpecComparisonAgent`**), providing parallel `t=0` intent + retrieval execution, deterministic SKU locking, strict relevance gating, zero hallucination on catalog specs, and conversational guidance whenever non-comparative queries are submitted.
+**Synthesis Decision**: The production API endpoint (`POST /api/compare`) executes via **`MultiAgentCoordinator`** across an executable **Google ADK 2.0 `Workflow` graph (`google.adk.workflow.Workflow`)** with 3 `FunctionNode` stages (`query_intent_specialist`, `catalog_retrieval_step`, `spec_comparison_specialist`), parallel fan-out edges `(START, (intent_node, retrieval_node))`, and a native `JoinNode(name="intent_retrieval_join")` barrier (`((intent_node, retrieval_node), stage_join_node)` routing into `spec_comparison_specialist`). Node 2 is a pure deterministic parameterized BigQuery SQL step (**`CatalogRetrievalStep`**, aliased as `CatalogRetrievalAgent`), while Nodes 1 and 3 encapsulate the 2 real LLM specialist agents (**`QueryIntentAgent`** and **`SpecComparisonAgent`**), providing parallel `t=0` intent + retrieval execution, deterministic SKU locking, brand entity balancing, zero hallucination on catalog specs, and conversational guidance whenever non-comparative queries are submitted.
 
 #### 3.2.0 ADK 2.0 `Workflow` Graph, Native Parallel `JoinNode` Synchronization & Pure Deterministic Node 2 BigQuery SQL Retrieval (`CatalogRetrievalStep`)
 Unlike legacy `SequentialAgent` (which can only chain `BaseAgent` instances linearly), **`MultiAgentCoordinator.adk_workflow`** uses the official ADK 2.0 Graph / `Workflow` architecture (`google.adk.workflow.Workflow`, `FunctionNode`, and `JoinNode`) to fan out Node 1 and Node 2 in parallel from `START` (`(START, (intent_node, retrieval_node))`) and synchronize them via `JoinNode(name="intent_retrieval_join")` (`((intent_node, retrieval_node), stage_join_node)`):
 1. **Node 1 (`query_intent_specialist` $\rightarrow$ `QueryIntentAgent`, parallel from `START`)**: Structured intent classification and entity extraction (`gemini-3.5-flash-lite`) executed asynchronously via `asyncio.to_thread` on an isolated branch state copy. Records route metadata (`ELIGIBLE` | `SKIP_RETRIEVAL`).
 2. **Node 2 (`catalog_retrieval_step` $\rightarrow$ `CatalogRetrievalStep`, parallel from `START`)**: Pure deterministic BigQuery SQL step executed concurrently at `t=0` via `asyncio.to_thread` on an isolated branch state copy (`self.adk_agent`, `model`, and `use_llm_tool_call` are removed). Records route metadata (`HAS_CANDIDATES` | `EMPTY_CANDIDATES`).
-3. **Barrier (`intent_retrieval_join` $\rightarrow$ `JoinNode`) & Node 3 (`relevance_detector_specialist` $\rightarrow$ `RelevanceDetectorAgent`)**: `JoinNode(name="intent_retrieval_join")` waits for both `query_intent_specialist` and `catalog_retrieval_step` to complete and passes their joined outputs `{"query_intent_specialist": intent_state, "catalog_retrieval_step": retrieval_state}` to `relevance_detector_specialist`. If `intent_state` is ineligible or `OPINION_OR_CHATTER`, `retrieved_products` are immediately discarded (`[]`); otherwise, deterministic SKU locking and entity-balanced selection run in `<1ms`.
-4. **Node 4 (`spec_comparison_specialist` $\rightarrow$ `SpecComparisonAgent`)**: Grounded spec comparison matrix construction and executive synthesis (`gemini-2.5-pro` with `thinking_budget=128`, or `gemini-3.5-flash` with `max_output_tokens=4096` to allocate sufficient candidate token budget for internal reasoning tokens without truncating structured JSON output).
+3. **Barrier (`intent_retrieval_join` $\rightarrow$ `JoinNode`) & Node 3 (`spec_comparison_specialist` $\rightarrow$ `SpecComparisonAgent`)**: `JoinNode(name="intent_retrieval_join")` waits for both `query_intent_specialist` and `catalog_retrieval_step` to complete and passes their joined outputs `{"query_intent_specialist": intent_state, "catalog_retrieval_step": retrieval_state}` directly to `spec_comparison_specialist`. `_spec_comparison_node` merges the joined branch state, evaluates comparison eligibility, discards candidate products if `OPINION_OR_CHATTER`, applies deterministic candidate selection, and generates the grounded spec comparison matrix and executive synthesis (`gemini-2.5-pro` with `thinking_budget=128`, or `gemini-3.5-flash` with `max_output_tokens=4096` to allocate sufficient candidate token budget for internal reasoning tokens without truncating structured JSON output).
 
 
 ThinkingConfig routing across all 9 evaluation fleet models (`STAGE_MODELS`) strictly enforces that Gemini 3.x and Flash-Lite models omit explicit `thinking_budget=0` overrides to avoid Vertex AI API validation errors, while allocating 4096 output tokens for synthesis generation.
@@ -573,60 +570,47 @@ The end-to-end request budget guarantees sub-3.0 second performance:
 | **Output Validation & JSON Serialization**| 10 ms | 20 ms | Pydantic model dump with fast JSON serialization. |
 | **Total End-to-End Latency** | **~1,270 ms** | **$\le 2,400$ ms** | **Comfortably within the 3.0s non-negotiable SLA.** |
 
-### 6.2.1 Two-Tier Speculative Stage Execution & Exact-Match SKU Key Verification (orchestrator.py)
+### 6.2.1 Parallel Fan-Out Execution & Deterministic SKU Locking (`orchestrator.py` & `multi_agent.py`)
 
-To guarantee the non-negotiable **P95 $\le 3.0$s latency SLA** without sacrificing 4-stage pipeline rigor (Stage 1: Intent Classification $\rightarrow$ Stage 2: Catalog Retrieval $\rightarrow$ Stage 3: Candidate Reranking $\rightarrow$ Stage 4: Grounded Synthesis), `ComparisonOrchestrator` (`backend/src/app/agent/orchestrator.py`) implements an autonomous **Two-Tier Speculative Stage Execution** concurrency model with exact-match SKU key verification.
+To guarantee the non-negotiable **P95 $\le 3.0$s latency SLA** while maintaining full pipeline rigor (Stage 1: Intent Classification + Stage 2: Catalog Retrieval in parallel $\rightarrow$ Stage 3: Grounded Synthesis), `MultiAgentCoordinator` and `ComparisonOrchestrator` implement native parallel fan-out execution with deterministic SKU locking.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Client as Client / Frontend
     participant Orchestrator as ComparisonOrchestrator
-    participant Pool as _SPECULATIVE_PRELAUNCH_POOL
     participant BigQuery as BigQuery Catalog Tool
     participant LLM_Stage1 as Gemini 3.5 Flash (Stage 1 Intent)
-    participant LLM_Stage3 as Gemini 3.5 Flash (Stage 3 Rerank)
-    participant LLM_Stage4 as Gemini 3.5 Pro (Stage 4 Synthesis)
+    participant LLM_Stage3 as Gemini 2.5 Pro (Stage 3 Synthesis)
 
     Client->>Orchestrator: POST /compare/ "LG C3 vs Samsung S90C"
-    Note over Orchestrator: Tier 1: Early Speculative Prelaunch
-    Orchestrator->>Pool: submit(_prelaunch_speculative_stages)
     par Stage 1 Intent Classification
         Orchestrator->>LLM_Stage1: classify_intent_with_llm()
-    and Speculative Catalog Retrieval & Dispatch
-        Pool->>BigQuery: query_catalog(fast_kw=["LG C3", "Samsung S90C"])
-        BigQuery-->>Pool: Candidates (Samsung S90C, S95C, LG C3)
-        Pool->>Pool: _balance_entities(len(tok) >= 2) -> [S90C, LG C3]
-        Pool->>LLM_Stage3: Speculative Stage 3 Rerank Future
-        Pool->>LLM_Stage4: Speculative Stage 4 Synthesis Future
+    and Stage 2 Deterministic Catalog Retrieval
+        Orchestrator->>BigQuery: query_catalog(keywords=["LG C3", "Samsung S90C"])
+        BigQuery-->>Orchestrator: Candidates (Samsung S90C, LG C3)
     end
     LLM_Stage1-->>Orchestrator: Intent=COMPARISON, Category=TVs
-    Note over Orchestrator: Tier 2: In-Flight Stage 4 Synthesis
-    Orchestrator->>Orchestrator: rank_and_select_products()
-    alt Speculative Synthesis Future Ready / In-Flight
-        Orchestrator->>LLM_Stage4: Join _SPECULATIVE_SYNTH_FUTURES
-    else Rerank Completed First
-        Orchestrator->>LLM_Stage4: Launch / Await Synthesis
-    end
-    LLM_Stage4-->>Orchestrator: ComparisonSynthesis JSON
+    Note over Orchestrator: Deterministic Candidate Selection (<1ms)
+    Orchestrator->>Orchestrator: Preserve tagged SKU click order & balance entities
+    Orchestrator->>LLM_Stage3: synthesize_comparison_with_llm()
+    LLM_Stage3-->>Orchestrator: ComparisonSynthesis JSON
     Orchestrator->>Client: 200 OK (P95 = 2.18s vs 3.48s sequential)
 ```
 
-#### 1. Concurrency Tiers
-1. **Tier 1: Early Speculative Prelaunch (Stage 1 Concurrent Prelaunch)**:
-   - When `classify_intent_with_llm()` is invoked on incoming user queries, `_SPECULATIVE_PRELAUNCH_POOL` (dedicated worker pool) fires `_prelaunch_speculative_stages()`.
-   - Rapidly extracts regex keywords via `extract_keywords(query)`, queries BigQuery (`query_catalog`), balances multi-brand candidates via `_balance_entities(len(tok) >= 2)`, and immediately submits both Stage 3 LLM candidate reranking (`_SPECULATIVE_RERANK_FUTURES`) and Stage 4 grounded synthesis (`_SPECULATIVE_SYNTH_FUTURES`) to `_SPECULATIVE_SYNTH_POOL` (64 workers).
-   - This executes catalog retrieval, candidate ranking, and synthesis generation in parallel with turn 1 query intent extraction, cutting up to `1,200 ms` of serialized latency.
+#### 1. Concurrency Architecture
+1. **Parallel Turn 1 Fan-Out (Stage 1 + Stage 2 at `t=0`)**:
+   - In `MultiAgentCoordinator`, ADK 2.0 `Workflow` graph fans out `query_intent_specialist` and `catalog_retrieval_step` in parallel from `START`.
+   - In `ComparisonOrchestrator.compare()`, `spec_future` submits `query_catalog` on `_SPECULATIVE_SYNTH_POOL` concurrently with `classify_intent_with_llm()`.
+   - This executes catalog retrieval in parallel with turn 1 query intent extraction, cutting up to `400 ms` of serialized latency.
 
-2. **Tier 2: In-Flight Speculative Stage 4 Synthesis (Stage 3 Concurrent Synthesis)**:
-   - When execution enters `rank_and_select_products()`, if Stage 4 synthesis has not already been prelaunched, the orchestrator balances candidate entities (`_balance_entities()`) and submits Stage 4 comparison synthesis to `_SPECULATIVE_SYNTH_POOL` concurrently while Stage 3 LLM reranking evaluates candidate scores.
-   - When Stage 4 (`synthesize_comparison()`) is reached, it looks up `_SPECULATIVE_SYNTH_FUTURES` using deterministic model-keyed cache keys (`_get_speculative_synth_key()`). If the future is running or complete, it joins the existing future rather than launching a redundant LLM invocation.
+2. **Deterministic Candidate Selection (<1ms)**:
+   - Preserves tagged `[SKU: ...]` click ordering directly on retrieved catalog rows.
+   - For multi-brand natural language queries, `_select_best_entity_candidates` balances candidates across target entities rather than invoking redundant LLM reranking.
 
-#### 2. Thread Safety, Bounded LRU Cache & Eviction
-- All speculative futures (`_SPECULATIVE_SYNTH_FUTURES`, `_SPECULATIVE_RERANK_FUTURES`, `_SPECULATIVE_INTENT_FUTURES`, `_SPECULATIVE_CHAT_FUTURES`) are managed inside `OrderedDict` containers governed by a thread-safe mutex (`_SPECULATIVE_LOCK`).
-- Stores are capped at `_MAX_SPECULATIVE_FUTURES = 128`. Once capacity is reached, the oldest in-flight or completed futures are evicted via LRU policy (`popitem(last=False)`), preventing memory bloat under sustained traffic.
-- Retrieval via `_get_speculative_future()` is non-destructive (allowing concurrent reads), while consumption in final pipeline stages uses `_pop_speculative_future()` to release resources immediately.
-- **Exact-Match SKU Key Verification**: Speculative synthesis futures are strictly keyed via `_get_speculative_synth_key(products, query, model)`, which incorporates the deterministic SHA-256 hash of sorted candidate SKUs, sanitized user query, and target LLM model. This guarantees that speculative synthesis results are only consumed if the finalized reranked products match the speculative candidate set with 100% SKU fidelity, preventing cross-product prompt hallucination.
+#### 2. Thread Safety & Connection Pooling
+- Intra-stage concurrent futures (Model Armor prompt/response guards and deterministic matrix construction) execute on `_SPECULATIVE_SYNTH_POOL` (`max_workers=512`) with `.result(timeout=8.0)` and zero cross-request LLM caching.
+- `_call_genai_with_failover` routes Vertex AI requests in `us-central1` using shared `genai.Client` instances and a 256-connection `_SHARED_MA_SESSION` HTTPAdapter pool.
 
 #### 3. 2-Character Sub-Token & Entity Balancing Integration
 - **2-Character Sub-Token SQL Tokenization (`catalog.py`)**: Sub-token extraction enforces `len(t) >= 2` coupled with an exhaustive 2-letter English grammatical stopword filter (`an`, `as`, `at`, `be`, `by`, `do`, `go`, `he`, `if`, `in`, `is`, `it`, `me`, `my`, `no`, `of`, `on`, `or`, `so`, `to`, `up`, `us`, `we`, `vs`). This allows critical consumer electronics brand tokens (e.g., `LG`, `HP`) and model tokens (e.g., `C3`, `G3`, `M3`) to be tokenized into parameterized SQL `LIKE` patterns (`%lg%`, `%c3%`, `%hp%`) without incurring table scan overhead from grammatical prepositions.
@@ -711,11 +695,10 @@ Fully codified in `deployment/terraform/monitoring.tf` and `outputs.tf` to gover
   1. **Turn 1 (Intent & Reranking)**: Route to **`gemini-3.5-flash`** (with automatic regional fallback to `gemini-2.5-flash`, `temperature=0.0`, `response_schema=QueryIntentAnalysis`) to extract candidate products/specs and invoke `query_catalog` in `~350ms` (`P95 <= 650ms`).
   2. **Turn 2 (Grounded Synthesis)**: Route to **`gemini-2.5-pro`** (`temperature=0.1`, `max_output_tokens=2048`) to synthesize the comparison matrix and executive buyer recommendations strictly from returned BigQuery rows.
   3. **High-QPS Canary / Fallback (`1.1.0-flash`)**: Register **`gemini-2.5-flash`** in Google Cloud Agent Registry as the SLA-compliant canary (`1.42s` P95, `$0.22 / 1k` queries).
-  4. **Stage-First Specialist Model Optimization & Stage 3 Semantic Synthesis Quality (`evals/benchmark_models.py`)**:
+  4. **Stage-First Specialist Model Optimization & Spec Synthesis Quality (`evals/benchmark_models.py`)**:
      - **Stage 1 (Intent Specialist)**: Route to **`gemini-3.5-flash-lite`** (`stage1_intent_model`), achieving 100% intent classification accuracy in `~250ms`.
-     - **Stage 2 (Relevance Specialist)**: Route to **`gemini-2.5-flash-lite`** (`stage2_relevance_model`), achieving `F1 = 1.00` precision/recall reranking.
-     - **Stage 3 (Spec Comparison Synthesis Specialist)**: Evaluated under the dedicated Stage 3 Semantic Synthesis Quality metric (`compute_stage3_semantic_quality`), crowning **`gemini-2.5-pro` as Quality Winner** (`0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality) and **`gemini-2.5-flash-lite` as Latency Winner** (`0.8200` coherence, `4.10 / 5.0` quality, `~520ms` P95).
-     - **Configured Routing**: Parameterized in `app.config.Settings` (`stage1_intent_model`, `stage2_relevance_model`, `stage3_synthesis_model`, `stage3_fast_synthesis_model`), resolved via `app.agent.orchestrator.STAGE_OPTIMAL_MODELS` / `resolve_stage_models()`, and executed through `MultiAgentCoordinator(use_stage_optimal_models=True)` / `model="stage-optimal"`.
+     - **Stage 3 (Spec Comparison Synthesis Specialist)**: Evaluated under the dedicated Synthesis Quality metric (`compute_synthesis_quality`), crowning **`gemini-2.5-pro` as Quality Winner** (`0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality) and **`gemini-2.5-flash-lite` as Latency Winner** (`0.8200` coherence, `4.10 / 5.0` quality, `~520ms` P95).
+     - **Configured Routing**: Parameterized in `app.config.Settings` (`stage1_intent_model`, `stage3_synthesis_model`, `stage3_fast_synthesis_model`), resolved via `app.agent.orchestrator.STAGE_OPTIMAL_MODELS` / `resolve_stage_models()`, and executed through `MultiAgentCoordinator(use_stage_optimal_models=True)` / `model="stage-optimal"`.
 - **Rejected Alternatives**:
   - *Single-Tier `gemini-2.5-pro`*: Rejected for default Turn-1+Turn-2 routing because two sequential Pro calls push P95 latency to **`3.48s`**, breaching the `<= 3.0s` SLA (`SLA_VIOLATION_LATENCY`), and cost **`$2.45 / 1k queries`** (2.88x cost of `tiered-hybrid`) with `100%` TIE quality parity in head-to-head judging (`5.00` vs `5.00`).
   - *Single-Tier `gemini-1.5-flash`*: Rejected (`SLA_VIOLATION_QUALITY`) due to `0.938` Data Accuracy (`< 0.98`), `0.912` Citation Faithfulness (`< 0.95`), and `4%` structured JSON schema failure rate.
@@ -947,14 +930,9 @@ flowchart LR
         M2["Catalog Records<br/>Deduped by SKU (0% Hallucination)"]
     end
 
-    subgraph S3["Stage 2: Relevance Reranking (LLM)"]
-        A3["RelevanceDetectorAgent<br/>(gemini-3.7-flash / gemini-2.5-flash)"]
-        M3["Top-2 Balanced SKUs<br/>[6534606, 6575132]"]
-    end
-
-    subgraph S4["Stage 3: Grounded Synthesis (LLM)"]
-        A4["SpecComparisonAgent<br/>(gemini-2.5-pro)"]
-        M4["MatrixRow Table + Winner Badges<br/>Strict [SKU: ...] Citations"]
+    subgraph S3["Stage 3: Grounded Synthesis (LLM)"]
+        A3["SpecComparisonAgent<br/>(gemini-2.5-pro)"]
+        M3["MatrixRow Table + Winner Badges<br/>Strict [SKU: ...] Citations"]
     end
 
     Q["User Query"] --> A1
@@ -962,9 +940,7 @@ flowchart LR
     M1 --> A2
     A2 --> M2
     M2 --> A3
-    A3 --> M3
-    M3 --> A4
-    A4 --> RESP["ComparisonResponse"]
+    A3 --> RESP["ComparisonResponse"]
 ```
 
 #### Deterministic CatalogRetrievalStep Architecture
@@ -972,21 +948,20 @@ flowchart LR
    - `CatalogRetrievalStep` (aliased as `CatalogRetrievalAgent` for backward compatibility) queries BigQuery directly using parameterized SQL with pattern-matched relevance ordering and SKU deduplication.
    - Zero LLM invocation latency overhead ($\sim 120\text{ ms}$ P95), eliminating hallucination risk, token cost, and tool-calling drift while guaranteeing end-to-end P95 response times well within the $\le 3.0\text{s}$ SLA.
 2. **SequentialAgent Realignment**:
-   - `MultiAgentCoordinator.adk_sequential_agent` encapsulates strictly the 3 real LLM specialist agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`), maintaining crisp separation between cognitive reasoning and deterministic data retrieval.
+   - `MultiAgentCoordinator.adk_sequential_agent` encapsulates strictly the 2 real LLM specialist agents (`QueryIntentAgent`, `SpecComparisonAgent`), maintaining crisp separation between cognitive reasoning and deterministic data retrieval.
 
 ### 11.2 End-to-End Latency Breakdown & 9-GA-Model Fleet SLA Compliance
 Arbitrary per-stage latency cutoffs and artificial clamping are eliminated. The benchmark suite evaluates the 9 production-safe GA Gemini foundation models (Gemini 2.5 through 3.8 Flash-Lite, Flash, and Pro, plus `tiered-hybrid` and `gemini-1.5-flash` baseline) and computes the empirical P50 and P95 latency distributions. Compliance is strictly enforced on the combined specialist stage latencies:
 
-$$\text{P95}_{\text{Total}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 2}} + \text{P95}_{\text{Stage 3}} \le 3000\text{ ms}$$
+$$\text{P95}_{\text{Total}} = \text{P95}_{\text{Stage 1}} + \text{P95}_{\text{BQ}} + \text{P95}_{\text{Stage 3}} \le 3000\text{ ms}$$
 
 | Pipeline Component | Assigned Model / Engine | P50 Latency (s) | P95 Latency (s) | Est. Cost / 1k Queries | Rationale & Metric Highlights |
 | :--- | :--- | :---: | :---: | :---: | :--- |
 | **Stage 1: Intent Extraction** | `gemini-3.5-flash` (or `2.5-flash`) | $0.25\text{s}$ | $0.45\text{s}$ | $\$0.050$ | 100% intent classification accuracy, sub-second routing. |
 | **Node 2: Catalog Retrieval** | `CatalogRetrievalStep` (BigQuery SQL) | $0.04\text{s}$ | $0.12\text{s}$ | $\$0.000$ | Deterministic BigQuery SQL, zero hallucination, instant SKU deduplication. |
-| **Stage 2: Relevance Reranking** | `gemini-3.7-flash` (or `2.5-flash`) | $0.35\text{s}$ | $0.55\text{s}$ | $\$0.050$ | 100% candidate brand balancing & opinion filtering. |
 | **Stage 3: Grounded Synthesis** | `gemini-2.5-pro` | $0.54\text{s}$ | $1.06\text{s}$ | $\$0.750$ | Zero hallucination, strict inline `[SKU: ...]` citations, 100% schema match. |
-| **Total End-to-End (`tiered-hybrid`)** | **3-Agent + BQ SQL Tiered-Hybrid** | **$1.18\text{s}$** | **$2.18\text{s}$** | **$\$0.850$** | **SLA Passed ($\le 3.00\text{s}$ with $820\text{ ms}$ headroom, 65.3% savings vs pure Pro).** |
-| **High-QPS Canary (`1.1.0-flash`)** | **3-Agent + BQ SQL `gemini-2.5-flash`** | **$0.84\text{s}$** | **$1.42\text{s}$** | **$\$0.220$** | **SLA Passed ($1.42\text{s}$ P95, 74.1% cost savings for high-traffic bursts).** |
+| **Total End-to-End (`tiered-hybrid`)** | **2-Agent + BQ SQL Tiered-Hybrid** | **$0.83\text{s}$** | **$1.63\text{s}$** | **$\$0.800$** | **SLA Passed ($\le 3.00\text{s}$ with $1370\text{ ms}$ headroom, 67.3% savings vs pure Pro).** |
+| **High-QPS Canary (`1.1.0-flash`)** | **2-Agent + BQ SQL `gemini-2.5-flash`** | **$0.49\text{s}$** | **$0.87\text{s}$** | **$\$0.170$** | **SLA Passed ($0.87\text{s}$ P95, 78.8% cost savings for high-traffic bursts).** |
 
 ### 11.3 Weekly Automated Benchmark Job & Cloud Scheduler
 To continuously track model drift, latency degradation, and new Gemini foundation model releases:
@@ -1008,7 +983,7 @@ To continuously track model drift, latency degradation, and new Gemini foundatio
 #### Latency Analysis & Bottleneck Root Cause
 End-to-end user query latency (~15–20s on unoptimized runs) is driven by four discrete factors:
 1. **Cloud Run Cold Starts**: With `minScale: 0`, container provisioning, Python module imports, and Vertex AI / BigQuery client TLS handshakes add 4–6s overhead on idle instances.
-2. **Sequential Multi-Agent Node Traversal**: The 4-stage pipeline executes four sequential hops (`QueryIntentAgent` $\rightarrow$ `CatalogRetrievalStep` $\rightarrow$ `RelevanceDetectorAgent` $\rightarrow$ `SpecComparisonAgent`), compounding per-stage network and processing latencies.
+2. **Multi-Agent Pipeline Latency**: Sequential LLM hops compound per-stage network and processing latencies.
 3. **Synthesis Model Thinking Tokens**: Defaulting Stage 3 synthesis to `gemini-2.5-pro` with `min_thinking = 128` triggers extended internal chain-of-thought token generation before streaming the structured JSON matrix, adding 6–10s.
 4. **Synchronous Telemetry Inserts**: In earlier revisions, `record_user_action` and `record_query_telemetry` were called synchronously on the request thread.
 
@@ -1021,34 +996,29 @@ To provide complete visibility into pipeline execution, OpenTelemetry distribute
 ```mermaid
 flowchart TD
     subgraph MultiAgentPipeline["Root Span: agent.multi_agent_pipeline"]
-        S1["agent.query_intent<br/>(QueryIntentAgent)"]
+        S1["agent.stage_1.query_intent<br/>(QueryIntentAgent)"]
         S1_LLM["gemini.classify_intent<br/>adk.llm.generate_content"]
         S1 --> S1_LLM
 
-        S2["agent.catalog_retrieval<br/>(CatalogRetrievalStep)"]
+        S2["agent.stage_2.catalog_retrieval<br/>(CatalogRetrievalStep)"]
         S2_BQ["bigquery.query_catalog<br/>(SQL Query Execution)"]
         S2 --> S2_BQ
 
-        S3["agent.relevance_detector<br/>(RelevanceDetectorAgent)"]
-        S3_LLM["gemini.rank_and_select<br/>adk.llm.generate_content"]
+        S3["agent.stage_3.spec_synthesis<br/>(SpecComparisonAgent)"]
+        S3_LLM["gemini.synthesize_comparison<br/>adk.llm.generate_content"]
         S3 --> S3_LLM
-
-        S4["agent.spec_comparison<br/>(SpecComparisonAgent)"]
-        S4_LLM["gemini.synthesize_comparison<br/>adk.llm.generate_content"]
-        S4 --> S4_LLM
     end
 
     S1_LLM --> S2
     S2_BQ --> S3
-    S3_LLM --> S4
     MultiAgentPipeline --> EXPORT["CloudTraceSpanExporter<br/>(projects/fde-bestbuy-sandbox-dev-508321/traces/...)"]
 ```
 
 #### Granular Pipeline Timing Breakdown & Headers
-Every pipeline turn computes exact stage durations (`intent_ms`, `retrieval_ms`, `relevance_ms`, `synthesis_ms`, `total_pipeline_ms`) and surfaces them via:
+Every pipeline turn computes exact stage durations (`intent_ms`, `retrieval_ms`, `synthesis_ms`, `total_pipeline_ms`) and surfaces them via:
 1. **API Response Schema**: `ComparisonResponse.timing_breakdown_ms: dict[str, float]` containing millisecond-resolution timings for each node.
-2. **HTTP Response Header**: `X-Pipeline-Timing: intent_ms=310.2ms, retrieval_ms=45.1ms, relevance_ms=280.4ms, synthesis_ms=950.8ms, total_pipeline_ms=1586.5ms`.
-3. **Trace Attributes**: Span attributes `pipeline.timing.intent_ms`, `pipeline.timing.retrieval_ms`, `pipeline.timing.relevance_ms`, `pipeline.timing.synthesis_ms`, and `pipeline.timing.total_ms` attached to `agent.multi_agent_pipeline`.
+2. **HTTP Response Header**: `X-Pipeline-Timing: intent_ms=310.2ms, retrieval_ms=45.1ms, synthesis_ms=950.8ms, total_pipeline_ms=1306.1ms`.
+3. **Trace Attributes**: Span attributes `pipeline.timing.intent_ms`, `pipeline.timing.retrieval_ms`, `pipeline.timing.synthesis_ms`, and `pipeline.timing.total_ms` attached to `agent.multi_agent_pipeline`.
 
 #### Diagnostic Tooling: Span Analysis CLI & ADK Playground
 1. **Local & Cloud Span Analyzer (`backend/scripts/analyze_spans.py`)**:
@@ -1101,7 +1071,7 @@ To serve as the single point of reference across all domains, the tables below m
 | `backend/src/app/main.py` | `create_app()`, `app`, `health()`, `readiness()`, `well_known_agent_card()` | FastAPI entrypoint, CORS & `ObservabilityMiddleware` registration, `/health` & `/healthz` liveness probes (`health()`), `/health/ready` readiness probe (`readiness()`), and `/.well-known/agent-card.json` A2A v0.3.0 discovery route. |
 | `backend/src/app/config.py` | `Settings`, `get_settings()` | Pydantic Settings configuration (`PROJECT_ID`, `BQ_DATASET`, `BQ_TABLE`, `GEMINI_MODEL`, `ENABLE_MODEL_ARMOR`, `MODEL_ARMOR_PROMPT_TEMPLATE`, `MODEL_ARMOR_RESPONSE_TEMPLATE`, `ENABLE_VERTEX_PROMPT_REGISTRY`, `VERTEX_PROMPT_ID=6884046974429954048`, `GOOGLE_CLOUD_AGENT_ENGINE_ID`). |
 | `backend/src/app/routes/compare.py` | `compare_products()`, `get_agent_card()`, `list_agent_versions()`, `log_action()`, `submit_feedback()` | REST API controllers for `POST /api/compare` (sets `X-Pipeline-Timing` header), `GET /api/agent/card`, `GET /api/agent/versions`, `POST /api/actions` (`log_action()`), and `POST /api/feedback` (`submit_feedback()`). |
-| `backend/src/app/agent/multi_agent.py` | `MultiAgentCoordinator`, `ComparisonAgentState`, `QueryIntentAgent`, `CatalogRetrievalAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent` | 4-Node cooperative pipeline with per-node model routing (`Flash` $\rightarrow$ `BigQuery` $\rightarrow$ `Flash` $\rightarrow$ `Pro`), stage timing capture (`intent_ms`, `retrieval_ms`, `relevance_ms`, `synthesis_ms`), and relevance gating ($\ge 6.0$). |
+| `backend/src/app/agent/multi_agent.py` | `MultiAgentCoordinator`, `ComparisonAgentState`, `QueryIntentAgent`, `CatalogRetrievalAgent`, `CatalogRetrievalStep`, `SpecComparisonAgent` | 3-Node cooperative pipeline with ADK 2.0 Workflow graph, parallel fan-out (`START` $\rightarrow$ Intent + Retrieval) into `JoinNode("intent_retrieval_join")`, stage timing capture (`intent_ms`, `retrieval_ms`, `synthesis_ms`), and deterministic candidate selection. |
 | `backend/src/app/agent/orchestrator.py` | `ComparisonOrchestrator`, `sanitize_user_prompt()`, `get_default_safety_settings()`, `get_model_armor_config()`, `resolve_model_pair()`, `create_adk_agent()` | Core grounding engine, Vertex AI `types.ModelArmorConfig` integration (`catalog-prompt-guard` / `catalog-resp-guard` with fallback to `get_default_safety_settings()`), regex/XML prompt injection sanitizer (`sanitize_user_prompt()`), syntactic keyword extractor, and post-generation deterministic `[SKU: <id>]` citation scrubber (`verify_and_scrub_sku_citations()`). |
 | `backend/src/app/agent/runner.py` | `CatalogAdkRunner`, `CatalogVertexAiSessionService` (`VertexAiSessionService`), `get_default_session_service()`, `create_catalog_runner()`, `get_adk_runner()`, `run_adk_agent()`, `run_adk_agent_sync()` | Native Google ADK `InMemoryRunner` & `VertexAiSessionService` / `InMemorySessionService` event-streaming execution engine. |
 | `backend/src/app/agent/reasoning_engine.py` | `CatalogComparisonReasoningEngine` | Vertex AI Agent Runtime wrapper implementing `set_up()`, `query()`, and `stream_query()` conforming to Vertex AI Reasoning Engine contract (`reasoningEngines` API). |
@@ -1175,7 +1145,7 @@ To serve as the single point of reference across all domains, the tables below m
 flowchart LR
     USER["Authenticated User Browser"] -->|HTTPS GET / POST| RUN_URL["Direct Regional Cloud Run URL<br/>(catalog-comparison-service...uc.a.run.app)"]
     RUN_URL --> IAP["Cloud Run Native IAP<br/>(run.googleapis.com/iap-enabled: true)"]
-    IAP -->|OAuth 2.0 Verified + IAP P4SA roles/run.invoker| CONTAINER["Cloud Run Container (us-central1)<br/>FastAPI + React SPA + 4-Node ADK Agent"]
+    IAP -->|OAuth 2.0 Verified + IAP P4SA roles/run.invoker| CONTAINER["Cloud Run Container (us-central1)<br/>FastAPI + React SPA + 3-Node ADK Agent"]
 ```
 
 When protecting a Cloud Run service directly with **Google Cloud Identity-Aware Proxy (IAP)** *without* an external Load Balancer, Google Cloud Run relies on a service-level metadata annotation (`run.googleapis.com/iap-enabled: 'true'`) coupled with `launch_stage: BETA` and the IAP Service Agent (`service-499572810092@gcp-sa-iap.iam.gserviceaccount.com`) holding `roles/run.invoker`.
@@ -1276,7 +1246,7 @@ To preserve strict evaluation integrity, zero-hallucination guarantees, and SLA 
    - Configured `ThinkingConfig(thinking_budget=0)` on low-latency Flash stages (`gemini-2.5-flash`) to eliminate thinking token latency overhead and preserve `< 3.0s` warm live comparison latency.
 
 3. **Authentic ADK Sequential Execution & Session State (`multi_agent.py` & `orchestrator.py`)**:
-   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `RelevanceDetectorAgent`, `SpecComparisonAgent`) alongside the deterministic `CatalogRetrievalStep` through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
+   - Executed `self.adk_sequential_agent` sub-agents (`QueryIntentAgent`, `SpecComparisonAgent`) alongside the deterministic `CatalogRetrievalStep` through an authentic `InMemorySessionService`, recording stage handoffs in `session.state`.
    - Honored `_final_text` in `execute_with_adk_runner()` with citation alignment and verification.
 
 4. **Uniform Parameterized Stateless BigQuery Catalog Access (`backend/src/app/tools/catalog.py`, `compare.py`, `catalogProducts.ts`)**:

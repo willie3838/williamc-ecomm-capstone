@@ -7,7 +7,6 @@ from app.agent.multi_agent import (
     ComparisonAgentState,
     MultiAgentCoordinator,
     QueryIntentAgent,
-    RelevanceDetectorAgent,
     SpecComparisonAgent,
 )
 from app.models.responses import ProductSpec
@@ -341,28 +340,6 @@ def test_catalog_retrieval_agent_invalid_spec_handling(mock_query_catalog):
     assert updated.retrieved_products[0].sku == "VALID01"
 
 
-def test_relevance_detector_insufficient_candidates():
-    """Verify RelevanceDetectorAgent flags insufficient candidates when fewer than 2 products exist."""
-    agent = RelevanceDetectorAgent()
-    p1 = ProductSpec(
-        sku="6534606",
-        name="MacBook Air 15",
-        price=1299.0,
-        brand="Apple",
-        category="Laptops",
-        specifications={"ram_gb": 16},
-    )
-    state = ComparisonAgentState(
-        raw_query="MacBook Air",
-        sanitized_query="MacBook Air",
-        retrieved_products=[p1],
-    )
-    updated = agent.process(state)
-    assert updated.is_comparison_eligible is False
-    assert len(updated.ranked_products) == 1
-    assert updated.step_history[-1]["decision"] == "INSUFFICIENT_COMPARISON_CANDIDATES"
-
-
 def test_spec_comparison_single_product_handling():
     """Verify SpecComparisonAgent handles single product candidate state."""
     agent = SpecComparisonAgent()
@@ -433,11 +410,10 @@ def test_adk_workflow_graph_structure_and_no_sequential_agent():
     function_nodes = [
         n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
     ]
-    assert len(function_nodes) == 4
+    assert len(function_nodes) == 3
     assert {n.name for n in function_nodes} == {
         "query_intent_specialist",
         "catalog_retrieval_step",
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     }
 
@@ -496,13 +472,11 @@ def test_adk_workflow_execution_emits_events_and_traverses_full_graph(mock_query
         "catalog_retrieval_step",
     }
     assert emitted_nodes[2:] == [
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.stage_trace == [
         "query_intent_specialist",
         "catalog_retrieval_step",
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.workflow_routes["query_intent_specialist"] == "ELIGIBLE"
@@ -530,13 +504,11 @@ def test_adk_workflow_conditional_skip_retrieval_route_on_opinion_query():
         "catalog_retrieval_step",
     }
     assert emitted_nodes[2:] == [
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.stage_trace == [
         "query_intent_specialist",
         "catalog_retrieval_step",
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.retrieved_products == []
@@ -569,13 +541,11 @@ def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
         "catalog_retrieval_step",
     }
     assert emitted_nodes[2:] == [
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.stage_trace == [
         "query_intent_specialist",
         "catalog_retrieval_step",
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.comparison_response is not None

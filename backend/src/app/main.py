@@ -49,6 +49,21 @@ def _warmup_backend_clients(app_settings: Settings) -> None:
     except Exception as exc:
         logger.debug(f"Background client warmup skipped: {exc}")
 
+    try:
+        from app.agent.agent import reasoning_engine
+
+        if reasoning_engine._coordinator is None:
+            reasoning_engine.set_up()
+    except Exception as exc:
+        logger.debug(f"Background reasoning_engine warmup skipped: {exc}")
+
+    try:
+        from app.routes.compare import _warm_remote_engine_client
+
+        _warm_remote_engine_client()
+    except Exception as exc:
+        logger.debug(f"Background remote engine warmup skipped: {exc}")
+
 
 def _trigger_background_warmup(app_settings: Settings) -> threading.Thread | None:
     """Spawn a daemon thread to warm up backend clients when enabled."""
@@ -75,9 +90,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _lifespan(_app: FastAPI):
         _trigger_background_warmup(current_settings)
         yield
-
-    if settings is not None and current_settings.enable_background_warmup:
-        _trigger_background_warmup(current_settings)
 
     application = FastAPI(
         title="TechBuy Retailers Catalog Comparison Agent API",
