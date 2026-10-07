@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
@@ -45,6 +46,7 @@ from app.tools.catalog import query_catalog
 
 logger = logging.getLogger(__name__)
 tracer = get_tracer(__name__)
+_BG_SESSION_SYNC_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="bg-session-sync")
 
 
 @dataclass
@@ -785,22 +787,24 @@ class MultiAgentCoordinator:
         self,
         state: ComparisonAgentState,
         user_id: str = "default_user",
+        session_id: str | None = None,
     ) -> tuple[ComparisonAgentState, list[Event]]:
         """Execute the 4-node ADK 2.0 Workflow graph via the production ADK Runner."""
         from app.agent.runner import get_default_memory_service, get_default_session_service
 
         session_service = get_default_session_service()
+        local_session_service = getattr(session_service, "_fallback_memory", session_service)
         memory_service = get_default_memory_service()
-        resolved_sid = state.session_id or f"session_{int(time.time() * 1000)}"
+        resolved_sid = session_id or state.session_id or f"session_{int(time.time() * 1000)}"
         app_name = "catalog_multi_agent_pipeline"
 
-        sess = await session_service.get_session(
+        sess = await local_session_service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=resolved_sid,
         )
         if sess is None:
-            sess = await session_service.create_session(
+            sess = await local_session_service.create_session(
                 app_name=app_name,
                 user_id=user_id,
                 session_id=resolved_sid,
@@ -809,7 +813,7 @@ class MultiAgentCoordinator:
         runner = Runner(
             node=self.adk_workflow,
             app_name=app_name,
-            session_service=session_service,
+            session_service=local_session_service,
             memory_service=memory_service,
             auto_create_session=True,
         )
@@ -839,7 +843,7 @@ class MultiAgentCoordinator:
         finally:
             _ACTIVE_WORKFLOW_STATE.reset(token)
 
-        updated_sess = await session_service.get_session(
+        updated_sess = await local_session_service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=resolved_sid,
@@ -847,6 +851,34 @@ class MultiAgentCoordinator:
         self.last_session = updated_sess or sess
         self.last_session_state = dict((updated_sess or sess).state)
         self.last_workflow_events = emitted_events
+
+        if (
+            local_session_service is not session_service
+            and getattr(session_service, "_should_use_vertex_remote", lambda: False)()
+        ):
+            events_snapshot = list(emitted_events)
+            state_snapshot = dict(self.last_session_state)
+
+            async def _sync_remote_session() -> None:
+                remote_sess = await session_service.create_session(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=resolved_sid,
+                    state=state_snapshot,
+                )
+                for ev in events_snapshot:
+                    await session_service.append_event(session=remote_sess, event=ev)
+
+            def _bg_sync() -> None:
+                try:
+                    from app.agent.orchestrator import _run_in_thread_loop
+
+                    _run_in_thread_loop(_sync_remote_session)
+                except Exception as sync_err:
+                    logger.debug("Background remote session sync note: %s", sync_err)
+
+            _BG_SESSION_SYNC_POOL.submit(_bg_sync)
+
         return state, emitted_events
 
     def execute(
@@ -971,49 +1003,7 @@ class MultiAgentCoordinator:
                 },
             )
 
-            import os
-            import threading
-
-            from app.agent.orchestrator import (
-                _REQUEST_SPECULATIVE_LOCAL,
-                _SPECULATIVE_PRELAUNCH_POOL,
-                _run_async_safely,
-            )
-
-            _REQUEST_SPECULATIVE_LOCAL.current = None
-            safe_q_early = sanitize_user_prompt(raw_query)
-            early_tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", safe_q_early or "")
-            can_prelaunch = (
-                self.orchestrator.genai_client is None
-                and self.orchestrator.bq_client is None
-                and getattr(settings, "enable_speculative_prelaunch", False)
-            )
-            is_benchmark_actual = os.environ.get("BENCHMARK_ACTUAL_MODEL") in ("1", "true", "True")
-            if (
-                can_prelaunch
-                and not is_benchmark_actual
-                and len(early_tagged_skus) < 2
-                and safe_q_early
-                and "[BLOCKED_INJECTION]" not in safe_q_early
-                and safe_q_early == raw_query.strip()
-            ):
-                req_spec_early: dict[str, Any] = {
-                    "query": safe_q_early,
-                    "active": True,
-                    "rerank": {},
-                    "synth": {},
-                    "matrix": {},
-                    "lock": threading.Lock(),
-                }
-                _REQUEST_SPECULATIVE_LOCAL.current = req_spec_early
-                _SPECULATIVE_PRELAUNCH_POOL.submit(
-                    self.orchestrator._prelaunch_speculative_stages,
-                    safe_q_early,
-                    category,
-                    s2_active,
-                    s3_active,
-                    req_spec_early,
-                )
+            from app.agent.orchestrator import _run_async_safely
 
             state, _events = _run_async_safely(
                 lambda: self.execute_workflow_async(state, user_id=resolved_uid)

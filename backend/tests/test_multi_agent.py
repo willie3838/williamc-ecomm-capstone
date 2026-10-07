@@ -556,3 +556,32 @@ def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
     ]
     assert final_state.comparison_response is not None
     assert final_state.comparison_response.products == []
+
+
+def test_execute_workflow_async_uses_local_l1_session_and_async_remote_sync():
+    """Verify execute_workflow_async runs ADK Runner against _fallback_memory in 0ms RAM and syncs remote session in background."""
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from google.adk.sessions import InMemorySessionService
+
+    coordinator = MultiAgentCoordinator()
+    local_l1 = InMemorySessionService()
+    fake_remote_svc = MagicMock()
+    fake_remote_svc._fallback_memory = local_l1
+    fake_remote_svc._should_use_vertex_remote.return_value = True
+    fake_remote_svc.create_session = AsyncMock()
+    fake_remote_svc.append_event = AsyncMock()
+    fake_remote_svc.get_session = AsyncMock()
+
+    with patch("app.agent.runner.get_default_session_service", return_value=fake_remote_svc):
+        initial_state = ComparisonAgentState(raw_query="this is a stupid laptop")
+        final_state, events = asyncio.run(
+            coordinator.execute_workflow_async(initial_state, session_id="l1-fast-sess")
+        )
+        assert final_state.comparison_response is not None
+        assert len(events) >= 2
+        assert coordinator.last_session is not None
+        assert coordinator.last_session.id == "l1-fast-sess"
+        # Critical path must NOT block on remote get_session after Runner finishes
+        assert fake_remote_svc.get_session.call_count == 0

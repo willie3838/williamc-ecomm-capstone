@@ -8,15 +8,9 @@ from unittest.mock import MagicMock
 
 from opentelemetry import trace
 
-from app.agent.orchestrator import (
-    _MAX_SPECULATIVE_FUTURES,
-    _SPECULATIVE_RERANK_FUTURES,
-    _SPECULATIVE_SYNTH_FUTURES,
-    ComparisonOrchestrator,
-    _has_speculative_future,
-    _pop_speculative_future,
-    _store_speculative_future,
-)
+import app.agent.multi_agent as ma_mod
+import app.agent.orchestrator as orch_mod
+from app.agent.orchestrator import ComparisonOrchestrator
 from app.data.analytics import _MAX_LOCAL_SESSIONS, AnalyticsService
 from app.observability.tracing import _BoundedInMemorySpanExporter, setup_tracing
 from app.routes.compare import _COORDINATOR_CACHE, _get_coordinator
@@ -52,52 +46,33 @@ def test_orchestrator_thread_local_tokens_and_category_hint() -> None:
         assert hint == f"Category-{idx}"
 
 
-def test_speculative_futures_bounded_fifo_eviction() -> None:
-    """Speculative future caches must evict oldest entries when exceeding _MAX_SPECULATIVE_FUTURES."""
-    _SPECULATIVE_SYNTH_FUTURES.clear()
-    _SPECULATIVE_RERANK_FUTURES.clear()
-
-    total_to_insert = _MAX_SPECULATIVE_FUTURES + 50
-    for i in range(total_to_insert):
-        fut: concurrent.futures.Future[str] = concurrent.futures.Future()
-        fut.set_result(f"val-{i}")
-        _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{i}"), fut)
-
-    assert len(_SPECULATIVE_SYNTH_FUTURES) == _MAX_SPECULATIVE_FUTURES
-    assert not _has_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), "q-0"))
-    latest = _pop_speculative_future(
-        _SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{total_to_insert - 1}")
+def test_speculative_prelaunch_helpers_removed() -> None:
+    """Speculative prelaunch globals and helpers must be completely removed from orchestrator and multi_agent."""
+    deleted_symbols = (
+        "_prelaunch_speculative_stages",
+        "_SPECULATIVE_PRELAUNCH_POOL",
+        "_SPECULATIVE_SYNTH_FUTURES",
+        "_SPECULATIVE_RERANK_FUTURES",
+        "_REQUEST_SPECULATIVE_LOCAL",
+        "_get_speculative_synth_key",
+        "_get_speculative_rerank_key",
+        "_store_speculative_future",
+        "_has_speculative_future",
+        "_pop_speculative_future",
     )
-    assert latest is not None
-    assert latest.result() == f"val-{total_to_insert - 1}"
-    # Once popped by the request that launched it, subsequent calls must not reuse it
-    assert (
-        _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, (("SKU1",), f"q-{total_to_insert - 1}"))
-        is None
-    )
-    _SPECULATIVE_SYNTH_FUTURES.clear()
+    for sym in deleted_symbols:
+        assert not hasattr(orch_mod, sym), f"orchestrator still has {sym}"
+        assert not hasattr(ma_mod, sym), f"multi_agent still has {sym}"
+        assert not hasattr(ComparisonOrchestrator, sym), f"ComparisonOrchestrator still has {sym}"
 
 
-def test_speculative_future_pop_on_claim_no_cross_request_reuse() -> None:
-    """Each request must claim and pop its own speculative future without cross-request reuse."""
-    _SPECULATIVE_SYNTH_FUTURES.clear()
-    key = (("SKU1", "SKU2"), "MacBook vs XPS", "gemini-2.5-pro")
-    fut1: concurrent.futures.Future[str] = concurrent.futures.Future()
-    fut1.set_result("req-1-synthesis")
-    fut2: concurrent.futures.Future[str] = concurrent.futures.Future()
-    fut2.set_result("req-2-synthesis")
-
-    _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key, fut1)
-    _store_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key, fut2)
-
-    claimed1 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
-    claimed2 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
-    claimed3 = _pop_speculative_future(_SPECULATIVE_SYNTH_FUTURES, key)
-
-    assert claimed1 is not None and claimed1.result() == "req-1-synthesis"
-    assert claimed2 is not None and claimed2.result() == "req-2-synthesis"
-    assert claimed3 is None
-    _SPECULATIVE_SYNTH_FUTURES.clear()
+def test_concurrent_synth_pool_execution_isolated() -> None:
+    """Concurrent work submitted to _SPECULATIVE_SYNTH_POOL must complete cleanly without shared state leakage."""
+    pool = orch_mod._SPECULATIVE_SYNTH_POOL
+    assert isinstance(pool, concurrent.futures.ThreadPoolExecutor)
+    futures = [pool.submit(lambda x=i: f"res-{x}", i) for i in range(16)]
+    outputs = [f.result(timeout=5.0) for f in futures]
+    assert outputs == [f"res-{i}" for i in range(16)]
 
 
 def test_analytics_local_sessions_bounded_and_thread_safe() -> None:
