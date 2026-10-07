@@ -207,7 +207,7 @@ backend/
       - *Override Neutrality & Cross-Category Guard*: When `spec_winners` is provided from LLM synthesis, any spec not explicitly assigned a winner in `spec_winners` remains neutral (`winner_sku=None, winner_skus=[]`), ensuring unshared cross-category specs (e.g., Laptop RAM vs Headphone Driver Size) do not assign spurious wins.
     - **Hybrid Flash-Lite Preference Router**:
       - For clean product comparison queries without extra user constraints/focus, `synthesize_comparison_with_llm` executes `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
-      - When user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.
+      - When user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=512`, and guarded JSON schema to contextually weight winners while preserving deterministic fallback.
 
 ---
 
