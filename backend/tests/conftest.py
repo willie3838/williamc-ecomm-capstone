@@ -211,6 +211,22 @@ def _hermetic_genai_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(Models, "generate_content", _safe_generate_content)
 
+    orig_generate_content_stream = getattr(Models, "generate_content_stream", None)
+
+    def _safe_generate_content_stream(self_models: Any, *args: Any, **kwargs: Any) -> Any:
+        global _ADC_AUTH_FAILED
+        if not _ADC_AUTH_FAILED and orig_generate_content_stream is not None:
+            try:
+                res = orig_generate_content_stream(self_models, *args, **kwargs)
+                return res
+            except Exception:
+                _ADC_AUTH_FAILED = True
+
+        single_resp = _safe_generate_content(self_models, *args, **kwargs)
+        return iter([single_resp])
+
+    monkeypatch.setattr(Models, "generate_content_stream", _safe_generate_content_stream)
+
     from pathlib import Path
 
     from google.cloud import bigquery

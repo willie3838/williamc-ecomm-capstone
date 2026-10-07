@@ -11,7 +11,7 @@ import {
   Plus,
   X,
 } from 'lucide-react';
-import { compareProducts } from './api/client';
+import { compareProducts, compareProductsStream } from './api/client';
 import { ProductDetailsModal } from './components/ProductDetailsModal';
 import { CATALOG_PRODUCTS, getCatalogProducts, searchCatalogProducts } from './data/catalogProducts';
 import { SearchBar } from './components/SearchBar';
@@ -23,7 +23,7 @@ import { CitationChip } from './components/CitationChip';
 import { LatencyBadge } from './components/LatencyBadge';
 import { SkeletonLoader } from './components/SkeletonLoader';
 import { ConversationSidebar } from './components/ConversationSidebar';
-import { ProductSpec } from './types/comparison';
+import { ComparisonResponse, ProductSpec } from './types/comparison';
 import { buildComparisonPrompt } from './utils/promptBuilder';
 
 const INITIAL_VISIBLE_CARDS = 40;
@@ -56,6 +56,84 @@ export const App: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(true);
 
+  const [streamingComparison, setStreamingComparison] = useState<Partial<ComparisonResponse> | null>(null);
+  const [isStreamingSynthesis, setIsStreamingSynthesis] = useState<boolean>(false);
+
+  const {
+    data: comparison,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['compare', searchParams?.query, searchParams?.category],
+    queryFn: async () => {
+      if (!searchParams) return null;
+      setIsStreamingSynthesis(true);
+      try {
+        const queryPayload = {
+          query: searchParams.query,
+          category: searchParams.category,
+          session_id: sessionId,
+        };
+        const result =
+          typeof compareProductsStream === 'function'
+            ? await compareProductsStream(queryPayload, {
+                onMatrixReady: (partial) => {
+                  setStreamingComparison((prev) => ({
+                    ...prev,
+                    products: partial.products,
+                    comparison_matrix: partial.comparison_matrix,
+                    citations: partial.citations,
+                    session_id: partial.session_id,
+                    trace_id: partial.trace_id,
+                  }));
+                },
+                onSynthesisChunk: (chunk) => {
+                  setStreamingComparison((prev) => ({
+                    ...prev,
+                    summary: chunk.summary,
+                    recommendations: chunk.recommendations ?? prev?.recommendations,
+                  }));
+                },
+                onMatrixUpdated: (update) => {
+                  setStreamingComparison((prev) => ({
+                    ...prev,
+                    comparison_matrix: update.comparison_matrix,
+                  }));
+                },
+              })
+            : await compareProducts(queryPayload);
+        setIsStreamingSynthesis(false);
+        return result;
+      } catch (err) {
+        setIsStreamingSynthesis(false);
+        setStreamingComparison(null);
+        throw err;
+      }
+    },
+    enabled: !!searchParams?.query,
+    staleTime: 0,
+    retry: false,
+  });
+
+  const activeComparison: ComparisonResponse | null = useMemo(() => {
+    if (comparison) return comparison;
+    if (streamingComparison && streamingComparison.products && streamingComparison.products.length > 0) {
+      return {
+        summary: streamingComparison.summary || '',
+        recommendations: streamingComparison.recommendations ?? null,
+        products: streamingComparison.products,
+        comparison_matrix: streamingComparison.comparison_matrix || [],
+        citations: streamingComparison.citations || [],
+        latency_ms: streamingComparison.latency_ms ?? null,
+        session_id: streamingComparison.session_id ?? null,
+        trace_id: streamingComparison.trace_id ?? null,
+      };
+    }
+    return null;
+  }, [comparison, streamingComparison]);
+
   const handleOpenProductDetails = (productOrSku: ProductSpec | string) => {
     if (typeof productOrSku === 'object' && productOrSku !== null) {
       setActiveModalProduct(productOrSku);
@@ -65,7 +143,7 @@ export const App: React.FC = () => {
 
     const sku = String(productOrSku).trim();
     // 1. Search in current comparison result products
-    const foundInComparison = comparison?.products?.find((p) => p.sku === sku);
+    const foundInComparison = (comparison || activeComparison)?.products?.find((p) => p.sku === sku);
     if (foundInComparison) {
       setActiveModalProduct(foundInComparison);
       setIsModalOpen(true);
@@ -101,27 +179,6 @@ export const App: React.FC = () => {
     setActiveModalProduct(null);
   };
 
-  const {
-    data: comparison,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['compare', searchParams?.query, searchParams?.category],
-    queryFn: () =>
-      searchParams
-        ? compareProducts({
-            query: searchParams.query,
-            category: searchParams.category,
-            session_id: sessionId,
-          })
-        : null,
-    enabled: !!searchParams?.query,
-    staleTime: 0,
-    retry: false,
-  });
-
   const [taggedProducts, setTaggedProducts] = useState<ProductSpec[]>([]);
   const [prevComparison, setPrevComparison] = useState(comparison);
 
@@ -143,6 +200,8 @@ export const App: React.FC = () => {
 
   const handleGoHome = () => {
     setSearchParams(null);
+    setStreamingComparison(null);
+    setIsStreamingSynthesis(false);
     setBrowseCategory({ category: null });
     setCatalogSearchQuery('');
     setVisibleCardCount(INITIAL_VISIBLE_CARDS);
@@ -171,12 +230,16 @@ export const App: React.FC = () => {
     setAddCompareQuery('');
     setTaggedProducts(effectiveTagged);
     setSelectedProducts([]);
+    setStreamingComparison(null);
+    setIsStreamingSynthesis(false);
     setIsChatOpen(true);
     setSearchParams({ query, category });
   };
 
   const handleCategorySelect = (category: string | null) => {
     setSearchParams(null);
+    setStreamingComparison(null);
+    setIsStreamingSynthesis(false);
     setCatalogSearchQuery('');
     setVisibleCardCount(INITIAL_VISIBLE_CARDS);
     setIsAddCompareOpen(false);
@@ -190,7 +253,7 @@ export const App: React.FC = () => {
         ? selectedProducts
         : taggedProducts.length > 0
           ? taggedProducts
-          : comparison?.products || [];
+          : (activeComparison || comparison)?.products || [];
 
     const exists = base.some((p) => p.sku === product.sku);
     let next: ProductSpec[];
@@ -244,16 +307,19 @@ export const App: React.FC = () => {
     setBrowseCategory(null);
     setTaggedProducts([...products]);
     setSelectedProducts([]);
+    setStreamingComparison(null);
+    setIsStreamingSynthesis(false);
     setIsChatOpen(true);
     setSearchParams({ query: prompt, category });
   };
 
   const handleAddProductToActiveComparison = (product: ProductSpec) => {
-    if (!comparison?.products) return;
-    if (comparison.products.some((p) => p.sku === product.sku)) return;
-    if (comparison.products.length >= 5) return;
+    const currentProducts = activeComparison?.products || comparison?.products;
+    if (!currentProducts) return;
+    if (currentProducts.some((p) => p.sku === product.sku)) return;
+    if (currentProducts.length >= 5) return;
 
-    const newProducts = [...comparison.products, product];
+    const newProducts = [...currentProducts, product];
     setIsAddCompareOpen(false);
     setAddCompareQuery('');
     handleCompareSelected(newProducts);
@@ -297,17 +363,17 @@ export const App: React.FC = () => {
 
             {/* Header Telemetry Badge */}
             <div className="flex items-center gap-3">
-              {comparison?.session_comparison_count && (
+              {(activeComparison || comparison)?.session_comparison_count && (
                 <div
                   className="hidden sm:flex items-center gap-1.5 text-xs text-blue-100 bg-blue-900/60 px-2.5 py-1 rounded-full border border-blue-400/30"
-                  title={`Comparison #${comparison.session_comparison_count} run in this session`}
+                  title={`Comparison #${(activeComparison || comparison)?.session_comparison_count} run in this session`}
                 >
                   <Activity className="w-3.5 h-3.5 text-yellow-300" aria-hidden="true" />
-                  <span>Comparison #{comparison.session_comparison_count}</span>
+                  <span>Comparison #{(activeComparison || comparison)?.session_comparison_count}</span>
                 </div>
               )}
-              {comparison?.latency_ms && (
-                <LatencyBadge latencyMs={comparison.latency_ms} />
+              {(activeComparison || comparison)?.latency_ms && (
+                <LatencyBadge latencyMs={(activeComparison || comparison)!.latency_ms} />
               )}
               <div className="hidden md:flex items-center gap-1.5 text-xs text-blue-100 bg-bb-blue-dark/50 px-3 py-1.5 rounded-full border border-blue-400/30">
                 <Database className="w-3.5 h-3.5 text-bb-yellow" aria-hidden="true" />
@@ -360,7 +426,7 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Loading State */}
-        {isLoading && <SkeletonLoader />}
+        {isLoading && !activeComparison && <SkeletonLoader />}
 
         {/* Error State */}
         {isError && (
@@ -388,21 +454,21 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Success State */}
-        {!isLoading && !isError && comparison && (
+        {/* Success State / Progressive Stream */}
+        {!isError && activeComparison && (
           <div className="space-y-8 animate-fadeIn">
             {/* Top Telemetry & Count Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="flex items-center gap-2 text-sm text-gray-700 font-medium">
                 <Layers className="w-4 h-4 text-bb-blue" aria-hidden="true" />
                 <span>
-                  Comparing <strong className="text-gray-900">{comparison.products.length}</strong> products
+                  Comparing <strong className="text-gray-900">{activeComparison.products.length}</strong> products
                   {searchParams?.category && (
                     <> in <span className="font-semibold text-bb-blue">{searchParams.category}</span></>
                   )}
                 </span>
               </div>
-              <LatencyBadge latencyMs={comparison.latency_ms} />
+              <LatencyBadge latencyMs={activeComparison.latency_ms} />
             </div>
 
             {/* Layout with Main Comparison Details and Conversational Sidebar */}
@@ -410,23 +476,24 @@ export const App: React.FC = () => {
               <div className="flex-1 w-full space-y-8 min-w-0">
                 {/* AI Recommendation Narrative */}
                 <RecommendationCard
-                  summary={comparison.summary}
-                  recommendations={comparison.recommendations}
+                  summary={activeComparison.summary}
+                  recommendations={activeComparison.recommendations}
                   query={searchParams?.query || ''}
-                  targetSkus={comparison.products.map((p) => p.sku)}
+                  targetSkus={activeComparison.products.map((p) => p.sku)}
                   sessionId={sessionId}
-                  traceId={comparison.trace_id || ''}
+                  traceId={activeComparison.trace_id || ''}
                   onOpenChat={() => setIsChatOpen(true)}
+                  isStreaming={isStreamingSynthesis}
                 />
 
                 {/* Product Summary Cards & Matrix Table (Only if products found) */}
-                {comparison.products.length > 0 ? (
+                {activeComparison.products.length > 0 ? (
                   <>
                     <div>
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                         <h2 className="text-lg font-bold text-gray-900">Compared Products</h2>
                         <div className="flex items-center gap-2">
-                          {comparison.products.length < 5 && (
+                          {activeComparison.products.length < 5 && (
                             <div className="relative">
                               <button
                                 type="button"
@@ -474,7 +541,7 @@ export const App: React.FC = () => {
                                   </div>
                                   <div className="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-gray-100">
                                     {searchCatalogProducts(addCompareQuery, null)
-                                      .filter((p) => !comparison.products.some((cp) => cp.sku === p.sku))
+                                      .filter((p) => !activeComparison.products.some((cp) => cp.sku === p.sku))
                                       .slice(0, 6)
                                       .map((prod) => (
                                         <div
@@ -511,7 +578,7 @@ export const App: React.FC = () => {
                                         </div>
                                       ))}
                                     {searchCatalogProducts(addCompareQuery, null).filter(
-                                      (p) => !comparison.products.some((cp) => cp.sku === p.sku)
+                                      (p) => !activeComparison.products.some((cp) => cp.sku === p.sku)
                                     ).length === 0 && (
                                       <div className="p-3 text-center text-xs text-gray-500">
                                         No additional products found.
@@ -534,18 +601,18 @@ export const App: React.FC = () => {
                       </div>
                       <div
                         className={`grid items-stretch ${
-                          comparison.products.length >= 5 ? 'gap-3 sm:gap-4' : 'gap-6'
+                          activeComparison.products.length >= 5 ? 'gap-3 sm:gap-4' : 'gap-6'
                         } ${
-                          comparison.products.length === 2
+                          activeComparison.products.length === 2
                             ? 'grid-cols-1 md:grid-cols-2'
-                            : comparison.products.length === 3
+                            : activeComparison.products.length === 3
                             ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                            : comparison.products.length === 4
+                            : activeComparison.products.length === 4
                             ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
                             : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5'
                         }`}
                       >
-                        {comparison.products.map((product) => (
+                        {activeComparison.products.map((product) => (
                           <ProductCard
                             key={product.sku}
                             product={product}
@@ -558,8 +625,8 @@ export const App: React.FC = () => {
 
                     {/* Side-by-side Feature Matrix Table */}
                     <ComparisonTable
-                      products={comparison.products}
-                      matrix={comparison.comparison_matrix}
+                      products={activeComparison.products}
+                      matrix={activeComparison.comparison_matrix}
                       onViewDetails={handleOpenProductDetails}
                     />
                   </>
@@ -596,7 +663,7 @@ export const App: React.FC = () => {
                 )}
 
                 {/* Verified SKU Citations Section */}
-                {comparison.citations && comparison.citations.length > 0 && (
+                {activeComparison.citations && activeComparison.citations.length > 0 && (
                   <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">
                       Verified SKU Grounding & Citations
@@ -606,7 +673,7 @@ export const App: React.FC = () => {
                       to view canonical product details on TechBuy.com.
                     </p>
                     <div className="flex flex-wrap items-center gap-3 pt-2">
-                      {comparison.citations.map((citation) => (
+                      {activeComparison.citations.map((citation) => (
                         <div key={citation.sku} className="flex items-center gap-2">
                           <CitationChip
                             sku={citation.sku}
@@ -627,12 +694,12 @@ export const App: React.FC = () => {
               </div>
 
               {/* Conversational Follow-up Sidebar */}
-              {comparison.products.length > 0 && (
+              {activeComparison.products.length > 0 && (
                 <ConversationSidebar
                   isOpen={isChatOpen}
                   onClose={() => setIsChatOpen(false)}
-                  products={comparison.products}
-                  comparisonMatrix={comparison.comparison_matrix}
+                  products={activeComparison.products}
+                  comparisonMatrix={activeComparison.comparison_matrix}
                   sessionId={sessionId}
                   onViewProductDetails={handleOpenProductDetails}
                 />
@@ -642,7 +709,7 @@ export const App: React.FC = () => {
         )}
 
         {/* Category SKU Browsing State */}
-        {!isLoading && !isError && !comparison && browseCategory && (
+        {!isLoading && !isError && !activeComparison && browseCategory && (
           <div className="space-y-6 animate-fadeIn">
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="flex items-center gap-2 text-sm text-gray-700 font-medium">

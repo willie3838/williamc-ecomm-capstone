@@ -2,13 +2,14 @@
 
 import asyncio
 import concurrent.futures
+import json
 import logging
 import threading
 import time
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.agent.agent_card import build_a2a_agent_card
 from app.config import Settings, get_settings, settings
@@ -443,6 +444,118 @@ async def compare_products(
     )
 
     return result
+
+
+@router.post(
+    "/compare/stream",
+    tags=["Comparison"],
+    summary="Stream Product Comparison over Server-Sent Events",
+)
+async def compare_products_stream(
+    request: ComparisonRequest,
+    _app_settings: Annotated[Settings, Depends(get_settings)],
+    http_request: Request,
+) -> StreamingResponse:
+    """Stream Stage 2 matrix_ready event followed by Stage 4 progressive synthesis chunks via SSE."""
+    request.user_id = resolve_iap_user_id(http_request, request.user_id)
+    if not request.query or not request.query.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query string must not be empty.",
+        )
+
+    effective_model = request.model
+    effective_synthesis = request.synthesis_model
+
+    from app.agent.orchestrator import SecurityViolationError
+
+    coordinator = _get_coordinator(model=effective_model, synthesis_model=effective_synthesis)
+
+    async def sse_event_generator():
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+
+        def _worker():
+            try:
+                for event in coordinator.execute_stream(
+                    raw_query=request.query,
+                    category=request.category,
+                    session_id=request.session_id,
+                    agent_version=request.agent_version,
+                    model=effective_model,
+                    synthesis_model=effective_synthesis,
+                    user_id=request.user_id,
+                ):
+                    loop.call_soon_threadsafe(queue.put_nowait, event)
+                    if event.get("event") == "complete":
+                        complete_data = event.get("data", {})
+                        if request.session_id:
+                            analytics_service.increment_session_comparisons(request.session_id)
+                            analytics_service.record_user_action(
+                                UserActionRequest(
+                                    action_type="compare_request",
+                                    session_id=request.session_id,
+                                    query=request.query,
+                                    category=request.category,
+                                    target_skus=[
+                                        p["sku"] for p in complete_data.get("products", [])
+                                    ],
+                                )
+                            )
+                        telemetry_logger.log_comparison_run(
+                            query_id=complete_data.get("trace_id")
+                            or f"query-{int(time.time() * 1000)}",
+                            session_id=request.session_id,
+                            query_text=request.query,
+                            category=request.category,
+                            latency_ms=complete_data.get("timing_breakdown_ms", {}).get(
+                                "total_pipeline_ms"
+                            ),
+                            input_tokens=complete_data.get("input_tokens"),
+                            output_tokens=complete_data.get("output_tokens"),
+                            bq_bytes_billed=complete_data.get("bq_bytes_billed"),
+                            retrieved_skus=[p["sku"] for p in complete_data.get("products", [])],
+                            status="SUCCESS" if complete_data.get("products") else "DEGRADED",
+                        )
+            except SecurityViolationError as sec_err:
+                err_ev = {
+                    "event": "error",
+                    "detail": str(sec_err),
+                    "code": "SECURITY_VIOLATION",
+                }
+                loop.call_soon_threadsafe(queue.put_nowait, err_ev)
+            except Exception as exc:
+                logger.error("Error in stream worker: %s", exc)
+                err_ev = {
+                    "event": "error",
+                    "detail": "Comparison streaming error occurred.",
+                    "code": "STREAMING_ERROR",
+                }
+                loop.call_soon_threadsafe(queue.put_nowait, err_ev)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        worker_task = _REQUEST_EXECUTOR.submit(_worker)
+
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                event_name = item.get("event", "message")
+                payload = json.dumps(item)
+                yield f"event: {event_name}\ndata: {payload}\n\n"
+        finally:
+            if not worker_task.done():
+                pass
+
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(sse_event_generator(), media_type="text/event-stream", headers=headers)
 
 
 def _execute_chat_sync(request: ChatRequest) -> ChatResponse:

@@ -89,10 +89,16 @@ frontend/
   - Both `SearchBar.tsx` (`executeSearch`) and `App.tsx` (`handleCompareSelected`) inspect the active products: when all compared products share the exact same category, that category filter is passed; when products span multiple categories (e.g. Laptops + Tablets), `category: null` is passed so backend BigQuery SQL retrieval does not restrict retrieval to a single category.
 - **Specification-Aware Token Search Utility (`searchCatalogProducts`)**: `searchCatalogProducts(query: string, category?: string | null): ProductSpec[]` in `frontend/src/data/catalogProducts.ts` provides multi-word token matching across product name, brand, SKU, category, and all technical specification fields and unit suffixes (`ram_gb`, `refresh_rate_hz`, etc.).
 
-### 3. Latency & Perceived Performance
-- Total backend roundtrip target is $\le 3.0$ seconds.
-- Provide immediate visual feedback within 100ms: activate the `SkeletonLoader` immediately upon query submission.
-- Display latency indicator or "verified grounded in BigQuery" status chip.
+### 3. Latency & Perceived Performance: Stage 4 Progressive Streaming
+- **Total Backend Roundtrip Target**: $\le 3.0$ seconds P95.
+- **Immediate Progressive Rendering (`compareProductsStream`)**:
+  - The client streams comparisons via `compareProductsStream(request, callbacks)` over `POST /api/compare/stream` (with graceful fallback to `compareProducts`).
+  - **Instant TTFB on `matrix_ready` (~150ms)**: As soon as BigQuery SQL retrieval completes, `ProductCard`s, `ComparisonTable`, and SKU citation chips render immediately into the DOM, hiding the `SkeletonLoader` and allowing users to interact with specs while LLM generation continues.
+  - **Live AI Synthesis on `synthesis_chunk`**: `RecommendationCard` renders `<span data-testid="synthesis-streaming-badge">Synthesizing AI comparison...</span>` and a shimmer placeholder, streaming grounded summary and recommendations live into the UI as tokens arrive.
+  - **Dynamic Winner Updates on `matrix_updated`**: Updates matrix winner badges reactively if speculative winner LLM resolution alters attribute determinations.
+- **Visual Feedback & Telemetry**:
+  - Activates `SkeletonLoader` immediately upon query submission (before `matrix_ready`).
+  - Displays latency badge (`LatencyBadge`) and verified BigQuery catalog grounding indicator.
 
 ### 4. Interactive Follow-Up Chat Sidebar (`ConversationSidebar.tsx`)
 - Clicking "Ask Follow-up Questions" on `RecommendationCard` or the sticky "Chat" toggle button opens the responsive `ConversationSidebar`.

@@ -93,6 +93,41 @@ export interface ComparisonRequest {
   conversation_history?: ChatMessage[];
 }
 
+export interface ComparisonStreamCallbacks {
+  onMatrixReady?: (partial: {
+    products: ProductSpec[];
+    comparison_matrix: MatrixRow[];
+    citations: Citation[];
+    session_id?: string | null;
+    trace_id?: string | null;
+    timing_breakdown_ms?: Record<string, number>;
+  }) => void;
+  onSynthesisChunk?: (chunk: {
+    summary: string;
+    recommendations?: string | null;
+    delta?: string;
+  }) => void;
+  onMatrixUpdated?: (update: {
+    comparison_matrix: MatrixRow[];
+    spec_winners?: Record<string, string | string[]>;
+  }) => void;
+}
+
+export interface ComparisonStreamEvent {
+  event: 'matrix_ready' | 'synthesis_chunk' | 'matrix_updated' | 'complete';
+  products?: ProductSpec[];
+  comparison_matrix?: MatrixRow[];
+  citations?: Citation[];
+  summary?: string;
+  recommendations?: string | null;
+  delta?: string;
+  spec_winners?: Record<string, string | string[]>;
+  session_id?: string | null;
+  trace_id?: string | null;
+  timing_breakdown_ms?: Record<string, number>;
+  data?: ComparisonResponse;
+}
+
 export interface UserActionPayload {
   action_type: 'compare_request' | 'copy_markdown' | 'category_filter' | 'sample_click' | 'sku_click';
   session_id: string;

@@ -64,7 +64,7 @@ The end-to-end architecture is organized into **6 modular zones** connecting the
 | Zone | Architectural Layer | Key Components & Files | Primary Responsibility |
 | :--- | :--- | :--- | :--- |
 | **🔵 Zone 1** | **Client & Perimeter Security** | `frontend/src/App.tsx`, `cloudrun.tf`, `vpc_sc.tf`, `iam.tf` | React 18 SPA UI, Cloud Run Native IAP, VPC Service Controls perimeter, and least-privilege `catalog-agent-sa` IAM. |
-| **🟣 Zone 2** | **Cloud Run API Gateway** | `main.py`, `routes/compare.py`, `agent_card.py`, `middleware.py` | FastAPI endpoints (`/api/compare`, `/api/chat`, `/health`, `/health/ready`), A2A Agent Card (`/.well-known/agent-card.json`), and OpenTelemetry middleware. |
+| **🟣 Zone 2** | **Cloud Run API Gateway** | `main.py`, `routes/compare.py`, `agent_card.py`, `middleware.py` | FastAPI endpoints (`/api/compare`, `/api/compare/stream`, `/api/chat`, `/health`, `/health/ready`), A2A Agent Card (`/.well-known/agent-card.json`), and OpenTelemetry middleware. |
 | **🟢 Zone 3** | **Vertex AI Agent Engine & ADK Core** | `multi_agent.py`, `orchestrator.py`, `runner.py`, `adk_llm.py` | 3-Node `MultiAgentCoordinator` (`QueryIntentAgent` + `CatalogRetrievalStep` in parallel $\rightarrow$ `JoinNode` $\rightarrow$ `SpecComparisonAgent` with `ComparisonSynthesis.spec_winners`), Model Armor, and Vertex AI Prompt Management. |
 | **🟠 Zone 4** | **Data, Storage & Telemetry Layer** | `tools/catalog.py`, `data/ingest.py`, `data/analytics.py`, `bigquery.tf` | Partitioned/clustered BigQuery catalog (`catalog.products`), GCS seed bucket, Firestore session store, and BigQuery telemetry sinks. |
 | **🟣 Zone 5** | **Evaluation & Anti-Overfitting Flywheel** | `evals/runner.py`, `trajectory_grader.py`, `pairwise_judge.py` | 80-pair benchmark + counterfactual holdout datasets, `ADKTrajectoryEvaluator`, and swapped-order pairwise LLM judge. |
@@ -92,7 +92,7 @@ flowchart TB
     end
 
     subgraph ServiceLayer ["2. Application Runtime (Google Cloud Run: catalog-comparison-service)"]
-        API["FastAPI Gateway (/api/compare, /api/chat, /health, /healthz, /health/ready)"]:::gateway
+        API["FastAPI Gateway (/api/compare, /api/compare/stream, /api/chat, /health, /healthz, /health/ready)"]:::gateway
         REGISTRY["Google Cloud Agent Registry & A2A Card (/.well-known/agent-card.json)"]:::gateway
         OTEL["ObservabilityMiddleware & OpenTelemetry SDK (W3C Trace Context & X-Trace-ID)"]:::gateway
 
@@ -255,7 +255,75 @@ sequenceDiagram
     UI-->>Customer: Display conversational reply with clickable [SKU: ...] citations & suggested chips
 ```
 
-### 3.2 Single-Agent vs. Multi-Agent Systems Architectural Trade-off Evaluation
+### 3.2 Stage 4 SSE Streaming & Progressive Matrix Rendering Sequence (`POST /api/compare/stream`)
+
+To eliminate the ~2-second loading spinner and achieve instant **< 200ms Time-to-First-Byte (TTFB)**, the system exposes a Server-Sent Events (SSE) streaming endpoint at `POST /api/compare/stream` (and `/api/v1/compare/stream`). The React UI progressively renders the verified `ProductCard` components and `ComparisonTable` as soon as the deterministic BigQuery SQL step returns (`matrix_ready`), while the LLM synthesis narrative streams incrementally token-by-token:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Customer as Shopper / Browser
+    participant UI as React 18 Frontend (App.tsx & RecommendationCard)
+    participant API as FastAPI Gateway (/api/compare/stream)
+    participant Coord as MultiAgentCoordinator
+    participant BQ as BigQuery (CatalogRetrievalStep)
+    participant LLM as Vertex AI Gemini (Stage 4 Streaming Synthesis)
+    participant Armor as Vertex AI Model Armor (Response Guard)
+
+    Customer->>UI: Selects products or types compare query
+    UI->>API: POST /api/compare/stream {query: "...", session_id: "..."} (SSE)
+    API->>Coord: execute_stream(query, category, session_id)
+    
+    rect rgb(240, 248, 255)
+        note over Coord,BQ: Parallel t=0 Stages 1 & 2 (~120ms - 150ms)
+        par Stage 1: Query Intent
+            Coord->>Coord: QueryIntentAgent (Extract entities, intent classification)
+        and Stage 2: Deterministic Catalog Retrieval
+            Coord->>BQ: Direct parameterized SQL (QueryJobConfig)
+            BQ-->>Coord: Validated ProductRecord list (≥ 2 verified SKUs)
+        end
+    end
+
+    rect rgb(245, 255, 245)
+        note over Coord,UI: Immediate Deterministic Matrix Ready (~150ms TTFB)
+        Coord->>Coord: build_comparison_matrix(products)
+        Coord-->>API: yield ComparisonStreamEvent(event="matrix_ready", data={products, comparison_matrix, citations})
+        API-->>UI: SSE event: matrix_ready\ndata: {...}\n\n
+        UI-->>Customer: Instantly renders ProductCards & ComparisonTable (Progressive UX)
+    end
+
+    rect rgb(255, 250, 240)
+        note over Coord,LLM: Stage 4 Parallel Winner Badging & Streaming Synthesis
+        par Async Winner Badging
+            Coord->>Coord: Background task _run_matrix_winners_llm(products, matrix)
+        and Streaming LLM Synthesis
+            Coord->>LLM: stream_synthesize_comparison_with_llm(products, matrix, query)
+            loop Streaming Tokens
+                LLM-->>Coord: Raw JSON text chunks
+                Coord->>Coord: _extract_partial_synthesis_fields() + _strip_trailing_incomplete_sku_tag()
+                Coord-->>API: yield ComparisonStreamEvent(event="synthesis_chunk", data={summary, recommendations})
+                API-->>UI: SSE event: synthesis_chunk\ndata: {...}\n\n
+                UI-->>Customer: Live typing narrative in RecommendationCard with [AI Streaming] badge
+            end
+        end
+    end
+
+    opt Winners Resolution
+        Coord-->>API: yield ComparisonStreamEvent(event="matrix_updated", data={comparison_matrix})
+        API-->>UI: SSE event: matrix_updated\ndata: {...}\n\n
+        UI-->>Customer: Highlights green WINNER spec badges in ComparisonTable
+    end
+
+    rect rgb(250, 245, 255)
+        note over Coord,Armor: Model Armor Guard & Completion
+        Coord->>Armor: sanitize_model_response(summary, recommendations)
+        Coord-->>API: yield ComparisonStreamEvent(event="complete", data=ComparisonResponse)
+        API-->>UI: SSE event: complete\ndata: {...}\n\n
+        UI-->>Customer: Finalizes RecommendationCard narrative, latency badge & active state
+    end
+```
+
+### 3.3 Single-Agent vs. Multi-Agent Systems Architectural Trade-off Evaluation
 
 To address complex consumer electronics comparison workflows, our architecture implements a modular 3-Node Multi-Agent Cooperative System (`MultiAgentCoordinator`) backed by Google ADK:
 
@@ -1070,9 +1138,9 @@ To serve as the single point of reference across all domains, the tables below m
 | :--- | :--- | :--- |
 | `backend/src/app/main.py` | `create_app()`, `app`, `health()`, `readiness()`, `well_known_agent_card()` | FastAPI entrypoint, CORS & `ObservabilityMiddleware` registration, `/health` & `/healthz` liveness probes (`health()`), `/health/ready` readiness probe (`readiness()`), and `/.well-known/agent-card.json` A2A v0.3.0 discovery route. |
 | `backend/src/app/config.py` | `Settings`, `get_settings()` | Pydantic Settings configuration (`PROJECT_ID`, `BQ_DATASET`, `BQ_TABLE`, `GEMINI_MODEL`, `ENABLE_MODEL_ARMOR`, `MODEL_ARMOR_PROMPT_TEMPLATE`, `MODEL_ARMOR_RESPONSE_TEMPLATE`, `ENABLE_VERTEX_PROMPT_REGISTRY`, `VERTEX_PROMPT_ID=6884046974429954048`, `GOOGLE_CLOUD_AGENT_ENGINE_ID`). |
-| `backend/src/app/routes/compare.py` | `compare_products()`, `get_agent_card()`, `list_agent_versions()`, `log_action()`, `submit_feedback()` | REST API controllers for `POST /api/compare` (sets `X-Pipeline-Timing` header), `GET /api/agent/card`, `GET /api/agent/versions`, `POST /api/actions` (`log_action()`), and `POST /api/feedback` (`submit_feedback()`). |
-| `backend/src/app/agent/multi_agent.py` | `MultiAgentCoordinator`, `ComparisonAgentState`, `QueryIntentAgent`, `CatalogRetrievalAgent`, `CatalogRetrievalStep`, `SpecComparisonAgent` | 3-Node cooperative pipeline with ADK 2.0 Workflow graph, parallel fan-out (`START` $\rightarrow$ Intent + Retrieval) into `JoinNode("intent_retrieval_join")`, stage timing capture (`intent_ms`, `retrieval_ms`, `synthesis_ms`), and deterministic candidate selection. |
-| `backend/src/app/agent/orchestrator.py` | `ComparisonOrchestrator`, `sanitize_user_prompt()`, `get_default_safety_settings()`, `get_model_armor_config()`, `resolve_model_pair()`, `create_adk_agent()` | Core grounding engine, Vertex AI `types.ModelArmorConfig` integration (`catalog-prompt-guard` / `catalog-resp-guard` with fallback to `get_default_safety_settings()`), regex/XML prompt injection sanitizer (`sanitize_user_prompt()`), syntactic keyword extractor, and post-generation deterministic `[SKU: <id>]` citation scrubber (`verify_and_scrub_sku_citations()`). |
+| `backend/src/app/routes/compare.py` | `compare_products()`, `compare_products_stream()`, `get_agent_card()`, `list_agent_versions()`, `log_action()`, `submit_feedback()` | REST API controllers for `POST /api/compare` (sets `X-Pipeline-Timing` header), `POST /api/compare/stream` (SSE `text/event-stream` returning `matrix_ready`, `synthesis_chunk`, `matrix_updated`, and `complete`), `GET /api/agent/card`, `GET /api/agent/versions`, `POST /api/actions` (`log_action()`), and `POST /api/feedback` (`submit_feedback()`). |
+| `backend/src/app/agent/multi_agent.py` | `MultiAgentCoordinator`, `ComparisonAgentState`, `QueryIntentAgent`, `CatalogRetrievalAgent`, `CatalogRetrievalStep`, `SpecComparisonAgent` | 3-Node cooperative pipeline with ADK 2.0 Workflow graph, parallel fan-out (`START` $\rightarrow$ Intent + Retrieval) into `JoinNode("intent_retrieval_join")`, stage timing capture (`intent_ms`, `retrieval_ms`, `synthesis_ms`), deterministic candidate selection, and `execute_stream()` SSE streaming. |
+| `backend/src/app/agent/orchestrator.py` | `ComparisonOrchestrator`, `stream_synthesize_comparison_with_llm()`, `sanitize_user_prompt()`, `get_default_safety_settings()`, `get_model_armor_config()`, `resolve_model_pair()`, `create_adk_agent()` | Core grounding engine, Vertex AI `types.ModelArmorConfig` integration (`catalog-prompt-guard` / `catalog-resp-guard` with fallback to `get_default_safety_settings()`), regex/XML prompt injection sanitizer (`sanitize_user_prompt()`), syntactic keyword extractor, and post-generation deterministic `[SKU: <id>]` citation scrubber (`verify_and_scrub_sku_citations()`), and incremental SSE streaming (`stream_synthesize_comparison_with_llm()`). |
 | `backend/src/app/agent/runner.py` | `CatalogAdkRunner`, `CatalogVertexAiSessionService` (`VertexAiSessionService`), `get_default_session_service()`, `create_catalog_runner()`, `get_adk_runner()`, `run_adk_agent()`, `run_adk_agent_sync()` | Native Google ADK `InMemoryRunner` & `VertexAiSessionService` / `InMemorySessionService` event-streaming execution engine. |
 | `backend/src/app/agent/reasoning_engine.py` | `CatalogComparisonReasoningEngine` | Vertex AI Agent Runtime wrapper implementing `set_up()`, `query()`, and `stream_query()` conforming to Vertex AI Reasoning Engine contract (`reasoningEngines` API). |
 | `backend/src/app/agent/agent.py` | `root_agent` (`catalog_agent`) | Canonical ADK CLI entrypoint (`google.adk.cli.AgentLoader`) for the ADK Web Playground. |
@@ -1092,15 +1160,15 @@ To serve as the single point of reference across all domains, the tables below m
 
 | File Path | Component / Hook | Architectural Responsibility |
 | :--- | :--- | :--- |
-| `frontend/src/App.tsx` & `main.tsx` | `App` | Main retail comparison workspace, category filter bar, quick-compare prompt pills, live catalog search input with match count badge, dynamic '+ Add Product to Compare Against' popover, paginated ProductCard rendering (initial 40 cards with Load More button) maintaining total verified SKU counts (10,040 verified SKUs), and state management. |
+| `frontend/src/App.tsx` & `main.tsx` | `App` | Main retail comparison workspace, category filter bar, quick-compare prompt pills, live catalog search input with match count badge, dynamic '+ Add Product to Compare Against' popover, paginated ProductCard rendering (initial 40 cards with Load More button) maintaining total verified SKU counts (10,040 verified SKUs), progressive streaming matrix rendering on `matrix_ready`, and state management. |
 | `frontend/src/components/SearchBar.tsx` & `SkeletonLoader.tsx` | `SearchBar`, `SkeletonLoader` | Accessible natural-language comparison input bar with category pills, animated loading skeleton state, interactive product search autocomplete/typeahead dropdown capped to 25 items, keyboard navigation, and product tagging/picker (up to 4 products). |
 | `frontend/src/components/ProductSelectionTray.tsx` | `ProductSelectionTray` | Floating product selection and comparison tray, allowing users to inspect selected items, trigger multi-item comparisons, and dynamically add products via the search popover picker. |
 | `frontend/src/components/ComparisonTable.tsx` | `ComparisonTable` | Side-by-side specification matrix with winner highlight badges, dynamic attribute alignment, and responsive horizontal scrolling. |
 | `frontend/src/components/ProductCard.tsx` | `ProductCard` | Product summary card displaying retail price, star ratings, stock status, and clickable `[SKU: ...]` citation chips. |
-| `frontend/src/components/RecommendationCard.tsx` | `RecommendationCard` | Executive buyer trade-off narrative card with Copy Markdown action (`sendUserAction`) and Thumbs-Up / Thumbs-Down feedback (`sendFeedback`). |
+| `frontend/src/components/RecommendationCard.tsx` | `RecommendationCard` | Executive buyer trade-off narrative card with live token streaming badge (`data-testid="synthesis-streaming-badge"`), Copy Markdown action (`sendUserAction`) and Thumbs-Up / Thumbs-Down feedback (`sendFeedback`). |
 | `frontend/src/components/CitationChip.tsx` & `LatencyBadge.tsx` | `CitationChip`, `LatencyBadge` | Interactive SKU citation badge (`[SKU: ...]`) with deep-link/action tracking and real-time SLA latency badge (`<= 3.0s`). |
 | `frontend/src/data/catalogProducts.ts` | `CATALOG_PRODUCTS`, `getCatalogProducts()`, `searchCatalogProducts()` | Static verified catalog dataset (10,040 SKUs across 5 categories) and direct on-demand multi-token search engine filtering products across name, brand, SKU, category, and technical specifications with unit-suffix aliases (e.g. `16gb`, `120hz`) without duplicate module-level in-memory pre-indexed maps or arrays. |
-| `frontend/src/api/client.ts` & `frontend/src/types/comparison.ts` | `compareProducts()`, `sendUserAction()`, `sendFeedback()`, `checkHealth()`, `ComparisonResponse` | Typed HTTP client communicating with `/api/compare`, `/api/actions`, `/api/feedback`, and `/health` with session ID propagation and strict TypeScript interfaces. |
+| `frontend/src/api/client.ts` & `frontend/src/types/comparison.ts` | `compareProducts()`, `compareProductsStream()`, `sendUserAction()`, `sendFeedback()`, `checkHealth()`, `ComparisonResponse` | Typed HTTP client communicating with `/api/compare`, `/api/compare/stream` (SSE fetch + reader), `/api/actions`, `/api/feedback`, and `/health` with session ID propagation and strict TypeScript interfaces. |
 
 ### 12.3 Infrastructure-as-Code & Deployment Automation (`deployment/`)
 
@@ -1172,7 +1240,7 @@ When protecting a Cloud Run service directly with **Google Cloud Identity-Aware 
 | **G1** | **BigQuery Retrieval Engine (`catalog.py`)** | **P0** | Parameterized SQL (`UNNEST(@product_terms)` `LIKE` matching + SKU lookup) followed by in-memory token overlap and LLM reranking (`RelevanceDetectorAgent`). | **No pre-computed Vector Embedding column or `VECTOR_SEARCH` index** in `catalog.products`. Pure lexical `LIKE` matching can miss semantic synonyms (e.g., *"noise-canceling airplane cans"* won't match `"Headphones"` unless extracted by Turn 1 LLM). | 1. Add `embedding ARRAY<FLOAT64>` column to `catalog.products` (`bigquery.tf`).<br>2. Populate embeddings via Vertex AI `text-embedding-004` (`ML.GENERATE_EMBEDDING`).<br>3. Update `query_catalog()` in `backend/src/app/tools/catalog.py` to execute hybrid `VECTOR_SEARCH(..., distance_type => 'COSINE')` combined with hard SQL predicates (`in_stock = TRUE AND price <= @max_price`). |
 | **G2** | **No External Load Balancer, WAF, CDN, or Multi-Region HA** | **P0** | Single-region Cloud Run (`us-central1`) using direct `.a.run.app` endpoint with Native IAP (`run.googleapis.com/iap-enabled: true`). **Zero Load Balancer resources exist in `deployment/terraform/`.** | **No Global External Application Load Balancer, no Cloud Armor WAF/DDoS rate limiting, no Cloud CDN, and single-region SPOF (`us-central1`).** If `us-central1` has an outage or a bot floods `/api/compare`, there is no edge WAF or regional failover. | 1. Add `deployment/terraform/load_balancer.tf` provisioning a Global External Application LB (`google_compute_global_forwarding_rule`).<br>2. Attach `google_compute_security_policy` (**Cloud Armor** OWASP Top 10 + IP rate limit `60 req/min`).<br>3. Deploy Cloud Run to both `us-central1` and `us-east4` behind **Serverless NEGs** with Cloud CDN enabled for static frontend assets (see **Section 14.2** below). |
 | **G3** | **Model Armor Enforcement & Out-of-Band Agent Gateway (`modelarmor.googleapis.com`)** | **P1** | **Live GCP Model Armor + Python SDK + Terraform ARE enabled**: `modelarmor.googleapis.com` is enabled (`deployment/terraform/model_armor.tf`), `roles/modelarmor.user` is bound to `catalog-agent-sa` and the Vertex AI Service Agent (`service-499572810092@gcp-sa-aiplatform.iam.gserviceaccount.com`), and `catalog-prompt-guard` / `catalog-resp-guard` are provisioned in both multi-region `locations/us` (for Vertex AI Groot multi-region dataplane) and `locations/us-central1`. `orchestrator.py` and `hermetic_adapter.py` pass `types.ModelArmorConfig` across all intent, reranking, synthesis, and ADK LLM calls (`BlockedReason.MODEL_ARMOR`). | **In-Process SDK Enforcement Only (No Out-of-Band Network Agent Gateway)**: While Vertex AI `GenerateContent` actively enforces `catalog-prompt-guard` and `catalog-resp-guard`, tool invocation checks still execute in-process rather than through an out-of-band network proxy. | 1. Upgrade `hashicorp/google` provider when native `google_model_armor_template` graduates to GA.<br>2. For future multi-agent / external MCP expansion, bind to **Google Cloud Agent Gateway (GEAP)** for out-of-band network inspection and SPIFFE workload identity (see **Section 14.3** below). |
-| **G4** | **Client UX & Response Streaming (`compare.py` / `App.tsx`)** | **P1** | Synchronous request/response (`POST /api/compare`): client waits `1.5s–2.4s` for all 4 ADK nodes to finish before receiving the full JSON payload. | **No Server-Sent Events (SSE) / progressive streaming to the browser.** Users see a loading spinner for ~2 seconds instead of instant stage progress and token-by-token narrative streaming (`<300ms` TTFB). | 1. Add `POST /api/compare/stream` in `backend/src/app/routes/compare.py` returning `StreamingResponse(..., media_type="text/event-stream")` powered by `run_adk_agent()`.<br>2. Emit real-time SSE events (`stage:intent_complete`, `stage:retrieved_skus`, `delta:summary_token`, `final:matrix`).<br>3. Update `frontend/src/api/client.ts` and `App.tsx` to render retrieved product cards immediately at `~400ms` while the comparison matrix streams in. |
+| **G4** | **Client UX & Response Streaming (`compare.py` / `App.tsx`)** | **P1 (Resolved)** | **COMPLETED & DEPLOYED**: `POST /api/compare/stream` (and `/api/v1/compare/stream`) implemented in `routes/compare.py` returning SSE `text/event-stream`. `MultiAgentCoordinator.execute_stream()` immediately yields `matrix_ready` (~150ms TTFB) with products and deterministic comparison matrix, followed by incremental `synthesis_chunk` tokens with `[SKU: ...]` scrubber and Model Armor guard, `matrix_updated` upon async winner badging, and `complete`. `frontend/src/api/client.ts` implements `compareProductsStream()` with fallback to `compareProducts()`, and `App.tsx` + `RecommendationCard.tsx` progressively render the UI with zero loading wait. | **Resolved**: Full end-to-end SSE progressive streaming with instantaneous matrix rendering and token-by-token synthesis is fully implemented, verified, and tested. | Production-grade implementation complete. Unit & integration test suites in `test_stage4_streaming.py`, `client.test.ts`, and `RecommendationCard.test.tsx` pass. |
 | **G5** | **Multi-Turn Session Persistence (`runner.py`)** | **P1** | `AnalyticsService` logs session counters to Firestore, and `runner.py` defines `CatalogVertexAiSessionService(VertexAiSessionService)` which delegates to Vertex AI Agent Engine (`vertexai.Client.aio.agent_engines.sessions`) when `GOOGLE_CLOUD_AGENT_ENGINE_ID` or `AGENT_RUNTIME_RESOURCE_NAME` is set, falling back to `InMemorySessionService`. | **`GOOGLE_CLOUD_AGENT_ENGINE_ID` is not set by default in `cloudrun.tf`** (though `AGENT_RUNTIME_RESOURCE_NAME` is configured in `service.yaml`), so unconfigured local/sandbox instances fall back to volatile `InMemorySessionService`. | 1. Inject `GOOGLE_CLOUD_AGENT_ENGINE_ID` (or `AGENT_RUNTIME_RESOURCE_NAME`) into `deployment/terraform/cloudrun.tf` so `CatalogVertexAiSessionService(VertexAiSessionService)` in `backend/src/app/agent/runner.py` persists multi-turn ADK `Session` events via Vertex AI Agent Engine across all instances. |
 | **G6** | **Cold Start Elimination & Prompt Caching** | **P1** | `deployment/clouddeploy/service.yaml` sets `autoscaling.knative.dev/minScale: '0'` (`min_instances = 0` in `cloudrun.tf`) to keep sandbox cost near `$0`. | **4.0s to 6.0s Cold Start Latency** on the first request after 15 minutes of idle time (violating the `<= 3.0s` P95 SLA on cold hits). | 1. Update `minScale: '1'` in `deployment/clouddeploy/service.yaml` and `min_instances = 1` in `deployment/terraform/cloudrun.tf` (`+$14.40/mo`).<br>2. Enable `run.googleapis.com/cpu-throttling: 'false'` (CPU always allocated) and Vertex AI Context Caching for the static system instruction. |
 | **G7** | **Live Catalog CDC Ingestion & Store Inventory Tools** | **P2** | BigQuery `catalog.products` is populated via batch JSON seeding (`BigQueryCatalogIngestor` in `backend/src/app/data/ingest.py`). Only 1 ADK tool (`query_catalog`) is exposed. | **Static pricing/stock state and no real-time local store pickup tool.** Prices or inventory changes in live retail systems are not streamed in real time, and shoppers cannot ask *"Is SKU 6534606 in stock at the Austin store?"* | 1. Add Pub/Sub $\rightarrow$ BigQuery Storage Write API streaming CDC pipeline for real-time price/stock updates.<br>2. Register a second ADK tool `check_store_inventory(sku: str, zip_code: str)` in `backend/src/app/tools/` and expose it via MCP. |

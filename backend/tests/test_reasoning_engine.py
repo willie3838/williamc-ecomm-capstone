@@ -45,9 +45,11 @@ def test_reasoning_engine_stream_query() -> None:
     events = list(engine.stream_query(query="MacBook Air vs Dell XPS 13"))
 
     assert len(events) >= 1
-    assert events[0]["event_type"] == "comparison_completed"
-    assert "data" in events[0]
-    assert "summary" in events[0]["data"]
+    completed_event = [e for e in events if e.get("event_type") == "comparison_completed"][-1]
+    assert completed_event["event_type"] == "comparison_completed"
+    assert "data" in completed_event
+    assert "summary" in completed_event["data"]
+    assert any(e.get("event") == "matrix_ready" for e in events)
 
 
 def test_route_delegates_to_agent_runtime_when_configured() -> None:

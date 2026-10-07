@@ -71,4 +71,28 @@ describe('RecommendationCard', () => {
     fireEvent.click(thumbsUpBtn);
     expect(thumbsUpBtn).toHaveClass('bg-blue-100');
   });
+
+  it('renders streaming indicator badge when isStreaming is true', () => {
+    render(
+      <RecommendationCard
+        summary="Partial streamed summary [SKU: 6534606]..."
+        recommendations={null}
+        isStreaming={true}
+      />
+    );
+    expect(screen.getByTestId('synthesis-streaming-badge')).toBeInTheDocument();
+    expect(screen.getByText(/Synthesizing AI comparison/i)).toBeInTheDocument();
+  });
+
+  it('renders shimmer placeholder when isStreaming is true and summary is empty', () => {
+    render(
+      <RecommendationCard
+        summary=""
+        recommendations={null}
+        isStreaming={true}
+      />
+    );
+    expect(screen.getByTestId('synthesis-streaming-badge')).toBeInTheDocument();
+    expect(screen.getByTestId('synthesis-shimmer-placeholder')).toBeInTheDocument();
+  });
 });
