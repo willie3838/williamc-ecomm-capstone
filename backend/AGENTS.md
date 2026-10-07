@@ -226,9 +226,9 @@ Instead of maintaining a custom in-memory registry class, the backend integrates
    - **Per-Stage Optimal Models & Spec Synthesis Quality Leaderboard**:
      - Configured in `app.config.Settings`:
        - `stage1_intent_model = "gemini-3.5-flash-lite"` (100% intent classification, ~250ms latency)
-       - `stage3_synthesis_model = "gemini-2.5-pro"` (Synthesis Quality Winner: `0.9760` mean semantic coherence, `4.88 / 5.0` synthesis quality)
+       - `stage3_synthesis_model = "gemini-3.5-flash-lite"` (Synthesis Specialist model: ultra-fast latency and high-quality grounded synthesis)
        - `stage3_fast_synthesis_model = "gemini-2.5-flash-lite"` (Synthesis Latency Winner: `~520ms` P95, `4.10 / 5.0` synthesis quality)
-     - `app.agent.orchestrator` exposes `STAGE_OPTIMAL_MODELS` and `resolve_stage_models(fast_synthesis: bool = False)`, and `resolve_model_pair("stage-optimal")` maps cleanly to `("gemini-3.5-flash-lite", "gemini-2.5-pro")`.
+     - `app.agent.orchestrator` exposes `STAGE_OPTIMAL_MODELS` and `resolve_stage_models(fast_synthesis: bool = False)`, and `resolve_model_pair("stage-optimal")` maps cleanly to `("gemini-3.5-flash-lite", "gemini-3.5-flash-lite")`.
      - `MultiAgentCoordinator` supports `use_stage_optimal_models=True` and `model="stage-optimal"`, routing each specialist agent node (`QueryIntentAgent`, `SpecComparisonAgent`) to its benchmarked optimal model while preserving full backward compatibility with `resolve_model_pair`.
    - **9-GA-Model Evaluation Fleet (Gemini 2.5 through 3.8)**: Full per-agent benchmarking across the 2 LLM specialist agents (`QueryIntentAgent`, `SpecComparisonAgent`) supports:
      - Flash-Lite models: `gemini-2.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.5-flash-lite`

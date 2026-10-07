@@ -292,6 +292,12 @@ def test_cloud_deploy_service_manifest(service_config: dict):
     container = containers[0]
     assert "startupProbe" in container, "service.yaml container must declare startupProbe"
     assert "livenessProbe" in container, "service.yaml container must declare livenessProbe"
+    env_vars = {
+        item["name"]: item.get("value") for item in container.get("env", []) if "name" in item
+    }
+    assert env_vars.get("STAGE3_SYNTHESIS_MODEL") == "gemini-3.5-flash-lite", (
+        "service.yaml must declare STAGE3_SYNTHESIS_MODEL=gemini-3.5-flash-lite"
+    )
 
 
 # ==============================================================================
@@ -324,6 +330,9 @@ def test_dockerfile_port_and_healthcheck(dockerfile_content: str):
     assert "EXPOSE 8080" in dockerfile_content, "Dockerfile must expose port 8080"
     assert "HEALTHCHECK" in dockerfile_content, "Dockerfile must define a HEALTHCHECK instruction"
     assert "uvicorn" in dockerfile_content, "Dockerfile CMD must execute uvicorn"
+    assert "STAGE3_SYNTHESIS_MODEL=gemini-3.5-flash-lite" in dockerfile_content, (
+        "Dockerfile must declare ENV STAGE3_SYNTHESIS_MODEL=gemini-3.5-flash-lite"
+    )
 
 
 # ==============================================================================

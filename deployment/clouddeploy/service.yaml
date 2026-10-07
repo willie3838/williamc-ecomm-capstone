@@ -46,6 +46,8 @@ spec:
               value: "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-prompt-guard"
             - name: MODEL_ARMOR_RESPONSE_TEMPLATE
               value: "projects/fde-bestbuy-sandbox-dev-508321/locations/us-central1/templates/catalog-resp-guard"
+            - name: STAGE3_SYNTHESIS_MODEL
+              value: gemini-3.5-flash-lite
           ports:
             - containerPort: 8080
           startupProbe:

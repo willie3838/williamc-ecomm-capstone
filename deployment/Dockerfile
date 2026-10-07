@@ -32,6 +32,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONPATH=/app/src:$PYTHONPATH
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
+ENV STAGE3_SYNTHESIS_MODEL=gemini-3.5-flash-lite
 
 # Copy application source code with correct non-root ownership
 COPY --chown=appuser:appgroup backend/src /app/src

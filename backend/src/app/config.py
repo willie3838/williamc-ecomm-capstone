@@ -121,7 +121,7 @@ class Settings(BaseSettings):
         description="Stage 2 Relevance Detector Specialist optimal model",
     )
     stage3_synthesis_model: str = Field(
-        default="gemini-2.5-pro",
+        default="gemini-3.5-flash-lite",
         alias="STAGE3_SYNTHESIS_MODEL",
         description="Stage 3/4 Spec Comparison Specialist deep quality narrative synthesis model",
     )
