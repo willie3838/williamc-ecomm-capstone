@@ -706,7 +706,7 @@ def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matri
         lambda **kwargs: [p.model_dump() for p in sample_products[:2]],
     )
 
-    resp = orch.compare("Compare MacBook Air vs Dell XPS 13", category="Laptops")
+    resp = orch.compare("Compare MacBook Air vs Dell XPS 13 for travel", category="Laptops")
     assert len(resp.products) == 2
     assert len(resp.comparison_matrix) >= 1
     assert matrix_winners_called["count"] == 1
