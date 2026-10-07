@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from app.agent.agent_card import build_a2a_agent_card
 from app.config import Settings, get_settings, settings
-from app.data.analytics import analytics_service
+from app.data.analytics import analytics_service, telemetry_logger
 from app.models import (
     AgentVersionsResponse,
     AgentVersionSummary,
@@ -433,8 +433,7 @@ async def compare_products(
                 target_skus=[p.sku for p in result.products],
             ),
         )
-    await asyncio.to_thread(
-        analytics_service.record_query_telemetry,
+    telemetry_logger.log_comparison_run(
         query_id=result.trace_id or f"query-{int(time.time() * 1000)}",
         session_id=request.session_id,
         query_text=request.query,

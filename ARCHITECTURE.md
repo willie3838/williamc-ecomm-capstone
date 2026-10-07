@@ -100,11 +100,11 @@ flowchart TB
             RUNNER["CatalogAdkRunner (CatalogVertexAiSessionService & InMemorySessionService)"]:::agent
             ROUTER["MultiAgentCoordinator & ComparisonOrchestrator"]:::agent
 
-            subgraph Pipeline ["4-Stage Specialist Pipeline"]
-                N1["Stage 1: QueryIntentAgent (Prompt Sanitization & Gemini Flash-Lite Intent)"]:::agent
-                N2["Stage 2: CatalogRetrievalAgent (query_catalog Tool, 5m TTL Cache & Circuit Breaker)"]:::agent
-                N3["Stage 3: RelevanceDetectorAgent (LLM Reranking >= 6.0 & Brand Entity Balancing)"]:::agent
-                N4["Stage 4: SpecComparisonAgent (ComparisonSynthesis.spec_winners, MatrixRow Builder & SKU Scrubber)"]:::agent
+            subgraph Pipeline ["4-Stage Specialist Pipeline (Parallel t=0 Stage 1+2 & 0ms Stage 3)"]
+                N1["Stage 1 (t=0 Parallel): QueryIntentAgent (Prompt Sanitization & Gemini Flash-Lite Intent)"]:::agent
+                N2["Stage 2 (t=0 Parallel): CatalogRetrievalStep (Direct Tagged SKU SQL & Circuit Breaker)"]:::agent
+                N3["Stage 3 (0ms Deterministic): RelevanceDetectorAgent (Exact Tagged SKU Lock & Brand Entity Balancing)"]:::agent
+                N4["Stage 4: SpecComparisonAgent (Compact Synthesis Prompt + Parallel _run_matrix_winners_llm + build_comparison_matrix)"]:::agent
             end
 
             GEMINI["CatalogAdkLlm (BaseLlm in app.agent.adk_llm: Live Vertex AI Gemini 2.5 Pro / Flash / Flash-Lite)"]:::agent

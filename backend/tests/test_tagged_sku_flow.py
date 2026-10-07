@@ -445,3 +445,313 @@ def test_stage4_synthesis_prompt_short_handles_and_spec_pruning():
     ):
         assert non_comp_field not in spec_keys
         assert non_comp_field not in mw_prompt
+
+
+def test_compare_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(monkeypatch):
+    """Verify ComparisonOrchestrator.compare runs Stage 1 and Stage 2 in parallel at t=0 and discards BQ results on chatter."""
+    import threading
+    import time
+
+    import app.agent.orchestrator as orch_mod
+    from app.models.requests import QueryIntentAnalysis
+
+    orch = ComparisonOrchestrator()
+    barrier = threading.Barrier(2, timeout=2.0)
+    overlap_detected = {"both_running_at_t0": False}
+
+    def fake_classify_intent(query, model=None):
+        try:
+            barrier.wait()
+            overlap_detected["both_running_at_t0"] = True
+        except threading.BrokenBarrierError:
+            pass
+        return QueryIntentAnalysis(
+            intent_type="COMPARISON",
+            detected_category="Laptops",
+            target_keywords=["6534606", "6575132"],
+            is_comparison_eligible=True,
+            reasoning="Valid tagged comparison",
+        )
+
+    def fake_query_catalog(keywords=None, category=None, client=None, **kwargs):
+        try:
+            barrier.wait()
+            overlap_detected["both_running_at_t0"] = True
+        except threading.BrokenBarrierError:
+            pass
+        assert keywords == ["6534606", "6575132"]
+        assert category is None
+        return [
+            {
+                "sku": "6534606",
+                "name": 'Apple MacBook Air 13.6" Laptop',
+                "brand": "Apple",
+                "category": "Laptops",
+                "price": 1099.0,
+                "specifications": {"ram_gb": 16},
+                "in_stock": True,
+            },
+            {
+                "sku": "6575132",
+                "name": 'Dell XPS 13"',
+                "brand": "Dell",
+                "category": "Laptops",
+                "price": 1199.0,
+                "specifications": {"ram_gb": 16},
+                "in_stock": True,
+            },
+        ]
+
+    monkeypatch.setattr(orch, "classify_intent", fake_classify_intent)
+    monkeypatch.setattr(orch_mod, "query_catalog", fake_query_catalog)
+
+    resp = orch.compare(SAMPLE_TAGGED_QUERY, category="Laptops")
+    assert overlap_detected["both_running_at_t0"] is True
+    assert [p.sku for p in resp.products] == ["6534606", "6575132"]
+
+    # Now verify that if Stage 1 marks query as ineligible/chatter, Stage 2 BQ results are discarded
+    bq_called = {"count": 0}
+
+    def fake_chatter_intent(query, model=None):
+        time.sleep(0.02)
+        return QueryIntentAnalysis(
+            intent_type="OPINION_OR_CHATTER",
+            detected_category=None,
+            target_keywords=[],
+            is_comparison_eligible=False,
+            reasoning="Off-topic chatter despite tagged SKUs",
+        )
+
+    def fake_qc_discarded(keywords=None, category=None, client=None, **kwargs):
+        bq_called["count"] += 1
+        return [
+            {
+                "sku": "6534606",
+                "name": 'Apple MacBook Air 13.6" Laptop',
+                "brand": "Apple",
+                "category": "Laptops",
+                "price": 1099.0,
+                "specifications": {"ram_gb": 16},
+                "in_stock": True,
+            }
+        ]
+
+    monkeypatch.setattr(orch, "classify_intent", fake_chatter_intent)
+    monkeypatch.setattr(orch_mod, "query_catalog", fake_qc_discarded)
+    chatter_resp = orch.compare(SAMPLE_TAGGED_QUERY, category="Laptops")
+    assert bq_called["count"] == 1
+    assert chatter_resp.products == []
+    assert chatter_resp.comparison_matrix == []
+
+
+def test_multi_agent_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(monkeypatch):
+    """Verify MultiAgentCoordinator runs Stage 1 and Stage 2 in parallel at t=0 and discards BQ results on chatter."""
+    import threading
+
+    import app.agent.multi_agent as ma_mod
+    from app.agent.multi_agent import MultiAgentCoordinator
+    from app.models.requests import QueryIntentAnalysis
+
+    coordinator = MultiAgentCoordinator()
+    barrier = threading.Barrier(2, timeout=2.0)
+    overlap_detected = {"both_running_at_t0": False}
+
+    def fake_classify_intent(query, model=None):
+        try:
+            barrier.wait()
+            overlap_detected["both_running_at_t0"] = True
+        except threading.BrokenBarrierError:
+            pass
+        return QueryIntentAnalysis(
+            intent_type="COMPARISON",
+            detected_category="Laptops",
+            target_keywords=["6534606", "6575132"],
+            is_comparison_eligible=True,
+            reasoning="Valid tagged comparison",
+        )
+
+    def fake_query_catalog(keywords=None, category=None, client=None, **kwargs):
+        try:
+            barrier.wait()
+            overlap_detected["both_running_at_t0"] = True
+        except threading.BrokenBarrierError:
+            pass
+        assert keywords == ["6534606", "6575132"]
+        assert category is None
+        return [
+            {
+                "sku": "6534606",
+                "name": 'Apple MacBook Air 13.6" Laptop',
+                "brand": "Apple",
+                "category": "Laptops",
+                "price": 1099.0,
+                "specifications": {"ram_gb": 16},
+                "in_stock": True,
+            },
+            {
+                "sku": "6575132",
+                "name": 'Dell XPS 13"',
+                "brand": "Dell",
+                "category": "Laptops",
+                "price": 1199.0,
+                "specifications": {"ram_gb": 16},
+                "in_stock": True,
+            },
+        ]
+
+    monkeypatch.setattr(
+        coordinator.intent_agent.orchestrator, "classify_intent", fake_classify_intent
+    )
+    monkeypatch.setattr(ma_mod, "query_catalog", fake_query_catalog)
+
+    resp, state = coordinator.compare_with_trace(SAMPLE_TAGGED_QUERY, category="Laptops")
+    assert overlap_detected["both_running_at_t0"] is True
+    assert [p.sku for p in resp.products] == ["6534606", "6575132"]
+
+    # Now verify chatter discards Stage 2 retrieved products
+    def fake_chatter_intent(query, model=None):
+        return QueryIntentAnalysis(
+            intent_type="OPINION_OR_CHATTER",
+            detected_category=None,
+            target_keywords=[],
+            is_comparison_eligible=False,
+            reasoning="User chatter",
+        )
+
+    monkeypatch.setattr(
+        coordinator.intent_agent.orchestrator, "classify_intent", fake_chatter_intent
+    )
+    chatter_resp, chatter_state = coordinator.compare_with_trace(
+        SAMPLE_TAGGED_QUERY, category="Laptops"
+    )
+    assert chatter_resp.products == []
+    assert chatter_resp.comparison_matrix == []
+    assert chatter_state.retrieved_products == []
+
+
+def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matrix_winners(
+    monkeypatch, sample_products
+):
+    """Verify Stage 3 never calls _rerank_with_llm in comparison pipeline while Stage 4 keeps _run_matrix_winners_llm + build_comparison_matrix."""
+    import app.agent.multi_agent as ma_mod
+    import app.agent.orchestrator as orch_mod
+    from app.agent.multi_agent import MultiAgentCoordinator
+
+    orch = ComparisonOrchestrator()
+
+    def forbidden_rerank(*args, **kwargs):
+        raise AssertionError("_rerank_with_llm must not be called in comparison pipeline!")
+
+    matrix_winners_called = {"count": 0}
+    orig_mw = orch._run_matrix_winners_llm
+
+    def spy_mw(*args, **kwargs):
+        matrix_winners_called["count"] += 1
+        return orig_mw(*args, **kwargs)
+
+    monkeypatch.setattr(orch, "_rerank_with_llm", forbidden_rerank)
+    monkeypatch.setattr(orch, "_run_matrix_winners_llm", spy_mw)
+    monkeypatch.setattr(
+        orch_mod,
+        "query_catalog",
+        lambda **kwargs: [p.model_dump() for p in sample_products],
+    )
+
+    resp = orch.compare("Compare MacBook Air vs Dell XPS 13", category="Laptops")
+    assert len(resp.products) == 2
+    assert len(resp.comparison_matrix) >= 1
+    assert matrix_winners_called["count"] == 1
+
+    # Also check MultiAgentCoordinator
+    coordinator = MultiAgentCoordinator()
+    monkeypatch.setattr(
+        coordinator.relevance_agent.orchestrator, "_rerank_with_llm", forbidden_rerank
+    )
+    monkeypatch.setattr(
+        ma_mod,
+        "query_catalog",
+        lambda **kwargs: [p.model_dump() for p in sample_products],
+    )
+    ma_resp, _ = coordinator.compare_with_trace(SAMPLE_TAGGED_QUERY, category="Laptops")
+    assert [p.sku for p in ma_resp.products] == ["6534606", "6575132"]
+    assert len(ma_resp.comparison_matrix) >= 1
+
+
+def test_compact_synthesis_prompt_preserves_skus_and_prices(sample_products):
+    """Verify compacted _build_synthesis_prompt and STAGE4_SYNTHESIS_PROMPT_TEMPLATE preserve [SKU: ...] and $ prices."""
+    from app.agent.prompts import STAGE4_SYNTHESIS_PROMPT_TEMPLATE
+
+    orch = ComparisonOrchestrator()
+    products = sample_products[:2]
+    prompt = orch._build_synthesis_prompt(products, [], SAMPLE_TAGGED_QUERY)
+
+    assert "[SKU: 6534606]" in prompt
+    assert "[SKU: 6575132]" in prompt
+    assert "$1099.00" in prompt
+    assert "$1199.00" in prompt
+    assert "<catalog_products>" in prompt
+    assert "<user_query>" in prompt
+    assert len(STAGE4_SYNTHESIS_PROMPT_TEMPLATE) < 1100
+    assert len(prompt) < 1500
+
+
+def test_telemetry_logger_non_blocking_in_live_mode_and_background_warmup(monkeypatch):
+    """Verify TelemetryLogger.log_comparison_run is non-blocking in live mode and background warmup is enabled in config."""
+    import time
+
+    from app.config import Settings
+    from app.data.analytics import TelemetryLogger
+    from app.observability import TelemetryLogger as ObsTelemetryLogger
+
+    assert TelemetryLogger is ObsTelemetryLogger
+
+    # 1. Verify default enable_background_warmup is True in Settings
+    default_settings = Settings()
+    assert default_settings.enable_background_warmup is True
+
+    # 2. Verify TelemetryLogger.log_comparison_run runs non-blockingly on ThreadPoolExecutor in live mode
+    slow_call_completed = {"done": False}
+
+    class SlowBqClient:
+        def insert_rows_json(self, table_id, rows):
+            time.sleep(0.25)
+            slow_call_completed["done"] = True
+            return []
+
+    t_logger = TelemetryLogger(bq_client=SlowBqClient())
+    t0 = time.perf_counter()
+    future = t_logger.log_comparison_run(
+        {
+            "query": "MacBook Air [SKU: 6534606] vs Dell XPS 13 [SKU: 6575132]",
+            "category": "Laptops",
+            "skus_returned": ["6534606", "6575132"],
+            "latency_ms": 1200.0,
+            "success": True,
+        },
+        force_async=True,
+    )
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+    # Must return immediately (< 50ms) even though insert_rows_json sleeps 250ms
+    assert elapsed_ms < 50.0
+    assert future is not None
+    result = future.result(timeout=2.0)
+    assert result is True
+    assert slow_call_completed["done"] is True
+
+
+def test_verify_live_latency_uses_tagged_sku_queries():
+    """Verify verify_live_latency.py BENCHMARK_QUERIES use realistic [SKU: ...] tagged queries."""
+    import importlib.util
+    from pathlib import Path
+
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "verify_live_latency.py"
+    spec = importlib.util.spec_from_file_location("verify_live_latency", script_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert len(mod.BENCHMARK_QUERIES) >= 3
+    for query_str, _category in mod.BENCHMARK_QUERIES:
+        assert "[SKU:" in query_str
+        tagged = ComparisonOrchestrator.extract_tagged_products(query_str)
+        assert len(tagged) >= 2

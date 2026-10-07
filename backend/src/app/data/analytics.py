@@ -315,4 +315,86 @@ class AnalyticsService:
         return False
 
 
+_TELEMETRY_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=8,
+    thread_name_prefix="telemetry-bg",
+)
+
+
+class TelemetryLogger:
+    """Non-blocking telemetry logger that offloads BigQuery telemetry writes in live mode."""
+
+    def __init__(
+        self,
+        bq_client: bigquery.Client | None = None,
+        service: AnalyticsService | None = None,
+    ) -> None:
+        self._bq_client = bq_client
+        self._service = service
+
+    def _resolve_service(self) -> AnalyticsService:
+        if self._bq_client is not None:
+            return AnalyticsService(bq_client=self._bq_client, disable_cloud_clients=False)
+        return self._service or analytics_service
+
+    def _log_sync(self, event_data: dict[str, Any] | None = None, **kwargs: Any) -> bool:
+        payload = dict(event_data or {})
+        payload.update(kwargs)
+        svc = self._resolve_service()
+
+        import uuid
+
+        query_id = str(payload.get("query_id") or uuid.uuid4())
+        query_text = str(payload.get("query_text") or payload.get("query") or "")
+        latency_ms = float(payload.get("latency_ms") or 0.0)
+        session_id = payload.get("session_id")
+        category = payload.get("category")
+        input_tokens = payload.get("input_tokens")
+        output_tokens = payload.get("output_tokens")
+        bq_bytes_billed = payload.get("bq_bytes_billed")
+        retrieved_skus = payload.get("retrieved_skus")
+        if retrieved_skus is None:
+            retrieved_skus = payload.get("skus_returned")
+        status = payload.get("status")
+        if status is None:
+            status = "SUCCESS" if payload.get("success", True) else "ERROR"
+        error_message = payload.get("error_message")
+
+        return svc.record_query_telemetry(
+            query_id=query_id,
+            query_text=query_text,
+            latency_ms=latency_ms,
+            session_id=session_id,
+            category=category,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            bq_bytes_billed=bq_bytes_billed,
+            retrieved_skus=retrieved_skus,
+            status=status,
+            error_message=error_message,
+        )
+
+    def log_comparison_run(
+        self,
+        event_data: dict[str, Any] | None = None,
+        *,
+        background: bool = True,
+        force_async: bool = False,
+        **kwargs: Any,
+    ) -> concurrent.futures.Future[bool]:
+        """Log comparison telemetry non-blockingly via background ThreadPoolExecutor in live mode."""
+        svc = self._resolve_service()
+        is_live_mode = force_async or self._bq_client is not None or not svc._disable_cloud_clients
+        if background and is_live_mode:
+            return _TELEMETRY_EXECUTOR.submit(self._log_sync, event_data, **kwargs)
+
+        fut: concurrent.futures.Future[bool] = concurrent.futures.Future()
+        try:
+            fut.set_result(self._log_sync(event_data, **kwargs))
+        except Exception as exc:
+            fut.set_exception(exc)
+        return fut
+
+
 analytics_service = AnalyticsService()
+telemetry_logger = TelemetryLogger(service=analytics_service)

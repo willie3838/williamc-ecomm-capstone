@@ -67,7 +67,7 @@ _SHARED_BQ_CLIENT_CLS: Any = None
 _BQ_CLIENT_LOCK = threading.Lock()
 
 
-def _get_shared_bq_client() -> bigquery.Client:
+def _get_shared_bq_client(project_id: str | None = None) -> bigquery.Client:
     """Return a shared BigQuery client singleton to avoid per-query credential refresh overhead."""
     global _SHARED_BQ_CLIENT, _SHARED_BQ_CLIENT_CLS
     if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
@@ -75,7 +75,7 @@ def _get_shared_bq_client() -> bigquery.Client:
     with _BQ_CLIENT_LOCK:
         if _SHARED_BQ_CLIENT is not None and _SHARED_BQ_CLIENT_CLS is bigquery.Client:
             return _SHARED_BQ_CLIENT
-        client = bigquery.Client(project=settings.gcp_project)
+        client = bigquery.Client(project=project_id or settings.gcp_project)
         client.default_job_creation_mode = "JOB_CREATION_OPTIONAL"
         try:
             from requests.adapters import HTTPAdapter
@@ -90,6 +90,9 @@ def _get_shared_bq_client() -> bigquery.Client:
         _SHARED_BQ_CLIENT = client
         _SHARED_BQ_CLIENT_CLS = bigquery.Client
         return _SHARED_BQ_CLIENT
+
+
+get_bq_client = _get_shared_bq_client
 
 
 def query_catalog(

@@ -1,5 +1,7 @@
 """FastAPI Application entrypoint for the Best Buy Catalog Comparison Agent."""
 
+import threading
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import Depends, FastAPI, Request
@@ -28,11 +30,38 @@ from app.models import (
     ProductItem,
     ProductSpec,
 )
-from app.observability import ObservabilityMiddleware, setup_observability
+from app.observability import ObservabilityMiddleware, get_logger, setup_observability
 from app.routes import compare_router
-from app.tools.catalog import catalog_circuit_breaker
+from app.tools.catalog import catalog_circuit_breaker, get_bq_client
 
 PROJECT_ID = "fde-bestbuy-sandbox-dev-508321"
+logger = get_logger(__name__)
+
+
+def _warmup_backend_clients(app_settings: Settings) -> None:
+    """Warm up BigQuery and Vertex AI clients in a non-blocking background thread."""
+    try:
+        get_bq_client(project_id=app_settings.project_id)
+        from app.agent.orchestrator import ComparisonOrchestrator
+
+        orch = ComparisonOrchestrator(project_id=app_settings.project_id)
+        orch._get_genai_client(location=app_settings.region)
+    except Exception as exc:
+        logger.debug(f"Background client warmup skipped: {exc}")
+
+
+def _trigger_background_warmup(app_settings: Settings) -> threading.Thread | None:
+    """Spawn a daemon thread to warm up backend clients when enabled."""
+    if not app_settings.enable_background_warmup:
+        return None
+    thread = threading.Thread(
+        target=_warmup_backend_clients,
+        args=(app_settings,),
+        daemon=True,
+        name="backend-client-warmup",
+    )
+    thread.start()
+    return thread
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -42,6 +71,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Initialize OpenTelemetry distributed tracing and structured Cloud Logging
     setup_observability(current_settings)
 
+    @asynccontextmanager
+    async def _lifespan(_app: FastAPI):
+        _trigger_background_warmup(current_settings)
+        yield
+
+    if settings is not None and current_settings.enable_background_warmup:
+        _trigger_background_warmup(current_settings)
+
     application = FastAPI(
         title="TechBuy Retailers Catalog Comparison Agent API",
         description="Agentic product comparison service grounded in Google Cloud BigQuery",
@@ -49,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
+        lifespan=_lifespan,
     )
 
     application.add_middleware(
