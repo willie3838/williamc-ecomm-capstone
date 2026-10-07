@@ -482,25 +482,25 @@ def test_per_stage_optimal_models_configuration() -> None:
     """Verify settings and orchestrator expose per-stage optimal models."""
     assert settings.stage1_intent_model == "gemini-3.5-flash-lite"
     assert settings.stage2_relevance_model == "gemini-2.5-flash-lite"
-    assert settings.stage3_synthesis_model == "gemini-2.5-pro"
+    assert settings.stage3_synthesis_model == "gemini-3.5-flash-lite"
     assert settings.stage3_fast_synthesis_model == "gemini-2.5-flash-lite"
 
     assert STAGE_OPTIMAL_MODELS["stage1_intent"] == "gemini-3.5-flash-lite"
     assert STAGE_OPTIMAL_MODELS["stage2_relevance"] == "gemini-2.5-flash-lite"
-    assert STAGE_OPTIMAL_MODELS["stage3_synthesis"] == "gemini-2.5-pro"
+    assert STAGE_OPTIMAL_MODELS["stage3_synthesis"] == "gemini-3.5-flash-lite"
     assert STAGE_OPTIMAL_MODELS["stage3_fast_synthesis"] == "gemini-2.5-flash-lite"
 
     resolved_default = resolve_stage_models(fast_synthesis=False)
     assert resolved_default["stage1_intent"] == "gemini-3.5-flash-lite"
     assert resolved_default["stage2_relevance"] == "gemini-2.5-flash-lite"
-    assert resolved_default["stage3_synthesis"] == "gemini-2.5-pro"
+    assert resolved_default["stage3_synthesis"] == "gemini-3.5-flash-lite"
 
     resolved_fast = resolve_stage_models(fast_synthesis=True)
     assert resolved_fast["stage3_synthesis"] == "gemini-2.5-flash-lite"
 
     routing, syn, is_hybrid = resolve_model_pair("stage-optimal", None)
     assert routing == "gemini-3.5-flash-lite"
-    assert syn == "gemini-2.5-pro"
+    assert syn == "gemini-3.5-flash-lite"
     assert is_hybrid is True
 
 
@@ -513,13 +513,13 @@ def test_multi_agent_coordinator_stage_optimal_routing(
     assert default_coord.use_stage_optimal_models is True
     assert default_coord.intent_agent.model == "gemini-3.5-flash-lite"
     assert not hasattr(default_coord, "relevance_agent")
-    assert default_coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
+    assert default_coord.comparison_agent.synthesis_model == "gemini-3.5-flash-lite"
 
     # 2. Explicit model="stage-optimal"
     coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
     assert coord.intent_agent.model == "gemini-3.5-flash-lite"
     assert not hasattr(coord, "relevance_agent")
-    assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
+    assert coord.comparison_agent.synthesis_model == "gemini-3.5-flash-lite"
 
     # 3. Environment variable overrides (README / Rollback Playbook)
     monkeypatch.setenv("STAGE1_INTENT_MODEL", "gemini-2.5-flash")

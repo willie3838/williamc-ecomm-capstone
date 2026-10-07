@@ -276,7 +276,7 @@ STAGE_OPTIMAL_MODELS: dict[str, str] = {
     "stage1_intent": "gemini-3.5-flash-lite",
     "stage2_retrieval": "deterministic-bq-sql",
     "stage2_relevance": "gemini-2.5-flash-lite",
-    "stage3_synthesis": "gemini-2.5-pro",
+    "stage3_synthesis": "gemini-3.5-flash-lite",
     "stage3_fast_synthesis": "gemini-2.5-flash-lite",
     "stage4_matrix_winners": "gemini-2.5-flash-lite",
     "stage5_chat": "gemini-2.5-flash",
