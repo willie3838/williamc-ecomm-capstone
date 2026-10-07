@@ -118,15 +118,23 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {matrix.map((row, idx) => (
-              <tr
-                key={row.feature || idx}
-                className={idx % 2 === 0 ? 'bg-white hover:bg-slate-50/60' : 'bg-slate-50/30 hover:bg-slate-50'}
-              >
-                {/* Feature Label Column (Sticky) */}
-                <td className="py-3.5 px-6 font-semibold text-sm text-gray-800 sticky left-0 bg-inherit z-10 border-r border-gray-200 shadow-xs">
-                  {row.feature}
-                </td>
+            {matrix.map((row, idx) => {
+              const isEven = idx % 2 === 0;
+              return (
+                <tr
+                  key={row.feature || idx}
+                  className={`group ${
+                    isEven ? 'bg-white hover:bg-slate-50' : 'bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  {/* Feature Label Column (Sticky) - 100% opaque to prevent horizontal scroll bleed-through */}
+                  <td
+                    className={`py-3.5 px-6 font-semibold text-sm text-gray-800 sticky left-0 z-10 border-r border-gray-200 shadow-xs transition-colors ${
+                      isEven ? 'bg-white group-hover:bg-slate-50' : 'bg-slate-50 group-hover:bg-slate-100'
+                    }`}
+                  >
+                    {row.feature}
+                  </td>
 
                 {/* Values per Product */}
                 {products.map((product) => {
@@ -161,7 +169,8 @@ export const ComparisonTable: React.FC<ComparisonTableProps> = ({
                   );
                 })}
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
       </div>

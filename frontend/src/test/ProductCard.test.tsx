@@ -82,5 +82,31 @@ describe('ProductCard', () => {
     expect(onViewDetails).toHaveBeenCalledTimes(1);
     expect(onViewDetails).toHaveBeenCalledWith(mockMacBook);
   });
+
+  it('renders root card with h-full and flex flex-col for consistent row stretch', () => {
+    const { container } = render(<ProductCard product={mockMacBook} />);
+    const cardRoot = container.firstChild as HTMLElement;
+    expect(cardRoot.className).toContain('h-full');
+    expect(cardRoot.className).toContain('flex');
+    expect(cardRoot.className).toContain('flex-col');
+  });
+
+  it('enforces min-height on title and rating to prevent vertical button jitter', () => {
+    render(<ProductCard product={mockMacBook} />);
+    const title = screen.getByText(mockMacBook.name);
+    expect(title.className).toContain('min-h-[2.5rem]');
+  });
+
+  it('renders placeholder with min-height when rating is null to keep button aligned', () => {
+    render(<ProductCard product={{ ...mockMacBook, rating: null, review_count: null }} />);
+    expect(screen.getByText(/no catalog reviews/i)).toBeInTheDocument();
+  });
+
+  it('renders View at TechBuy button with full-width and whitespace-nowrap for uniform alignment', () => {
+    render(<ProductCard product={mockMacBook} onViewDetails={vi.fn()} />);
+    const viewBtn = screen.getByRole('button', { name: /view at techbuy/i });
+    expect(viewBtn.className).toContain('w-full');
+    expect(viewBtn.className).toContain('whitespace-nowrap');
+  });
 });
 

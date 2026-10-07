@@ -34,7 +34,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-xl border overflow-hidden flex flex-col p-4 transition-all hover:shadow-md ${
+      className={`bg-white rounded-xl border overflow-hidden flex flex-col h-full p-4 transition-all hover:shadow-md ${
         isSelected
           ? 'border-bb-blue ring-2 ring-bb-blue/50 shadow-md bg-blue-50/20'
           : 'border-gray-200 shadow-sm'
@@ -96,40 +96,44 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Brand & Title */}
       <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-bb-blue">
+        <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+          <span className="text-xs font-bold uppercase tracking-wider text-bb-blue truncate min-w-0">
             {product.brand}
           </span>
-          <CitationChip sku={product.sku} url={product.url} />
+          <CitationChip sku={product.sku} url={product.url} className="shrink-0" />
         </div>
 
         <h3
-          className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 hover:text-bb-blue transition-colors"
+          className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug mb-2 hover:text-bb-blue transition-colors min-h-[2.5rem]"
           title={product.name}
         >
           {product.name}
         </h3>
 
         {/* Rating & Reviews */}
-        {product.rating !== null && product.rating !== undefined && (
-          <div className="flex items-center gap-1 text-xs text-gray-600 mb-3">
-            <div className="flex items-center text-amber-500">
-              <Star className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
-            </div>
-            <span className="font-semibold text-gray-800">{product.rating.toFixed(1)}</span>
-            {product.review_count !== null && product.review_count !== undefined && (
-              <span className="text-gray-500">
-                ({product.review_count.toLocaleString()} reviews)
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-1 text-xs text-gray-600 mb-3 min-h-[1.25rem]">
+          {product.rating !== null && product.rating !== undefined ? (
+            <>
+              <div className="flex items-center text-amber-500">
+                <Star className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
+              </div>
+              <span className="font-semibold text-gray-800">{product.rating.toFixed(1)}</span>
+              {product.review_count !== null && product.review_count !== undefined && (
+                <span className="text-gray-500">
+                  ({product.review_count.toLocaleString()} reviews)
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-gray-400 italic text-[11px]">No catalog reviews</span>
+          )}
+        </div>
 
         {/* Price & Action */}
-        <div className="mt-auto pt-3 border-t border-gray-100 flex items-baseline justify-between">
-          <div>
-            <span className="text-xs text-gray-500 block">Price</span>
-            <span className="text-xl font-black text-gray-900 tracking-tight">
+        <div className="mt-auto pt-3 border-t border-gray-100 flex flex-col gap-2">
+          <div className="flex items-baseline justify-between gap-1">
+            <span className="text-xs text-gray-500 font-medium">Price</span>
+            <span className="text-lg font-black text-gray-900 tracking-tight">
               {formattedPrice}
             </span>
           </div>
@@ -137,7 +141,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <button
               type="button"
               onClick={() => onViewDetails(product)}
-              className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs cursor-pointer"
+              className="w-full px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs cursor-pointer whitespace-nowrap text-center shrink-0"
             >
               View at TechBuy
             </button>
@@ -146,7 +150,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               href={product.url || `https://www.techbuy.com/site/sku/${product.sku}.p`}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs"
+              className="w-full px-3 py-1.5 bg-bb-yellow text-bb-slate font-bold text-xs rounded hover:bg-bb-yellow-hover transition-colors shadow-xs whitespace-nowrap text-center shrink-0 inline-block"
             >
               View at TechBuy
             </a>

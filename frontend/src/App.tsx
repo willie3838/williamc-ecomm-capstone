@@ -533,7 +533,9 @@ export const App: React.FC = () => {
                         </div>
                       </div>
                       <div
-                        className={`grid gap-6 ${
+                        className={`grid items-stretch ${
+                          comparison.products.length >= 5 ? 'gap-3 sm:gap-4' : 'gap-6'
+                        } ${
                           comparison.products.length === 2
                             ? 'grid-cols-1 md:grid-cols-2'
                             : comparison.products.length === 3
@@ -548,6 +550,7 @@ export const App: React.FC = () => {
                             key={product.sku}
                             product={product}
                             onViewDetails={handleOpenProductDetails}
+                            className="h-full"
                           />
                         ))}
                       </div>
@@ -700,7 +703,7 @@ export const App: React.FC = () => {
 
             {browsedProducts.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-stretch">
                   {browsedProducts.slice(0, visibleCardCount).map((product) => {
                     const isSelected = selectedProducts.some((p) => p.sku === product.sku);
                     return (
@@ -711,6 +714,7 @@ export const App: React.FC = () => {
                         isSelected={isSelected}
                         onToggleSelect={handleToggleSelectProduct}
                         onViewDetails={handleOpenProductDetails}
+                        className="h-full"
                       />
                     );
                   })}

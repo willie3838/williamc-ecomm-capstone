@@ -157,4 +157,34 @@ describe('ComparisonTable', () => {
     const winnerBadges = screen.queryAllByLabelText(/superior specification/i);
     expect(winnerBadges).toHaveLength(0);
   });
+
+  it('renders sticky feature cells with opaque background to prevent horizontal scroll bleed-through', () => {
+    const { container } = render(
+      <ComparisonTable
+        products={mockComparisonResponse.products}
+        matrix={mockComparisonResponse.comparison_matrix}
+      />
+    );
+
+    // Table header sticky cell
+    const thSticky = container.querySelector('th.sticky');
+    expect(thSticky).toBeInTheDocument();
+    expect(thSticky?.className).toContain('sticky');
+    expect(thSticky?.className).toContain('left-0');
+    expect(thSticky?.className).toContain('bg-slate-50');
+
+    // Table body sticky cells
+    const tdStickyCells = container.querySelectorAll('tbody td.sticky');
+    expect(tdStickyCells.length).toBeGreaterThan(0);
+
+    tdStickyCells.forEach((cell) => {
+      // Must NOT use bg-inherit or semi-transparent /30
+      expect(cell.className).not.toContain('bg-inherit');
+      expect(cell.className).not.toContain('/30');
+      // Must use explicit solid opaque background
+      const isOpaqueBg =
+        cell.className.includes('bg-white') || cell.className.includes('bg-slate-50');
+      expect(isOpaqueBg).toBe(true);
+    });
+  });
 });

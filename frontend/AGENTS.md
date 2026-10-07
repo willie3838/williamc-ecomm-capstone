@@ -53,9 +53,18 @@ frontend/
 - Render attributes dynamically based on product category (e.g. RAM, Storage, CPU for Laptops; Battery Life, Noise Cancellation for Headphones).
 - Highlight winning / superior specifications with subtle badge indicators where unambiguous (e.g., higher battery life).
 - Support multi-winner ties across 3+ product comparisons using `winner_skus: string[]` on `MatrixRow`, ensuring all tied top products display Winner badges.
+- **Opaque Sticky Feature Label Column (`ComparisonTable.tsx`)**:
+  - The feature label column (`th` and `td`) is pinned via `sticky left-0 z-10 border-r border-gray-200 shadow-xs` with 100% opaque backgrounds (`bg-slate-50` for header; solid `bg-white group-hover:bg-slate-50` for even rows and solid `bg-slate-50 group-hover:bg-slate-100` for odd rows).
+  - Strictly prohibits `bg-inherit` or translucent alpha channels (e.g. `/30`), completely preventing horizontal scroll bleed-through and label overlap when users scroll side-by-side matrices across 3–5 products.
 
 ### 2. Verified SKU Citation Badges, Category Browsing, Multiselect & In-App Product Details
 - Every product claim must display an interactive SKU badge (`[SKU: 6534606]`).
+- **5-Product Card Button Alignment & Uniform Vertical Rhythm (`ProductCard.tsx`, `CitationChip.tsx`, `App.tsx`)**:
+  - `ProductCard` enforces `h-full flex flex-col` root container stretching within CSS Grid rows (`items-stretch`).
+  - Title container enforces a 2-line reserved height (`min-h-[2.5rem] line-clamp-2`), preventing 1-line vs 2-line title height variance from shifting ratings or buttons.
+  - Rating row enforces uniform height (`min-h-[1.25rem]`) with fallback placeholder (`No catalog reviews`) when rating/reviews are absent.
+  - Header brand row uses `truncate min-w-0` on brand names paired with `shrink-0 whitespace-nowrap` on `CitationChip` to prevent line wrapping and card header jitter.
+  - Action row (`mt-auto pt-3 border-t border-gray-100 flex flex-col gap-2`) features a clean top price row and a full-width `w-full py-1.5 px-3 whitespace-nowrap text-center` "View at TechBuy" button, ensuring all buttons in 5-product comparison rows align pixel-perfectly without horizontal overflow or collision.
 - Clicking "View at TechBuy" on any `ProductCard` or clicking any `CitationChip` opens the in-app `ProductDetailsModal` displaying full product specifications, description, price, customer reviews & rating, stock status, and BigQuery grounding metadata.
 - The `ProductDetailsModal` is accessible, closes via `Escape` key or backdrop click, and allows adding/removing products directly to the compare tray.
 - Clicking the **TECHBUY RETAILERS** header logo returns the user to the homepage (All Categories catalog view).

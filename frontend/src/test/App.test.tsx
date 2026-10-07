@@ -542,6 +542,28 @@ describe('App Integration', () => {
     const callArgs = vi.mocked(compareProducts).mock.calls[0][0];
     expect(callArgs.category).toBe('Laptops');
     expect(callArgs.query).toContain('Compare the following products:');
+
+    // Wait for comparison result to render
+    await waitFor(() => {
+      expect(screen.getByText('Side-by-Side Specification Matrix')).toBeInTheDocument();
+    });
+
+    // Verify all 5 product cards render with h-full and full-width aligned action buttons
+    const viewButtons = screen.getAllByRole('button', { name: /view at techbuy/i });
+    expect(viewButtons.length).toBeGreaterThanOrEqual(5);
+    viewButtons.slice(0, 5).forEach((btn) => {
+      expect(btn.className).toContain('w-full');
+      expect(btn.className).toContain('whitespace-nowrap');
+    });
+
+    // Verify ComparisonTable sticky column cells are opaque
+    const stickyCells = document.querySelectorAll('tbody td.sticky');
+    expect(stickyCells.length).toBeGreaterThan(0);
+    stickyCells.forEach((cell) => {
+      expect(cell.className).not.toContain('bg-inherit');
+      const isOpaque = cell.className.includes('bg-white') || cell.className.includes('bg-slate-50');
+      expect(isOpaque).toBe(true);
+    });
   });
 
   it('renders ConversationSidebar immediately open to the right after comparison completes and supports toggle', async () => {
