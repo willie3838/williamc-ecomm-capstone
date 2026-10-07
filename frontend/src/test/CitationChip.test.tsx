@@ -44,4 +44,11 @@ describe('CitationChip', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onClick).toHaveBeenCalledWith('6534606');
   });
+
+  it('contains shrink-0 and whitespace-nowrap classes to prevent line wraps in tight card layouts', () => {
+    render(<CitationChip sku="6534606" />);
+    const link = screen.getByRole('link');
+    expect(link.className).toContain('shrink-0');
+    expect(link.className).toContain('whitespace-nowrap');
+  });
 });
