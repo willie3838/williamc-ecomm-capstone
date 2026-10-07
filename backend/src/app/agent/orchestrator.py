@@ -1952,48 +1952,22 @@ class ComparisonOrchestrator:
         has_comparative = any(tok in f" {lower_q} " for tok in comparative_tokens)
         return is_opinion and not has_comparative
 
-    def _balance_entities(
-        self, candidates: list[ProductSpec], keywords: list[str]
-    ) -> list[ProductSpec]:
-        """Balance candidates across distinct brands when comparative query targets multiple brands."""
-        if len(candidates) <= 1:
-            return candidates
-
-        first_brand = candidates[0].brand.strip().lower()
-        kw_text = " ".join(keywords).lower()
-
-        alt_candidate = next(
-            (
-                p
-                for p in candidates[1:]
-                if p.brand.strip().lower() != first_brand
-                and (
-                    p.brand.strip().lower() in kw_text
-                    or any(len(tok) >= 2 and tok in kw_text for tok in p.name.lower().split()[:2])
-                    or any(
-                        len(kw.strip()) >= 2 and tok.startswith(kw.strip().lower())
-                        for tok in re.findall(r"[a-z0-9]+", p.name.lower())[:2]
-                        for kw in keywords
-                    )
-                )
-            ),
-            None,
-        )
-        if alt_candidate is not None:
-            remaining = [p for p in candidates[1:] if p.sku != alt_candidate.sku]
-            return [candidates[0], alt_candidate] + remaining
-
-        return candidates
-
     def _select_best_entity_candidates(
         self,
         candidates: list[ProductSpec],
         keywords: list[str],
         target_count: int,
     ) -> list[ProductSpec]:
-        """Select the highest-matching candidate for each keyword entity phrase."""
-        if len(candidates) <= target_count or not keywords:
-            return self._balance_entities(candidates, keywords)[:target_count]
+        """Select the highest-matching candidate for each keyword entity phrase.
+
+        Selects top candidates by keyword match without forcing candidates to belong
+        to different brands (supporting same-brand comparisons such as MacBook Air vs MacBook Pro
+        as well as multi-brand comparisons).
+        """
+        if not candidates or target_count <= 0:
+            return []
+        if not keywords:
+            return list(candidates[:target_count])
 
         selected: list[ProductSpec] = []
         used_skus: set[str] = set()
@@ -2029,7 +2003,7 @@ class ComparisonOrchestrator:
                 selected.append(best_p)
                 used_skus.add(best_p.sku)
 
-        for p in self._balance_entities(candidates, keywords):
+        for p in candidates:
             if len(selected) >= target_count:
                 break
             if p.sku not in used_skus:

@@ -73,7 +73,7 @@ def build_a2a_agent_card(
             {
                 "id": "catalog-retrieval",
                 "name": "Parameterized BigQuery Catalog Search",
-                "description": "Retrieves deduplicated, brand-balanced product SKUs.",
+                "description": "Retrieves deduplicated product SKUs supporting same-brand and multi-brand comparisons.",
                 "tags": ["bigquery", "retrieval"],
             },
         ],

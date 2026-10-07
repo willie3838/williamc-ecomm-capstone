@@ -682,7 +682,25 @@ class MultiAgentCoordinator:
                     state.retrieved_products = list(fallback_state.retrieved_products)
 
             if not state.ranked_products and state.retrieved_products:
-                if state.target_keywords and len(state.target_keywords) >= 2:
+                tagged_pairs = self.intent_agent.orchestrator.extract_tagged_products(
+                    state.raw_query
+                )
+                tagged_skus = [sku for _, sku in tagged_pairs if sku]
+                if not tagged_skus:
+                    tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", state.raw_query or "")
+                if tagged_skus:
+                    sku_to_prod = {p.sku: p for p in state.retrieved_products}
+                    matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
+                    if len(matched_tagged) >= 2:
+                        state.ranked_products = matched_tagged[:5]
+                    elif len(matched_tagged) == 1 and len(state.retrieved_products) > 1:
+                        remaining = [
+                            p for p in state.retrieved_products if p.sku not in tagged_skus
+                        ]
+                        state.ranked_products = [matched_tagged[0], remaining[0]]
+                    else:
+                        state.ranked_products = list(state.retrieved_products[:5])
+                elif state.target_keywords and len(state.target_keywords) >= 2:
                     target_count = min(len(state.target_keywords), 5)
                     entity_matches = self.intent_agent.orchestrator._select_best_entity_candidates(
                         state.retrieved_products, state.target_keywords, target_count
