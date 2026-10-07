@@ -4,7 +4,7 @@ Tests:
 1. Extraction of 2-character brand and model sub-tokens (e.g., 'LG', 'C3', 'HP') in query_catalog().
 2. Exclusion of 2-character grammatical stopwords (e.g., 'to', 'in', 'on', 'at', 'by', 'is', 'or', 'vs', 'an', 'no').
 3. Exclusion of single-character tokens (len(t) < 2).
-4. Balancing of 2-character brand entities in ComparisonOrchestrator._balance_entities() for LG and HP.
+4. Selection of 2-character brand and model entities in ComparisonOrchestrator._select_best_entity_candidates() for LG and HP.
 5. Verification of BigQuery parameter binding for 2-character tokens.
 """
 
@@ -132,8 +132,8 @@ def test_catalog_excludes_single_character_tokens():
         )
 
 
-def test_balance_entities_two_char_brand_lg_c3():
-    """Verify _balance_entities balances LG C3 into top 2 when candidates start with multiple Samsungs."""
+def test_select_best_entity_candidates_two_char_brand_lg_c3():
+    """Verify _select_best_entity_candidates selects LG C3 into slot 2 when candidates start with multiple Samsungs."""
     candidates = [
         ProductSpec(
             sku="6543210",
@@ -159,20 +159,21 @@ def test_balance_entities_two_char_brand_lg_c3():
     ]
 
     orchestrator = ComparisonOrchestrator()
-    balanced = orchestrator._balance_entities(candidates, keywords=["Samsung S90C", "LG C3"])
+    selected = orchestrator._select_best_entity_candidates(
+        candidates, keywords=["Samsung S90C", "LG C3"], target_count=2
+    )
 
-    assert len(balanced) == 3
-    top_two = balanced[:2]
-    brands = {p.brand.lower() for p in top_two}
-    assert "samsung" in brands, f"Expected Samsung in top 2, got: {[p.name for p in top_two]}"
-    assert "lg" in brands, f"Expected LG in top 2, got: {[p.name for p in top_two]}"
-    assert top_two[1].sku == "6535928", (
-        f"Expected LG C3 (SKU 6535928) in 2nd slot, got: {top_two[1]}"
+    assert len(selected) == 2
+    assert selected[0].sku == "6543210", (
+        f"Expected Samsung S90C (SKU 6543210) in 1st slot, got: {selected[0]}"
+    )
+    assert selected[1].sku == "6535928", (
+        f"Expected LG C3 (SKU 6535928) in 2nd slot, got: {selected[1]}"
     )
 
 
-def test_balance_entities_two_char_brand_hp_envy():
-    """Verify _balance_entities balances HP Envy into top 2 when candidates start with multiple Dells."""
+def test_select_best_entity_candidates_two_char_brand_hp_envy():
+    """Verify _select_best_entity_candidates selects HP Envy into slot 2 when candidates start with multiple Dells."""
     candidates = [
         ProductSpec(
             sku="6575132",
@@ -198,20 +199,21 @@ def test_balance_entities_two_char_brand_hp_envy():
     ]
 
     orchestrator = ComparisonOrchestrator()
-    balanced = orchestrator._balance_entities(candidates, keywords=["Dell XPS", "HP Envy"])
+    selected = orchestrator._select_best_entity_candidates(
+        candidates, keywords=["Dell XPS", "HP Envy"], target_count=2
+    )
 
-    assert len(balanced) == 3
-    top_two = balanced[:2]
-    brands = {p.brand.lower() for p in top_two}
-    assert "dell" in brands, f"Expected Dell in top 2, got: {[p.name for p in top_two]}"
-    assert "hp" in brands, f"Expected HP in top 2, got: {[p.name for p in top_two]}"
-    assert top_two[1].sku == "6565123", (
-        f"Expected HP Envy (SKU 6565123) in 2nd slot, got: {top_two[1]}"
+    assert len(selected) == 2
+    assert selected[0].sku == "6575132", (
+        f"Expected Dell XPS (SKU 6575132) in 1st slot, got: {selected[0]}"
+    )
+    assert selected[1].sku == "6565123", (
+        f"Expected HP Envy (SKU 6565123) in 2nd slot, got: {selected[1]}"
     )
 
 
-def test_balance_entities_with_two_char_model_token():
-    """Verify _balance_entities matches 2-character model tokens like 'C3' when prefix tokens match."""
+def test_select_best_entity_candidates_with_two_char_model_token():
+    """Verify _select_best_entity_candidates matches 2-character model tokens like 'C3' when prefix tokens match."""
     candidates = [
         ProductSpec(
             sku="1111111",
@@ -238,13 +240,54 @@ def test_balance_entities_with_two_char_model_token():
 
     # Keyword only has "C3" and "Bravia" - brand "LG Electronics" is NOT in kw_text
     orchestrator = ComparisonOrchestrator()
-    balanced = orchestrator._balance_entities(candidates, keywords=["Bravia", "C3"])
-
-    top_two = balanced[:2]
-    assert top_two[0].sku == "1111111"
-    assert top_two[1].sku == "2222222", (
-        f"Expected 2-char model 'C3' to balance into slot 2, got: {top_two[1].name}"
+    selected = orchestrator._select_best_entity_candidates(
+        candidates, keywords=["Bravia", "C3"], target_count=2
     )
+
+    assert len(selected) == 2
+    assert selected[0].sku == "1111111", (
+        f"Expected Sony Bravia in 1st slot, got: {selected[0].name}"
+    )
+    assert selected[1].sku == "2222222", (
+        f"Expected 2-char model 'C3' to match into slot 2, got: {selected[1].name}"
+    )
+
+
+def test_select_best_entity_candidates_same_brand_macbook_air_vs_pro():
+    """Verify _select_best_entity_candidates selects both same-brand Apple models without forcing different brands."""
+    candidates = [
+        ProductSpec(
+            sku="6534606",
+            name='Apple - MacBook Air 13.6" Laptop - M3',
+            brand="Apple",
+            category="Laptops",
+            price=1099.0,
+        ),
+        ProductSpec(
+            sku="6534607",
+            name='Apple - MacBook Pro 14" Laptop - M3 Pro',
+            brand="Apple",
+            category="Laptops",
+            price=1999.0,
+        ),
+        ProductSpec(
+            sku="6575132",
+            name='Dell - XPS 13" Laptop - Intel Core Ultra 7',
+            brand="Dell",
+            category="Laptops",
+            price=1299.99,
+        ),
+    ]
+
+    orchestrator = ComparisonOrchestrator()
+    selected = orchestrator._select_best_entity_candidates(
+        candidates, keywords=["MacBook Air", "MacBook Pro"], target_count=2
+    )
+
+    assert len(selected) == 2
+    assert selected[0].sku == "6534606", f"Expected MacBook Air, got: {selected[0].name}"
+    assert selected[1].sku == "6534607", f"Expected MacBook Pro, got: {selected[1].name}"
+    assert all(p.brand == "Apple" for p in selected), "Expected both products to be Apple"
 
 
 def test_orchestrator_future_timeout_is_eight_seconds():

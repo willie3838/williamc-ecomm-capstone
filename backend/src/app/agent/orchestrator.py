@@ -7,7 +7,7 @@ import threading
 import time
 from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any
+from typing import Any, ClassVar
 
 from google import genai
 from google.adk.agents import Agent
@@ -514,6 +514,46 @@ def _unpack_synthesis_result(
 class ComparisonOrchestrator:
     """Orchestrator for managing catalog comparison workflows and grounded synthesis."""
 
+    GENERIC_FOCUS_PHRASES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "compare specifications, trade-offs, and recommend the best option",
+            "compare specifications, trade-offs and recommend the best option",
+            "compare specifications, trade offs, and recommend the best option",
+            "compare specifications, trade offs and recommend the best option",
+            "compare specifications and recommend the best option",
+            "compare specifications",
+            "compare products",
+            "side-by-side comparison",
+            "side by side comparison",
+            "general comparison",
+            "standard comparison",
+            "default",
+            "none",
+            "n/a",
+            "no preference",
+            "no preferences",
+            "overview",
+            "recommend the best option",
+            "all specs",
+            "all specifications",
+        }
+    )
+
+    @staticmethod
+    def _is_structured_comparison_prompt(query: str) -> bool:
+        """Return True if query is a structured prompt embedding product specifications."""
+        if not query:
+            return False
+        q_lower = query.lower()
+        return (
+            "compare the following products:" in q_lower
+            or bool(re.search(r"Product\s+\d+:\s*.+?\[SKU:\s*\w+\]", query, re.IGNORECASE))
+            or (
+                "specifications:" in q_lower
+                and bool(re.search(r"Product\s+\d+:", query, re.IGNORECASE))
+            )
+        )
+
     def __init__(
         self,
         bq_client: bigquery.Client | None = None,
@@ -955,7 +995,14 @@ class ComparisonOrchestrator:
         # Extract explicit User Focus / Follow-up line if present to prevent spec keys in prompt body
         # (e.g. * battery_life_hours: 18) from false-triggering focus ordering.
         focus_match = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query or "", re.IGNORECASE)
-        effective_query = focus_match.group(1).strip() if focus_match else (query or "").strip()
+        if focus_match:
+            effective_query = focus_match.group(1).strip()
+            norm_focus = re.sub(r"^[\"'\s]+|[\"'\s.,;!]+$", "", effective_query.lower()).strip()
+            if norm_focus in self.GENERIC_FOCUS_PHRASES:
+                effective_query = ""
+        else:
+            is_structured = self._is_structured_comparison_prompt(query or "")
+            effective_query = "" if is_structured else (query or "").strip()
         clean_query = effective_query.lower()
 
         is_only_price = any(
@@ -1158,8 +1205,8 @@ class ComparisonOrchestrator:
             template=stage4_tpl,
         )
 
-    @staticmethod
-    def _detect_customer_preferences(query: str) -> tuple[bool, str]:
+    @classmethod
+    def _detect_customer_preferences(cls, query: str) -> tuple[bool, str]:
         """Detect whether query contains extra user constraints/preferences vs clean product comparison."""
         if not query:
             return False, ""
@@ -1167,8 +1214,16 @@ class ComparisonOrchestrator:
         focus_m = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query, re.IGNORECASE)
         if focus_m:
             f_val = focus_m.group(1).strip()
-            if f_val:
-                return True, f_val
+            norm_val = re.sub(r"^[\"'\s]+|[\"'\s.,;!]+$", "", f_val.lower()).strip()
+            if not norm_val or norm_val in cls.GENERIC_FOCUS_PHRASES:
+                return False, ""
+            return True, f_val
+
+        # 2. Structured prompt isolation: if query is a structured comparison prompt
+        # without explicit non-generic user focus, the search bar was empty.
+        # Do not scan prompt body to avoid false positives from catalog specs (e.g. Battery Life).
+        if cls._is_structured_comparison_prompt(query):
+            return False, ""
 
         clean_q = query.lower().strip()
         # Look for "for <context>" phrases like "for travel", "for coding", "for editing"
@@ -2403,48 +2458,22 @@ class ComparisonOrchestrator:
         has_comparative = any(tok in f" {lower_q} " for tok in comparative_tokens)
         return is_opinion and not has_comparative
 
-    def _balance_entities(
-        self, candidates: list[ProductSpec], keywords: list[str]
-    ) -> list[ProductSpec]:
-        """Balance candidates across distinct brands when comparative query targets multiple brands."""
-        if len(candidates) <= 1:
-            return candidates
-
-        first_brand = candidates[0].brand.strip().lower()
-        kw_text = " ".join(keywords).lower()
-
-        alt_candidate = next(
-            (
-                p
-                for p in candidates[1:]
-                if p.brand.strip().lower() != first_brand
-                and (
-                    p.brand.strip().lower() in kw_text
-                    or any(len(tok) >= 2 and tok in kw_text for tok in p.name.lower().split()[:2])
-                    or any(
-                        len(kw.strip()) >= 2 and tok.startswith(kw.strip().lower())
-                        for tok in re.findall(r"[a-z0-9]+", p.name.lower())[:2]
-                        for kw in keywords
-                    )
-                )
-            ),
-            None,
-        )
-        if alt_candidate is not None:
-            remaining = [p for p in candidates[1:] if p.sku != alt_candidate.sku]
-            return [candidates[0], alt_candidate] + remaining
-
-        return candidates
-
     def _select_best_entity_candidates(
         self,
         candidates: list[ProductSpec],
         keywords: list[str],
         target_count: int,
     ) -> list[ProductSpec]:
-        """Select the highest-matching candidate for each keyword entity phrase."""
-        if len(candidates) <= target_count or not keywords:
-            return self._balance_entities(candidates, keywords)[:target_count]
+        """Select the highest-matching candidate for each keyword entity phrase.
+
+        Selects top candidates by keyword match without forcing candidates to belong
+        to different brands (supporting same-brand comparisons such as MacBook Air vs MacBook Pro
+        as well as multi-brand comparisons).
+        """
+        if not candidates or target_count <= 0:
+            return []
+        if not keywords:
+            return list(candidates[:target_count])
 
         selected: list[ProductSpec] = []
         used_skus: set[str] = set()
@@ -2480,7 +2509,7 @@ class ComparisonOrchestrator:
                 selected.append(best_p)
                 used_skus.add(best_p.sku)
 
-        for p in self._balance_entities(candidates, keywords):
+        for p in candidates:
             if len(selected) >= target_count:
                 break
             if p.sku not in used_skus:

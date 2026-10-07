@@ -845,7 +845,42 @@ describe('App Integration', () => {
     expect(secondCallArgs.query).toContain('[SKU: 6505727]');
     expect(secondCallArgs.query).toContain('[SKU: 6553823]');
   });
+
+  it('rotates sessionId on new comparison and home logo click, updating sessionStorage', async () => {
+    vi.mocked(compareProducts).mockResolvedValue(mockComparisonResponse);
+    sessionStorage.clear();
+
+    renderWithClient(<App />);
+
+    const initialSessionId = sessionStorage.getItem('bb_session_id');
+    expect(initialSessionId).toMatch(/^sess-/);
+
+    // 1. Submit first comparison
+    tagTwoDefaultLaptopsAndSubmit('Compare laptops round 1');
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(1);
+    });
+    const firstCallSessionId = vi.mocked(compareProducts).mock.calls[0][0].session_id;
+    expect(firstCallSessionId).toMatch(/^sess-/);
+
+    // 2. Click Home logo -> should rotate sessionId
+    const homeBtn = screen.getByRole('button', { name: /TECHBUY RETAILERS/i });
+    fireEvent.click(homeBtn);
+    const homeRotatedSessionId = sessionStorage.getItem('bb_session_id');
+    expect(homeRotatedSessionId).not.toBe(firstCallSessionId);
+
+    // 3. Submit second comparison -> should rotate sessionId again and pass new ID
+    tagTwoDefaultLaptopsAndSubmit('Compare laptops round 2');
+    await waitFor(() => {
+      expect(compareProducts).toHaveBeenCalledTimes(2);
+    });
+    const secondCallSessionId = vi.mocked(compareProducts).mock.calls[1][0].session_id;
+    expect(secondCallSessionId).not.toBe(firstCallSessionId);
+    expect(secondCallSessionId).not.toBe(homeRotatedSessionId);
+    expect(sessionStorage.getItem('bb_session_id')).toBe(secondCallSessionId);
+  });
 });
+
 
 
 

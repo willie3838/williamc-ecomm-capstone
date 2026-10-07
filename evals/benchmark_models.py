@@ -944,7 +944,7 @@ def run_per_stage_benchmarks(
             candidates = (matched + remaining)[:target_count]
             t0 = time.perf_counter()
             synth_res = orch.synthesize_comparison_with_llm(
-                candidates, query=c["query"], model=model
+                candidates, [], query=c["query"], model=model
             )
             elapsed = (time.perf_counter() - t0) * 1000.0
             latencies_ms.append(elapsed)

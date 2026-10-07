@@ -41,9 +41,7 @@ export function buildComparisonPrompt(
   if (trimmedPrompt) {
     lines.push(`User Focus / Follow-up: ${trimmedPrompt}`);
   } else {
-    lines.push(
-      'User Focus / Follow-up: Compare specifications, trade-offs, and recommend the best option.'
-    );
+    lines.push('Compare specifications, trade-offs, and recommend the best option.');
   }
 
   return lines.join('\n');

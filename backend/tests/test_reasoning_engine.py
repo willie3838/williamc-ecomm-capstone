@@ -172,3 +172,97 @@ def test_invoke_remote_reasoning_engine_rest_endpoint() -> None:
         assert called_url.endswith(
             "projects/499572810092/locations/us-central1/reasoningEngines/2445220951441276928:streamQuery"
         )
+
+
+def test_reasoning_engine_query_and_stream_query_forward_user_id() -> None:
+    """Verify ReasoningEngine.query and stream_query forward user_id to coordinator."""
+    engine = CatalogComparisonReasoningEngine(model="gemini-2.5-flash")
+    mock_coord = MagicMock()
+    mock_coord.execute.return_value = CompareResponse(
+        summary="Test summary",
+        products=[],
+        comparison_matrix=[],
+        citations=[],
+        session_id="sess_uid_1",
+    )
+    engine._coordinator = mock_coord
+
+    res = engine.query(query="test", session_id="sess_uid_1", user_id="custom_user_123")
+    assert res["summary"] == "Test summary"
+    mock_coord.execute.assert_called_with(
+        raw_query="test",
+        category=None,
+        session_id="sess_uid_1",
+        agent_version=None,
+        model="gemini-2.5-flash",
+        synthesis_model=None,
+        stage1_model=None,
+        stage2_model=None,
+        stage3_model=None,
+        user_id="custom_user_123",
+    )
+
+    events = list(
+        engine.stream_query(query="test", session_id="sess_uid_1", user_id="custom_user_123")
+    )
+    assert len(events) == 1
+
+
+def test_agent_wrapped_stream_queries_forward_user_id() -> None:
+    """Verify _adk_query, _wrapped_stream_query and _wrapped_async_stream_query forward user_id."""
+    import asyncio
+    import json
+
+    from vertexai.agent_engines import AdkApp
+
+    import app.agent.agent  # noqa: F401 (ensures wraps are registered)
+
+    with patch("app.agent.reasoning_engine.reasoning_engine.query") as mock_re_query:
+        mock_re_query.return_value = {"summary": "Compare OK", "products": []}
+        mock_self = MagicMock()
+
+        # 0. _adk_query forwards user_id
+        AdkApp.query(mock_self, query="Compare Laptops", user_id="enterprise_user_0")
+        assert mock_re_query.call_args[1].get("user_id") == "enterprise_user_0"
+
+        # 1. stream_query with dict message containing user_id
+        mock_re_query.reset_mock()
+        msg_dict = {
+            "__compare_request__": True,
+            "query": "Laptop A vs B",
+            "user_id": "enterprise_user_1",
+        }
+        list(AdkApp.stream_query(mock_self, message=json.dumps(msg_dict), user_id="fallback_uid"))
+        assert mock_re_query.call_args[1].get("user_id") == "enterprise_user_1"
+
+        # 2. stream_query with conversational text message
+        mock_re_query.reset_mock()
+        list(
+            AdkApp.stream_query(
+                mock_self,
+                message="Which has better battery?",
+                user_id="enterprise_user_2",
+            )
+        )
+        assert mock_re_query.call_args[1].get("user_id") == "enterprise_user_2"
+
+        # 3. async_stream_query with compare request and conversational text
+        mock_re_query.reset_mock()
+
+        async def _test_async() -> None:
+            res1 = []
+            async for ev in AdkApp.async_stream_query(
+                mock_self, message=json.dumps(msg_dict), user_id="fallback_uid"
+            ):
+                res1.append(ev)
+            assert mock_re_query.call_args[1].get("user_id") == "enterprise_user_1"
+
+            mock_re_query.reset_mock()
+            res2 = []
+            async for ev in AdkApp.async_stream_query(
+                mock_self, message="What about RAM?", user_id="enterprise_user_3"
+            ):
+                res2.append(ev)
+            assert mock_re_query.call_args[1].get("user_id") == "enterprise_user_3"
+
+        asyncio.run(_test_async())

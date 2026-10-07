@@ -41,6 +41,7 @@ describe('promptBuilder', () => {
     expect(prompt).toContain(`[SKU: ${mockMacBook.sku}]`);
     expect(prompt).toContain(`[SKU: ${mockDellXPS.sku}]`);
     expect(prompt).toContain('Compare specifications, trade-offs, and recommend the best option.');
+    expect(prompt).not.toContain('User Focus / Follow-up:');
   });
 
   it('handles products with empty or missing specifications gracefully', () => {

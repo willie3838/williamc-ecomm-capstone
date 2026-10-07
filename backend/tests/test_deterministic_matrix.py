@@ -523,8 +523,110 @@ def test_hybrid_router_preference_query_invokes_flash_lite(
     assert len(captured_calls) == 1
     call = captured_calls[0]
     assert call["call_model"] == "gemini-2.5-flash-lite"
-    assert "<customer_preferences>" in call["matrix_prompt"]
     assert "travel" in call["matrix_prompt"]
+
+
+def test_hybrid_router_empty_search_bar_structured_prompt_skips_matrix_llm(
+    sample_laptop_1: ProductSpec, sample_laptop_2: ProductSpec
+) -> None:
+    """Verify structured prompt from empty search bar executes deterministically in 0ms without invoking matrix LLM."""
+    orch = ComparisonOrchestrator()
+    orch._run_matrix_winners_llm = MagicMock()
+
+    mock_resp = MagicMock()
+    mock_resp.text = '{"summary": "Direct comparison between laptops [SKU: LAP-1] and [SKU: LAP-2].", "recommendations": "Best overall: [SKU: LAP-1]."}'
+    mock_resp.usage_metadata = MagicMock(prompt_token_count=100, candidates_token_count=50)
+    orch._call_genai_with_failover = MagicMock(return_value=mock_resp)
+
+    # Structured prompt constructed when search bar is empty (contains specs with battery life, but no user preferences)
+    empty_search_prompt = (
+        "Compare the following products:\n"
+        f"Product 1: {sample_laptop_1.name} [SKU: {sample_laptop_1.sku}] - ${sample_laptop_1.price}\n"
+        "  Specifications:\n"
+        "  * Battery Life: Up to 18 hours\n"
+        "  * Processor: Apple M3\n"
+        f"Product 2: {sample_laptop_2.name} [SKU: {sample_laptop_2.sku}] - ${sample_laptop_2.price}\n"
+        "  Specifications:\n"
+        "  * Battery Life: Up to 14 hours\n"
+        "  * Processor: Intel Core Ultra 7\n"
+        "Compare specifications, trade-offs, and recommend the best option."
+    )
+
+    matrix = []
+    orch.synthesize_comparison_with_llm(
+        [sample_laptop_1, sample_laptop_2],
+        matrix,
+        query=empty_search_prompt,
+        model="gemini-2.5-pro",
+    )
+
+    # Matrix winners LLM must NOT be called for clean UI comparison
+    orch._run_matrix_winners_llm.assert_not_called()
+    assert len(matrix) > 0
+    matrix_rows = {r.feature: r for r in matrix}
+    assert matrix_rows["Memory (RAM)"].winner_sku == "LAP-1"
+
+
+def test_detect_customer_preferences_generic_focus_phrases() -> None:
+    """Verify that generic focus instructions in User Focus / Follow-up are treated as no preferences."""
+    generic_queries = [
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: Compare specifications, trade-offs, and recommend the best option.",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: compare specifications, trade-offs and recommend the best option",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: Compare specifications",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: Compare products",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: side-by-side comparison",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: general comparison",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: none",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: n/a",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: no preference",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: overview",
+        "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: recommend the best option",
+    ]
+    for q in generic_queries:
+        has_pref, pref_text = ComparisonOrchestrator._detect_customer_preferences(q)
+        assert not has_pref, f"Expected no preferences for query: {q!r}, got: {pref_text}"
+        assert pref_text == ""
+
+
+def test_detect_customer_preferences_isolated_from_spec_body() -> None:
+    """Verify that catalog specs in structured prompt body do not false-trigger preference detection."""
+    structured_query = """Compare the following products:
+Product 1: ASUS ROG Zephyrus G16 Gaming Laptop (ASUS) [SKU: 6570270] - $1999.99
+  Specifications:
+  * Battery Life: Up to 10 hours
+  * Audio Technology: Spatial Audio with Dolby Atmos
+  * Operating System: Windows 11 Home for work and office
+  * Weight: 4.1 lbs (lightweight for travel)
+Product 2: Dell XPS 13 Laptop (Dell) [SKU: 6575132] - $1199.99
+  Specifications:
+  * Battery Life: Up to 14 hours
+  * Sound: Stereo speakers
+Compare specifications, trade-offs, and recommend the best option."""
+    has_pref, pref_text = ComparisonOrchestrator._detect_customer_preferences(structured_query)
+    assert not has_pref, f"Expected False but got {has_pref} with pref_text: {pref_text}"
+    assert pref_text == ""
+
+
+def test_detect_customer_preferences_genuine_focus() -> None:
+    """Verify that real user preferences inside User Focus / Follow-up are properly detected."""
+    queries_and_expected = [
+        (
+            "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: good for gaming",
+            "good for gaming",
+        ),
+        (
+            "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: only price",
+            "only price",
+        ),
+        (
+            "Compare the following products:\nProduct 1: Laptop A [SKU: 1]\nProduct 2: Laptop B [SKU: 2]\nUser Focus / Follow-up: prioritize battery life for travel",
+            "prioritize battery life for travel",
+        ),
+    ]
+    for q, expected in queries_and_expected:
+        has_pref, pref_text = ComparisonOrchestrator._detect_customer_preferences(q)
+        assert has_pref, f"Expected preference for query: {q!r}"
+        assert pref_text == expected
 
 
 def test_deterministic_evaluator_never_covers_preferences(

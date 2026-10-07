@@ -78,6 +78,7 @@ class CatalogComparisonReasoningEngine:
         stage1_model: str | None = None,
         stage2_model: str | None = None,
         stage3_model: str | None = None,
+        user_id: str | None = None,
         **_kwargs: Any,
     ) -> dict[str, Any]:
         """Serve comparison query on Vertex AI Agent Runtime."""
@@ -85,6 +86,7 @@ class CatalogComparisonReasoningEngine:
             self.set_up()
         assert self._coordinator is not None
 
+        effective_user_id = user_id or _kwargs.get("user_id")
         response: CompareResponse = self._coordinator.execute(
             raw_query=query,
             category=category,
@@ -95,6 +97,7 @@ class CatalogComparisonReasoningEngine:
             stage1_model=stage1_model,
             stage2_model=stage2_model,
             stage3_model=stage3_model,
+            user_id=effective_user_id,
         )
         return response.model_dump()
 
@@ -109,6 +112,7 @@ class CatalogComparisonReasoningEngine:
         stage1_model: str | None = None,
         stage2_model: str | None = None,
         stage3_model: str | None = None,
+        user_id: str | None = None,
         **_kwargs: Any,
     ) -> Iterable[dict[str, Any]]:
         """Serve streaming turn events for Vertex AI Agent Runtime :streamQuery."""
@@ -116,6 +120,7 @@ class CatalogComparisonReasoningEngine:
             self.set_up()
         assert self._coordinator is not None
 
+        effective_user_id = user_id or _kwargs.get("user_id")
         for ev in self._coordinator.execute_stream(
             raw_query=query,
             category=category,
@@ -126,6 +131,7 @@ class CatalogComparisonReasoningEngine:
             stage1_model=stage1_model,
             stage2_model=stage2_model,
             stage3_model=stage3_model,
+            user_id=effective_user_id,
         ):
             ev_with_type = dict(ev)
             ev_with_type["event_type"] = ev.get("event", "streaming_event")
