@@ -210,24 +210,31 @@ def format_stage4_matrix_winners_prompt(
     spec_keys_str: str,
     example_sku: str,
     candidates_desc: str,
+    customer_preferences: str | None = None,
     template: str | None = None,
 ) -> str:
     """Format the Stage 4 Parallel Matrix Winner Specialist prompt."""
     active_tpl = template or STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE
     try:
-        return active_tpl.format(
+        base = active_tpl.format(
             sku_tags_list=sku_tags_list,
             spec_keys_str=spec_keys_str,
             example_sku=example_sku,
             candidates_desc=candidates_desc,
         )
     except Exception:
-        return STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE.format(
+        base = STAGE4_MATRIX_WINNERS_PROMPT_TEMPLATE.format(
             sku_tags_list=sku_tags_list,
             spec_keys_str=spec_keys_str,
             example_sku=example_sku,
             candidates_desc=candidates_desc,
         )
+    if customer_preferences:
+        pref_section = (
+            f"<customer_preferences>\n{customer_preferences.strip()}\n</customer_preferences>\n\n"
+        )
+        return f"{pref_section}{base}"
+    return base
 
 
 def format_followup_chat_prompt(
