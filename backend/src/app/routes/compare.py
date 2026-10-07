@@ -306,10 +306,6 @@ def _invoke_remote_reasoning_engine(
     return ComparisonResponse.model_validate(raw_output)
 
 
-if getattr(settings, "enable_background_warmup", False):
-    threading.Thread(target=_warm_remote_engine_client, daemon=True).start()
-
-
 def _execute_comparison_sync(request: ComparisonRequest) -> ComparisonResponse:
     """Execute multi-agent comparison pipeline synchronously inside worker thread."""
     import app.main as app_main

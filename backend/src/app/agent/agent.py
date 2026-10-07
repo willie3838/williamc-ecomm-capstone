@@ -241,19 +241,6 @@ def _register_reasoning_engine_query_method() -> None:
     except Exception as exc:
         logger.debug("Could not update _ALLOWED_AGENT_ENGINE_CLASS_METHODS: %s", exc)
 
-    try:
-        import threading
-
-        from app.config import settings
-
-        if (
-            getattr(settings, "enable_background_warmup", False)
-            and reasoning_engine._coordinator is None
-        ):
-            threading.Thread(target=reasoning_engine.set_up, daemon=True).start()
-    except Exception as exc:
-        logger.debug("Could not background-warm reasoning_engine: %s", exc)
-
 
 _register_reasoning_engine_query_method()
 
