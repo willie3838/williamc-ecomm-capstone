@@ -1124,10 +1124,10 @@ class ComparisonOrchestrator:
             return {}, 0, 0
         matrix_cfg = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=SpecWinnersSynthesis,
+            response_schema=SpecWinnersSynthesis if is_mock_env else None,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=128,
+            max_output_tokens=512,
             thinking_config=thinking_cfg,
         )
         with tracer.start_as_current_span("gemini.synthesize_matrix_winners") as mw_span:
@@ -1144,9 +1144,9 @@ class ComparisonOrchestrator:
                 if armor_cfg is not None:
                     fallback_mw_cfg = types.GenerateContentConfig(
                         response_mime_type="application/json",
-                        response_schema=SpecWinnersSynthesis,
+                        response_schema=SpecWinnersSynthesis if is_mock_env else None,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=128,
+                        max_output_tokens=512,
                         thinking_config=thinking_cfg,
                     )
                     mw_resp = self._call_genai_with_failover(

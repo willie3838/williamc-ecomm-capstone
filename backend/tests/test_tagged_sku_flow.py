@@ -706,9 +706,16 @@ def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matri
         lambda **kwargs: [p.model_dump() for p in sample_products[:2]],
     )
 
-    resp = orch.compare("Compare MacBook Air vs Dell XPS 13 for travel", category="Laptops")
+    # Under hybrid routing, preference/focus queries invoke Stage 4 parallel matrix winners
+    resp = orch.compare("Compare MacBook Air vs Dell XPS 13 - good for gaming?", category="Laptops")
     assert len(resp.products) == 2
     assert len(resp.comparison_matrix) >= 1
+    assert matrix_winners_called["count"] == 1
+
+    # Clean queries without preferences execute deterministically in 0ms (no additional LLM calls)
+    resp_clean = orch.compare("Compare MacBook Air vs Dell XPS 13", category="Laptops")
+    assert len(resp_clean.products) == 2
+    assert len(resp_clean.comparison_matrix) >= 1
     assert matrix_winners_called["count"] == 1
 
     # Also check MultiAgentCoordinator
