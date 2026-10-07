@@ -206,8 +206,11 @@ backend/
       - *Intent-Driven Spec Reordering*: Query focus keywords (e.g. `gaming`, `office`, `travel`, `display`, `audio`) dynamically reorder the displayed spec rows while keeping top headers (`Category`, `Price`, `Customer Rating`) pinned at the top. For generic queries, `Processor / CPU` is placed first among technical specs.
       - *Override Neutrality & Cross-Category Guard*: When `spec_winners` is provided from LLM synthesis, any spec not explicitly assigned a winner in `spec_winners` remains neutral (`winner_sku=None, winner_skus=[]`), ensuring unshared cross-category specs (e.g., Laptop RAM vs Headphone Driver Size) do not assign spurious wins.
     - **Hybrid Flash-Lite Preference Router**:
-      - For clean product comparison queries without extra user constraints/focus, `synthesize_comparison_with_llm` executes `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
-      - When user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=512`, and guarded JSON schema to contextually weight winners while preserving deterministic fallback.
+      - For clean product comparison queries without extra user constraints/focus (including structured UI prompts where the search bar was empty), `synthesize_comparison_with_llm` executes `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
+      - **Zero False-Positive Preference Detection**:
+        - Canonical generic comparison instructions (`GENERIC_FOCUS_PHRASES`, e.g. "Compare specifications, trade-offs, and recommend the best option", "compare specifications", "none", "overview") are strictly filtered out and treated as clean comparisons.
+        - Structured prompt boundary isolation (`_is_structured_comparison_prompt`) prevents catalog product specs in the prompt body (e.g. `* battery_life_hours: 18`, `Gaming Laptop`, `Sound Mode: Spatial Audio`) from bleeding into keyword preference detection.
+      - When user supplies genuine extra constraints/preferences (detected via non-generic `User Focus / Follow-up:` or explicit contextual keywords in raw queries like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and guarded JSON schema to contextually weight winners while preserving deterministic fallback.
 
 ---
 

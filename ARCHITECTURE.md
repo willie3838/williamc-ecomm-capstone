@@ -351,8 +351,11 @@ To guarantee zero spec hallucination and deterministic evaluation across consume
    - Subset ties among a subset of products populate `winner_sku=None` and `winner_skus=[tied_skus]`.
    - All-way ties leave `winner_sku=None` and `winner_skus=[]`.
 5. **Hybrid Flash-Lite Preference Router**:
-   - Clean product comparison queries without extra user constraints execute `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
-   - When the user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.
+   - Clean product comparison queries without extra user constraints (including structured UI comparison prompts where the search bar was empty) execute `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
+   - **Zero False-Positive Preference Detection**:
+     - Generic comparison instructions (`GENERIC_FOCUS_PHRASES`, e.g. "Compare specifications, trade-offs, and recommend the best option", "compare specifications", "none", "overview") are strictly filtered out and treated as clean comparisons.
+     - Structured prompt boundary isolation (`_is_structured_comparison_prompt`) prevents product specs inside prompt bodies (`battery_life_hours`, `Gaming Laptop`, `Spatial Audio`, `work and office`) from bleeding into keyword preference detection.
+   - When the user supplies genuine extra constraints/preferences (detected via non-generic `User Focus / Follow-up:` or preference keywords in raw queries like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.
 
 ---
 
