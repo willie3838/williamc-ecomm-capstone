@@ -201,7 +201,10 @@ backend/
       - *Boolean True is better*: Noise cancellation (`noise_canceling`), sensor included, stylus included.
       - *Progressive Tiers*: Display panel tiers (Tier 5 Tandem OLED/QD-OLED down to Tier 0 TN/TFT/VA) and Processor tiers (Tier 7 M4 Max/Core Ultra 9 down to Tier 1 AMD A10).
       - *Synonymous Key Normalization*: Maps synonymous keys automatically (e.g., `panel_type` $\leftrightarrow$ `display_technology`, `screen_size_in` $\leftrightarrow$ `display_size_in`, `noise_cancellation` $\leftrightarrow$ `noise_canceling`, `resolution` $\leftrightarrow$ `display_resolution`).
-    - **Tie Resolution**: All-way ties leave `winner_sku=None` and `winner_skus=[]`. Subset ties among a subset of products populate `winner_sku=None` and `winner_skus=[tied_skus]`.
+    - **Display Filtering & Focus Row Reordering (`build_comparison_matrix`)**:
+      - *Price-Only Filtering*: When the user specifies "only price" / "just price", the matrix is cleanly filtered to retain solely the `Price` row (`len == 1`).
+      - *Intent-Driven Spec Reordering*: Query focus keywords (e.g. `gaming`, `office`, `travel`, `display`, `audio`) dynamically reorder the displayed spec rows while keeping top headers (`Category`, `Price`, `Customer Rating`) pinned at the top. For generic queries, `Processor / CPU` is placed first among technical specs.
+      - *Override Neutrality & Cross-Category Guard*: When `spec_winners` is provided from LLM synthesis, any spec not explicitly assigned a winner in `spec_winners` remains neutral (`winner_sku=None, winner_skus=[]`), ensuring unshared cross-category specs (e.g., Laptop RAM vs Headphone Driver Size) do not assign spurious wins.
     - **Hybrid Flash-Lite Preference Router**:
       - For clean product comparison queries without extra user constraints/focus, `synthesize_comparison_with_llm` executes `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
       - When user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.

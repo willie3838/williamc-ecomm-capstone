@@ -21,7 +21,7 @@ from app.agent.adk_llm import (
     _get_vertex_client_for_model,
     _is_preview_or_3x_model,
 )
-from app.agent.matrix_evaluator import MatrixEvaluator
+from app.agent.matrix_evaluator import MatrixEvaluator, format_spec_label
 from app.agent.prompts import (
     SYSTEM_INSTRUCTION,
     format_followup_chat_prompt,
@@ -812,7 +812,102 @@ class ComparisonOrchestrator:
         spec_winners overrides when provided.
         """
         evaluator = getattr(self, "matrix_evaluator", None) or MatrixEvaluator()
-        return evaluator.evaluate_matrix(products, query=query, spec_winners=spec_winners)
+        rows = evaluator.evaluate_matrix(products, query=query, spec_winners=spec_winners)
+
+        # Extract explicit User Focus / Follow-up line if present to prevent spec keys in prompt body
+        # (e.g. * battery_life_hours: 18) from false-triggering focus ordering.
+        focus_match = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query or "", re.IGNORECASE)
+        effective_query = focus_match.group(1).strip() if focus_match else (query or "").strip()
+        clean_query = effective_query.lower()
+
+        is_only_price = any(
+            phrase in clean_query
+            for phrase in (
+                "only price",
+                "price only",
+                "just price",
+                "strictly price",
+                "only the price",
+            )
+        )
+        if is_only_price:
+            return [r for r in rows if r.feature == "Price"]
+
+        # Intent-driven spec key prioritization
+        priority_keys: list[str] = []
+        if any(term in clean_query for term in ("gaming", "game", "gamer", "fps", "esports")):
+            priority_keys = [
+                "refresh_rate_hz",
+                "response_time_ms",
+                "processor",
+                "ram_gb",
+                "display_resolution",
+                "storage_gb",
+            ]
+        elif any(
+            term in clean_query
+            for term in ("office", "work", "business", "productivity", "study", "school")
+        ):
+            priority_keys = [
+                "battery_life_hours",
+                "weight_lbs",
+                "ram_gb",
+                "processor",
+                "storage_gb",
+                "display_size_in",
+            ]
+        elif any(
+            term in clean_query
+            for term in ("battery", "travel", "portability", "commute", "endurance", "lightweight")
+        ):
+            priority_keys = [
+                "battery_life_hours",
+                "weight_lbs",
+                "weight_oz",
+                "display_size_in",
+                "battery_life_months",
+            ]
+        elif any(
+            term in clean_query
+            for term in ("display", "screen", "oled", "resolution", "vision", "color")
+        ):
+            priority_keys = [
+                "display_resolution",
+                "screen_size_in",
+                "display_size_in",
+                "refresh_rate_hz",
+                "panel_type",
+                "hdr_support",
+            ]
+        elif any(
+            term in clean_query for term in ("audio", "sound", "noise", "anc", "music", "headphone")
+        ):
+            priority_keys = [
+                "noise_canceling",
+                "driver_size_mm",
+                "battery_life_hours",
+                "bluetooth_version",
+                "weight_oz",
+                "connectivity",
+            ]
+
+        if priority_keys:
+            header_features = {"Category", "Price", "Customer Rating"}
+            header_rows = [r for r in rows if r.feature in header_features]
+            spec_rows = [r for r in rows if r.feature not in header_features]
+
+            priority_labels = [format_spec_label(k) for k in priority_keys]
+
+            def _spec_sort_order(row: MatrixRow) -> int:
+                try:
+                    return priority_labels.index(row.feature)
+                except ValueError:
+                    return len(priority_labels) + 100
+
+            spec_rows.sort(key=_spec_sort_order)
+            return header_rows + spec_rows
+
+        return rows
 
     _NON_COMPARATIVE_SPEC_KEYS: frozenset[str] = frozenset(
         {

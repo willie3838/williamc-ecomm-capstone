@@ -418,6 +418,9 @@ class MatrixEvaluator:
                 if norm not in seen:
                     seen.add(norm)
                     canonical_keys.append(norm)
+        if "processor" in canonical_keys and canonical_keys[0] != "processor":
+            canonical_keys.remove("processor")
+            canonical_keys.insert(0, "processor")
         return canonical_keys
 
     @classmethod
@@ -658,6 +661,11 @@ class MatrixEvaluator:
                     else:
                         winner_sku = None
                         winner_skus = []
+            elif spec_winners is not None:
+                # When spec_winners is explicitly provided from LLM synthesis,
+                # any spec not mentioned in spec_winners has no winner.
+                winner_sku = None
+                winner_skus = []
             else:
                 # Default deterministic polarity evaluation
                 winner_sku, winner_skus = self.evaluate_spec_winner(spec_key, products)
