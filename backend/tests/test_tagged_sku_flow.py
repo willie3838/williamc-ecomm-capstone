@@ -545,14 +545,31 @@ def test_compare_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(monk
 
 
 def test_multi_agent_runs_stage1_and_stage2_in_parallel_and_discards_on_chatter(monkeypatch):
-    """Verify MultiAgentCoordinator runs Stage 1 and Stage 2 in parallel at t=0 and discards BQ results on chatter."""
+    """Verify MultiAgentCoordinator runs Stage 1 and Stage 2 in parallel at t=0 via native ADK JoinNode and discards BQ results on chatter."""
     import threading
+
+    from google.adk.workflow import START, FunctionNode, JoinNode
 
     import app.agent.multi_agent as ma_mod
     from app.agent.multi_agent import MultiAgentCoordinator
     from app.models.requests import QueryIntentAnalysis
 
     coordinator = MultiAgentCoordinator()
+    assert coordinator.adk_workflow.graph is not None
+    function_nodes = [
+        n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
+    ]
+    assert len(function_nodes) == 4
+    join_nodes = [n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, JoinNode)]
+    assert len(join_nodes) == 1
+    assert join_nodes[0].name == "intent_retrieval_join"
+    start_targets = {
+        e.to_node.name
+        for e in coordinator.adk_workflow.graph.edges
+        if e.from_node.name == START.name
+    }
+    assert start_targets == {"query_intent_specialist", "catalog_retrieval_step"}
+
     barrier = threading.Barrier(2, timeout=2.0)
     overlap_detected = {"both_running_at_t0": False}
 
@@ -678,7 +695,7 @@ def test_stage3_does_not_invoke_rerank_with_llm_while_stage4_runs_parallel_matri
 
 
 def test_compact_synthesis_prompt_preserves_skus_and_prices(sample_products):
-    """Verify compacted _build_synthesis_prompt and STAGE4_SYNTHESIS_PROMPT_TEMPLATE preserve [SKU: ...] and $ prices."""
+    """Verify compacted _build_synthesis_prompt and STAGE4_SYNTHESIS_PROMPT_TEMPLATE preserve [SKU: ...], $ prices, and exact numeric spec values."""
     from app.agent.prompts import STAGE4_SYNTHESIS_PROMPT_TEMPLATE
 
     orch = ComparisonOrchestrator()
@@ -691,6 +708,7 @@ def test_compact_synthesis_prompt_preserves_skus_and_prices(sample_products):
     assert "$1199.00" in prompt
     assert "<catalog_products>" in prompt
     assert "<user_query>" in prompt
+    assert "exact numeric" in STAGE4_SYNTHESIS_PROMPT_TEMPLATE.lower()
     assert len(STAGE4_SYNTHESIS_PROMPT_TEMPLATE) < 1100
     assert len(prompt) < 1500
 

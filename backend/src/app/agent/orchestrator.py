@@ -1086,7 +1086,7 @@ class ComparisonOrchestrator:
                 price_grounding = f"Price Grounding: Equal price ${cheapest.price:,.2f}."
 
         num_prods = len(products)
-        summary_word_limit = 50 if num_prods <= 2 else min(70, 35 + num_prods * 7)
+        summary_word_limit = 60 if num_prods <= 2 else min(75, 40 + num_prods * 7)
         recs_word_limit = 30 if num_prods <= 2 else min(50, 18 + num_prods * 6)
         sku_tags_list = ", ".join(
             f"'{self._short_product_label(p)}' [SKU: {p.sku}]" for p in products

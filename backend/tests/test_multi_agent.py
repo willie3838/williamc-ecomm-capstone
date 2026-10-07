@@ -418,8 +418,8 @@ def test_multi_agent_coordinator_session_and_category(mock_query_catalog):
 
 
 def test_adk_workflow_graph_structure_and_no_sequential_agent():
-    """Verify MultiAgentCoordinator uses ADK 2.0 Workflow graph and removes legacy SequentialAgent."""
-    from google.adk.workflow import FunctionNode, Workflow
+    """Verify MultiAgentCoordinator uses ADK 2.0 Workflow graph with JoinNode parallel barrier and removes legacy SequentialAgent."""
+    from google.adk.workflow import START, FunctionNode, JoinNode, Workflow
 
     coordinator = MultiAgentCoordinator()
     assert not hasattr(coordinator, "adk_sequential_agent"), (
@@ -440,6 +440,17 @@ def test_adk_workflow_graph_structure_and_no_sequential_agent():
         "relevance_detector_specialist",
         "spec_comparison_specialist",
     }
+
+    join_nodes = [n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, JoinNode)]
+    assert len(join_nodes) == 1
+    assert join_nodes[0].name == "intent_retrieval_join"
+
+    start_targets = {
+        e.to_node.name
+        for e in coordinator.adk_workflow.graph.edges
+        if e.from_node.name == START.name
+    }
+    assert start_targets == {"query_intent_specialist", "catalog_retrieval_step"}
 
     state = ComparisonAgentState(raw_query="Compare MacBook Air and Dell XPS")
     assert state.use_adk_runner is True
@@ -480,9 +491,11 @@ def test_adk_workflow_execution_emits_events_and_traverses_full_graph(mock_query
         for e in events
         if e.custom_metadata and "node" in e.custom_metadata
     ]
-    assert emitted_nodes == [
+    assert set(emitted_nodes[:2]) == {
         "query_intent_specialist",
         "catalog_retrieval_step",
+    }
+    assert emitted_nodes[2:] == [
         "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
@@ -499,7 +512,7 @@ def test_adk_workflow_execution_emits_events_and_traverses_full_graph(mock_query
 
 
 def test_adk_workflow_conditional_skip_retrieval_route_on_opinion_query():
-    """Verify ADK Workflow graph takes SKIP_RETRIEVAL conditional edge on opinion queries, bypassing Stages 2 and 3."""
+    """Verify ADK Workflow parallel JoinNode discards retrieval on opinion queries and sets SKIP_RETRIEVAL."""
     import asyncio
 
     coordinator = MultiAgentCoordinator()
@@ -512,21 +525,28 @@ def test_adk_workflow_conditional_skip_retrieval_route_on_opinion_query():
         for e in events
         if e.custom_metadata and "node" in e.custom_metadata
     ]
-    assert emitted_nodes == [
+    assert set(emitted_nodes[:2]) == {
         "query_intent_specialist",
+        "catalog_retrieval_step",
+    }
+    assert emitted_nodes[2:] == [
+        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.stage_trace == [
         "query_intent_specialist",
+        "catalog_retrieval_step",
+        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
+    assert final_state.retrieved_products == []
     assert final_state.comparison_response is not None
     assert final_state.comparison_response.products == []
 
 
 @patch("app.agent.multi_agent.query_catalog")
 def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
-    """Verify ADK Workflow graph takes EMPTY_CANDIDATES conditional edge when Stage 2 returns 0 products, bypassing Stage 3."""
+    """Verify ADK Workflow parallel JoinNode records EMPTY_CANDIDATES when Stage 2 returns 0 products."""
     import asyncio
 
     mock_query_catalog.return_value = []
@@ -544,14 +564,18 @@ def test_adk_workflow_conditional_empty_candidates_route(mock_query_catalog):
         for e in events
         if e.custom_metadata and "node" in e.custom_metadata
     ]
-    assert emitted_nodes == [
+    assert set(emitted_nodes[:2]) == {
         "query_intent_specialist",
         "catalog_retrieval_step",
+    }
+    assert emitted_nodes[2:] == [
+        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.stage_trace == [
         "query_intent_specialist",
         "catalog_retrieval_step",
+        "relevance_detector_specialist",
         "spec_comparison_specialist",
     ]
     assert final_state.comparison_response is not None
