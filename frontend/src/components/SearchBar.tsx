@@ -188,33 +188,27 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     setPickerHighlightedIndex(-1);
   };
 
-  const canSubmit = !isLoading && (query.trim().length > 0 || hasTaggedProducts);
+  const canSubmit = !isLoading && taggedProducts.length >= 2;
 
   const executeSearch = () => {
     setIsDropdownOpen(false);
     setHighlightedIndex(-1);
-    const trimmed = query.trim();
-
-    if (hasTaggedProducts) {
-      if (!isLoading) {
-        const prompt = buildComparisonPrompt(taggedProducts, trimmed);
-        const allSameCategory =
-          taggedProducts.length > 0 &&
-          taggedProducts.every(
-            (p) => Boolean(p.category) && p.category === taggedProducts[0].category
-          );
-        const categoryToPass =
-          allSameCategory && selectedCategory && taggedProducts[0].category === selectedCategory
-            ? selectedCategory
-            : null;
-        onSearch(prompt, categoryToPass, taggedProducts);
-      }
+    if (!canSubmit) {
       return;
     }
 
-    if (trimmed && !isLoading) {
-      onSearch(trimmed, selectedCategory);
-    }
+    const trimmed = query.trim();
+    const prompt = buildComparisonPrompt(taggedProducts, trimmed);
+    const allSameCategory =
+      taggedProducts.length > 0 &&
+      taggedProducts.every(
+        (p) => Boolean(p.category) && p.category === taggedProducts[0].category
+      );
+    const categoryToPass =
+      allSameCategory && selectedCategory && taggedProducts[0].category === selectedCategory
+        ? selectedCategory
+        : null;
+    onSearch(prompt, categoryToPass, taggedProducts);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -359,8 +353,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               </button>
               <span className="text-[11px] text-gray-500 font-medium hidden sm:inline">
                 {taggedProducts.length === 0
-                  ? 'Browse catalog & pick products to compare'
-                  : `${taggedProducts.length} of ${maxTaggedProducts} tagged`}
+                  ? 'Select at least 2 products to compare'
+                  : taggedProducts.length === 1
+                    ? `Select at least 2 products to compare (1 of ${maxTaggedProducts} tagged)`
+                    : `${taggedProducts.length} of ${maxTaggedProducts} tagged`}
               </span>
             </div>
           )}
@@ -391,9 +387,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onKeyDown={handleKeyDown}
               disabled={isLoading}
               placeholder={
-                hasTaggedProducts
+                taggedProducts.length >= 2
                   ? 'Add follow-up requirements (e.g., "only price", "good for gaming", "battery life")...'
-                  : 'Compare MacBook Air M3 and Dell XPS 13, or Sony WH-1000XM5 vs Bose QC Ultra...'
+                  : taggedProducts.length === 1
+                    ? 'Select at least 1 more product to compare, or add follow-up requirements (e.g., "only price", "good for gaming", "battery life")...'
+                    : 'Select at least 2 products to compare (e.g., Compare MacBook Air M3 and Dell XPS 13)...'
               }
               aria-label="Natural language product comparison query"
               aria-autocomplete="list"
