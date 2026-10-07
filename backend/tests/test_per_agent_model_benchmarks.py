@@ -184,11 +184,6 @@ def _patch_orchestrator_for_benchmarks(monkeypatch: pytest.MonkeyPatch) -> None:
             reasoning="Comparison query",
         ),
     )
-    monkeypatch.setattr(
-        ComparisonOrchestrator,
-        "_rerank_with_llm",
-        lambda self_o, cands, *a, **kw: list(cands),
-    )
 
     def _mock_synth(
         self_o: Any, prods: list[Any], matrix: Any = None, query: str = "", model: str | None = None
@@ -206,7 +201,7 @@ def _patch_orchestrator_for_benchmarks(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_run_per_stage_benchmarks_three_llm_specialists(
     monkeypatch: pytest.MonkeyPatch, mock_bq: MagicMock, sample_benchmark_cases
 ):
-    """Verify run_per_stage_benchmarks executes the 3 LLM specialist agent stages across the 9 GA models."""
+    """Verify run_per_stage_benchmarks executes the LLM specialist agent stages across the 9 GA models."""
     _patch_orchestrator_for_benchmarks(monkeypatch)
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
@@ -217,7 +212,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(
 
     stages = res["stages"]
     assert "stage1_intent" in stages
-    assert "stage2_relevance" in stages or "stage3_relevance" in stages
     assert "stage3_synthesis" in stages or "stage4_synthesis" in stages
 
     s1_results = stages["stage1_intent"]
@@ -226,13 +220,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(
         assert entry["specialist"] == "QueryIntentSpecialist"
         assert entry["model_id"] in STAGE_MODELS
         assert entry["latency_p95_ms"] >= 0.0
-
-    rel_results = stages.get("stage2_relevance") or stages.get("stage3_relevance")
-    assert len(rel_results) == 9
-    for entry in rel_results:
-        assert entry["specialist"] == "RelevanceDetectorSpecialist"
-        assert entry["model_id"] in STAGE_MODELS
-        assert "mean_f1" in entry
 
     syn_results = stages.get("stage3_synthesis") or stages.get("stage4_synthesis")
     assert len(syn_results) == 9
@@ -244,7 +231,6 @@ def test_run_per_stage_benchmarks_three_llm_specialists(
 
     win = res["winning_combination"]
     assert win["stage1_intent"] in STAGE_MODELS
-    assert (win.get("stage2_relevance") or win.get("stage3_relevance")) in STAGE_MODELS
     assert (win.get("stage3_synthesis") or win.get("stage4_synthesis")) in STAGE_MODELS
     assert win["total_pipeline_p95_ms"] > 0.0
     assert isinstance(win["sla_p95_3000ms_passed"], bool)
@@ -253,7 +239,7 @@ def test_run_per_stage_benchmarks_three_llm_specialists(
 def test_generate_benchmark_markdown_structure(
     monkeypatch: pytest.MonkeyPatch, mock_bq: MagicMock, sample_benchmark_cases
 ):
-    """Verify generate_benchmark_markdown formats the 3 specialist stages into readable tables."""
+    """Verify generate_benchmark_markdown formats the specialist stages into readable tables."""
     _patch_orchestrator_for_benchmarks(monkeypatch)
     res = run_per_stage_benchmarks(
         cases=sample_benchmark_cases,
@@ -304,7 +290,6 @@ def test_generate_benchmark_markdown_structure(
 
     md = generate_benchmark_markdown(report_mock)
     assert "Stage 1: QueryIntentSpecialist" in md
-    assert "RelevanceDetectorSpecialist" in md
     assert "SpecComparisonSpecialist" in md
     assert "Summed Pipeline Latency & Strict SLA Verification" in md
 
@@ -527,13 +512,13 @@ def test_multi_agent_coordinator_stage_optimal_routing(
     default_coord = MultiAgentCoordinator(bq_client=mock_bq)
     assert default_coord.use_stage_optimal_models is True
     assert default_coord.intent_agent.model == "gemini-3.5-flash-lite"
-    assert default_coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert not hasattr(default_coord, "relevance_agent")
     assert default_coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
 
     # 2. Explicit model="stage-optimal"
     coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
     assert coord.intent_agent.model == "gemini-3.5-flash-lite"
-    assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert not hasattr(coord, "relevance_agent")
     assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"
 
     # 3. Environment variable overrides (README / Rollback Playbook)
@@ -552,5 +537,5 @@ def test_multi_agent_coordinator_stage_optimal_routing(
 
     env_coord = MultiAgentCoordinator(bq_client=mock_bq)
     assert env_coord.intent_agent.model == "gemini-2.5-flash"
-    assert env_coord.relevance_agent.model == "gemini-3.5-flash-lite"
+    assert not hasattr(env_coord, "relevance_agent")
     assert env_coord.comparison_agent.synthesis_model == "gemini-2.5-flash-lite"

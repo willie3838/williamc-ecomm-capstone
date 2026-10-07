@@ -2,10 +2,9 @@
 
 Implements specialized cooperative agents and deterministic steps orchestrated via a Google ADK 2.0 Workflow graph (https://adk.dev/graphs/):
 1. QueryIntentAgent: Decomposes customer query into target entities, detects query intent, and sanitizes input.
-2. CatalogRetrievalStep (CatalogRetrievalAgent alias): Executes grounded BigQuery parameterized SQL retrieval with schema verification.
-3. RelevanceDetectorAgent: Evaluates post-retrieval candidates using LLM reranking and strict relevance verification.
-4. SpecComparisonAgent: Generates feature-level side-by-side matrices and winner badges when comparison is validated.
-5. MultiAgentCoordinator: Orchestrates the 4-node ADK 2.0 Workflow graph with conditional routing edges and typed ComparisonAgentState handoffs via the ADK Runner.
+2. CatalogRetrievalStep (CatalogRetrievalAgent alias): Executes grounded BigQuery parameterized SQL retrieval with schema verification and tagged SKU click ordering.
+3. SpecComparisonAgent: Generates feature-level side-by-side matrices and winner badges when comparison is validated.
+4. MultiAgentCoordinator: Orchestrates the 3-node ADK 2.0 Workflow graph with conditional routing edges and typed ComparisonAgentState handoffs via the ADK Runner.
 """
 
 from __future__ import annotations
@@ -230,7 +229,22 @@ class CatalogRetrievalStep:
                 except Exception as e:
                     logger.warning("Failed to validate product spec schema: %s", e)
 
+            # Preserve exact tagged SKU click ordering
+            if tagged_skus:
+                sku_to_prod = {p.sku: p for p in products}
+                matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
+                if len(matched_tagged) >= 2:
+                    products = matched_tagged[:5]
+                elif len(matched_tagged) == 1 and len(products) > 1:
+                    remaining = [p for p in products if p.sku not in tagged_skus]
+                    products = [matched_tagged[0], remaining[0]]
+                else:
+                    products = products[:5]
+            else:
+                products = products[:5]
+
             state.retrieved_products = products
+            state.ranked_products = list(products)
             state.step_history.append(
                 {
                     "agent": "CatalogRetrievalStep",
@@ -244,119 +258,6 @@ class CatalogRetrievalStep:
 
 # Backward compatibility alias
 CatalogRetrievalAgent = CatalogRetrievalStep
-
-
-class RelevanceDetectorAgent:
-    """Specialist agent responsible for evaluating retrieved product relevance using LLM reranker."""
-
-    def __init__(
-        self,
-        bq_client: bigquery.Client | None = None,
-        model: str | None = None,
-        synthesis_model: str | None = None,
-    ) -> None:
-        self.model, self.synthesis_model, _ = resolve_model_pair(
-            model=model, synthesis_model=synthesis_model
-        )
-        self.orchestrator = ComparisonOrchestrator(
-            bq_client=bq_client,
-            model=self.model,
-            synthesis_model=self.synthesis_model,
-        )
-        self.adk_llm = CatalogAdkLlm(model=self.model, genai_client=self.orchestrator.genai_client)
-        self.adk_agent = Agent(
-            name="relevance_detector_specialist",
-            model=self.adk_llm,
-            instruction=(
-                "You are a Product Relevance & Comparison Detector.\n"
-                "Evaluate whether candidate products match the customer's intent and whether a comparison matrix is justified.\n"
-                "Reject irrelevant catalog matches and subjective rants."
-            ),
-        )
-
-    def process(self, state: ComparisonAgentState) -> ComparisonAgentState:
-        """Execute LLM reranker and verify whether selected products genuinely match query intent."""
-        with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as span:
-            active_model = state.stage2_model or state.model or self.model
-            active_synthesis = state.stage3_model or state.synthesis_model or self.synthesis_model
-            self.orchestrator.synthesis_model = active_synthesis
-            span.set_attribute("ai.model.name", active_model)
-            span.set_attribute("adk.runner.name", "CatalogAdkRunner")
-            span.set_attribute("adk.agent.name", self.adk_agent.name)
-            if not state.is_comparison_eligible or not state.retrieved_products:
-                state.ranked_products = []
-                state.is_comparison_eligible = False
-                state.step_history.append(
-                    {
-                        "agent": "RelevanceDetectorAgent",
-                        "adk_agent": self.adk_agent.name,
-                        "adk_runner": "CatalogAdkRunner",
-                        "status": "COMPLETED",
-                        "decision": "REJECTED_NON_COMPARATIVE",
-                        "relevant_count": 0,
-                    }
-                )
-                span.set_attribute("agent.relevance_decision", "REJECTED_NON_COMPARATIVE")
-                return state
-
-            from app.models.requests import QueryIntentAnalysis
-
-            precomputed = QueryIntentAnalysis(
-                intent_type=state.intent_type,
-                is_comparison_eligible=state.is_comparison_eligible,
-                detected_category=state.detected_category,
-                target_keywords=state.target_keywords,
-                reasoning="Precomputed by QueryIntentAgent",
-            )
-            ranked = self.orchestrator.rank_and_select_products(
-                state.retrieved_products,
-                state.target_keywords,
-                original_query=state.sanitized_query,
-                model=active_model,
-                precomputed_intent=precomputed,
-            )
-
-            # Lock onto explicit tagged SKUs from buildComparisonPrompt if present
-            tagged_skus = re.findall(
-                r"\[SKU:\s*([A-Za-z0-9_-]+)\]", state.sanitized_query or state.raw_query
-            )
-            if tagged_skus:
-                sku_map = {p.sku: p for p in state.retrieved_products}
-                matched_tagged = [sku_map[s] for s in tagged_skus if s in sku_map]
-                if len(matched_tagged) >= 2:
-                    ranked = matched_tagged[:5]
-
-            if len(ranked) < 2:
-                state.is_comparison_eligible = False
-                state.ranked_products = ranked
-                decision = "INSUFFICIENT_COMPARISON_CANDIDATES"
-            else:
-                state.is_comparison_eligible = True
-                state.ranked_products = ranked[:5]
-                decision = (
-                    "APPROVED_FOR_COMPARISON_TAGGED_SKUS"
-                    if tagged_skus and len(matched_tagged) >= 2
-                    else "APPROVED_FOR_COMPARISON"
-                )
-
-            state.step_history.append(
-                {
-                    "agent": "RelevanceDetectorAgent",
-                    "adk_agent": self.adk_agent.name,
-                    "adk_runner": "CatalogAdkRunner",
-                    "status": "COMPLETED",
-                    "model": active_model,
-                    "decision": decision,
-                    "relevant_count": len(state.ranked_products),
-                }
-            )
-            span.set_attribute("agent.relevance_decision", decision)
-            span.set_attribute("agent.relevant_count", len(state.ranked_products))
-            return state
-
-
-# Alias for candidate relevance reranking specialist
-RelevanceRerankerAgent = RelevanceDetectorAgent
 
 
 class SpecComparisonAgent:
@@ -407,25 +308,9 @@ class SpecComparisonAgent:
             span.set_attribute("adk.runner.name", "CatalogAdkRunner")
             span.set_attribute("adk.agent.name", self.adk_agent.name)
 
-            # If ranked_products has not been populated by RelevanceDetectorAgent, evaluate retrieved_products
+            # If ranked_products has not been populated, populate from retrieved_products
             if not state.ranked_products and state.retrieved_products:
-                from app.models.requests import QueryIntentAnalysis
-
-                precomputed = QueryIntentAnalysis(
-                    intent_type=state.intent_type,
-                    is_comparison_eligible=state.is_comparison_eligible,
-                    detected_category=state.detected_category,
-                    target_keywords=state.target_keywords,
-                    reasoning="Precomputed by QueryIntentAgent",
-                )
-                ranked = self.orchestrator.rank_and_select_products(
-                    state.retrieved_products,
-                    state.target_keywords,
-                    original_query=state.sanitized_query,
-                    model=active_routing,
-                    precomputed_intent=precomputed,
-                )
-                state.ranked_products = ranked[:5] if len(ranked) >= 2 else ranked
+                state.ranked_products = list(state.retrieved_products[:5])
 
             # Check gate: If not eligible for comparison or fewer than 2 relevant products
             safe_query = state.sanitized_query or sanitize_user_prompt(state.raw_query)
@@ -579,7 +464,6 @@ class MultiAgentCoordinator:
         stage_cfg = resolve_stage_models()
         if self.use_stage_optimal_models:
             s1_model = stage_cfg["stage1_intent"]
-            s2_model = stage_cfg["stage2_relevance"]
             s3_model = (
                 synthesis_model
                 if synthesis_model
@@ -589,7 +473,6 @@ class MultiAgentCoordinator:
             chat_model = stage_cfg["stage5_chat"]
         else:
             s1_model = self.model
-            s2_model = self.model
             s3_model = self.synthesis_model
             chat_model = self.synthesis_model
 
@@ -597,9 +480,6 @@ class MultiAgentCoordinator:
             model=s1_model, synthesis_model=self.synthesis_model, bq_client=bq_client
         )
         self.retrieval_agent = CatalogRetrievalStep(bq_client=bq_client)
-        self.relevance_agent = RelevanceDetectorAgent(
-            bq_client=bq_client, model=s2_model, synthesis_model=self.synthesis_model
-        )
         self.comparison_agent = SpecComparisonAgent(
             bq_client=bq_client,
             model=s3_model,
@@ -755,7 +635,7 @@ class MultiAgentCoordinator:
                 },
             )
 
-        async def _relevance_detector_node(ctx: Context, node_input: Any = None) -> Event:
+        async def _spec_comparison_node(ctx: Context, node_input: Any = None) -> Event:
             state = _ACTIVE_WORKFLOW_STATE.get() or ComparisonAgentState(raw_query="")
             if isinstance(node_input, dict):
                 intent_out = node_input.get("query_intent_specialist")
@@ -783,6 +663,7 @@ class MultiAgentCoordinator:
             if not state.is_comparison_eligible or state.intent_type == "OPINION_OR_CHATTER":
                 state.retrieved_products = []
                 state.ranked_products = []
+                state.is_comparison_eligible = False
                 state.workflow_routes["query_intent_specialist"] = "SKIP_RETRIEVAL"
             elif (
                 not state.retrieved_products
@@ -800,35 +681,20 @@ class MultiAgentCoordinator:
                     )
                     state.retrieved_products = list(fallback_state.retrieved_products)
 
-            t0 = time.perf_counter()
-            state = self.relevance_agent.process(state)
-            relevance_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-            state.timing_breakdown_ms["relevance_ms"] = relevance_ms
-            state.stage_trace.append("relevance_detector_specialist")
-            state.workflow_routes["relevance_detector_specialist"] = "DEFAULT"
+            if not state.ranked_products and state.retrieved_products:
+                if state.target_keywords and len(state.target_keywords) >= 2:
+                    target_count = min(len(state.target_keywords), 5)
+                    entity_matches = self.intent_agent.orchestrator._select_best_entity_candidates(
+                        state.retrieved_products, state.target_keywords, target_count
+                    )
+                    state.ranked_products = (
+                        entity_matches
+                        if len(entity_matches) >= 2
+                        else list(state.retrieved_products[:target_count])
+                    )
+                else:
+                    state.ranked_products = list(state.retrieved_products[:5])
 
-            stage_3_meta = {
-                "ranked_skus": [p.sku for p in state.ranked_products],
-                "ranked_count": len(state.ranked_products),
-                "sub_agent": self.relevance_agent.adk_agent.name,
-            }
-            return Event(
-                author="relevance_detector_specialist",
-                output=state,
-                state={"stage_3_relevance": stage_3_meta},
-                custom_metadata={
-                    "stage": "relevance_ranking",
-                    "node": "relevance_detector_specialist",
-                    **stage_3_meta,
-                },
-            )
-
-        async def _spec_comparison_node(ctx: Context, node_input: Any = None) -> Event:
-            state = (
-                node_input
-                if isinstance(node_input, ComparisonAgentState)
-                else (_ACTIVE_WORKFLOW_STATE.get() or ComparisonAgentState(raw_query=""))
-            )
             t0 = time.perf_counter()
             state = self.comparison_agent.process(state)
             synthesis_ms = round((time.perf_counter() - t0) * 1000.0, 2)
@@ -860,10 +726,6 @@ class MultiAgentCoordinator:
             name="catalog_retrieval_step",
         )
         stage_join_node = JoinNode(name="intent_retrieval_join")
-        relevance_node = FunctionNode(
-            func=_relevance_detector_node,
-            name="relevance_detector_specialist",
-        )
         comparison_node = FunctionNode(
             func=_spec_comparison_node,
             name="spec_comparison_specialist",
@@ -872,15 +734,14 @@ class MultiAgentCoordinator:
         return Workflow(
             name="catalog_multi_agent_pipeline",
             description=(
-                "ADK 2.0 4-node comparison workflow graph combining specialist LLM agents "
-                "(QueryIntentAgent, RelevanceDetectorAgent, SpecComparisonAgent) with "
+                "ADK 2.0 3-node comparison workflow graph combining specialist LLM agents "
+                "(QueryIntentAgent, SpecComparisonAgent) with "
                 "parallel BigQuery SQL retrieval (CatalogRetrievalStep) and JoinNode synchronization."
             ),
             edges=[
                 (START, (intent_node, retrieval_node)),
                 ((intent_node, retrieval_node), stage_join_node),
-                (stage_join_node, relevance_node),
-                (relevance_node, comparison_node),
+                (stage_join_node, comparison_node),
             ],
         )
 
@@ -1005,8 +866,6 @@ class MultiAgentCoordinator:
 
         self.intent_agent.orchestrator.last_input_tokens = 0
         self.intent_agent.orchestrator.last_output_tokens = 0
-        self.relevance_agent.orchestrator.last_input_tokens = 0
-        self.relevance_agent.orchestrator.last_output_tokens = 0
         self.comparison_agent.orchestrator.last_input_tokens = 0
         self.comparison_agent.orchestrator.last_output_tokens = 0
 
@@ -1127,12 +986,10 @@ class MultiAgentCoordinator:
 
             total_in_tokens = (
                 self.intent_agent.orchestrator.last_input_tokens
-                + self.relevance_agent.orchestrator.last_input_tokens
                 + self.comparison_agent.orchestrator.last_input_tokens
             )
             total_out_tokens = (
                 self.intent_agent.orchestrator.last_output_tokens
-                + self.relevance_agent.orchestrator.last_output_tokens
                 + self.comparison_agent.orchestrator.last_output_tokens
             )
 

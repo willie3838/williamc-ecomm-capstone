@@ -3,9 +3,7 @@
 import json
 from unittest.mock import MagicMock
 
-from app.agent.orchestrator import ComparisonOrchestrator
 from app.data.analytics import AnalyticsService
-from app.models.responses import ProductSpec
 from app.tools.catalog import query_catalog
 
 
@@ -56,92 +54,6 @@ def test_query_catalog_deduplicates_identical_skus():
     assert len(results) == 2
     skus = [r["sku"] for r in results]
     assert skus == ["6575132", "6534606"]
-
-
-def test_rank_and_select_products_balances_mac_vs_dell():
-    """Verify rank_and_select_products selects 1 Apple product and 1 Dell product, never 2 Dells."""
-    candidates = [
-        ProductSpec(
-            sku="6575132",
-            name='Dell - XPS 13" Laptop',
-            brand="Dell",
-            category="Laptops",
-            price=1199.0,
-            specifications={"ram_gb": 16},
-        ),
-        ProductSpec(
-            sku="6575133",
-            name='Dell - Inspiron 15" Laptop',
-            brand="Dell",
-            category="Laptops",
-            price=799.0,
-            specifications={"ram_gb": 16},
-        ),
-        ProductSpec(
-            sku="6534606",
-            name='Apple - MacBook Air 13.6" Laptop - M3',
-            brand="Apple",
-            category="Laptops",
-            price=1099.0,
-            specifications={"ram_gb": 16},
-        ),
-    ]
-
-    orchestrator = ComparisonOrchestrator()
-    selected = orchestrator.rank_and_select_products(
-        candidates, keywords=["mac", "dell"], original_query="mac vs dell"
-    )
-
-    assert len(selected) >= 2
-    top_two = selected[:2]
-    brands = {p.brand.lower() for p in top_two}
-    assert "apple" in brands, (
-        f"Expected Apple in comparison results, got: {[p.name for p in top_two]}"
-    )
-    assert "dell" in brands, (
-        f"Expected Dell in comparison results, got: {[p.name for p in top_two]}"
-    )
-
-
-def test_rank_and_select_products_preserves_intra_brand_macbook_air_vs_pro():
-    """Verify intra-brand queries (MacBook Air vs MacBook Pro) do not promote unrelated brands (Dell) into top 2."""
-    candidates = [
-        ProductSpec(
-            sku="6534606",
-            name='Apple - MacBook Air 13.6" Laptop - M3',
-            brand="Apple",
-            category="Laptops",
-            price=1099.0,
-            specifications={"ram_gb": 16},
-        ),
-        ProductSpec(
-            sku="6534640",
-            name='Apple - MacBook Pro 14" Laptop - M3 Pro',
-            brand="Apple",
-            category="Laptops",
-            price=1999.0,
-            specifications={"ram_gb": 18},
-        ),
-        ProductSpec(
-            sku="6575132",
-            name='Dell - XPS 13" Laptop',
-            brand="Dell",
-            category="Laptops",
-            price=1199.0,
-            specifications={"ram_gb": 16},
-        ),
-    ]
-
-    orchestrator = ComparisonOrchestrator()
-    selected = orchestrator.rank_and_select_products(
-        candidates,
-        keywords=["MacBook Air 13 M3", "MacBook Pro 14 M3 Pro"],
-        original_query="What are the key differences between MacBook Air 13 M3 and MacBook Pro 14 M3 Pro?",
-    )
-
-    assert len(selected) >= 2
-    top_two_skus = [p.sku for p in selected[:2]]
-    assert set(top_two_skus) == {"6534606", "6534640"}
 
 
 def test_analytics_service_in_memory_session_counter():

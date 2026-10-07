@@ -25,7 +25,6 @@ from app.agent.prompts import (
     SYSTEM_INSTRUCTION,
     format_followup_chat_prompt,
     format_stage1_intent_prompt,
-    format_stage3_rerank_prompt,
     format_stage4_matrix_winners_prompt,
     format_stage4_synthesis_prompt,
 )
@@ -37,7 +36,6 @@ from app.models.comparison import (
     SpecWinnersSynthesis,
 )
 from app.models.requests import (
-    CandidateRankingResponse,
     ChatMessage,
     ComparisonRequest,
     QueryIntentAnalysis,
@@ -2025,272 +2023,6 @@ class ComparisonOrchestrator:
 
         return selected[:target_count]
 
-    def rank_and_select_products(
-        self,
-        products: list[ProductSpec],
-        keywords: list[str],
-        original_query: str = "",
-        model: str = settings.gemini_model,
-        precomputed_intent: QueryIntentAnalysis | None = None,
-    ) -> list[ProductSpec]:
-        """Select candidate products deterministically in the comparison pipeline (no Stage 3 LLM call)."""
-        if not products:
-            return []
-
-        # Deduplicate incoming products by SKU
-        seen_skus: set[str] = set()
-        unique_products: list[ProductSpec] = []
-        for p in products:
-            if p.sku and p.sku not in seen_skus:
-                seen_skus.add(p.sku)
-                unique_products.append(p)
-
-        # If precomputed Stage 1 intent marked query as opinion/chatter or ineligible, reject immediately
-        if precomputed_intent is not None and (
-            precomputed_intent.intent_type == "OPINION_OR_CHATTER"
-            or not precomputed_intent.is_comparison_eligible
-        ):
-            if precomputed_intent.intent_type == "OPINION_OR_CHATTER":
-                return []
-
-        # Lock onto explicit tagged SKUs from buildComparisonPrompt to prevent follow-up swapping
-        tagged_pairs = self.extract_tagged_products(original_query or "")
-        tagged_skus = [sku for _, sku in tagged_pairs if sku]
-        if not tagged_skus:
-            tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", original_query or "")
-        if tagged_skus:
-            sku_to_prod = {p.sku: p for p in unique_products}
-            matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
-            if len(matched_tagged) >= 2:
-                logger.info(
-                    "Locked rank_and_select onto %d tagged SKUs: %s",
-                    len(matched_tagged),
-                    [p.sku for p in matched_tagged[:5]],
-                )
-                return matched_tagged[:5]
-            elif len(matched_tagged) == 1 and len(unique_products) > 1:
-                remaining = [p for p in unique_products if p.sku not in tagged_skus]
-                return [matched_tagged[0], remaining[0]]
-
-        entity_kw = (
-            (self.extract_keywords(original_query) or keywords) if original_query else keywords
-        )
-        target_count = min(5, max(2, len(entity_kw)))
-
-        # In the comparison pipeline (precomputed_intent provided) or default live execution,
-        # skip Stage 3 LLM reranking and deterministically select top entity-balanced candidates.
-        is_custom_mock_client = (
-            self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
-        )
-        if precomputed_intent is not None or not is_custom_mock_client:
-            if precomputed_intent is None and self._is_opinion_query(original_query):
-                return []
-            if len(entity_kw) >= 2:
-                return self._select_best_entity_candidates(unique_products, entity_kw, target_count)
-            return self._balance_entities(unique_products, entity_kw)[:target_count]
-
-        # Legacy direct call path when a custom/mocked genai_client is injected without precomputed_intent
-        intent = self.classify_intent(original_query, model=model)
-        if intent.intent_type == "OPINION_OR_CHATTER":
-            return []
-
-        llm_ranked = self._rerank_with_llm(
-            unique_products, original_query or " ".join(keywords), model=model
-        )
-        if llm_ranked is not None:
-            if len(entity_kw) >= 2:
-                return self._select_best_entity_candidates(llm_ranked, entity_kw, target_count)
-            return self._balance_entities(llm_ranked, entity_kw)[:target_count]
-
-        raise RuntimeError("LLM candidate reranking failed")
-
-    # Explicit alias for candidates reranking
-    rank_and_select_candidates = rank_and_select_products
-
-    def _rerank_with_llm(
-        self, products: list[ProductSpec], query: str, model: str = settings.gemini_model
-    ) -> list[ProductSpec] | None:
-        """Use Gemini to score and rank candidate products based on query relevance."""
-        if not query.strip() or not products:
-            return None
-        if (
-            len(products) <= 1
-            and self.genai_client is None
-            and genai.Client is _DEFAULT_GENAI_CLIENT_CLS
-        ):
-            return list(products)
-
-        sanitized_query = sanitize_user_prompt(query)
-        candidates_desc = "\n".join(
-            f"- SKU: {p.sku} | {p.name} | Brand: {p.brand} | Category: {p.category} | Price: ${p.price}"
-            for p in products[:10]
-        )
-
-        stage3_tpl, _ = get_stage_prompt("stage3")
-        prompt = format_stage3_rerank_prompt(
-            sanitized_query=sanitized_query,
-            candidates_desc=candidates_desc,
-            template=stage3_tpl,
-        )
-
-        is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
-        call_model, _, _ = resolve_model_pair(model=model)
-        client = self._get_genai_client(model=call_model)
-        thinking_cfg = _build_thinking_config(call_model)
-        rerank_sys_inst = self.active_system_instruction if is_mock_env else None
-        rerank_max_tokens = (
-            int(getattr(settings, "max_output_tokens", 2048)) if is_mock_env else 512
-        )
-        config = types.GenerateContentConfig(
-            system_instruction=rerank_sys_inst,
-            response_mime_type="application/json",
-            response_schema=CandidateRankingResponse,
-            model_armor_config=None,
-            temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=rerank_max_tokens,
-            thinking_config=thinking_cfg,
-        )
-
-        with tracer.start_as_current_span("gemini.rank_and_select") as llm_span:
-            llm_span.set_attribute("gen_ai.system", "vertexai")
-            llm_span.set_attribute("gen_ai.request.model", call_model)
-            llm_span.set_attribute("candidates.candidate_count", len(products))
-            response = self._call_genai_with_failover(
-                client,
-                call_model,
-                prompt,
-                config,
-            )
-
-            # Detect if response was blocked by Google Cloud Model Armor or Vertex AI safety filters
-            if response.candidates:
-                finish_reason = str(getattr(response.candidates[0], "finish_reason", "") or "")
-                if finish_reason in {
-                    "SAFETY",
-                    "MODEL_ARMOR",
-                    "BLOCKLIST",
-                    "PROHIBITED_CONTENT",
-                    "SPII",
-                }:
-                    logger.warning(
-                        "Query blocked by Google Cloud Model Armor / Safety filter (reason=%s): %s",
-                        finish_reason,
-                        sanitized_query,
-                    )
-                    return []
-            # Track token consumption metrics
-            usage = getattr(response, "usage_metadata", None)
-            if usage:
-                in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
-                out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
-                self.last_input_tokens += in_toks
-                self.last_output_tokens += out_toks
-                llm_span.set_attribute("gen_ai.usage.prompt_tokens", in_toks)
-                llm_span.set_attribute("gen_ai.usage.completion_tokens", out_toks)
-
-        def _parse_rerank_payload(resp_obj: Any) -> list[dict[str, Any]]:
-            resp_text = ""
-            try:
-                resp_text = (getattr(resp_obj, "text", "") or "").strip()
-            except Exception:
-                pass
-            if not resp_text and getattr(resp_obj, "candidates", None):
-                for cand in resp_obj.candidates:
-                    content = getattr(cand, "content", None)
-                    if content and getattr(content, "parts", None):
-                        for part in content.parts:
-                            txt = getattr(part, "text", None)
-                            if txt:
-                                resp_text += txt
-            raw_text = _extract_json_snippet(resp_text)
-            parsed_items: list[dict[str, Any]] | None = None
-            try:
-                parsed_schema = CandidateRankingResponse.model_validate_json(raw_text)
-                parsed_items = [{"sku": r.sku, "score": r.score} for r in parsed_schema.rankings]
-            except Exception:
-                try:
-                    parsed_raw = json.loads(raw_text)
-                    if isinstance(parsed_raw, list):
-                        parsed_items = [
-                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
-                            for item in parsed_raw
-                            if isinstance(item, dict)
-                        ]
-                    elif isinstance(parsed_raw, dict) and "rankings" in parsed_raw:
-                        parsed_items = [
-                            {"sku": str(item.get("sku", "")), "score": float(item.get("score", 0))}
-                            for item in parsed_raw["rankings"]
-                            if isinstance(item, dict)
-                        ]
-                except Exception:
-                    parsed_items = None
-
-            if parsed_items is None:
-                raise RuntimeError("Invalid JSON response from Gemini reranking LLM")
-            return parsed_items
-
-        ranked_items: list[dict[str, Any]] | None = None
-        try:
-            ranked_items = _parse_rerank_payload(response)
-        except Exception as parse_err:
-            logger.warning(
-                "Candidate reranking JSON parsing failed on initial attempt (%s); retrying generate_content...",
-                parse_err,
-            )
-            retry_response = client.models.generate_content(
-                model=call_model,
-                contents=prompt,
-                config=config,
-            )
-            retry_usage = getattr(retry_response, "usage_metadata", None)
-            if retry_usage:
-                in_toks = int(getattr(retry_usage, "prompt_token_count", 0) or 0)
-                out_toks = int(getattr(retry_usage, "candidates_token_count", 0) or 0)
-                self.last_input_tokens += in_toks
-                self.last_output_tokens += out_toks
-            if getattr(retry_response, "candidates", None):
-                finish_reason = str(
-                    getattr(retry_response.candidates[0], "finish_reason", "") or ""
-                )
-                if finish_reason in {
-                    "SAFETY",
-                    "MODEL_ARMOR",
-                    "BLOCKLIST",
-                    "PROHIBITED_CONTENT",
-                    "SPII",
-                }:
-                    logger.warning(
-                        "Query blocked by Google Cloud Model Armor / Safety filter on retry (reason=%s): %s",
-                        finish_reason,
-                        sanitized_query,
-                    )
-                    return []
-            # If retry also fails, exception propagates cleanly (fail-fast preserved)
-            ranked_items = _parse_rerank_payload(retry_response)
-
-        sku_to_product = {p.sku: p for p in products}
-        ordered_products: list[ProductSpec] = []
-        seen_ordered_skus: set[str] = set()
-
-        for item in ranked_items:
-            sku = str(item.get("sku", ""))
-            score = float(item.get("score", 0))
-            if sku in sku_to_product and score >= 6.0 and sku not in seen_ordered_skus:
-                ordered_products.append(sku_to_product[sku])
-                seen_ordered_skus.add(sku)
-
-        if ordered_products:
-            logger.info(
-                "LLM Reranker successfully ranked %d/%d products for query: %s",
-                len(ordered_products),
-                len(products),
-                sanitized_query,
-            )
-            return ordered_products
-
-        logger.info("LLM Reranker judged 0 products relevant for query: %s", sanitized_query)
-        return []
-
     def compare(
         self,
         query: str | ComparisonRequest,
@@ -2527,21 +2259,39 @@ class ComparisonOrchestrator:
                     prompt_version=resolved_prompt_ver,
                 )
 
-            # Stage 3: Relevance Detection & Entity Ranking
-            with tracer.start_as_current_span("agent.stage_3.relevance_ranking") as rank_stage_span:
-                products = [ProductSpec(**row) for row in catalog_rows]
-                products = self.rank_and_select_products(
-                    products,
-                    keywords,
-                    original_query=query,
-                    model=active_routing_model,
-                    precomputed_intent=intent,
-                )
-                target_skus = [p.sku for p in products]
-                rank_stage_span.set_attribute("agent.candidates_in", len(catalog_rows))
-                rank_stage_span.set_attribute("agent.candidates_selected", len(products))
-                rank_stage_span.set_attribute("agent.selected_skus", ",".join(target_skus))
+            # Convert retrieved catalog rows into ProductSpec schemas with deduplication and preserve tagged SKU click order
+            products = [ProductSpec(**row) for row in catalog_rows]
+            seen_skus: set[str] = set()
+            unique_products: list[ProductSpec] = []
+            for p in products:
+                if p.sku and p.sku not in seen_skus:
+                    seen_skus.add(p.sku)
+                    unique_products.append(p)
 
+            tagged_pairs = self.extract_tagged_products(query or "")
+            tagged_skus = [sku for _, sku in tagged_pairs if sku]
+            if not tagged_skus:
+                tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query or "")
+            if tagged_skus:
+                sku_to_prod = {p.sku: p for p in unique_products}
+                matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
+                if len(matched_tagged) >= 2:
+                    products = matched_tagged[:5]
+                elif len(matched_tagged) == 1 and len(unique_products) > 1:
+                    remaining = [p for p in unique_products if p.sku not in tagged_skus]
+                    products = [matched_tagged[0], remaining[0]]
+            elif keywords and len(keywords) >= 2:
+                target_count = min(len(keywords), 5)
+                entity_matches = self._select_best_entity_candidates(
+                    unique_products, keywords, target_count
+                )
+                products = (
+                    entity_matches if len(entity_matches) >= 2 else unique_products[:target_count]
+                )
+            else:
+                products = unique_products[:5]
+
+            target_skus = [p.sku for p in products]
             span.set_attribute("product_count", len(products))
             span.set_attribute("target_skus", ",".join(target_skus))
 
@@ -2779,13 +2529,38 @@ class ComparisonOrchestrator:
                 retrieved_prods = [ProductSpec(**row) for row in catalog_rows]
 
             if retrieved_prods:
-                products = self.rank_and_select_products(
-                    retrieved_prods,
-                    extracted_keywords,
-                    original_query=query,
-                    model=self.model,
-                    precomputed_intent=intent,
-                )
+                seen_skus: set[str] = set()
+                unique_products: list[ProductSpec] = []
+                for p in retrieved_prods:
+                    if p.sku and p.sku not in seen_skus:
+                        seen_skus.add(p.sku)
+                        unique_products.append(p)
+
+                tagged_pairs = self.extract_tagged_products(query or "")
+                tagged_skus = [sku for _, sku in tagged_pairs if sku]
+                if not tagged_skus:
+                    tagged_skus = re.findall(r"\[SKU:\s*([A-Za-z0-9_-]+)\]", query or "")
+                if tagged_skus:
+                    sku_to_prod = {p.sku: p for p in unique_products}
+                    matched_tagged = [sku_to_prod[s] for s in tagged_skus if s in sku_to_prod]
+                    if len(matched_tagged) >= 2:
+                        products = matched_tagged[:5]
+                    elif len(matched_tagged) == 1 and len(unique_products) > 1:
+                        remaining = [p for p in unique_products if p.sku not in tagged_skus]
+                        products = [matched_tagged[0], remaining[0]]
+                elif extracted_keywords and len(extracted_keywords) >= 2:
+                    target_count = min(len(extracted_keywords), 5)
+                    entity_matches = self._select_best_entity_candidates(
+                        unique_products, extracted_keywords, target_count
+                    )
+                    products = (
+                        entity_matches
+                        if len(entity_matches) >= 2
+                        else unique_products[:target_count]
+                    )
+                else:
+                    products = unique_products[:5]
+
                 if len(products) >= 2 and intent.is_comparison_eligible:
                     spec_winners_map: dict[str, str] | None = None
                     summary = None

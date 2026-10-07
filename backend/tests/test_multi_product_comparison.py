@@ -44,40 +44,25 @@ def test_extract_keywords_multi_product():
     assert len(kw5) >= 5
 
 
-def test_rank_and_select_products_multi_product(sample_catalog_products):
-    """Verify rank_and_select_products selects exactly 3, 4, and 5 products when requested."""
-    prods = sample_catalog_products
-    assert len(prods) == 5
-    orch = ComparisonOrchestrator()
+def test_catalog_retrieval_step_multi_product(sample_catalog_products):
+    """Verify CatalogRetrievalStep preserves up to 5 products for multi-product comparison."""
+    from unittest.mock import patch
 
-    # 3 products query
-    kw3 = ["MacBook Air", "Dell XPS", "ThinkPad"]
-    res3 = orch.rank_and_select_products(
-        prods, keywords=kw3, original_query="MacBook Air vs Dell XPS vs ThinkPad"
-    )
-    assert len(res3) == 3
-    skus3 = {p.sku for p in res3}
-    assert len(skus3) == 3
+    from app.agent.multi_agent import CatalogRetrievalStep, ComparisonAgentState
 
-    # 4 products query
-    kw4 = ["MacBook Air", "Dell XPS", "ThinkPad", "Zephyrus"]
-    res4 = orch.rank_and_select_products(
-        prods, keywords=kw4, original_query="MacBook Air vs Dell XPS vs ThinkPad vs Zephyrus"
+    step = CatalogRetrievalStep()
+    st = ComparisonAgentState(
+        raw_query="MacBook Air vs Dell XPS vs ThinkPad vs Zephyrus vs Spectre",
+        target_keywords=["MacBook Air", "Dell XPS", "ThinkPad", "Zephyrus", "Spectre"],
+        is_comparison_eligible=True,
     )
-    assert len(res4) == 4
-    skus4 = {p.sku for p in res4}
-    assert len(skus4) == 4
-
-    # 5 products query
-    kw5 = ["MacBook Air", "Dell XPS", "ThinkPad", "Zephyrus", "Spectre"]
-    res5 = orch.rank_and_select_products(
-        prods,
-        keywords=kw5,
-        original_query="MacBook Air vs Dell XPS vs ThinkPad vs Zephyrus vs Spectre",
-    )
-    assert len(res5) == 5
-    skus5 = {p.sku for p in res5}
-    assert len(skus5) == 5
+    with patch(
+        "app.agent.multi_agent.query_catalog",
+        return_value=[p.model_dump() for p in sample_catalog_products],
+    ):
+        out = step.process(st)
+    assert len(out.ranked_products) == 5
+    assert len({p.sku for p in out.ranked_products}) == 5
 
 
 def test_build_comparison_matrix_multi_product(sample_catalog_products):

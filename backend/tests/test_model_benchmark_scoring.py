@@ -400,11 +400,6 @@ class TestBenchmarkModelsEnvFlags:
         monkeypatch.setattr(ComparisonOrchestrator, "classify_intent_with_llm", spy_classify)
         monkeypatch.setattr(
             ComparisonOrchestrator,
-            "rank_and_select_products",
-            lambda self_o, cands, *args, **kwargs: cands[:2],
-        )
-        monkeypatch.setattr(
-            ComparisonOrchestrator,
             "synthesize_comparison_with_llm",
             lambda self_o, prods, matrix=None, *args, **kwargs: ComparisonSynthesis(
                 summary="Grounded [SKU: 6534606] vs [SKU: 6543210]",
@@ -659,5 +654,5 @@ def test_multi_agent_coordinator_stage_optimal_routing(mock_bq: MagicMock) -> No
     """Verify MultiAgentCoordinator supports stage-optimal routing across specialists."""
     coord = MultiAgentCoordinator(bq_client=mock_bq, model="stage-optimal")
     assert coord.intent_agent.model == "gemini-3.5-flash-lite"
-    assert coord.relevance_agent.model == "gemini-2.5-flash-lite"
+    assert not hasattr(coord, "relevance_agent")
     assert coord.comparison_agent.synthesis_model == "gemini-2.5-pro"

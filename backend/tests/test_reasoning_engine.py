@@ -36,7 +36,7 @@ def test_reasoning_engine_query_execution() -> None:
     # Validate that result can be parsed by ComparisonResponse
     parsed = CompareResponse.model_validate(result)
     assert parsed.summary is not None
-    assert len(parsed.products) == 2
+    assert 2 <= len(parsed.products) <= 5
 
 
 def test_reasoning_engine_stream_query() -> None:

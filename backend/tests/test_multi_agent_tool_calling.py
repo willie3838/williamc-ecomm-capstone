@@ -80,8 +80,8 @@ def test_catalog_retrieval_step_skipped_for_non_comparison():
     assert result.step_history[-1]["status"] == "SKIPPED"
 
 
-def test_adk_workflow_contains_four_graph_nodes_and_specialist_adk_agents():
-    """Verify ADK 2.0 Workflow graph contains all 4 stage nodes while only the 3 LLM stages hold an Agent."""
+def test_adk_workflow_contains_three_graph_nodes_and_specialist_adk_agents():
+    """Verify ADK 2.0 Workflow graph contains all 3 stage nodes while only the 2 LLM stages hold an Agent."""
     from google.adk.agents import Agent
     from google.adk.workflow import FunctionNode, Workflow
 
@@ -93,16 +93,15 @@ def test_adk_workflow_contains_four_graph_nodes_and_specialist_adk_agents():
     function_nodes = [
         n for n in coordinator.adk_workflow.graph.nodes if isinstance(n, FunctionNode)
     ]
-    assert len(function_nodes) == 4
+    assert len(function_nodes) == 3
     assert {n.name for n in function_nodes} == {
         "query_intent_specialist",
         "catalog_retrieval_step",
-        "relevance_detector_specialist",
         "spec_comparison_specialist",
     }
 
     assert isinstance(coordinator.intent_agent.adk_agent, Agent)
-    assert isinstance(coordinator.relevance_agent.adk_agent, Agent)
+    assert not hasattr(coordinator, "relevance_agent")
     assert isinstance(coordinator.comparison_agent.adk_agent, Agent)
     assert not hasattr(coordinator.retrieval_agent, "adk_agent")
 
@@ -115,7 +114,6 @@ def test_multi_agent_coordinator_deterministic_retrieval_integration():
     with (
         patch.object(coordinator.intent_agent, "process", side_effect=lambda s: s),
         patch.object(coordinator.retrieval_agent, "process") as mock_retrieval,
-        patch.object(coordinator.relevance_agent, "process", side_effect=lambda s: s),
         patch.object(coordinator.comparison_agent, "process", side_effect=lambda s: s),
     ):
         mock_retrieval.side_effect = lambda s, **kwargs: s
@@ -316,11 +314,10 @@ def test_coverage_gap_closers():
         CatalogRetrievalStep,
         ComparisonAgentState,
         MultiAgentCoordinator,
-        RelevanceDetectorAgent,
         SpecComparisonAgent,
     )
     from app.agent.prompts_service import get_active_prompt
-    from app.models.requests import ComparisonSynthesis
+    from app.models.requests import ComparisonSynthesis, QueryIntentAnalysis
     from app.models.responses import ProductSpec
 
     # 1. CatalogRetrievalStep with malformed product spec row
@@ -345,19 +342,17 @@ def test_coverage_gap_closers():
         assert len(out.retrieved_products) == 1
         assert out.retrieved_products[0].sku == "VALID_1"
 
-    # 2. RelevanceDetectorAgent with < 2 ranked candidates
-    rel_agent = RelevanceDetectorAgent()
+    # 2. CatalogRetrievalStep with single retrieved product populates ranked_products
     p1 = ProductSpec(sku="1", name="P1", brand="B1", category="Laptops", price=500.0)
-    st_rel = ComparisonAgentState(
-        raw_query="compare laptops",
-        target_keywords=["laptops"],
-        is_comparison_eligible=True,
-        retrieved_products=[p1],
-    )
-    with patch.object(rel_agent.orchestrator, "rank_and_select_products", return_value=[p1]):
-        out_rel = rel_agent.process(st_rel)
-        assert out_rel.is_comparison_eligible is False
-        assert len(out_rel.ranked_products) == 1
+    with patch("app.agent.multi_agent.query_catalog", return_value=[p1.model_dump()]):
+        st_ret = ComparisonAgentState(
+            raw_query="compare laptops",
+            target_keywords=["laptops"],
+            is_comparison_eligible=True,
+        )
+        out_ret = step.process(st_ret)
+        assert len(out_ret.retrieved_products) == 1
+        assert len(out_ret.ranked_products) == 1
 
     # 3. SpecComparisonAgent with single ranked product
     spec_agent = SpecComparisonAgent()
@@ -374,7 +369,18 @@ def test_coverage_gap_closers():
 
     # 4. MultiAgentCoordinator with session_id
     coord = MultiAgentCoordinator()
-    with patch("app.agent.multi_agent.query_catalog", return_value=[]):
+    with (
+        patch("app.agent.multi_agent.query_catalog", return_value=[]),
+        patch.object(
+            coord.intent_agent.orchestrator,
+            "classify_intent",
+            return_value=QueryIntentAnalysis(
+                intent_type="OPINION_OR_CHATTER",
+                is_comparison_eligible=False,
+                reasoning="Non-comparative query",
+            ),
+        ),
+    ):
         res = coord.execute("test query", session_id="session-xyz-999")
         assert res is not None
 
