@@ -21,6 +21,7 @@ from app.agent.adk_llm import (
     _get_vertex_client_for_model,
     _is_preview_or_3x_model,
 )
+from app.agent.matrix_evaluator import MatrixEvaluator, format_spec_label
 from app.agent.prompts import (
     SYSTEM_INSTRUCTION,
     format_followup_chat_prompt,
@@ -277,7 +278,7 @@ STAGE_OPTIMAL_MODELS: dict[str, str] = {
     "stage2_relevance": "gemini-2.5-flash-lite",
     "stage3_synthesis": "gemini-2.5-pro",
     "stage3_fast_synthesis": "gemini-2.5-flash-lite",
-    "stage4_matrix_winners": "gemini-2.5-flash",
+    "stage4_matrix_winners": "gemini-2.5-flash-lite",
     "stage5_chat": "gemini-2.5-flash",
 }
 
@@ -487,6 +488,7 @@ class ComparisonOrchestrator:
             synthesis_model=synthesis_model,
             instruction=self.active_system_instruction,
         )
+        self.matrix_evaluator = MatrixEvaluator()
         self._thread_local = threading.local()
         self.last_input_tokens = 0
         self.last_output_tokens = 0
@@ -803,18 +805,19 @@ class ComparisonOrchestrator:
     ) -> list[MatrixRow]:
         """Align product specifications side-by-side across all 5 categories and determine winners.
 
-        Uses Stage 4 LLM `spec_winners` when provided, with deterministic numeric/version comparison
-        for objective specs when `spec_winners` is not yet populated.
+        Uses MatrixEvaluator across the greater set of non-warehouse specs for up to 5 products,
+        evaluating polarities where missing specs automatically lose, and respecting Stage 4 LLM
+        spec_winners overrides when provided.
         """
-        if not products:
-            return []
+        evaluator = getattr(self, "matrix_evaluator", None) or MatrixEvaluator()
+        rows = evaluator.evaluate_matrix(products, query=query, spec_winners=spec_winners)
 
-        rows: list[MatrixRow] = []
         # Extract explicit User Focus / Follow-up line if present to prevent spec keys in prompt body
         # (e.g. * battery_life_hours: 18) from false-triggering focus ordering.
         focus_match = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query or "", re.IGNORECASE)
         effective_query = focus_match.group(1).strip() if focus_match else (query or "").strip()
         clean_query = effective_query.lower()
+
         is_only_price = any(
             phrase in clean_query
             for phrase in (
@@ -825,70 +828,8 @@ class ComparisonOrchestrator:
                 "only the price",
             )
         )
-
-        # Detect cross-category mismatch (e.g. comparing Laptops vs Headphones)
-        distinct_categories = {
-            (p.category or "").strip().lower() for p in products if (p.category or "").strip()
-        }
-        is_cross_category = len(distinct_categories) > 1
-        if is_cross_category:
-            rows.append(
-                MatrixRow(
-                    feature="Category",
-                    values={p.sku: (p.category or "General") for p in products},
-                    winner_sku=None,
-                    winner_skus=[],
-                )
-            )
-
-        # 1. Price comparison (lower is better)
-        price_values = {p.sku: f"${p.price:,.2f}" for p in products}
-        min_price = min(p.price for p in products)
-        price_winners = [p.sku for p in products if p.price == min_price]
-        price_winner_skus = price_winners if 0 < len(price_winners) < len(products) else []
-        rows.append(
-            MatrixRow(
-                feature="Price",
-                values=price_values,
-                winner_sku=price_winners[0] if len(price_winners) == 1 else None,
-                winner_skus=price_winner_skus,
-            )
-        )
-
-        # If user explicitly asked for "only price", return immediately with price comparison
         if is_only_price:
-            return rows
-
-        # 2. Rating comparison (higher is better)
-        rating_values = {
-            p.sku: f"{p.rating:.1f} ★ ({p.review_count or 0})" if p.rating else "N/A"
-            for p in products
-        }
-        valid_ratings = [(p.sku, p.rating) for p in products if p.rating is not None]
-        rating_winner = None
-        rating_winners: list[str] = []
-        if valid_ratings:
-            best_rating = max(r[1] for r in valid_ratings)
-            top_raters = [r[0] for r in valid_ratings if r[1] == best_rating]
-            if 0 < len(top_raters) < len(products):
-                rating_winners = top_raters
-                if len(top_raters) == 1:
-                    rating_winner = top_raters[0]
-        rows.append(
-            MatrixRow(
-                feature="Customer Rating",
-                values=rating_values,
-                winner_sku=rating_winner,
-                winner_skus=rating_winners,
-            )
-        )
-
-        # 3. Dynamic technical specifications alignment
-        all_spec_keys: list[str] = []
-        for p in products:
-            for k in p.specifications.keys():
-                if k not in all_spec_keys:
-                    all_spec_keys.append(k)
+            return [r for r in rows if r.feature == "Price"]
 
         # Intent-driven spec key prioritization
         priority_keys: list[str] = []
@@ -949,71 +890,20 @@ class ComparisonOrchestrator:
             ]
 
         if priority_keys:
+            header_features = {"Category", "Price", "Customer Rating"}
+            header_rows = [r for r in rows if r.feature in header_features]
+            spec_rows = [r for r in rows if r.feature not in header_features]
 
-            def _spec_sort_order(key: str) -> int:
+            priority_labels = [format_spec_label(k) for k in priority_keys]
+
+            def _spec_sort_order(row: MatrixRow) -> int:
                 try:
-                    return priority_keys.index(key)
+                    return priority_labels.index(row.feature)
                 except ValueError:
-                    return len(priority_keys) + 100
+                    return len(priority_labels) + 100
 
-            all_spec_keys.sort(key=_spec_sort_order)
-
-        normalized_spec_winners: dict[str, str] = {}
-        if isinstance(spec_winners, dict):
-            for k, v in spec_winners.items():
-                if k and v is not None:
-                    normalized_spec_winners[str(k).strip()] = str(v).strip()
-                    normalized_spec_winners[str(k).strip().lower()] = str(v).strip()
-
-        alias_to_sku: dict[str, str] = {}
-        for idx, p in enumerate(products):
-            alias_to_sku[f"product_{idx + 1}"] = p.sku
-            alias_to_sku[f"product_{chr(ord('a') + idx)}"] = p.sku
-
-        for spec_key in all_spec_keys:
-            label = _format_spec_label(spec_key)
-            val_map: dict[str, Any] = {
-                p.sku: _format_spec_value(spec_key, p.specifications.get(spec_key))
-                for p in products
-            }
-
-            winner_sku: str | None = None
-            winner_skus: list[str] = []
-
-            all_have_spec = len(products) >= 2 and all(
-                p.specifications.get(spec_key) is not None for p in products
-            )
-            all_equal = len(set(val_map.values())) <= 1
-
-            if all_have_spec and not all_equal:
-                raw_winner = (
-                    normalized_spec_winners.get(spec_key)
-                    or normalized_spec_winners.get(spec_key.lower())
-                    or normalized_spec_winners.get(label.lower())
-                )
-                if raw_winner is not None:
-                    rw_low = raw_winner.lower().strip()
-                    if rw_low not in ("tie", "equal", "none", "n/a", ""):
-                        matched_skus: list[str] = []
-                        if rw_low in alias_to_sku:
-                            matched_skus.append(alias_to_sku[rw_low])
-                        else:
-                            for p in products:
-                                if p.sku and p.sku in raw_winner and p.sku not in matched_skus:
-                                    matched_skus.append(p.sku)
-                        if 0 < len(matched_skus) < len(products):
-                            winner_skus = matched_skus
-                            if len(matched_skus) == 1:
-                                winner_sku = matched_skus[0]
-
-            rows.append(
-                MatrixRow(
-                    feature=label,
-                    values=val_map,
-                    winner_sku=winner_sku,
-                    winner_skus=winner_skus,
-                )
-            )
+            spec_rows.sort(key=_spec_sort_order)
+            return header_rows + spec_rows
 
         return rows
 
@@ -1128,16 +1018,73 @@ class ComparisonOrchestrator:
             template=stage4_tpl,
         )
 
+    @staticmethod
+    def _detect_customer_preferences(query: str) -> tuple[bool, str]:
+        """Detect whether query contains extra user constraints/preferences vs clean product comparison."""
+        if not query:
+            return False, ""
+        # 1. Explicit User Focus / Follow-up line
+        focus_m = re.search(r"User Focus\s*/\s*Follow-up:\s*(.+)", query, re.IGNORECASE)
+        if focus_m:
+            f_val = focus_m.group(1).strip()
+            if f_val:
+                return True, f_val
+
+        clean_q = query.lower().strip()
+        # Look for "for <context>" phrases like "for travel", "for coding", "for editing"
+        for_m = re.search(r"\bfor\s+([a-z0-9_\-\s]{2,40})", clean_q)
+        if for_m:
+            candidate = for_m.group(1).strip()
+            if candidate and not candidate.startswith("sale"):
+                return True, candidate
+
+        contextual_kws = (
+            "travel",
+            "coding",
+            "editing",
+            "gaming",
+            "gamer",
+            "game",
+            "fps",
+            "esports",
+            "office",
+            "work",
+            "business",
+            "productivity",
+            "study",
+            "school",
+            "commute",
+            "portability",
+            "lightweight",
+            "student",
+            "developer",
+            "creator",
+            "programming",
+            "audio",
+            "sound",
+            "budget",
+            "cheap",
+            "battery life",
+            "long battery",
+            "battery endurance",
+            "prefer",
+            "prioritize",
+            "best for",
+        )
+        for kw in contextual_kws:
+            if re.search(rf"\b{re.escape(kw)}\b", clean_q):
+                return True, kw
+
+        return False, ""
+
     def _build_matrix_winners_prompt(
         self,
         products: list[ProductSpec],
+        customer_preferences: str | None = None,
     ) -> tuple[str, list[str]]:
         """Build the prompt for the parallel Stage 4 MatrixWinnerAgent (SpecWinnersSynthesis)."""
-        all_spec_keys: list[str] = []
-        for p in products:
-            for k in self._filter_comparative_specs(p.specifications).keys():
-                if k not in all_spec_keys:
-                    all_spec_keys.append(k)
+        evaluator = getattr(self, "matrix_evaluator", None) or MatrixEvaluator()
+        all_spec_keys = evaluator.collect_greater_spec_keys(products)
         if not all_spec_keys:
             return "", []
 
@@ -1158,6 +1105,7 @@ class ComparisonOrchestrator:
             spec_keys_str=spec_keys_str,
             example_sku=example_sku,
             candidates_desc=candidates_desc,
+            customer_preferences=customer_preferences,
         )
         return prompt, all_spec_keys
 
@@ -1176,10 +1124,10 @@ class ComparisonOrchestrator:
             return {}, 0, 0
         matrix_cfg = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=SpecWinnersSynthesis if is_mock_env else None,
+            response_schema=SpecWinnersSynthesis,
             model_armor_config=armor_cfg if armor_cfg is not None else None,
             temperature=float(getattr(settings, "temperature", 0.1)),
-            max_output_tokens=512,
+            max_output_tokens=128,
             thinking_config=thinking_cfg,
         )
         with tracer.start_as_current_span("gemini.synthesize_matrix_winners") as mw_span:
@@ -1196,9 +1144,9 @@ class ComparisonOrchestrator:
                 if armor_cfg is not None:
                     fallback_mw_cfg = types.GenerateContentConfig(
                         response_mime_type="application/json",
-                        response_schema=SpecWinnersSynthesis if is_mock_env else None,
+                        response_schema=SpecWinnersSynthesis,
                         temperature=float(getattr(settings, "temperature", 0.1)),
-                        max_output_tokens=512,
+                        max_output_tokens=128,
                         thinking_config=thinking_cfg,
                     )
                     mw_resp = self._call_genai_with_failover(
@@ -1348,8 +1296,13 @@ class ComparisonOrchestrator:
         active_model = model or self.synthesis_model
         self.last_synthesis_model = active_model
 
+        has_preferences, pref_text = self._detect_customer_preferences(query)
+
+        # Pre-populate matrix deterministically if empty (0ms)
+        if matrix is not None and not matrix:
+            matrix[:] = self.build_comparison_matrix(products, query=query)
+
         prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
-        matrix_prompt, all_spec_keys = self._build_matrix_winners_prompt(products)
 
         is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
         _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
@@ -1445,28 +1398,35 @@ class ComparisonOrchestrator:
                     )
                 return cand
 
-        # Launch Call 1 (MatrixWinnerAgent / SpecWinnersSynthesis) in parallel with Call 2 (NarrativeSynthesis)
-        has_diff_specs = any(
-            len({str(p.specifications.get(k)) for p in products}) > 1 for k in all_spec_keys
-        )
-        should_launch_matrix_agent = bool(all_spec_keys) and (not is_mock_env or has_diff_specs)
+        # Hybrid router:
+        # If query is clean product comparison without extra user constraints/focus,
+        # execute build_comparison_matrix deterministically in 0ms without spawning _run_matrix_winners_llm.
+        # If user provides extra constraints/preferences (User Focus / Follow-up or contextual keywords
+        # like for travel, coding, editing), route a fast call to gemini-2.5-flash-lite
+        # with <customer_preferences> conditioning, max_output_tokens=128, and response_schema=SpecWinnersSynthesis.
         matrix_fut: Future[tuple[dict[str, str], int, int]] | None = None
-        if should_launch_matrix_agent:
-            mw_model = (
-                call_model if is_mock_env else resolve_stage_models()["stage4_matrix_winners"]
+        if has_preferences:
+            pref_matrix_prompt, _ = self._build_matrix_winners_prompt(
+                products, customer_preferences=pref_text
             )
-            mw_client = client if is_mock_env else self._get_genai_client(model=mw_model)
-            mw_thinking_cfg = thinking_cfg if is_mock_env else _build_thinking_config(mw_model)
-            matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
-                self._run_matrix_winners_llm,
-                mw_client,
-                mw_model,
-                matrix_prompt,
-                armor_cfg if is_mock_env else None,
-                mw_thinking_cfg,
-                is_mock_env,
-                _clean_synthesis_json,
-            )
+            if pref_matrix_prompt:
+                mw_model = resolve_stage_models().get(
+                    "stage4_matrix_winners", "gemini-2.5-flash-lite"
+                )
+                if not mw_model or "pro" in mw_model.lower():
+                    mw_model = "gemini-2.5-flash-lite"
+                mw_client = client if is_mock_env else self._get_genai_client(model=mw_model)
+                mw_thinking_cfg = _build_thinking_config(mw_model)
+                matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                    self._run_matrix_winners_llm,
+                    mw_client,
+                    mw_model,
+                    pref_matrix_prompt,
+                    armor_cfg if is_mock_env else None,
+                    mw_thinking_cfg,
+                    is_mock_env,
+                    _clean_synthesis_json,
+                )
 
         with tracer.start_as_current_span("gemini.synthesize_comparison") as llm_span:
             llm_span.set_attribute("gen_ai.system", "vertexai")

@@ -131,7 +131,7 @@ class Settings(BaseSettings):
         description="Stage 3/4 Spec Comparison Specialist low-latency synthesis model",
     )
     stage4_matrix_winners_model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-2.5-flash-lite",
         alias="STAGE4_MATRIX_WINNERS_MODEL",
         description="Stage 4 Call 2 parallel matrix row winner specialist model",
     )

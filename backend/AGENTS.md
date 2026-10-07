@@ -31,6 +31,7 @@ backend/
 │       │   ├── adk_llm.py     # Live CatalogAdkLlm BaseLlm, Vertex AI client & Model Armor guardrails, and claim citation scrubbing
 │       │   ├── prompts.py     # Anti-hallucination default system instructions
 │       │   ├── prompts_service.py # Native Google Cloud Vertex AI Prompt Management client
+│       │   ├── matrix_evaluator.py # Deterministic Greater-Set Matrix Evaluator & Spec Winner Engine across up to 5 products
 │       │   ├── agent_card.py  # Stateless A2A Agent Card generator for Google Cloud Agent Registry
 │       │   └── runner.py      # Google ADK Runner execution engine & session management
 │       └── tools/             # Agent tools
@@ -50,7 +51,8 @@ backend/
     ├── test_agent_registry.py # Vertex AI Prompt Management & A2A Agent Card unit tests
     ├── test_compare_api.py    # End-to-end API route tests
     ├── test_catalog_seed.py   # Catalog seed integrity, schema & frontend/backend parity tests
-    └── test_reasoning_engine.py # Vertex AI Reasoning Engine contract & delegation tests
+    ├── test_reasoning_engine.py # Vertex AI Reasoning Engine contract & delegation tests
+    └── test_deterministic_matrix.py # Deterministic greater-set matrix evaluator & hybrid router unit tests
 ```
 
 ---
@@ -190,6 +192,22 @@ backend/
 12. **Multi-Entity Candidate Balancing & Hermetic Canonical Ranking**:
     - **Multi-Entity Balancing (`len(entity_kw) >= 2`)**: In `orchestrator.py` and `multi_agent.py`, comparative queries with $\ge 2$ keyword entities invoke `_select_best_entity_candidates` to pick the highest-matching candidate for each distinct entity phrase instead of accidentally selecting multiple variants of the same brand.
     - **Hermetic Canonical Priority**: In `hermetic_adapter.py`, `create_hermetic_bq_client` prioritizes canonical benchmark products matching $\ge 2$ pattern tokens (`canonical_rank = 0 if (entry['is_canonical'] and pat_hits >= 2) else 1`), guaranteeing 100% eval benchmark precision across the 10,040-SKU catalog.
+13. **Deterministic Greater-Set Comparison Matrix & Hybrid Preference Routing (`app.agent.matrix_evaluator`, `app.agent.orchestrator`)**:
+    - **Greater-Set Union (Up to 5 Products)**: `MatrixEvaluator` evaluates specifications across the full union of non-warehouse specs present on any of the products being compared (up to 5 products). Warehouse metadata (`upc`, `model_number`, `shipping_tier`, `taxonomy`, `created_at`, `updated_at`, `product_id`, etc.) is strictly filtered out.
+    - **Missing Specs Automatically Lose**: Products lacking a spec (`None`, empty, or `"not specified"`) automatically lose to any product with a valid spec. If only one product has a spec, that product wins; if multiple products have it, the best value wins; if all products lack it, the spec row is neutral (`winner_sku=None, winner_skus=[]`).
+    - **Comprehensive Polarity Rules Across 5 Categories**:
+      - *Higher is better*: RAM (`ram_gb`), storage (`storage_gb`), battery life (`battery_life_hours`), display size (`display_size_in`), HDMI ports (`hdmi_ports`), driver size (`driver_size_mm`), sensor range (`sensor_range_ft`), refresh rate (`refresh_rate_hz`), brightness (`brightness_nits`), total resolution pixel count (`parse_resolution_pixels` supporting `8K`, `4K`, `QHD`, `FHD`, `720p`, `Retina`).
+      - *Lower is better*: Price (`price`), weight (`weight_lbs`, `weight_oz`), response time (`response_time_ms`).
+      - *Boolean True is better*: Noise cancellation (`noise_canceling`), sensor included, stylus included.
+      - *Progressive Tiers*: Display panel tiers (Tier 5 Tandem OLED/QD-OLED down to Tier 0 TN/TFT/VA) and Processor tiers (Tier 7 M4 Max/Core Ultra 9 down to Tier 1 AMD A10).
+      - *Synonymous Key Normalization*: Maps synonymous keys automatically (e.g., `panel_type` $\leftrightarrow$ `display_technology`, `screen_size_in` $\leftrightarrow$ `display_size_in`, `noise_cancellation` $\leftrightarrow$ `noise_canceling`, `resolution` $\leftrightarrow$ `display_resolution`).
+    - **Display Filtering & Focus Row Reordering (`build_comparison_matrix`)**:
+      - *Price-Only Filtering*: When the user specifies "only price" / "just price", the matrix is cleanly filtered to retain solely the `Price` row (`len == 1`).
+      - *Intent-Driven Spec Reordering*: Query focus keywords (e.g. `gaming`, `office`, `travel`, `display`, `audio`) dynamically reorder the displayed spec rows while keeping top headers (`Category`, `Price`, `Customer Rating`) pinned at the top. For generic queries, `Processor / CPU` is placed first among technical specs.
+      - *Override Neutrality & Cross-Category Guard*: When `spec_winners` is provided from LLM synthesis, any spec not explicitly assigned a winner in `spec_winners` remains neutral (`winner_sku=None, winner_skus=[]`), ensuring unshared cross-category specs (e.g., Laptop RAM vs Headphone Driver Size) do not assign spurious wins.
+    - **Hybrid Flash-Lite Preference Router**:
+      - For clean product comparison queries without extra user constraints/focus, `synthesize_comparison_with_llm` executes `build_comparison_matrix` deterministically in 0ms without spawning `_run_matrix_winners_llm`.
+      - When user supplies extra constraints/preferences (detected via `User Focus / Follow-up:` or preference keywords like `for travel`, `for coding`, `for editing`), the orchestrator routes a fast call to `gemini-2.5-flash-lite` conditioned with `<customer_preferences>`, `max_output_tokens=128`, and `response_schema=SpecWinnersSynthesis` to contextually weight winners while preserving deterministic fallback.
 
 ---
 
