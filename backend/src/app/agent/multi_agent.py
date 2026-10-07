@@ -13,6 +13,7 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
@@ -27,6 +28,7 @@ from google.genai import types as genai_types
 
 from app.agent.adk_llm import CatalogAdkLlm
 from app.agent.orchestrator import (
+    _SPECULATIVE_SYNTH_POOL,
     ComparisonOrchestrator,
     resolve_model_pair,
     resolve_stage_models,
@@ -432,6 +434,33 @@ class SpecComparisonAgent:
             )
             span.set_attribute("agent.matrix_rows_count", len(matrix))
             return state
+
+    def process_stream(self, state: ComparisonAgentState) -> Iterator[dict[str, Any]]:
+        """Stream Stage 4 synthesis chunks, matrix updates, and completion event."""
+        if not state.is_comparison_eligible or len(state.ranked_products) < 2:
+            summary = (
+                "No matching products found in the catalog to compare."
+                if not state.ranked_products
+                else f"Found single catalog item: {state.ranked_products[0].name} [SKU: {state.ranked_products[0].sku}]."
+            )
+            yield {
+                "event": "synthesis_complete",
+                "summary": summary,
+                "recommendations": None,
+                "spec_winners": {},
+                "comparison_matrix": [],
+            }
+            return
+
+        safe_query = state.sanitized_query or state.raw_query
+        active_synthesis = state.synthesis_model or self.synthesis_model
+        matrix: list[MatrixRow] = []
+        yield from self.orchestrator.stream_synthesize_comparison_with_llm(
+            state.ranked_products,
+            matrix,
+            query=safe_query,
+            model=active_synthesis,
+        )
 
 
 class MultiAgentCoordinator:
@@ -1052,6 +1081,344 @@ class MultiAgentCoordinator:
             if total_out_tokens > 0:
                 state.comparison_response.output_tokens = total_out_tokens
             return state.comparison_response
+
+    def execute_stream(
+        self,
+        raw_query: str,
+        category: str | None = None,
+        session_id: str | None = None,
+        agent_version: str | None = None,
+        model: str | None = None,
+        synthesis_model: str | None = None,
+        user_id: str | None = None,
+        stage1_model: str | None = None,
+        stage2_model: str | None = None,
+        stage3_model: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Execute multi-agent pipeline and stream matrix_ready, synthesis_chunks, matrix_updates, and complete."""
+        from app.agent.prompts_service import get_active_prompt
+        from app.agent.registry import default_registry
+        from app.config import settings
+
+        self.intent_agent.orchestrator.last_input_tokens = 0
+        self.intent_agent.orchestrator.last_output_tokens = 0
+        self.comparison_agent.orchestrator.last_input_tokens = 0
+        self.comparison_agent.orchestrator.last_output_tokens = 0
+
+        resolved_agent_ver = agent_version or settings.agent_version
+        version_spec = default_registry.get_version(resolved_agent_ver)
+        is_flash = "flash" in resolved_agent_ver.lower()
+        target_prompt_ver = (
+            version_spec.prompt_version
+            if version_spec
+            else ("2026.03-v2" if is_flash else settings.prompt_version)
+        )
+        _, resolved_prompt_ver = get_active_prompt(version_id=target_prompt_ver)
+
+        use_optimal = not is_flash and (
+            (self.use_stage_optimal_models and model is None)
+            or (model is not None and model.strip().lower() == "stage-optimal")
+        )
+        base_model = (
+            "gemini-2.5-flash"
+            if is_flash
+            else ("stage-optimal" if use_optimal else (model or self.model))
+        )
+        base_synthesis = synthesis_model or self.synthesis_model or base_model
+        active_routing, active_synthesis, is_hybrid = resolve_model_pair(
+            model=base_model,
+            synthesis_model=base_synthesis,
+            default_model=settings.gemini_model,
+        )
+
+        if use_optimal:
+            stage_cfg = resolve_stage_models()
+            s1_active = stage1_model or stage_cfg["stage1_intent"]
+            s2_active = stage2_model or stage_cfg["stage2_relevance"]
+            s3_active = stage3_model or (
+                synthesis_model
+                if synthesis_model
+                and synthesis_model.strip().lower() not in ("stage-optimal", "tiered-hybrid")
+                else stage_cfg["stage3_synthesis"]
+            )
+            active_routing = s1_active
+            active_synthesis = s3_active
+        else:
+            s1_active = stage1_model or active_routing
+            s2_active = stage2_model or active_routing
+            s3_active = stage3_model or active_synthesis
+
+        if (model and model.lower() == "stage-optimal") or self.use_stage_optimal_models:
+            effective_model_version = f"stage-optimal({s1_active}+{s2_active}+{s3_active})@001"
+        elif use_optimal:
+            effective_model_version = f"tiered-hybrid({s1_active}+{s2_active}+{s3_active})@001"
+        elif (model and model.lower() == "tiered-hybrid") or is_hybrid:
+            effective_model_version = f"tiered-hybrid({active_routing}+{active_synthesis})@001"
+        elif model:
+            effective_model_version = f"{active_routing}@001"
+        else:
+            effective_model_version = "gemini-2.5-flash@001" if is_flash else settings.model_version
+
+        resolved_uid = user_id or "default_user"
+
+        with tracer.start_as_current_span("agent.multi_agent_pipeline_stream") as span:
+            trace_id = get_current_trace_id()
+            span.set_attribute("pipeline.architecture", "streaming_progressive")
+            span.set_attribute("query", sanitize_user_prompt(raw_query))
+            span.set_attribute("ai.agent.version", resolved_agent_ver)
+            span.set_attribute("ai.model.name", active_routing)
+            span.set_attribute("ai.synthesis_model.name", active_synthesis)
+            span.set_attribute("ai.model.tiered_hybrid", is_hybrid)
+            span.set_attribute("ai.model.version", effective_model_version)
+            span.set_attribute("user_id", resolved_uid)
+            if category:
+                span.set_attribute("category", category)
+            if session_id:
+                span.set_attribute("session_id", session_id)
+
+            state = ComparisonAgentState(
+                raw_query=raw_query,
+                detected_category=category,
+                session_id=session_id,
+                trace_id=trace_id,
+                model=active_routing,
+                synthesis_model=active_synthesis,
+                stage1_model=s1_active,
+                stage2_model=s2_active,
+                stage3_model=s3_active,
+                metadata={
+                    "agent_version": resolved_agent_ver,
+                    "model_version": effective_model_version,
+                    "prompt_version": resolved_prompt_ver,
+                    "user_id": resolved_uid,
+                },
+            )
+
+            t0_start = time.perf_counter()
+
+            # Execute Stage 1 Intent Agent concurrently with Stage 2
+            intent_state_in = replace(
+                state,
+                target_keywords=list(state.target_keywords),
+                retrieved_products=[],
+                ranked_products=[],
+                step_history=[],
+                metadata=dict(state.metadata),
+                stage_trace=[],
+                workflow_routes={},
+                timing_breakdown_ms={},
+            )
+            fut_intent = _SPECULATIVE_SYNTH_POOL.submit(self.intent_agent.process, intent_state_in)
+
+            # Stage 2 Pre-retrieval
+            prelim_safe_query = sanitize_user_prompt(state.raw_query)
+            tagged_pairs = self.intent_agent.orchestrator.extract_tagged_products(state.raw_query)
+            tagged_skus = [sku for _, sku in tagged_pairs if sku]
+            if len(tagged_skus) >= 2:
+                s2_kw = list(tagged_skus)
+                s2_cat = None
+            elif tagged_pairs:
+                s2_kw = [kw for pair in tagged_pairs for kw in pair if kw]
+                s2_cat = state.detected_category
+            else:
+                s2_kw = self.intent_agent.orchestrator.extract_keywords(state.raw_query)
+                s2_cat = state.detected_category
+
+            s2_eligible = bool(state.is_comparison_eligible) and (
+                bool(tagged_skus)
+                or (
+                    "[BLOCKED_INJECTION]" not in (prelim_safe_query or "")
+                    and not self.intent_agent.orchestrator._is_opinion_query(state.raw_query)
+                )
+            )
+            retrieval_state_in = replace(
+                state,
+                sanitized_query=prelim_safe_query,
+                is_comparison_eligible=s2_eligible,
+                target_keywords=s2_kw,
+                detected_category=s2_cat,
+                retrieved_products=[],
+                ranked_products=[],
+                step_history=[],
+                metadata=dict(state.metadata),
+                stage_trace=[],
+                workflow_routes={},
+                timing_breakdown_ms={},
+            )
+            fut_retrieval = _SPECULATIVE_SYNTH_POOL.submit(
+                self.retrieval_agent.process, retrieval_state_in
+            )
+
+            try:
+                intent_out = fut_intent.result(timeout=10.0)
+                state.sanitized_query = intent_out.sanitized_query
+                state.intent_type = intent_out.intent_type
+                state.is_comparison_eligible = intent_out.is_comparison_eligible
+                state.target_keywords = list(intent_out.target_keywords)
+                if not state.detected_category:
+                    state.detected_category = intent_out.detected_category
+                state.step_history.extend(intent_out.step_history)
+                state.stage_trace.extend(intent_out.stage_trace)
+                state.workflow_routes.update(intent_out.workflow_routes)
+                state.timing_breakdown_ms.update(intent_out.timing_breakdown_ms)
+            except Exception as e_intent:
+                logger.warning("Stage 1 intent execution failed in stream: %s", e_intent)
+
+            try:
+                retrieval_out = fut_retrieval.result(timeout=10.0)
+                state.retrieved_products = list(retrieval_out.retrieved_products)
+                state.step_history.extend(retrieval_out.step_history)
+                state.stage_trace.extend(retrieval_out.stage_trace)
+                state.workflow_routes.update(retrieval_out.workflow_routes)
+                state.timing_breakdown_ms.update(retrieval_out.timing_breakdown_ms)
+            except Exception as e_retrieval:
+                logger.warning("Stage 2 retrieval execution failed in stream: %s", e_retrieval)
+
+            if not state.is_comparison_eligible or state.intent_type == "OPINION_OR_CHATTER":
+                state.retrieved_products = []
+                state.ranked_products = []
+                state.is_comparison_eligible = False
+                state.workflow_routes["query_intent_specialist"] = "SKIP_RETRIEVAL"
+            elif (
+                not state.retrieved_products
+                and state.target_keywords
+                and state.target_keywords != s2_kw
+            ):
+                tagged_check = self.intent_agent.orchestrator.extract_tagged_products(
+                    state.raw_query
+                )
+                if len([sku for _, sku in tagged_check if sku]) < 2:
+                    fb_state = self.retrieval_agent.process(replace(state, step_history=[]))
+                    state.retrieved_products = list(fb_state.retrieved_products)
+
+            if not state.ranked_products and state.retrieved_products:
+                if state.target_keywords and len(state.target_keywords) >= 2:
+                    target_count = min(len(state.target_keywords), 5)
+                    entity_matches = self.intent_agent.orchestrator._select_best_entity_candidates(
+                        state.retrieved_products, state.target_keywords, target_count
+                    )
+                    state.ranked_products = (
+                        entity_matches
+                        if len(entity_matches) >= 2
+                        else list(state.retrieved_products[:target_count])
+                    )
+                else:
+                    state.ranked_products = list(state.retrieved_products[:5])
+
+            matrix: list[MatrixRow] = []
+            if state.ranked_products:
+                matrix = self.orchestrator.build_comparison_matrix(
+                    state.ranked_products, query=state.raw_query
+                )
+
+            citations = [
+                Citation(sku=p.sku, url=p.url or f"https://www.techbuy.com/site/sku/{p.sku}.p")
+                for p in state.ranked_products
+            ]
+            ttfb_ms = round((time.perf_counter() - t0_start) * 1000.0, 2)
+            timing_breakdown = {
+                "intent_ms": state.timing_breakdown_ms.get("intent_ms", 0.0),
+                "retrieval_ms": state.timing_breakdown_ms.get("retrieval_ms", 0.0),
+                "relevance_ms": state.timing_breakdown_ms.get("relevance_ms", 0.0),
+                "ttfb_ms": ttfb_ms,
+            }
+
+            # Immediately yield matrix_ready event!
+            yield {
+                "event": "matrix_ready",
+                "products": [p.model_dump() for p in state.ranked_products],
+                "comparison_matrix": [r.model_dump() for r in matrix],
+                "citations": [c.model_dump() for c in citations],
+                "session_id": session_id,
+                "trace_id": trace_id,
+                "timing_breakdown_ms": timing_breakdown,
+            }
+
+            if not state.is_comparison_eligible or len(state.ranked_products) < 2:
+                summary = (
+                    "No matching products found in the catalog to compare."
+                    if not state.ranked_products
+                    else f"Found single catalog item: {state.ranked_products[0].name} [SKU: {state.ranked_products[0].sku}]. Provide a second product to enable side-by-side comparison."
+                )
+                resp = CompareResponse(
+                    summary=summary,
+                    products=state.ranked_products,
+                    comparison_matrix=matrix,
+                    citations=citations,
+                    session_id=session_id,
+                    trace_id=trace_id,
+                    agent_version=resolved_agent_ver,
+                    model_version=effective_model_version,
+                    synthesis_model=active_synthesis,
+                    prompt_version=resolved_prompt_ver,
+                    timing_breakdown_ms=timing_breakdown,
+                )
+                state.comparison_response = resp
+                self.last_state = state
+                yield {"event": "complete", "data": resp.model_dump()}
+                return
+
+            t_synth_0 = time.perf_counter()
+            synth_events = self.comparison_agent.orchestrator.stream_synthesize_comparison_with_llm(
+                products=state.ranked_products,
+                matrix=matrix,
+                query=state.sanitized_query or state.raw_query,
+                model=active_synthesis,
+            )
+            last_summary = ""
+            last_recommendations = None
+            for ev in synth_events:
+                ev_type = ev.get("event")
+                if ev_type == "synthesis_chunk":
+                    last_summary = ev.get("summary") or last_summary
+                    last_recommendations = ev.get("recommendations") or last_recommendations
+                    yield ev
+                elif ev_type == "matrix_updated":
+                    updated_mat = ev.get("comparison_matrix", matrix)
+                    yield {
+                        "event": "matrix_updated",
+                        "comparison_matrix": [
+                            r.model_dump() if hasattr(r, "model_dump") else r for r in updated_mat
+                        ],
+                        "spec_winners": ev.get("spec_winners", {}),
+                    }
+                elif ev_type == "synthesis_complete":
+                    last_summary = ev.get("summary") or last_summary
+                    last_recommendations = ev.get("recommendations") or last_recommendations
+
+            synthesis_ms = round((time.perf_counter() - t_synth_0) * 1000.0, 2)
+            total_pipeline_ms = round((time.perf_counter() - t0_start) * 1000.0, 2)
+            timing_breakdown["synthesis_ms"] = synthesis_ms
+            timing_breakdown["total_pipeline_ms"] = total_pipeline_ms
+
+            total_in_tokens = (
+                self.intent_agent.orchestrator.last_input_tokens
+                + self.comparison_agent.orchestrator.last_input_tokens
+            )
+            total_out_tokens = (
+                self.intent_agent.orchestrator.last_output_tokens
+                + self.comparison_agent.orchestrator.last_output_tokens
+            )
+
+            compare_response = CompareResponse(
+                summary=last_summary,
+                products=state.ranked_products,
+                comparison_matrix=matrix,
+                citations=citations,
+                recommendations=last_recommendations,
+                session_id=session_id,
+                trace_id=trace_id,
+                agent_version=resolved_agent_ver,
+                model_version=effective_model_version,
+                synthesis_model=active_synthesis,
+                prompt_version=resolved_prompt_ver,
+                timing_breakdown_ms=timing_breakdown,
+                input_tokens=total_in_tokens if total_in_tokens > 0 else None,
+                output_tokens=total_out_tokens if total_out_tokens > 0 else None,
+            )
+            state.comparison_response = compare_response
+            self.last_state = state
+            yield {"event": "complete", "data": compare_response.model_dump()}
 
     def compare_with_trace(
         self, raw_query: str, **kwargs: Any

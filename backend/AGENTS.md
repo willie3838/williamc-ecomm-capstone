@@ -99,6 +99,13 @@ backend/
       "prompt_version": "2026.03-v1"
     }
     ```
+- `POST /api/compare/stream` & `POST /api/v1/compare/stream`:
+  - Request: Same schema as `POST /api/compare` (`ComparisonRequest`).
+  - Response: Server-Sent Events stream (`text/event-stream`) streaming 4 distinct event stages:
+    1. `event: matrix_ready`: Dispatched immediately once Stage 1 intent + Stage 2 BigQuery SQL retrieval resolve (~150ms TTFB), containing grounded `products`, deterministic `comparison_matrix`, and `citations`.
+    2. `event: synthesis_chunk`: Dispatched incrementally as Stage 4 LLM tokens stream, containing verified and SKU-scrubbed partial `summary`, `recommendations`, and `delta`.
+    3. `event: matrix_updated`: Dispatched when speculative matrix winner LLM resolution completes, updating `comparison_matrix` and `spec_winners`.
+    4. `event: complete`: Dispatched upon completion with the fully validated `ComparisonResponse` payload (`data`).
 - `POST /api/chat` & `POST /api/v1/chat`:
   - Request: Multi-turn conversational follow-up questions grounded in compared products and matrix (`ChatRequest`).
     ```json

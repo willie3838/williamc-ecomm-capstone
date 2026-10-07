@@ -116,21 +116,28 @@ class CatalogComparisonReasoningEngine:
         **_kwargs: Any,
     ) -> Iterable[dict[str, Any]]:
         """Serve streaming turn events for Vertex AI Agent Runtime :streamQuery."""
+        if self._coordinator is None:
+            self.set_up()
+        assert self._coordinator is not None
+
         effective_user_id = user_id or _kwargs.get("user_id")
-        result = self.query(
-            query=query,
+        for ev in self._coordinator.execute_stream(
+            raw_query=query,
             category=category,
             session_id=session_id,
             agent_version=agent_version,
-            model=model,
-            synthesis_model=synthesis_model,
+            model=model or self.model,
+            synthesis_model=synthesis_model or self.synthesis_model,
             stage1_model=stage1_model,
             stage2_model=stage2_model,
             stage3_model=stage3_model,
             user_id=effective_user_id,
-            **_kwargs,
-        )
-        yield {"event_type": "comparison_completed", "data": result}
+        ):
+            ev_with_type = dict(ev)
+            ev_with_type["event_type"] = ev.get("event", "streaming_event")
+            yield ev_with_type
+            if ev.get("event") == "complete":
+                yield {"event_type": "comparison_completed", "data": ev.get("data")}
 
 
 # Default module instance for Vertex AI Reasoning Engine serialization

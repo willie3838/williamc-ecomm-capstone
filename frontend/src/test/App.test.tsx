@@ -5,10 +5,17 @@ import { App } from '../App';
 import { mockComparisonResponse } from './mockData';
 
 // Mock the client API
-vi.mock('../api/client', () => ({
-  compareProducts: vi.fn(),
-  checkHealth: vi.fn(),
-}));
+vi.mock('../api/client', () => {
+  const compareProducts = vi.fn();
+  const compareProductsStream = vi.fn(async (req: unknown) => {
+    return compareProducts(req);
+  });
+  return {
+    compareProducts,
+    compareProductsStream,
+    checkHealth: vi.fn(),
+  };
+});
 
 import { compareProducts } from '../api/client';
 

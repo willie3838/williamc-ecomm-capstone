@@ -5,6 +5,7 @@ import os
 import re
 import threading
 import time
+from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, ClassVar
 
@@ -107,6 +108,57 @@ def _extract_json_snippet(text: str) -> str:
         return cleaned[start_idx : end_idx + 1]
 
     return cleaned
+
+
+def _strip_trailing_incomplete_sku_tag(text: str) -> str:
+    """Strip an unclosed trailing '[SKU:...' fragment so partial tokens do not flicker in UI."""
+    if not text:
+        return ""
+    last_open = text.rfind("[")
+    if last_open != -1 and "]" not in text[last_open:]:
+        tail = text[last_open:]
+        if tail.upper().startswith("[SKU".upper()[: len(tail)]):
+            return text[:last_open].rstrip()
+    return text
+
+
+def _unescape_json_fragment(fragment: str) -> str:
+    """Unescape partial JSON string escapes (\\n, \\", \\\\, \\t) safely."""
+    if not fragment:
+        return ""
+    if fragment.endswith("\\") and not fragment.endswith("\\\\"):
+        fragment = fragment[:-1]
+
+    def _repl(m: re.Match[str]) -> str:
+        esc = m.group(0)
+        if esc == r"\\":
+            return "\\"
+        if esc == r"\"":
+            return '"'
+        if esc == r"\n":
+            return "\n"
+        if esc == r"\t":
+            return "\t"
+        return esc
+
+    return re.sub(r'\\(?:\\|"|n|t)', _repl, fragment)
+
+
+def _extract_partial_synthesis_fields(raw_buffer: str) -> tuple[str, str | None]:
+    """Extract in-progress 'summary' and 'recommendations' strings from partial JSON stream buffer."""
+    if not raw_buffer:
+        return "", None
+    sum_m = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)', raw_buffer, re.DOTALL)
+    rec_m = re.search(r'"recommendations"\s*:\s*"((?:[^"\\]|\\.)*)', raw_buffer, re.DOTALL)
+    summary_val = (
+        _strip_trailing_incomplete_sku_tag(_unescape_json_fragment(sum_m.group(1))) if sum_m else ""
+    )
+    recs_val = (
+        _strip_trailing_incomplete_sku_tag(_unescape_json_fragment(rec_m.group(1)))
+        if rec_m
+        else None
+    )
+    return summary_val, recs_val
 
 
 _SPEC_LABELS: dict[str, str] = {
@@ -640,6 +692,94 @@ class ComparisonOrchestrator:
                     contents=contents,
                     config=config,
                 )
+            raise err
+
+    def _call_genai_stream_with_failover(
+        self,
+        client: Any,
+        model: str,
+        contents: Any,
+        config: types.GenerateContentConfig,
+    ) -> Iterator[Any]:
+        """Invoke Vertex AI generate_content_stream with failover on transient errors."""
+        models_attr = getattr(client, "models", None)
+        if models_attr is None or not hasattr(models_attr, "generate_content_stream"):
+            single_resp = self._call_genai_with_failover(client, model, contents, config)
+            yield single_resp
+            return
+
+        try:
+            stream = client.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=config,
+            )
+            try:
+                for chunk in stream:
+                    yield chunk
+            except TypeError as te:
+                if "not iterable" in str(te) or "is not an iterator" in str(te):
+                    single_resp = self._call_genai_with_failover(client, model, contents, config)
+                    yield single_resp
+                    return
+                raise
+        except Exception as err:
+            from app.agent.adk_llm import (
+                _get_shared_vertex_client,
+                _is_preview_or_3x_model,
+            )
+
+            if _is_preview_or_3x_model(model):
+                logger.info(
+                    "Model %s stream call on global endpoint failed (%s); failing over to us-central1",
+                    model,
+                    err,
+                )
+                fb_client = self.genai_client or _get_shared_vertex_client(location="us-central1")
+                for chunk in fb_client.models.generate_content_stream(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                ):
+                    yield chunk
+                return
+
+            if "404" in str(err) and model.startswith("gemini-1.5"):
+                fallback_25 = "gemini-2.5-pro" if "pro" in model else "gemini-2.5-flash"
+                logger.info(
+                    "Model %s stream returned 404 NOT_FOUND; failing over to %s",
+                    model,
+                    fallback_25,
+                )
+                for chunk in client.models.generate_content_stream(
+                    model=fallback_25,
+                    contents=contents,
+                    config=config,
+                ):
+                    yield chunk
+                return
+
+            if any(
+                tok in str(err).lower()
+                for tok in (
+                    "429",
+                    "resource_exhausted",
+                    "preempted",
+                    "503",
+                    "unavailable",
+                    "deadline",
+                    "overloaded",
+                )
+            ):
+                time.sleep(0.1)
+                fb_client = self.genai_client or _get_shared_vertex_client(location="us-central1")
+                for chunk in fb_client.models.generate_content_stream(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                ):
+                    yield chunk
+                return
             raise err
 
     @staticmethod
@@ -1631,6 +1771,372 @@ class ComparisonOrchestrator:
                     )
             return _SynthesisResult(summary_out, recs_out, merged_spec_winners)
         raise RuntimeError("Empty response from Gemini synthesis LLM")
+
+    def stream_synthesize_comparison_with_llm(
+        self,
+        products: list[ProductSpec],
+        matrix: list[MatrixRow],
+        query: str = "",
+        model: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Stream Stage 4 LLM synthesis chunks, matrix updates, and final verified synthesis."""
+        if not products:
+            yield {
+                "event": "synthesis_complete",
+                "summary": "No matching products found in the catalog to compare.",
+                "recommendations": None,
+                "spec_winners": {},
+                "comparison_matrix": [],
+            }
+            return
+
+        if len(products) == 1:
+            p = products[0]
+            yield {
+                "event": "synthesis_complete",
+                "summary": (
+                    f"Found single catalog item: {p.name} [SKU: {p.sku}] priced at ${p.price:,.2f}. "
+                    "Provide a second product to enable side-by-side comparison."
+                ),
+                "recommendations": None,
+                "spec_winners": {},
+                "comparison_matrix": matrix or [],
+            }
+            return
+
+        active_model = model or self.synthesis_model
+        self.last_synthesis_model = active_model
+
+        has_preferences, pref_text = self._detect_customer_preferences(query)
+
+        # Pre-populate matrix deterministically if empty (0ms)
+        if matrix is not None and not matrix:
+            matrix[:] = self.build_comparison_matrix(products, query=query)
+
+        prompt = self._build_synthesis_prompt(products, matrix, sanitize_user_prompt(query))
+
+        is_mock_env = self.genai_client is not None or genai.Client is not _DEFAULT_GENAI_CLIENT_CLS
+        _, call_model, _ = resolve_model_pair(model=active_model, synthesis_model=active_model)
+        client = self._get_genai_client(model=call_model)
+        armor_cfg = (
+            get_model_armor_config(
+                mode="response_only",
+                model=call_model,
+                is_mock_env=is_mock_env,
+            )
+            if is_mock_env
+            else None
+        )
+        thinking_cfg = _build_thinking_config(call_model)
+        narrative_sys_inst = self.active_system_instruction if is_mock_env else None
+        config = types.GenerateContentConfig(
+            system_instruction=narrative_sys_inst,
+            response_mime_type="application/json",
+            response_schema=self._NARRATIVE_SYNTHESIS_SCHEMA if is_mock_env else None,
+            model_armor_config=armor_cfg if armor_cfg is not None else None,
+            temperature=float(getattr(settings, "temperature", 0.1)),
+            max_output_tokens=1024,
+            thinking_config=thinking_cfg,
+        )
+
+        def _clean_synthesis_json(txt: str) -> str:
+            raw_t = (txt or "").strip()
+            if "```" in raw_t:
+                if "```json" in raw_t:
+                    raw_t = raw_t.split("```json", 1)[1].split("```", 1)[0].strip()
+                else:
+                    raw_t = raw_t.split("```", 1)[1].split("```", 1)[0].strip()
+            if "{" not in raw_t:
+                return raw_t
+            s_idx = raw_t.find("{")
+            if "}" in raw_t[s_idx:]:
+                e_idx = raw_t.rfind("}")
+                sliced = raw_t[s_idx : e_idx + 1]
+                try:
+                    json.loads(sliced)
+                    return sliced
+                except Exception:
+                    try:
+                        json.loads(sliced + "}")
+                        return sliced + "}"
+                    except Exception:
+                        pass
+            cand = raw_t[s_idx:].strip()
+            in_str = False
+            esc = False
+            depth = 0
+            for ch in cand:
+                if esc:
+                    esc = False
+                    continue
+                if ch == "\\":
+                    esc = True
+                    continue
+                if ch == '"':
+                    in_str = not in_str
+                elif not in_str:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth = max(0, depth - 1)
+            if in_str:
+                cand += '"'
+            cand = cand.rstrip().rstrip(",")
+            if cand.endswith(":"):
+                cand += '""'
+            if depth > 0:
+                cand += "}" * depth
+            try:
+                json.loads(cand)
+                return cand
+            except Exception:
+                sum_m = re.search(r'"summary"\s*:\s*"((?:[^"\\]|\\.)*)', raw_t[s_idx:], re.DOTALL)
+                rec_m = re.search(
+                    r'"recommendations"\s*:\s*"((?:[^"\\]|\\.)*)', raw_t[s_idx:], re.DOTALL
+                )
+                if sum_m:
+                    sum_val = sum_m.group(1).replace("\\n", "\n").replace('\\"', '"')
+                    rec_val = (
+                        rec_m.group(1).replace("\\n", "\n").replace('\\"', '"') if rec_m else None
+                    )
+                    return json.dumps(
+                        {
+                            "summary": sum_val,
+                            "recommendations": rec_val,
+                            "spec_winners": {},
+                        }
+                    )
+                return cand
+
+        matrix_fut: Future[tuple[dict[str, str], int, int]] | None = None
+        if has_preferences:
+            pref_matrix_prompt, _ = self._build_matrix_winners_prompt(
+                products, customer_preferences=pref_text
+            )
+            if pref_matrix_prompt:
+                mw_model = resolve_stage_models().get(
+                    "stage4_matrix_winners", "gemini-2.5-flash-lite"
+                )
+                if not mw_model or "pro" in mw_model.lower():
+                    mw_model = "gemini-2.5-flash-lite"
+                mw_client = client if is_mock_env else self._get_genai_client(model=mw_model)
+                mw_thinking_cfg = _build_thinking_config(mw_model)
+                matrix_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                    self._run_matrix_winners_llm,
+                    mw_client,
+                    mw_model,
+                    pref_matrix_prompt,
+                    armor_cfg if is_mock_env else None,
+                    mw_thinking_cfg,
+                    is_mock_env,
+                    _clean_synthesis_json,
+                )
+
+        blocked_reasons = {
+            "MODEL_ARMOR",
+            "SAFETY",
+            "BLOCKLIST",
+            "PROHIBITED_CONTENT",
+            "SPII",
+        }
+
+        raw_buffer = ""
+        merged_spec_winners: dict[str, str] = {}
+        matrix_updated_emitted = False
+
+        with tracer.start_as_current_span("gemini.stream_synthesize_comparison") as llm_span:
+            llm_span.set_attribute("gen_ai.system", "vertexai")
+            llm_span.set_attribute("gen_ai.request.model", call_model)
+            llm_span.set_attribute("agent.stage4.parallel_agents", bool(matrix_fut is not None))
+
+            try:
+                stream_chunks = self._call_genai_stream_with_failover(
+                    client,
+                    call_model,
+                    prompt,
+                    config,
+                )
+                for chunk in stream_chunks:
+                    prompt_fb = getattr(chunk, "prompt_feedback", None)
+                    if prompt_fb is not None:
+                        fb_reason = str(getattr(prompt_fb, "block_reason", "") or "").upper()
+                        if any(flag in fb_reason for flag in blocked_reasons):
+                            raise SecurityViolationError(
+                                f"Stage 4 synthesis blocked by Model Armor / Safety filter ({fb_reason})"
+                            )
+                    candidates = getattr(chunk, "candidates", None)
+                    if candidates:
+                        finish_reason = str(
+                            getattr(candidates[0], "finish_reason", "") or ""
+                        ).upper()
+                        if any(flag in finish_reason for flag in blocked_reasons):
+                            raise SecurityViolationError(
+                                f"Stage 4 synthesis response blocked by Model Armor ({finish_reason})"
+                            )
+
+                    usage = getattr(chunk, "usage_metadata", None)
+                    if usage:
+                        in_toks = int(getattr(usage, "prompt_token_count", 0) or 0)
+                        out_toks = int(getattr(usage, "candidates_token_count", 0) or 0)
+                        self.last_input_tokens += in_toks
+                        self.last_output_tokens += out_toks
+
+                    chunk_text = getattr(chunk, "text", "") or ""
+                    if chunk_text:
+                        raw_buffer += chunk_text
+                        partial_sum, partial_rec = _extract_partial_synthesis_fields(raw_buffer)
+                        clean_sum = (
+                            self.verify_and_align_claim_citations(partial_sum, products) or ""
+                            if partial_sum
+                            else ""
+                        )
+                        clean_rec = (
+                            self.verify_and_align_claim_citations(partial_rec, products)
+                            if partial_rec
+                            else None
+                        )
+                        yield {
+                            "event": "synthesis_chunk",
+                            "summary": clean_sum,
+                            "recommendations": clean_rec,
+                            "delta": chunk_text,
+                        }
+
+                    if matrix_fut is not None and not matrix_updated_emitted and matrix_fut.done():
+                        try:
+                            mw_winners, mw_in_toks, mw_out_toks = matrix_fut.result()
+                            if not is_mock_env:
+                                self.last_input_tokens += mw_in_toks
+                                self.last_output_tokens += mw_out_toks
+                            if mw_winners:
+                                merged_spec_winners.update(mw_winners)
+                                if matrix is not None:
+                                    matrix[:] = self.build_comparison_matrix(
+                                        products, query=query, spec_winners=merged_spec_winners
+                                    )
+                                yield {
+                                    "event": "matrix_updated",
+                                    "comparison_matrix": matrix,
+                                    "spec_winners": merged_spec_winners,
+                                }
+                                matrix_updated_emitted = True
+                        except Exception as mw_err:
+                            logger.debug("Speculative matrix winners check error: %s", mw_err)
+
+            except SecurityViolationError:
+                raise
+            except Exception as stream_err:
+                if armor_cfg is not None:
+                    logger.warning(
+                        "Comparison synthesis stream with Model Armor failed (%s); retrying without template.",
+                        stream_err,
+                    )
+                    fallback_config = types.GenerateContentConfig(
+                        system_instruction=narrative_sys_inst,
+                        response_mime_type="application/json",
+                        response_schema=self._NARRATIVE_SYNTHESIS_SCHEMA if is_mock_env else None,
+                        temperature=float(getattr(settings, "temperature", 0.1)),
+                        max_output_tokens=1024,
+                        thinking_config=thinking_cfg,
+                    )
+                    stream_chunks = self._call_genai_stream_with_failover(
+                        client,
+                        call_model,
+                        prompt,
+                        fallback_config,
+                    )
+                    for chunk in stream_chunks:
+                        chunk_text = getattr(chunk, "text", "") or ""
+                        if chunk_text:
+                            raw_buffer += chunk_text
+                            partial_sum, partial_rec = _extract_partial_synthesis_fields(raw_buffer)
+                            yield {
+                                "event": "synthesis_chunk",
+                                "summary": partial_sum,
+                                "recommendations": partial_rec,
+                                "delta": chunk_text,
+                            }
+                else:
+                    raise stream_err
+
+        if not raw_buffer:
+            raise RuntimeError("Empty response from Gemini synthesis LLM")
+
+        # Check Model Armor on complete response
+        resp_ma_fut: Future[tuple[bool, str]] | None = None
+        if armor_cfg is None or is_mock_env:
+            resp_ma_fut = _SPECULATIVE_SYNTH_POOL.submit(
+                _check_model_armor_response_guard, raw_buffer
+            )
+
+        clean_json = _clean_synthesis_json(raw_buffer)
+        try:
+            synth = ComparisonSynthesis.model_validate_json(clean_json)
+        except Exception as parse_err:
+            if resp_ma_fut is not None:
+                resp_blocked, resp_reason = resp_ma_fut.result(timeout=8.0)
+                if resp_blocked:
+                    raise SecurityViolationError(
+                        f"Stage 4 synthesis output blocked by Model Armor response guard: {resp_reason}"
+                    ) from parse_err
+            # Parse fallback via regex if full validation fails
+            p_sum, p_rec = _extract_partial_synthesis_fields(raw_buffer)
+            synth = ComparisonSynthesis(
+                summary=p_sum or raw_buffer, recommendations=p_rec, spec_winners={}
+            )
+
+        if matrix_fut is not None and not matrix_updated_emitted:
+            try:
+                mw_winners, mw_in_toks, mw_out_toks = matrix_fut.result(timeout=8.0)
+                if not is_mock_env:
+                    self.last_input_tokens += mw_in_toks
+                    self.last_output_tokens += mw_out_toks
+                if mw_winners:
+                    merged_spec_winners.update(mw_winners)
+            except Exception as mw_wait_err:
+                logger.debug(
+                    "Matrix winners parallel future wait failed in stream: %s", mw_wait_err
+                )
+
+        if synth.spec_winners:
+            merged_spec_winners.update(synth.spec_winners)
+
+        if matrix is not None and (merged_spec_winners or not matrix):
+            matrix[:] = self.build_comparison_matrix(
+                products, query=query, spec_winners=merged_spec_winners
+            )
+            if not matrix_updated_emitted and merged_spec_winners:
+                yield {
+                    "event": "matrix_updated",
+                    "comparison_matrix": matrix,
+                    "spec_winners": merged_spec_winners,
+                }
+
+        summary_out = self.verify_and_align_claim_citations(synth.summary, products) or ""
+        recs_out = self.verify_and_align_claim_citations(synth.recommendations, products)
+        if len(products) > 2 and summary_out:
+            for p in products:
+                if f"[SKU: {p.sku}]" not in summary_out and p.name not in summary_out:
+                    summary_out = f"{summary_out.rstrip()}\n- {self._short_product_label(p)} [SKU: {p.sku}] is priced at ${p.price:,.2f}."
+        if len(products) > 2 and recs_out:
+            for p in products:
+                if f"[SKU: {p.sku}]" not in recs_out and p.name not in recs_out:
+                    recs_out = f"{recs_out.rstrip()}; Best for Balanced Value: {self._short_product_label(p)} [SKU: {p.sku}] — priced at ${p.price:,.2f}"
+
+        if resp_ma_fut is not None:
+            resp_blocked, resp_reason = resp_ma_fut.result(timeout=8.0)
+            if resp_blocked:
+                raise SecurityViolationError(
+                    f"Stage 4 synthesis output blocked by Model Armor response guard: {resp_reason}"
+                )
+
+        yield {
+            "event": "synthesis_complete",
+            "summary": summary_out,
+            "recommendations": recs_out,
+            "spec_winners": merged_spec_winners,
+            "comparison_matrix": matrix,
+        }
 
     def synthesize_summary(
         self,
