@@ -3,11 +3,37 @@ import { describe, it, expect, vi } from 'vitest';
 import { SearchBar } from '../components/SearchBar';
 
 describe('SearchBar', () => {
-  it('renders input with default placeholder and search button', () => {
+  const twoMockProducts = [
+    {
+      sku: '6534606',
+      name: 'Apple MacBook Air 13.6" Laptop - M3 chip - 16GB Memory',
+      brand: 'Apple',
+      category: 'Laptops',
+      price: 1099,
+      specifications: { processor: 'M3', ram_gb: 16 },
+      in_stock: true,
+    },
+    {
+      sku: '6575132',
+      name: 'Dell XPS 13" - Intel Core Ultra 7 - 16GB Memory',
+      brand: 'Dell',
+      category: 'Laptops',
+      price: 1199,
+      specifications: { processor: 'Ultra 7', ram_gb: 16 },
+      in_stock: true,
+    },
+  ];
+
+  it('renders input with default placeholder guiding users to select at least 2 products and disabled search button', () => {
     render(<SearchBar onSearch={vi.fn()} isLoading={false} />);
 
-    expect(screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^compare$/i })).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/select at least 2 products to compare/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/select at least 2 products to compare/i)).toBeInTheDocument();
+    const compareBtn = screen.getByRole('button', { name: /^compare$/i });
+    expect(compareBtn).toBeInTheDocument();
+    expect(compareBtn).toBeDisabled();
   });
 
   it('renders category quick-filter pills', () => {
@@ -21,39 +47,89 @@ describe('SearchBar', () => {
     expect(screen.getByRole('button', { name: /tvs/i })).toBeInTheDocument();
   });
 
-  it('submits query when search button is clicked', () => {
+  it('blocks raw untagged search submissions on button click, form submit, and Enter key', () => {
     const handleSearch = vi.fn();
-    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+    render(<SearchBar onSearch={handleSearch} isLoading={false} taggedProducts={[]} />);
 
-    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'Compare iPad Pro vs Galaxy Tab' } });
 
     const submitBtn = screen.getByRole('button', { name: /^compare$/i });
-    fireEvent.click(submitBtn);
+    expect(submitBtn).toBeDisabled();
 
-    expect(handleSearch).toHaveBeenCalledTimes(1);
-    expect(handleSearch).toHaveBeenCalledWith('Compare iPad Pro vs Galaxy Tab', null);
+    fireEvent.click(submitBtn);
+    fireEvent.submit(screen.getByRole('search'));
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: false });
+
+    expect(handleSearch).not.toHaveBeenCalled();
   });
 
-  it('submits query with selected category filter', () => {
+  it('blocks 1-product search submissions on button click, form submit, and Enter key and shows helper text', () => {
     const handleSearch = vi.fn();
-    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+    render(
+      <SearchBar
+        onSearch={handleSearch}
+        isLoading={false}
+        taggedProducts={[twoMockProducts[0]]}
+      />
+    );
+
+    expect(
+      screen.getByText(/select at least 2 products to compare \(1 of 5 tagged\)/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/select at least 1 more product to compare/i)
+    ).toBeInTheDocument();
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'focus on battery life' } });
+
+    const submitBtn = screen.getByRole('button', { name: /^compare$/i });
+    expect(submitBtn).toBeDisabled();
+
+    fireEvent.click(submitBtn);
+    fireEvent.submit(screen.getByRole('search'));
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', shiftKey: false });
+
+    expect(handleSearch).not.toHaveBeenCalled();
+  });
+
+  it('submits query with selected category filter when at least 2 products of that category are tagged', () => {
+    const handleSearch = vi.fn();
+    render(
+      <SearchBar
+        onSearch={handleSearch}
+        isLoading={false}
+        taggedProducts={twoMockProducts}
+      />
+    );
 
     // Select category pill
-    fireEvent.click(screen.getByRole('button', { name: /tablets/i }));
+    fireEvent.click(screen.getByRole('button', { name: /laptops/i }));
 
-    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
-    fireEvent.change(input, { target: { value: 'Compare iPad Pro vs Galaxy Tab' } });
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Compare display and battery' } });
 
     fireEvent.submit(screen.getByRole('search'));
 
-    expect(handleSearch).toHaveBeenCalledWith('Compare iPad Pro vs Galaxy Tab', 'Tablets');
+    expect(handleSearch).toHaveBeenCalledTimes(1);
+    expect(handleSearch).toHaveBeenCalledWith(
+      expect.stringContaining('User Focus / Follow-up: Compare display and battery'),
+      'Laptops',
+      twoMockProducts
+    );
   });
 
-  it('disables submit button and input when isLoading is true', () => {
-    render(<SearchBar onSearch={vi.fn()} isLoading={true} />);
+  it('disables submit button and input when isLoading is true even when 2 products are tagged', () => {
+    render(
+      <SearchBar
+        onSearch={vi.fn()}
+        isLoading={true}
+        taggedProducts={twoMockProducts}
+      />
+    );
 
-    const input = screen.getByPlaceholderText(/compare macbook air m3 and dell xps 13/i);
+    const input = screen.getByRole('textbox');
     const submitBtn = screen.getByRole('button', { name: /comparing/i });
 
     expect(input).toBeDisabled();
@@ -390,18 +466,28 @@ describe('SearchBar', () => {
     expect((textarea as HTMLTextAreaElement).value).toContain('\n');
   });
 
-  it('submits search when Enter key without Shift is pressed', () => {
+  it('submits search when Enter key without Shift is pressed and at least 2 products are tagged', () => {
     const handleSearch = vi.fn();
-    render(<SearchBar onSearch={handleSearch} isLoading={false} />);
+    render(
+      <SearchBar
+        onSearch={handleSearch}
+        isLoading={false}
+        taggedProducts={twoMockProducts}
+      />
+    );
 
     const textarea = screen.getByRole('textbox');
-    fireEvent.change(textarea, { target: { value: 'Compare iPhone vs Pixel' } });
+    fireEvent.change(textarea, { target: { value: 'Compare battery life' } });
 
     const event = fireEvent.keyDown(textarea, { key: 'Enter', code: 'Enter', shiftKey: false });
     // Default newline insertion should be prevented
     expect(event).toBe(false);
     expect(handleSearch).toHaveBeenCalledTimes(1);
-    expect(handleSearch).toHaveBeenCalledWith('Compare iPhone vs Pixel', null);
+    expect(handleSearch).toHaveBeenCalledWith(
+      expect.stringContaining('User Focus / Follow-up: Compare battery life'),
+      null,
+      twoMockProducts
+    );
   });
 
   it('does not submit when Enter key is pressed if input is empty and no tagged products', () => {

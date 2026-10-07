@@ -157,13 +157,20 @@ export const App: React.FC = () => {
     category: string | null,
     tagged?: ProductSpec[]
   ) => {
+    const effectiveTagged =
+      tagged !== undefined
+        ? tagged
+        : selectedProducts.length > 0
+          ? selectedProducts
+          : taggedProducts;
+    if (!effectiveTagged || effectiveTagged.length < 2) {
+      return;
+    }
     setBrowseCategory(null);
     setIsAddCompareOpen(false);
     setAddCompareQuery('');
-    if (tagged !== undefined) {
-      setTaggedProducts(tagged);
-      setSelectedProducts([]);
-    }
+    setTaggedProducts(effectiveTagged);
+    setSelectedProducts([]);
     setIsChatOpen(true);
     setSearchParams({ query, category });
   };
@@ -322,7 +329,7 @@ export const App: React.FC = () => {
             Compare Consumer Electronics Side-by-Side
           </h1>
           <p className="text-base text-blue-100 max-w-2xl mx-auto">
-            Ask any product comparison query. Our agent retrieves verified specs directly from the BigQuery
+            Select at least 2 products from the catalog or search bar to compare. Our agent retrieves verified specs directly from the BigQuery
             catalog and highlights superior attributes instantly.
           </p>
         </div>
