@@ -79,7 +79,7 @@ STAGE4_SYNTHESIS_PROMPT_TEMPLATE = (
     "Best Buy Catalog Comparison Specialist. Ground strictly in <catalog_products>.\n"
     "RULES:\n"
     "1. Cite ALL {num_prods} products ({sku_tags_list}) using Short Product Name [SKU: <sku>] and exact $ price in 'summary' AND 'recommendations'.\n"
-    "2. 'summary' (<={summary_word_limit} words): 3 telegraphic '- ' bullets (<=10 words each) contrasting $ price, CPU/RAM/Storage, Display/Battery ('whereas'/'versus') + 'Executive Verdict:' (<=10 words). Prioritize any <user_query> focus.\n"
+    "2. 'summary' (<={summary_word_limit} words): 3 telegraphic '- ' bullets (<=14 words each) contrasting $ price and every spec key ({spec_keys_str}) with exact numeric values from <catalog_products> (e.g., 16, 256, 1000) ('whereas'/'versus') + 'Executive Verdict:' (<=10 words). Prioritize any <user_query> focus.\n"
     "3. 'recommendations' (<={recs_word_limit} words): {num_prods} persona picks separated by '; ' as 'Best for <Persona>: <Short Product Name> [SKU: <sku>] — <spec & $ reason>'.\n"
     "<user_query>{query}</user_query>\n"
     "<catalog_products>\n{candidates_desc}\n</catalog_products>\n"

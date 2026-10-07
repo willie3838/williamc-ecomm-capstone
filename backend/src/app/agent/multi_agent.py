@@ -10,18 +10,19 @@ Implements specialized cooperative agents and deterministic steps orchestrated v
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from google.adk import Context, Event, Workflow
 from google.adk.agents import Agent
 from google.adk.runners import Runner
-from google.adk.workflow import START, FunctionNode
+from google.adk.workflow import START, FunctionNode, JoinNode
 from google.cloud import bigquery
 from google.genai import types as genai_types
 
@@ -619,82 +620,57 @@ class MultiAgentCoordinator:
         self.last_workflow_events: list[Event] = []
 
     def _build_adk_workflow(self) -> Workflow:
-        """Construct the executable ADK 2.0 Workflow graph with 4 FunctionNodes and conditional routing edges."""
+        """Construct the executable ADK 2.0 Workflow graph with parallel START fan-out and JoinNode barrier."""
 
         async def _query_intent_node(ctx: Context, node_input: Any = None) -> Event:
-            from app.agent.orchestrator import _SPECULATIVE_SYNTH_POOL
-
-            state = _ACTIVE_WORKFLOW_STATE.get()
-            if state is None:
+            base_state = _ACTIVE_WORKFLOW_STATE.get()
+            if base_state is None:
                 if isinstance(node_input, ComparisonAgentState):
-                    state = node_input
+                    base_state = node_input
                 else:
-                    state = ComparisonAgentState(raw_query=str(node_input or ""))
-                _ACTIVE_WORKFLOW_STATE.set(state)
+                    base_state = ComparisonAgentState(raw_query=str(node_input or ""))
+                _ACTIVE_WORKFLOW_STATE.set(base_state)
 
-            explicit_category = state.detected_category
-            t0 = time.perf_counter()
-
-            # Launch Stage 2 (CatalogRetrievalStep) in parallel at t=0 alongside Stage 1 (QueryIntentAgent)
-            tagged_pairs = self.intent_agent.orchestrator.extract_tagged_products(state.raw_query)
-            tagged_skus = [sku for _, sku in tagged_pairs if sku]
-            prelim_safe_query = sanitize_user_prompt(state.raw_query)
-            should_prelaunch_s2 = bool(tagged_skus) or (
-                "[BLOCKED_INJECTION]" not in (prelim_safe_query or "")
-                and not self.intent_agent.orchestrator._is_opinion_query(state.raw_query)
+            intent_state = replace(
+                base_state,
+                target_keywords=list(base_state.target_keywords),
+                retrieved_products=[],
+                ranked_products=[],
+                step_history=[],
+                metadata=dict(base_state.metadata),
+                stage_trace=[],
+                workflow_routes={},
+                timing_breakdown_ms={},
             )
-            s2_future = None
-            if should_prelaunch_s2:
-                if len(tagged_skus) >= 2:
-                    s2_kw = list(tagged_skus)
-                    s2_cat = None
-                elif tagged_pairs:
-                    s2_kw = [kw for pair in tagged_pairs for kw in pair if kw]
-                    s2_cat = explicit_category
-                else:
-                    s2_kw = self.intent_agent.orchestrator.extract_keywords(state.raw_query)
-                    s2_cat = explicit_category
-                s2_state = ComparisonAgentState(
-                    raw_query=state.raw_query,
-                    sanitized_query=prelim_safe_query,
-                    is_comparison_eligible=True,
-                    target_keywords=s2_kw,
-                    detected_category=s2_cat,
-                )
-                s2_future = _SPECULATIVE_SYNTH_POOL.submit(self.retrieval_agent.process, s2_state)
-
-            state = self.intent_agent.process(state)
+            explicit_category = intent_state.detected_category
+            t0 = time.perf_counter()
+            intent_state = await asyncio.to_thread(self.intent_agent.process, intent_state)
             if explicit_category:
-                state.detected_category = explicit_category
+                intent_state.detected_category = explicit_category
             intent_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-            state.timing_breakdown_ms["intent_ms"] = intent_ms
-            state.stage_trace.append("query_intent_specialist")
+            intent_state.timing_breakdown_ms["intent_ms"] = intent_ms
+            intent_state.stage_trace.append("query_intent_specialist")
 
             route = (
                 "ELIGIBLE"
-                if (state.is_comparison_eligible and state.intent_type != "OPINION_OR_CHATTER")
+                if (
+                    intent_state.is_comparison_eligible
+                    and intent_state.intent_type != "OPINION_OR_CHATTER"
+                )
                 else "SKIP_RETRIEVAL"
             )
-            if route == "SKIP_RETRIEVAL":
-                if s2_future is not None:
-                    s2_future.cancel()
-                state.retrieved_products = []
-                object.__setattr__(state, "_parallel_stage2_future", None)
-            else:
-                object.__setattr__(state, "_parallel_stage2_future", s2_future)
-
-            state.workflow_routes["query_intent_specialist"] = route
+            intent_state.workflow_routes["query_intent_specialist"] = route
             stage_1_meta = {
-                "intent_type": state.intent_type,
-                "is_comparison_eligible": state.is_comparison_eligible,
-                "keywords": list(state.target_keywords),
-                "category": state.detected_category,
+                "intent_type": intent_state.intent_type,
+                "is_comparison_eligible": intent_state.is_comparison_eligible,
+                "keywords": list(intent_state.target_keywords),
+                "category": intent_state.detected_category,
                 "sub_agent": self.intent_agent.adk_agent.name,
                 "route": route,
             }
             return Event(
                 author="query_intent_specialist",
-                output=state,
+                output=intent_state,
                 route=route,
                 state={"stage_1_intent": stage_1_meta},
                 custom_metadata={
@@ -705,39 +681,71 @@ class MultiAgentCoordinator:
             )
 
         async def _catalog_retrieval_node(ctx: Context, node_input: Any = None) -> Event:
-            state = (
+            base_state = (
                 node_input
                 if isinstance(node_input, ComparisonAgentState)
                 else (_ACTIVE_WORKFLOW_STATE.get() or ComparisonAgentState(raw_query=""))
             )
-            t0 = time.perf_counter()
-            s2_future = getattr(state, "_parallel_stage2_future", None)
-            object.__setattr__(state, "_parallel_stage2_future", None)
-            if s2_future is not None:
-                try:
-                    s2_done = s2_future.result()
-                    state.retrieved_products = list(s2_done.retrieved_products)
-                    if s2_done.step_history:
-                        state.step_history.append(s2_done.step_history[-1])
-                except Exception:
-                    state = self.retrieval_agent.process(state)
+            prelim_safe_query = sanitize_user_prompt(base_state.raw_query)
+            tagged_pairs = self.intent_agent.orchestrator.extract_tagged_products(
+                base_state.raw_query
+            )
+            tagged_skus = [sku for _, sku in tagged_pairs if sku]
+            if base_state.target_keywords:
+                s2_kw = list(base_state.target_keywords)
+                s2_cat = base_state.detected_category
+            elif len(tagged_skus) >= 2:
+                s2_kw = list(tagged_skus)
+                s2_cat = None
+            elif tagged_pairs:
+                s2_kw = [kw for pair in tagged_pairs for kw in pair if kw]
+                s2_cat = base_state.detected_category
             else:
-                state = self.retrieval_agent.process(state)
-            retrieval_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-            state.timing_breakdown_ms["retrieval_ms"] = retrieval_ms
-            state.stage_trace.append("catalog_retrieval_step")
+                s2_kw = self.intent_agent.orchestrator.extract_keywords(base_state.raw_query)
+                s2_cat = base_state.detected_category
 
-            route = "HAS_CANDIDATES" if len(state.retrieved_products) > 0 else "EMPTY_CANDIDATES"
-            state.workflow_routes["catalog_retrieval_step"] = route
+            s2_eligible = bool(base_state.is_comparison_eligible) and (
+                bool(tagged_skus)
+                or (
+                    "[BLOCKED_INJECTION]" not in (prelim_safe_query or "")
+                    and not self.intent_agent.orchestrator._is_opinion_query(base_state.raw_query)
+                )
+            )
+            retrieval_state = replace(
+                base_state,
+                sanitized_query=prelim_safe_query,
+                is_comparison_eligible=s2_eligible,
+                target_keywords=s2_kw,
+                detected_category=s2_cat,
+                retrieved_products=[],
+                ranked_products=[],
+                step_history=[],
+                metadata=dict(base_state.metadata),
+                stage_trace=[],
+                workflow_routes={},
+                timing_breakdown_ms={},
+            )
+            t0 = time.perf_counter()
+            retrieval_state = await asyncio.to_thread(self.retrieval_agent.process, retrieval_state)
+            retrieval_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+            retrieval_state.timing_breakdown_ms["retrieval_ms"] = retrieval_ms
+            retrieval_state.stage_trace.append("catalog_retrieval_step")
+
+            route = (
+                "HAS_CANDIDATES"
+                if len(retrieval_state.retrieved_products) > 0
+                else "EMPTY_CANDIDATES"
+            )
+            retrieval_state.workflow_routes["catalog_retrieval_step"] = route
             stage_2_meta = {
-                "retrieved_skus": [p.sku for p in state.retrieved_products],
-                "retrieved_count": len(state.retrieved_products),
+                "retrieved_skus": [p.sku for p in retrieval_state.retrieved_products],
+                "retrieved_count": len(retrieval_state.retrieved_products),
                 "step": "CatalogRetrievalStep",
                 "route": route,
             }
             return Event(
                 author="catalog_retrieval_step",
-                output=state,
+                output=retrieval_state,
                 route=route,
                 state={"stage_2_retrieval": stage_2_meta},
                 custom_metadata={
@@ -748,11 +756,50 @@ class MultiAgentCoordinator:
             )
 
         async def _relevance_detector_node(ctx: Context, node_input: Any = None) -> Event:
-            state = (
-                node_input
-                if isinstance(node_input, ComparisonAgentState)
-                else (_ACTIVE_WORKFLOW_STATE.get() or ComparisonAgentState(raw_query=""))
-            )
+            state = _ACTIVE_WORKFLOW_STATE.get() or ComparisonAgentState(raw_query="")
+            if isinstance(node_input, dict):
+                intent_out = node_input.get("query_intent_specialist")
+                retrieval_out = node_input.get("catalog_retrieval_step")
+                if isinstance(intent_out, ComparisonAgentState):
+                    state.sanitized_query = intent_out.sanitized_query
+                    state.intent_type = intent_out.intent_type
+                    state.is_comparison_eligible = intent_out.is_comparison_eligible
+                    state.target_keywords = list(intent_out.target_keywords)
+                    state.detected_category = intent_out.detected_category
+                    state.step_history.extend(intent_out.step_history)
+                    state.metadata.update(intent_out.metadata)
+                    state.stage_trace.extend(intent_out.stage_trace)
+                    state.workflow_routes.update(intent_out.workflow_routes)
+                    state.timing_breakdown_ms.update(intent_out.timing_breakdown_ms)
+                if isinstance(retrieval_out, ComparisonAgentState):
+                    state.retrieved_products = list(retrieval_out.retrieved_products)
+                    state.step_history.extend(retrieval_out.step_history)
+                    state.stage_trace.extend(retrieval_out.stage_trace)
+                    state.workflow_routes.update(retrieval_out.workflow_routes)
+                    state.timing_breakdown_ms.update(retrieval_out.timing_breakdown_ms)
+            elif isinstance(node_input, ComparisonAgentState):
+                state = node_input
+
+            if not state.is_comparison_eligible or state.intent_type == "OPINION_OR_CHATTER":
+                state.retrieved_products = []
+                state.ranked_products = []
+                state.workflow_routes["query_intent_specialist"] = "SKIP_RETRIEVAL"
+            elif (
+                not state.retrieved_products
+                and state.target_keywords
+                and isinstance(node_input, dict)
+                and isinstance(node_input.get("catalog_retrieval_step"), ComparisonAgentState)
+                and state.target_keywords != node_input["catalog_retrieval_step"].target_keywords
+            ):
+                tagged_check = self.intent_agent.orchestrator.extract_tagged_products(
+                    state.raw_query
+                )
+                if len([sku for _, sku in tagged_check if sku]) < 2:
+                    fallback_state = await asyncio.to_thread(
+                        self.retrieval_agent.process, replace(state, step_history=[])
+                    )
+                    state.retrieved_products = list(fallback_state.retrieved_products)
+
             t0 = time.perf_counter()
             state = self.relevance_agent.process(state)
             relevance_ms = round((time.perf_counter() - t0) * 1000.0, 2)
@@ -812,6 +859,7 @@ class MultiAgentCoordinator:
             func=_catalog_retrieval_node,
             name="catalog_retrieval_step",
         )
+        stage_join_node = JoinNode(name="intent_retrieval_join")
         relevance_node = FunctionNode(
             func=_relevance_detector_node,
             name="relevance_detector_specialist",
@@ -826,24 +874,12 @@ class MultiAgentCoordinator:
             description=(
                 "ADK 2.0 4-node comparison workflow graph combining specialist LLM agents "
                 "(QueryIntentAgent, RelevanceDetectorAgent, SpecComparisonAgent) with "
-                "deterministic BigQuery SQL retrieval (CatalogRetrievalStep) and conditional routing."
+                "parallel BigQuery SQL retrieval (CatalogRetrievalStep) and JoinNode synchronization."
             ),
             edges=[
-                (START, intent_node),
-                (
-                    intent_node,
-                    {
-                        "ELIGIBLE": retrieval_node,
-                        "SKIP_RETRIEVAL": comparison_node,
-                    },
-                ),
-                (
-                    retrieval_node,
-                    {
-                        "HAS_CANDIDATES": relevance_node,
-                        "EMPTY_CANDIDATES": comparison_node,
-                    },
-                ),
+                (START, (intent_node, retrieval_node)),
+                ((intent_node, retrieval_node), stage_join_node),
+                (stage_join_node, relevance_node),
                 (relevance_node, comparison_node),
             ],
         )
