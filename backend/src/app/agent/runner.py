@@ -151,24 +151,80 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
         **kwargs: Any,
     ) -> Session:
         # Always maintain L1 in-memory copy for fast local lookup and fallback resilience
-        local_session = await self._fallback_memory.create_session(
-            app_name=app_name,
-            user_id=user_id,
-            state=state,
-            session_id=session_id,
-        )
+        local_session: Session | None = None
+        if session_id:
+            try:
+                local_session = await self._fallback_memory.get_session(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+            except Exception:
+                local_session = None
+
+        if local_session is None:
+            try:
+                local_session = await self._fallback_memory.create_session(
+                    app_name=app_name,
+                    user_id=user_id,
+                    state=state,
+                    session_id=session_id,
+                )
+            except Exception as exc:
+                # If session already exists in L1 memory, retrieve it
+                local_session = await self._fallback_memory.get_session(
+                    app_name=app_name,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                if local_session is None:
+                    raise exc
+                if (
+                    state
+                    and hasattr(local_session, "state")
+                    and isinstance(local_session.state, dict)
+                ):
+                    local_session.state.update(state)
+        elif state and hasattr(local_session, "state") and isinstance(local_session.state, dict):
+            local_session.state.update(state)
+
         if self._should_use_vertex_remote():
             try:
-                try:
-                    remote_session = await super().create_session(
-                        app_name=self.agent_engine_id or app_name,
-                        user_id=user_id,
-                        state=state,
-                        session_id=session_id,
-                        **kwargs,
-                    )
-                except ValueError:
-                    # Fallback if upstream ADK / Vertex rejects user-provided session_id
+                remote_session: Session | None = None
+                if session_id:
+                    try:
+                        remote_session = await super().create_session(
+                            app_name=self.agent_engine_id or app_name,
+                            user_id=user_id,
+                            state=state,
+                            session_id=session_id,
+                            **kwargs,
+                        )
+                    except Exception as create_exc:
+                        is_already_exists = (
+                            "already exists" in str(create_exc).lower()
+                            or "alreadyexists" in type(create_exc).__name__.lower()
+                            or getattr(create_exc, "code", None) == 409
+                        )
+                        if is_already_exists:
+                            try:
+                                remote_session = await super().get_session(
+                                    app_name=self.agent_engine_id or app_name,
+                                    user_id=user_id,
+                                    session_id=session_id,
+                                )
+                            except Exception:
+                                remote_session = None
+                        if remote_session is None:
+                            # Fallback if upstream ADK / Vertex rejects user-provided session_id
+                            remote_session = await super().create_session(
+                                app_name=self.agent_engine_id or app_name,
+                                user_id=user_id,
+                                state=state,
+                                session_id=None,
+                                **kwargs,
+                            )
+                else:
                     remote_session = await super().create_session(
                         app_name=self.agent_engine_id or app_name,
                         user_id=user_id,
@@ -176,6 +232,7 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
                         session_id=None,
                         **kwargs,
                     )
+
                 if session_id and remote_session.id != session_id:
                     self._remote_session_id_map[(user_id, session_id)] = str(remote_session.id)
                     remote_session.id = session_id
@@ -267,8 +324,36 @@ class CatalogVertexAiSessionService(VertexAiSessionService):
             except Exception as exc:
                 logger.debug("VertexAiSessionService.delete_session note: %s", exc)
 
-    async def append_event(self, session: Session, event: Event) -> Event:
-        updated = await self._fallback_memory.append_event(session=session, event=event)
+    async def append_event(
+        self,
+        session: Session,
+        event: Event,
+        *,
+        remote_only: bool = False,
+    ) -> Event:
+        if not remote_only:
+            # Check if event already exists in fallback memory to avoid duplication
+            existing_sess = await self._fallback_memory.get_session(
+                app_name=session.app_name,
+                user_id=session.user_id,
+                session_id=session.id,
+            )
+            event_already_present = False
+            if existing_sess and hasattr(existing_sess, "events"):
+                ev_id = getattr(event, "id", None)
+                if ev_id:
+                    event_already_present = any(
+                        getattr(e, "id", None) == ev_id for e in existing_sess.events
+                    )
+                else:
+                    event_already_present = event in existing_sess.events
+            if not event_already_present:
+                updated = await self._fallback_memory.append_event(session=session, event=event)
+            else:
+                updated = event
+        else:
+            updated = event
+
         sid = str(getattr(session, "id", "") or "")
         if self._should_use_vertex_remote() and sid:
             uid = str(getattr(session, "user_id", "") or "")

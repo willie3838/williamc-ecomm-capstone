@@ -93,8 +93,10 @@ def _register_reasoning_engine_query_method() -> None:
             agent_version: str | None = None,
             model: str | None = None,
             synthesis_model: str | None = None,
+            user_id: str | None = None,
             **kwargs: Any,
         ) -> dict[str, Any]:
+            resolved_user_id = user_id or kwargs.get("user_id")
             return reasoning_engine.query(
                 query=query,
                 category=category,
@@ -102,6 +104,7 @@ def _register_reasoning_engine_query_method() -> None:
                 agent_version=agent_version,
                 model=model,
                 synthesis_model=synthesis_model,
+                user_id=resolved_user_id,
                 **kwargs,
             )
 
@@ -141,6 +144,9 @@ def _register_reasoning_engine_query_method() -> None:
                         parsed_msg = json.loads(message)
                     except Exception:
                         parsed_msg = message
+                effective_user_id = (
+                    parsed_msg.get("user_id") if isinstance(parsed_msg, dict) else None
+                ) or user_id
                 if isinstance(parsed_msg, dict) and parsed_msg.get("__compare_request__"):
                     yield reasoning_engine.query(
                         query=str(parsed_msg.get("query") or ""),
@@ -152,11 +158,16 @@ def _register_reasoning_engine_query_method() -> None:
                         stage1_model=parsed_msg.get("stage1_model"),
                         stage2_model=parsed_msg.get("stage2_model"),
                         stage3_model=parsed_msg.get("stage3_model"),
+                        user_id=effective_user_id,
                     )
                     return
                 user_text = _extract_message_text(message)
                 if user_text:
-                    res = reasoning_engine.query(query=user_text, session_id=session_id)
+                    res = reasoning_engine.query(
+                        query=user_text,
+                        session_id=session_id,
+                        user_id=effective_user_id,
+                    )
                     yield _format_playground_event(res)
                     return
                 yield from orig_stream_query(
@@ -192,6 +203,9 @@ def _register_reasoning_engine_query_method() -> None:
                         parsed_msg = json.loads(message)
                     except Exception:
                         parsed_msg = message
+                effective_user_id = (
+                    parsed_msg.get("user_id") if isinstance(parsed_msg, dict) else None
+                ) or user_id
                 if isinstance(parsed_msg, dict) and parsed_msg.get("__compare_request__"):
                     res = await asyncio.to_thread(
                         reasoning_engine.query,
@@ -204,6 +218,7 @@ def _register_reasoning_engine_query_method() -> None:
                         stage1_model=parsed_msg.get("stage1_model"),
                         stage2_model=parsed_msg.get("stage2_model"),
                         stage3_model=parsed_msg.get("stage3_model"),
+                        user_id=effective_user_id,
                     )
                     yield res
                     return
@@ -213,6 +228,7 @@ def _register_reasoning_engine_query_method() -> None:
                         reasoning_engine.query,
                         query=user_text,
                         session_id=session_id,
+                        user_id=effective_user_id,
                     )
                     yield _format_playground_event(res)
                     return

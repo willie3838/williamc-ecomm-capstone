@@ -28,18 +28,30 @@ import { buildComparisonPrompt } from './utils/promptBuilder';
 
 const INITIAL_VISIBLE_CARDS = 40;
 
+const createFreshSessionId = (): string => {
+  return 'sess-' + Math.random().toString(36).substring(2, 10);
+};
+
 export const App: React.FC = () => {
-  const [sessionId] = useState<string>(() => {
+  const [sessionId, setSessionId] = useState<string>(() => {
     const existing = sessionStorage.getItem('bb_session_id');
     if (existing) return existing;
-    const fresh = 'sess-' + Math.random().toString(36).substring(2, 10);
+    const fresh = createFreshSessionId();
     sessionStorage.setItem('bb_session_id', fresh);
     return fresh;
   });
 
+  const rotateSessionId = React.useCallback((): string => {
+    const fresh = createFreshSessionId();
+    sessionStorage.setItem('bb_session_id', fresh);
+    setSessionId(fresh);
+    return fresh;
+  }, []);
+
   const [searchParams, setSearchParams] = useState<{
     query: string;
     category: string | null;
+    sessionId: string;
   } | null>(null);
 
   const [browseCategory, setBrowseCategory] = useState<{
@@ -108,13 +120,13 @@ export const App: React.FC = () => {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['compare', searchParams?.query, searchParams?.category],
+    queryKey: ['compare', searchParams?.query, searchParams?.category, searchParams?.sessionId],
     queryFn: () =>
       searchParams
         ? compareProducts({
             query: searchParams.query,
             category: searchParams.category,
-            session_id: sessionId,
+            session_id: searchParams.sessionId,
           })
         : null,
     enabled: !!searchParams?.query,
@@ -142,6 +154,7 @@ export const App: React.FC = () => {
   }
 
   const handleGoHome = () => {
+    rotateSessionId();
     setSearchParams(null);
     setBrowseCategory({ category: null });
     setCatalogSearchQuery('');
@@ -166,13 +179,14 @@ export const App: React.FC = () => {
     if (!effectiveTagged || effectiveTagged.length < 2) {
       return;
     }
+    const freshSessionId = rotateSessionId();
     setBrowseCategory(null);
     setIsAddCompareOpen(false);
     setAddCompareQuery('');
     setTaggedProducts(effectiveTagged);
     setSelectedProducts([]);
     setIsChatOpen(true);
-    setSearchParams({ query, category });
+    setSearchParams({ query, category, sessionId: freshSessionId });
   };
 
   const handleCategorySelect = (category: string | null) => {
@@ -241,11 +255,12 @@ export const App: React.FC = () => {
       products.every((p) => Boolean(p.category) && p.category === products[0].category);
     const category = allSameCategory ? (products[0].category || null) : null;
 
+    const freshSessionId = rotateSessionId();
     setBrowseCategory(null);
     setTaggedProducts([...products]);
     setSelectedProducts([]);
     setIsChatOpen(true);
-    setSearchParams({ query: prompt, category });
+    setSearchParams({ query: prompt, category, sessionId: freshSessionId });
   };
 
   const handleAddProductToActiveComparison = (product: ProductSpec) => {
@@ -414,7 +429,7 @@ export const App: React.FC = () => {
                   recommendations={comparison.recommendations}
                   query={searchParams?.query || ''}
                   targetSkus={comparison.products.map((p) => p.sku)}
-                  sessionId={sessionId}
+                  sessionId={searchParams?.sessionId || sessionId}
                   traceId={comparison.trace_id || ''}
                   onOpenChat={() => setIsChatOpen(true)}
                 />
@@ -629,11 +644,12 @@ export const App: React.FC = () => {
               {/* Conversational Follow-up Sidebar */}
               {comparison.products.length > 0 && (
                 <ConversationSidebar
+                  key={searchParams?.sessionId || sessionId}
                   isOpen={isChatOpen}
                   onClose={() => setIsChatOpen(false)}
                   products={comparison.products}
                   comparisonMatrix={comparison.comparison_matrix}
-                  sessionId={sessionId}
+                  sessionId={searchParams?.sessionId || sessionId}
                   onViewProductDetails={handleOpenProductDetails}
                 />
               )}

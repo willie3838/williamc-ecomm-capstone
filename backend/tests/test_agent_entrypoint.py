@@ -129,6 +129,7 @@ class TestAgentEntrypoint:
                 query="Compare MacBook and Dell",
                 category="Laptops",
                 session_id="sess-456",
+                user_id=None,
                 agent_version=None,
                 model=None,
                 synthesis_model=None,
