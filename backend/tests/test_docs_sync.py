@@ -70,6 +70,35 @@ def test_no_local_markdown_slides_exist():
         )
 
 
+def test_rollback_playbook_documents_agent_runtime_disabling():
+    """Verify docs/ROLLBACK_PLAYBOOK.md and backend/AGENTS.md document disabling AGENT_RUNTIME_RESOURCE_NAME on Cloud Run."""
+    playbook_file = REPO_ROOT / "docs" / "ROLLBACK_PLAYBOOK.md"
+    assert playbook_file.exists(), f"ROLLBACK_PLAYBOOK.md not found at {playbook_file}"
+    playbook_text = playbook_file.read_text(encoding="utf-8")
+
+    assert "AGENT_RUNTIME_RESOURCE_NAME" in playbook_text
+    assert '--remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"' in playbook_text
+    assert "must be disabled on Cloud Run" in playbook_text
+
+    # Verify Option B2 individual stage switch commands include --remove-env-vars="AGENT_RUNTIME_RESOURCE_NAME"
+    stage_switch_commands = [
+        "STAGE1_INTENT_MODEL=gemini-2.5-flash",
+        "STAGE2_RELEVANCE_MODEL=gemini-2.5-flash",
+        "STAGE3_SYNTHESIS_MODEL=gemini-2.5-flash",
+        "STAGE5_CHAT_MODEL=gemini-2.5-flash-lite",
+    ]
+    for cmd in stage_switch_commands:
+        assert cmd in playbook_text, f"Missing stage command {cmd} in ROLLBACK_PLAYBOOK.md"
+
+    # Verify backend/AGENTS.md synchronizes this requirement
+    backend_agents_file = REPO_ROOT / "backend" / "AGENTS.md"
+    assert backend_agents_file.exists(), f"backend/AGENTS.md not found at {backend_agents_file}"
+    backend_agents_text = backend_agents_file.read_text(encoding="utf-8")
+
+    assert "--remove-env-vars AGENT_RUNTIME_RESOURCE_NAME" in backend_agents_text
+    assert "must be disabled on Cloud Run" in backend_agents_text
+
+
 def check_docs_sync(modified_files: list[str], bypass: bool = False) -> tuple[bool, str]:
     """Evaluate whether modified files satisfy the strict documentation synchronization rule.
 
